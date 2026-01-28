@@ -88,9 +88,9 @@ export default function Home() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
           <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest">
-            <MapPin size={14} className="text-blue-400"/> Santa Isabel - SP
+            <MapPin size={14} className="text-blue-400"/> Santa Isabel - Loja principal
           </div>
-          <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e lanches. Entregamos em toda cidade.</p>
+          <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.</p>
         </div>
       </div>
 
@@ -144,8 +144,9 @@ export default function Home() {
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
             <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">CONVENIÊNCIA SANTA ISABEL</p>
-            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">Avenida Principal, 123 - Centro</p>
-            <a href="https://maps.google.com" target="_blank" className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
+            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">R. Neida Maciel, 122 - Santa Isabel
+Viamão - RS</p>
+            <a href="https://share.google/BM8tOiMLqp6yzxibm" target="_blank" className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
                 Ver no Google Maps <ExternalLink size={14}/>
             </a>
         </div>
@@ -155,7 +156,7 @@ export default function Home() {
       <footer className="p-12 text-center">
         <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
         <div className="flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer">
-          <img src="/logo-square.png" alt="Velo" className="h-6 w-auto mb-2" />
+          <img src="/logo retangular Vero Delivery.png" alt="Velo" className="h-6 w-auto mb-2" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
           <p className="text-[8px] text-slate-400 mt-1 uppercase font-bold">Tecnologia em Logística de Bebidas</p>
         </div>

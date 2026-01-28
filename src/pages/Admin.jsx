@@ -95,7 +95,7 @@ export default function Admin() {
       {/* SIDEBAR COM ASSINATURA VELO */}
       <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="flex flex-col items-center mb-10">
-          <img src="/logo-loja.png" className="h-16 w-16 rounded-full border-4 border-blue-50 shadow-sm mb-4" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
+          <img src="/logo retangular vero delivery.png" className="h-16 w-16 rounded-full border-4 border-blue-50 shadow-sm mb-4" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Painel Gestão</h2>
           <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
         </div>
@@ -116,7 +116,7 @@ export default function Admin() {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-50 flex flex-col items-center opacity-30">
-          <img src="/logo-square.png" className="h-6 w-auto grayscale mb-1" />
+          <img src="/logo retangular Vero Delivery.png" className="h-6 w-auto grayscale mb-1" />
           <p className="text-[8px] font-black uppercase">Velo Admin Console</p>
         </div>
       </aside>
@@ -160,9 +160,16 @@ export default function Admin() {
                   <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
                   <button onClick={() => printLabel(o)} className="p-4 bg-slate-50 rounded-2xl text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-sm"><Printer size={20}/></button>
                   <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g,'')}`} target="_blank" className="p-4 bg-green-500 text-white rounded-2xl shadow-lg"><MessageCircle size={20}/></a>
-                  <select value={o.status} onChange={(e) => updateDoc(doc(db,"orders",o.id), {status: e.target.value})} className="bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] outline-none border-none cursor-pointer">
-                      <option value="pending">🟡 Pendente</option><option value="delivery">🟣 Em Rota</option><option value="completed">🟢 Entregue</option>
-                  </select>
+<select 
+  value={o.status} 
+  onChange={(e) => updateDoc(doc(db,"orders",o.id), {status: e.target.value})} 
+  className="bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] outline-none border-none cursor-pointer"
+>
+    <option value="pending">🟡 Pendente</option>
+    <option value="preparing">🟠 Preparando</option>
+    <option value="delivery">🟣 Em Rota</option>
+    <option value="completed">🟢 Entregue</option>
+</select>
                 </div>
               </div>
             ))}
