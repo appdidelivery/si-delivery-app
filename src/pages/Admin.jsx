@@ -191,9 +191,9 @@ export default function Admin() {
                     {manualCart.map(i => <div key={i.id} className="flex justify-between mb-2 font-bold text-slate-600 text-sm"><span>{i.quantity}x {i.name}</span><span>R$ {(i.price*i.quantity).toFixed(2)}</span></div>)}
                     <div className="text-3xl font-black text-slate-900 mt-6 italic">Total R$ {manualCart.reduce((a,i)=>a+(i.price*i.quantity),0).toFixed(2)}</div>
                     <button onClick={async () => {
-                      if(!manualCustomer.name || manualCart.length===0) return alert("Erro nos dados!");
+                      if(!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length===0) return alert("Por favor, preencha o nome, endereço, telefone e adicione itens ao carrinho para salvar o pedido!");
                       await addDoc(collection(db,"orders"),{...manualCustomer, customerName: manualCustomer.name, customerAddress: manualCustomer.address, customerPhone: manualCustomer.phone, items: manualCart, total: manualCart.reduce((a,i)=>a+(i.price*i.quantity),0), status:'pending', createdAt: serverTimestamp()});
-                      setManualCart([]); setManualCustomer({name:'', address:'', phone:'', payment:'pix'}); alert("Pedido Manual Lançado!");
+                      setManualCart([]); setManualCustomer({name:'', address:'', phone:'', payment:'pix'}); alert("Pedido Manual Lançado com sucesso!");
                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-8 shadow-xl">Salvar no Sistema</button>
                  </div>
                </div>

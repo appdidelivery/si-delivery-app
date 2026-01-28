@@ -22,6 +22,8 @@ export default function Home() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [customer, setCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
   const [promo, setPromo] = useState(null);
+  const [cartAnimationKey, setCartAnimationKey] = useState(0);
+  
 
   useEffect(() => {
     onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -33,6 +35,7 @@ export default function Home() {
       const ex = prev.find(i => i.id === p.id);
       return ex ? prev.map(i => i.id === p.id ? {...i, quantity: i.quantity + 1} : i) : [...prev, {...p, quantity: 1}];
     });
+    setCartAnimationKey(prev => prev + 1); // <--- ADICIONE ESTA LINHA
   };
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
@@ -167,7 +170,17 @@ Viamão - RS</p>
         {cart.length > 0 && !showCheckout && (
           <motion.div initial={{y:100}} animate={{y:0}} exit={{y:100}} className="fixed bottom-6 left-4 right-4 max-w-md mx-auto bg-slate-900 text-white p-4 rounded-[2.5rem] shadow-2xl flex justify-between items-center z-[60] border border-white/10">
             <div className="flex items-center gap-4 ml-2">
-              <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg"><ShoppingCart size={20}/></div>
+              {/* ESTE É O BLOCO QUE FOI ALTERADO: AGORA É motion.div */}
+              <motion.div 
+                key={cartAnimationKey} 
+                initial={{ scale: 0.8, rotate: -15 }} 
+                animate={{ scale: 1, rotate: 0 }} 
+                transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                className="bg-blue-600 p-2.5 rounded-xl shadow-lg"
+              >
+                <ShoppingCart size={20}/>
+              </motion.div>
+              {/* FIM DO BLOCO ALTERADO */}
               <div>
                 <p className="text-lg font-black italic">R$ {subtotal.toFixed(2)}</p>
                 <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">{cart.length} ITENS</p>
