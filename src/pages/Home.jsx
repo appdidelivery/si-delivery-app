@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle } from 'lucide-react'; // Adicionado XCircle
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -25,14 +25,16 @@ export default function Home() {
   const [cartAnimationKey, setCartAnimationKey] = useState(0); 
   const [promo, setPromo] = useState(null);
 
-  // --- Novos Estados para Status da Loja ---
-  const [storeStatus, setStoreStatus] = useState({
+  // --- Estados para Status da Loja (agora incluindo Logo e Banner URLs) ---
+  const [storeConfig, setStoreConfig] = useState({ // Renomeado de storeStatus para storeConfig para incluir mais que só status
     isOpen: true,
     openTime: '08:00',
     closeTime: '23:00',
     message: 'Aberto agora!',
+    storeLogoUrl: '/logo-loja.png', // <--- Padrão
+    storeBannerUrl: '/fachada.jpg', // <--- Padrão
   });
-  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); // Estado calculado
+  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); 
   const [storeMessage, setStoreMessage] = useState('Verificando status...');
 
   useEffect(() => {
@@ -41,25 +43,24 @@ export default function Home() {
     // Listener para Promoção
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
     
-    // --- NOVO: Listener para Status da Loja ---
-    const unsubStoreStatus = onSnapshot(doc(db, "settings", "store_status"), (d) => {
+    // --- NOVO: Listener para Configurações da Loja ---
+    const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
       if (d.exists()) {
         const data = d.data();
-        setStoreStatus(data); // Atualiza o estado com os dados do Firestore
+        setStoreConfig(data); // Atualiza o estado com todos os dados do Firestore
 
         // Lógica para verificar se a loja está aberta AGORA
         const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes(); // Tempo atual em minutos
+        const currentTime = now.getHours() * 60 + now.getMinutes(); 
 
-        const [openHour, openMinute] = data.openTime.split(':').map(Number);
-        const [closeHour, closeMinute] = data.closeTime.split(':').map(Number);
+        const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number); // Adicionado default para evitar erro se campo estiver vazio
+        const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number); // Adicionado default
 
         const scheduledOpenTime = openHour * 60 + openMinute;
         const scheduledCloseTime = closeHour * 60 + closeMinute;
 
         const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
         
-        // A loja está aberta se o administrador marcou como aberta E (estiver dentro do horário programado OU não tiver horário programado)
         const finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
 
         setIsStoreOpenNow(finalStatus);
@@ -75,13 +76,13 @@ export default function Home() {
     return () => { 
       unsubProducts(); 
       unsubPromo(); 
-      unsubStoreStatus(); // <--- Retorna a função de limpeza
+      unsubStoreConfig(); // <--- Retorna a função de limpeza
     };
   }, []);
 
   const addToCart = (p) => {
     if (!isStoreOpenNow) {
-      alert(storeMessage); // Alerta com a mensagem da loja se estiver fechada
+      alert(storeMessage); 
       return;
     }
     setCart(prev => {
@@ -107,7 +108,7 @@ export default function Home() {
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
 
   const finalizeOrder = async () => {
-    if (!isStoreOpenNow) { // Impede finalização se a loja estiver fechada
+    if (!isStoreOpenNow) { 
       alert(storeMessage);
       return;
     }
@@ -140,26 +141,32 @@ export default function Home() {
       {/* 1. TOPO: LOGO E STATUS */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
-          <img src="/logo-loja.png" alt="Logo" className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
+          {/* LOGO DA LOJA (AGORA DINÂMICO) */}
+          <img 
+            src={storeConfig.storeLogoUrl} // <--- USA A URL DO FIRESTORE
+            alt="Logo" 
+            className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
+            onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} // Fallback
+          />
           <div>
             <h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1>
             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p>
           </div>
         </div>
-        {/* Status da Loja (AGORA DINÂMICO) */}
+        {/* Status da Loja Dinâmico */}
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>}
           <span className="text-[10px] font-black uppercase">{storeMessage}</span>
         </div>
       </header>
 
-      {/* 2. BANNER DA FACHADA */}
+      {/* 2. BANNER DA FACHADA (AGORA DINÂMICO) */}
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
         <img 
-          src="/fachada.jpg" 
+          src={storeConfig.storeBannerUrl} // <--- USA A URL DO FIRESTORE
           alt="Fachada" 
           className="w-full h-full object-cover brightness-75"
-          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"}
+          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} // Fallback
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
           <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest">
@@ -205,10 +212,9 @@ export default function Home() {
               <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
               <div className="flex justify-between items-center mt-auto">
                 <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
-                {/* Desabilita botão se a loja estiver fechada */}
                 <button 
                   onClick={() => addToCart(p)} 
-                  disabled={!isStoreOpenNow} // <--- Desabilita o botão
+                  disabled={!isStoreOpenNow} 
                   className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
                 >
                   <ShoppingCart size={16} />
@@ -261,10 +267,9 @@ Viamão - RS</p>
                 <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">{cart.length} ITENS</p>
               </div>
             </div>
-            {/* Desabilita o botão Finalizar se a loja estiver fechada */}
             <button 
               onClick={() => setShowCheckout(true)} 
-              disabled={!isStoreOpenNow} // <--- Desabilita o botão
+              disabled={!isStoreOpenNow} 
               className={`px-10 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl transition-all ${isStoreOpenNow ? 'bg-blue-600 hover:bg-blue-500 active:scale-95 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
             >
               Finalizar
@@ -363,7 +368,7 @@ Viamão - RS</p>
 
               <button 
                 onClick={finalizeOrder} 
-                disabled={!isStoreOpenNow} // <--- Desabilita o botão se a loja estiver fechada
+                disabled={!isStoreOpenNow} 
                 className={`w-full py-8 rounded-[2.5rem] font-black text-xl mt-8 uppercase tracking-widest shadow-2xl transition-all ${isStoreOpenNow ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white' : 'bg-slate-500 text-slate-300 cursor-not-allowed'}`}
               >
                 Confirmar Pedido
