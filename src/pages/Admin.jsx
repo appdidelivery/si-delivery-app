@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3, 
-  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image // <--- Image para preview
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -23,7 +23,7 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
-  const [settings, setSettings] = useState({ promoActive: false });
+  const [settings, setSettings] = useState({ promoActive: false, promoBannerUrl: '' }); // <--- NOVO: promoBannerUrl no estado settings
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({ name: '', price: '', category: 'Cervejas', imageUrl: '', tag: '' });
   const [editingId, setEditingId] = useState(null);
@@ -32,29 +32,34 @@ export default function Admin() {
   const [manualCart, setManualCart] = useState([]);
   const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
 
-  // --- Novos Estados para Upload de Imagem de Produto (Cloudinary) ---
+  // --- Estados para Upload de Imagem de Produto (Cloudinary) ---
   const [imageFile, setImageFile] = useState(null); // Para o modal de produto
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // --- Novos Estados para Status da Loja ---
+  // --- Estados para Status da Loja ---
   const [storeStatus, setStoreStatus] = useState({
     isOpen: true,
     openTime: '08:00',
     closeTime: '23:00',
     message: 'Aberto agora!',
-    storeLogoUrl: '/logo-loja.png', // <--- NOVO: URL do logo da loja (padrão)
-    storeBannerUrl: '/fachada.jpg', // <--- NOVO: URL do banner da loja (padrão)
+    storeLogoUrl: '/logo-loja.png',
+    storeBannerUrl: '/fachada.jpg',
   });
 
-  // --- Novos Estados para Upload de Logo/Banner (na aba Loja) ---
+  // --- Estados para Upload de Logo/Banner (na aba Loja) ---
   const [logoFile, setLogoFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [logoUploadError, setLogoUploadError] = useState('');
   const [bannerUploadError, setBannerUploadError] = useState('');
+
+  // --- NOVO: Estados para Upload de Banner de Promoção ---
+  const [promoBannerFile, setPromoBannerFile] = useState(null);
+  const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
+  const [promoBannerUploadError, setPromoBannerUploadError] = useState('');
 
   // Função para Logout
   const handleLogout = async () => {
@@ -82,10 +87,26 @@ export default function Admin() {
       setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubSettings = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setSettings(d.data()));
+    // --- AJUSTADO: Listener para Settings de Marketing (agora inclui promoBannerUrl) ---
+    const marketingDocRef = doc(db, "settings", "marketing");
+    const initializeMarketingSettings = async () => {
+        try {
+            const docSnap = await getDoc(marketingDocRef);
+            if (!docSnap.exists()) {
+                console.log("Documento settings/marketing não existe. Criando com valores padrão.");
+                await setDoc(marketingDocRef, { promoActive: false, promoBannerUrl: '' });
+            }
+        } catch (error) {
+            console.error("Erro ao inicializar marketing settings no Firestore:", error);
+        }
+    };
+    initializeMarketingSettings(); // Chama a função de inicialização
+    const unsubSettings = onSnapshot(marketingDocRef, (d) => d.exists() && setSettings(d.data()));
 
-    // --- NOVO/AJUSTADO: Inicializa o documento store_status se não existir e escuta ---
+
+    const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+    // --- Inicializa o documento store_status se não existir ---
     const storeStatusDocRef = doc(db, "settings", "store_status");
     const initializeStoreStatus = async () => {
       try {
@@ -182,7 +203,7 @@ export default function Admin() {
       setImageFile(null);
       setUploadProgress(100);
     } else {
-      setUploadProgress(0); // Reseta progresso se falhar
+      setUploadProgress(0); 
     }
   };
 
@@ -213,6 +234,22 @@ export default function Admin() {
     if (url) {
       await updateDoc(doc(db, "settings", "store_status"), { storeBannerUrl: url });
       setBannerFile(null);
+    }
+  };
+
+  // --- NOVO: Função para Upload do Banner de Promoção ---
+  const handlePromoBannerUpload = async () => {
+    const url = await uploadToCloudinary(
+      promoBannerFile, 
+      CLOUDINARY_UPLOAD_PRESET, 
+      CLOUDINARY_CLOUD_NAME, 
+      setUploadingPromoBanner, 
+      setPromoBannerUploadError
+    );
+    if (url) {
+      // Atualiza o documento 'settings/marketing' com a URL do banner
+      await updateDoc(doc(db, "settings", "marketing"), { promoBannerUrl: url });
+      setPromoBannerFile(null);
     }
   };
 
@@ -263,7 +300,6 @@ export default function Admin() {
       {/* SIDEBAR COM ASSINATURA VELO */}
       <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="flex flex-col items-center mb-10">
-          {/* LOGO DA LOJA (AGORA DINÂMICO) */}
           <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 shadow-sm mb-4 object-cover" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Painel Gestão</h2>
           <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
@@ -445,6 +481,44 @@ export default function Admin() {
                 }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl active:scale-95 transition-all ${settings.promoActive ? 'bg-slate-900 text-white' : 'bg-orange-600 text-white'}`}>
                     {settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}
                 </button>
+
+                {/* --- NOVO: SEÇÃO DE UPLOAD DE BANNER DE PROMOÇÃO --- */}
+                <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
+                    <h3 className="text-xl font-black text-slate-800 uppercase mb-4">Banner da Promoção</h3>
+                    <div className="flex flex-col items-center gap-4">
+                        {(promoBannerFile || settings.promoBannerUrl) && (
+                            <img 
+                                src={promoBannerFile ? URL.createObjectURL(promoBannerFile) : settings.promoBannerUrl} 
+                                alt="Banner da Promoção" 
+                                className="w-full max-w-lg h-40 object-cover rounded-2xl border-2 border-blue-50 shadow-md bg-slate-50"
+                            />
+                        )}
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={(e) => setPromoBannerFile(e.target.files[0])} 
+                            className="hidden" 
+                            id="promo-banner-upload"
+                        />
+                        <label htmlFor="promo-banner-upload" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
+                            {promoBannerFile ? promoBannerFile.name : (settings.promoBannerUrl ? 'Mudar Banner' : 'Selecionar Banner de Promoção')} <UploadCloud size={20}/>
+                        </label>
+                        {promoBannerFile && (
+                            <button 
+                                type="button"
+                                onClick={handlePromoBannerUpload} 
+                                disabled={uploadingPromoBanner}
+                                className={`w-full max-w-lg p-3 rounded-2xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploadingPromoBanner ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+                            >
+                                {uploadingPromoBanner ? <Loader2 className="animate-spin" size={20}/> : <UploadCloud size={20}/>}
+                                {uploadingPromoBanner ? `Enviando Banner...` : 'Fazer Upload do Banner'}
+                            </button>
+                        )}
+                        {promoBannerUploadError && <p className="text-red-500 text-sm text-center">{promoBannerUploadError}</p>}
+                    </div>
+                </div>
+                {/* --- FIM SEÇÃO DE UPLOAD DE BANNER DE PROMOÇÃO --- */}
+
             </div>
             <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40">
                 <Trophy size={64} className="text-slate-200 mb-4"/>
@@ -453,7 +527,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* --- CONTEÚDO PARA CONFIGURAÇÕES DA LOJA (AGORA COM UPLOAD DE LOGO/BANNER) --- */}
+        {/* --- CONTEÚDO PARA CONFIGURAÇÕES DA LOJA (com Logo e Banner da Loja) --- */}
         {activeTab === 'store_settings' && (
           <div className="space-y-8">
             <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações da Loja</h1>
@@ -514,6 +588,7 @@ export default function Admin() {
                           src={logoFile ? URL.createObjectURL(logoFile) : storeStatus.storeLogoUrl} 
                           alt="Logo da Loja" 
                           className="w-24 h-24 object-contain rounded-full border-2 border-blue-50 shadow-md p-2 bg-slate-50"
+                          onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} // Fallback
                       />
                   )}
                   <input 
@@ -551,6 +626,7 @@ export default function Admin() {
                           src={bannerFile ? URL.createObjectURL(bannerFile) : storeStatus.storeBannerUrl} 
                           alt="Banner do Frontend" 
                           className="w-full max-w-lg h-40 object-cover rounded-2xl border-2 border-blue-50 shadow-md bg-slate-50"
+                          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} // Fallback
                       />
                   )}
                   <input 
@@ -615,7 +691,7 @@ export default function Admin() {
                         accept="image/*" 
                         onChange={(e) => setImageFile(e.target.files[0])} 
                         className="hidden" 
-                        id="product-image-upload" // ID único para o label
+                        id="product-image-upload"
                     />
                     <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
                         {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem do Produto' : 'Selecionar Imagem do Produto')} <UploadCloud size={20}/>
@@ -624,7 +700,7 @@ export default function Admin() {
                     {imageFile && (
                         <button 
                             type="button"
-                            onClick={handleProductImageUpload} // Função específica para upload de produto
+                            onClick={handleProductImageUpload}
                             disabled={uploading}
                             className={`w-full p-4 rounded-3xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
                         >
@@ -648,8 +724,6 @@ export default function Admin() {
                         <p className="text-slate-500 text-xs font-medium">Arquivo selecionado para upload</p>
                     </div>
                 )}
-                {/* --- FIM CAMPO DE UPLOAD DE IMAGEM DE PRODUTO --- */}
-
                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
               </form>
             </motion.div>
