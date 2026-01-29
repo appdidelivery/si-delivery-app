@@ -1,20 +1,26 @@
 // si-delivery-app-main/src/pages/Admin.jsx
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../services/firebase'; // <--- AGORA IMPORTA 'auth'
+import { db, auth /* , storage */ } from '../services/firebase'; // <--- REMOVE 'storage' daqui
 import { 
   collection, onSnapshot, doc, updateDoc, deleteDoc, 
   addDoc, query, orderBy, serverTimestamp, setDoc 
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3, 
-  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut // <--- LogOut ADICIONADO
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image // <--- Ícones
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { signOut } from 'firebase/auth'; // <--- Importa signOut
-import { useNavigate } from 'react-router-dom'; // <--- Importa useNavigate
+import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
+// import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // <--- REMOVE ESTAS IMPORTAÇÕES DO STORAGE
+
+// --- CONFIGURAÇÕES DO CLOUDINARY ---
+const CLOUDINARY_CLOUD_NAME = 'dud8fzi5r'; // <--- SUBSTITUA PELO SEU CLOUD NAME
+const CLOUDINARY_UPLOAD_PRESET = 'bzlpl7bj'; // <--- SUBSTITUA PELO SEU UPLOAD PRESET NAME
+// ---------------------------------
 
 export default function Admin() {
-  const navigate = useNavigate(); // <--- Inicializa useNavigate
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -27,11 +33,17 @@ export default function Admin() {
   const [manualCart, setManualCart] = useState([]);
   const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
 
+  // --- Novos Estados para Upload de Imagem ---
+  const [imageFile, setImageFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0); // Para exibir progresso do upload
+
   // Função para Logout
   const handleLogout = async () => {
     try {
-      await signOut(auth); // Desloga o usuário do Firebase
-      navigate('/login'); // Redireciona para a página de login após o logout
+      await signOut(auth);
+      navigate('/login');
     } catch (error) {
       console.error("Erro ao fazer logout:", error.message);
     }
@@ -41,10 +53,8 @@ export default function Admin() {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     
     const unsubOrders = onSnapshot(q, (snapshot) => {
-      // Lógica para tocar som em novos pedidos
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added") {
-          // Só toca som se não for o carregamento inicial (pedidos criados nos últimos 10 segundos)
           const isRecent = change.doc.data().createdAt?.toMillis() > Date.now() - 10000;
           if (isRecent) {
             const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -52,7 +62,6 @@ export default function Admin() {
           }
         }
       });
-      
       setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
@@ -61,6 +70,43 @@ export default function Admin() {
 
     return () => { unsubOrders(); unsubProducts(); unsubSettings(); };
   }, []);
+
+  // --- Função para Upload da Imagem para Cloudinary ---
+  const handleImageUpload = async () => {
+    if (!imageFile) {
+      setUploadError("Nenhuma imagem selecionada.");
+      return;
+    }
+    setUploading(true);
+    setUploadError('');
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Cloudinary upload failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setForm(prevForm => ({ ...prevForm, imageUrl: data.secure_url })); // Salva a URL segura
+      setUploading(false);
+      setImageFile(null); // Limpa o arquivo selecionado
+      setUploadProgress(100); 
+
+    } catch (error) {
+      console.error("Erro no upload para Cloudinary:", error);
+      setUploadError(`Falha no upload da imagem: ${error.message}. Verifique o Cloud Name e Upload Preset.`);
+      setUploading(false);
+    }
+  };
 
   // --- Função de Impressão (Etiqueta Dupla) ---
   const printLabel = (o) => {
@@ -308,9 +354,14 @@ export default function Admin() {
               <form onSubmit={async (e) => {
                   e.preventDefault();
                   const data = { ...form, price: parseFloat(form.price) };
+                  // Se uma nova imagem foi carregada, ela já estará em form.imageUrl
+                  // Se não, form.imageUrl manterá a URL existente ou estará vazia
                   if (editingId) { await updateDoc(doc(db,"products",editingId), data); } 
                   else { await addDoc(collection(db,"products"), data); }
                   setIsModalOpen(false);
+                  setImageFile(null); // Limpa o arquivo de imagem após salvar/atualizar
+                  setUploadError('');
+                  setUploadProgress(0);
               }} className="space-y-6">
                 <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} required />
                 <div className="grid grid-cols-2 gap-4">
@@ -319,7 +370,49 @@ export default function Admin() {
                     <option>Cervejas</option><option>Destilados</option><option>Sem Álcool</option><option>Gelo</option>
                   </select>
                 </div>
-                <input type="text" placeholder="Link da Imagem" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.imageUrl} onChange={e=>setForm({...form, imageUrl: e.target.value})} required />
+                
+                {/* --- CAMPO DE UPLOAD DE IMAGEM (Cloudinary) --- */}
+                <div className="space-y-3">
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => setImageFile(e.target.files[0])} 
+                        className="hidden" 
+                        id="image-upload"
+                    />
+                    <label htmlFor="image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
+                        {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20}/>
+                    </label>
+
+                    {imageFile && (
+                        <button 
+                            type="button" // Importante: type="button" para não submeter o form
+                            onClick={handleImageUpload} 
+                            disabled={uploading}
+                            className={`w-full p-4 rounded-3xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+                        >
+                            {uploading ? <Loader2 className="animate-spin" size={20}/> : <UploadCloud size={20}/>}
+                            {uploading ? `Enviando... (${uploadProgress.toFixed(0)}%)` : 'Fazer Upload da Imagem'}
+                        </button>
+                    )}
+                    {uploadError && <p className="text-red-500 text-sm">{uploadError}</p>}
+                </div>
+                
+                {/* Prévia da imagem carregada (ou URL existente) */}
+                {(form.imageUrl && !imageFile) && ( // Mostra a URL existente se não houver arquivo novo selecionado
+                    <div className="flex flex-col items-center gap-3">
+                        <img src={form.imageUrl} alt="Prévia do Produto" className="w-32 h-32 object-contain rounded-xl border border-slate-100 p-2 bg-slate-50"/>
+                        <a href={form.imageUrl} target="_blank" className="text-blue-500 text-xs font-medium flex items-center gap-1 hover:underline">Ver Imagem <ExternalLink size={12}/></a>
+                    </div>
+                )}
+                {imageFile && ( // Mostra a prévia do arquivo selecionado antes do upload
+                    <div className="flex flex-col items-center gap-3">
+                        <img src={URL.createObjectURL(imageFile)} alt="Prévia do Arquivo" className="w-32 h-32 object-contain rounded-xl border border-slate-100 p-2 bg-slate-50"/>
+                        <p className="text-slate-500 text-xs font-medium">Arquivo selecionado para upload</p>
+                    </div>
+                )}
+                {/* --- FIM CAMPO DE UPLOAD DE IMAGEM --- */}
+
                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
               </form>
             </motion.div>
