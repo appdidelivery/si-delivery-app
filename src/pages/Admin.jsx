@@ -321,8 +321,9 @@ export default function Admin() {
                   <p className="text-slate-500 font-medium italic text-sm">{o.customerAddress}</p>
                   <div className="flex gap-2 flex-wrap mt-4">{o.items?.map((it, i) => <span key={i} className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-[10px] font-black">x{it.quantity} {it.name}</span>)}</div>
                 </div>
-                <div className="mt-4 bg-yellow-100 text-yellow-800 p-3 rounded-xl text-xs font-bold text-center">
-    LEVAR TROCO PARA: {o.customerChangeFor}
+                <div className="mt-4 bg-yellow-100 text-yellow-800 p-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+    <span>LEVAR TROCO PARA:</span>
+    <span className="font-black text-base">{o.customerChangeFor}</span>
   </div>
                 <div className="flex items-center gap-3">
                   <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
