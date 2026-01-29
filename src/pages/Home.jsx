@@ -1,9 +1,9 @@
 // si-delivery-app-main/src/pages/Home.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -22,7 +22,19 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCheckout, setShowCheckout] = useState(false);
   
-  const [customer, setCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
+  const [customer, setCustomer] = useState({ 
+    name: '', 
+    cep: '',
+    street: '',
+    number: '',
+    neighborhood: '',
+    phone: '', 
+    payment: 'pix', 
+    changeFor: '' 
+  });
+  
+  const [isCepLoading, setIsCepLoading] = useState(false);
+  const [cepError, setCepError] = useState('');
   
   const [cartAnimationKey, setCartAnimationKey] = useState(0); 
   const [promo, setPromo] = useState(null);
@@ -37,13 +49,10 @@ export default function Home() {
   });
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); 
   const [storeMessage, setStoreMessage] = useState('Verificando status...');
-
-  // --- INÍCIO DA LÓGICA DE FRETE ---
-  // Novos estados para o cálculo de frete
+  
   const [shippingRates, setShippingRates] = useState([]);
-  const [shippingFee, setShippingFee] = useState(null); // null = não calculado, 0 = grátis, >0 = valor
+  const [shippingFee, setShippingFee] = useState(null);
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
-  // --- FIM DA LÓGICA DE FRETE ---
 
   useEffect(() => {
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -76,46 +85,74 @@ export default function Home() {
       }
     });
 
-    // --- INÍCIO DA LÓGICA DE FRETE ---
-    // Listener para buscar as taxas de frete
     const unsubShippingRates = onSnapshot(collection(db, "shipping_rates"), (s) => {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-    // --- FIM DA LÓGICA DE FRETE ---
 
     return () => { 
       unsubProducts(); 
       unsubPromo(); 
       unsubStoreConfig();
-      unsubShippingRates(); // <-- Limpando o novo listener
+      unsubShippingRates();
     };
   }, []);
 
-  // --- INÍCIO DA LÓGICA DE FRETE ---
-  // Novo useEffect para calcular o frete automaticamente quando o endereço muda
   useEffect(() => {
-    if (customer.address.length < 3) {
-      setShippingFee(null);
-      setDeliveryAreaMessage('');
+    const cep = customer.cep.replace(/\D/g, '');
+    if (cep.length !== 8) {
+      setCepError('');
       return;
     }
 
-    const addressLowerCase = customer.address.toLowerCase();
-    const foundRate = shippingRates.find(rate => addressLowerCase.includes(rate.neighborhood.toLowerCase()));
+    const fetchCep = async () => {
+      setIsCepLoading(true);
+      setCepError('');
+      setShippingFee(null);
+      setDeliveryAreaMessage('');
+      
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
 
-    if (foundRate) {
-      setShippingFee(foundRate.fee);
-      setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
-    } else {
-      setShippingFee(null); // Define como nulo se não encontrar, para bloquear o pedido
-      setDeliveryAreaMessage("Digite seu bairro para calcularmos a entrega.");
-    }
+        if (data.erro) {
+          throw new Error("CEP não encontrado.");
+        }
 
-  }, [customer.address, shippingRates]);
-  // --- FIM DA LÓGICA DE FRETE ---
+        setCustomer(c => ({
+            ...c,
+            street: data.logradouro,
+            neighborhood: data.bairro
+        }));
+        
+        const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase());
+
+        if (foundRate) {
+          setShippingFee(foundRate.fee);
+          setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
+        } else {
+          setShippingFee(null);
+          setDeliveryAreaMessage("Infelizmente, não atendemos esta região.");
+          setCepError("Região não atendida.");
+        }
+
+      } catch (error) {
+        setCepError(error.message);
+        setCustomer(c => ({ ...c, street: '', neighborhood: '' }));
+      } finally {
+        setIsCepLoading(false);
+      }
+    };
+
+    const handler = setTimeout(() => {
+      fetchCep();
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [customer.cep, shippingRates]);
 
   const addToCart = (p) => {
-    // Apenas alerte se a loja não estiver aberta e retorne
     if (!isStoreOpenNow) {
       alert(storeMessage); 
       return;
@@ -141,26 +178,19 @@ export default function Home() {
   };
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  
-  // --- INÍCIO DA LÓGICA DE FRETE ---
-  // Calcula o total final somando o frete
   const finalTotal = subtotal + (shippingFee || 0);
-  // --- FIM DA LÓGICA DE FRETE ---
 
   const finalizeOrder = async () => {
     if (!isStoreOpenNow) { 
       alert(storeMessage);
       return;
     }
-    if(!customer.name || !customer.address || !customer.phone) return alert("Por favor, preencha todos os campos!");
-    if(cart.length === 0) return alert("Seu carrinho está vazio!");
-    
-    // --- INÍCIO DA LÓGICA DE FRETE ---
-    // Bloqueia o pedido se o frete não foi calculado
-    if (shippingFee === null) {
-      return alert("Por favor, digite um endereço em uma área de entrega válida para calcularmos o frete.");
+
+    if(!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) {
+        return alert("Por favor, preencha todos os campos de entrega (CEP, número, etc).");
     }
-    // --- FIM DA LÓGICA DE FRETE ---
+    if(cart.length === 0) return alert("Seu carrinho está vazio!");
+    if (shippingFee === null) return alert("Não foi possível calcular o frete. Verifique o CEP ou se atendemos sua região.");
 
     if (customer.payment === 'dinheiro' && !customer.changeFor) {
       const confirmWithoutChange = window.confirm("Você selecionou 'Dinheiro' mas não especificou o valor para troco. Deseja continuar mesmo assim? Caso precise de troco, por favor, volte e preencha.");
@@ -169,27 +199,26 @@ export default function Home() {
       }
     }
 
+    const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
+
     try {
       const docRef = await addDoc(collection(db, "orders"), {
         customerName: customer.name,
-        customerAddress: customer.address,
+        customerAddress: fullAddress,
         customerPhone: customer.phone,
         payment: customer.payment,
         customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
         items: cart,
-        // --- INÍCIO DA LÓGICA DE FRETE ---
-        // Adiciona os novos campos ao pedido
         subtotal: subtotal,
         shippingFee: shippingFee,
         total: finalTotal,
-        // --- FIM DA LÓGICA DE FRETE ---
         status: 'pending',
         createdAt: serverTimestamp()
       });
       navigate(`/track/${docRef.id}`);
       setCart([]);
       setShowCheckout(false);
-      setCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
+      setCustomer({ name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: '' });
     } catch (e) {
       console.error("Erro ao processar pedido:", e);
       alert("Erro ao processar pedido. Tente novamente.");
@@ -286,7 +315,6 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* --- Ícone do carrinho fixo --- */}
       <motion.button onClick={() => setShowCheckout(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-blue-700 transition-all active:scale-90" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.5, type: 'spring', stiffness: 300, damping: 20 }}>
         <ShoppingCart size={24} />
         {cart.length > 0 && (
@@ -296,7 +324,6 @@ export default function Home() {
         )}
       </motion.button>
       
-      {/* MODAL DE CHECKOUT */}
       <AnimatePresence>
         {showCheckout && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
@@ -338,14 +365,45 @@ export default function Home() {
                   <div className="space-y-6 mt-4">
                     <input type="text" placeholder="Seu Nome Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
                     <input type="tel" placeholder="WhatsApp (00) 00000-0000" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
-                    <input type="text" placeholder="Endereço de Entrega Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} />
                     
-                    {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
-                    {/* Mensagem dinâmica do cálculo do frete */}
-                    {deliveryAreaMessage && (
+                    <div className='relative'>
+                        <input 
+                            type="tel" 
+                            placeholder="Digite seu CEP" 
+                            maxLength="9"
+                            className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" 
+                            value={customer.cep} 
+                            onChange={e => setCustomer({...customer, cep: e.target.value})} 
+                        />
+                        {isCepLoading && <Loader2 className="animate-spin absolute right-6 top-1/2 -translate-y-1/2 text-blue-500"/>}
+                    </div>
+
+                    {customer.street && (
+                        <>
+                            <input 
+                                type="text" 
+                                placeholder="Rua / Avenida" 
+                                className="w-full p-6 bg-slate-200 text-slate-500 rounded-[2rem] outline-none font-bold shadow-inner border-none" 
+                                value={customer.street} 
+                                readOnly 
+                            />
+                            <input 
+                                type="text" 
+                                placeholder="Número e Complemento (Apto, etc)" 
+                                className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" 
+                                value={customer.number} 
+                                onChange={e => setCustomer({...customer, number: e.target.value})} 
+                            />
+                        </>
+                    )}
+
+                    {cepError && (
+                      <p className="text-center font-bold text-sm text-red-500 -mt-2">{cepError}</p>
+                    )}
+                    
+                    {deliveryAreaMessage && !cepError && (
                       <p className="text-center font-bold text-sm text-blue-600 -mt-2">{deliveryAreaMessage}</p>
                     )}
-                    {/* --- FIM DA LÓGICA DE FRETE --- */}
                     
                     <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Pagar na Entrega via:</p>
                     <div className="grid grid-cols-3 gap-3">
@@ -370,8 +428,6 @@ export default function Home() {
                     </AnimatePresence>
                   </div>
 
-                  {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
-                  {/* Bloco de totais atualizado para incluir o frete */}
                   <div className="mt-10 p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl space-y-3">
                     <div className="flex justify-between items-center text-slate-400 font-bold text-sm border-b border-slate-700 pb-3">
                       <span>Subtotal</span>
@@ -386,10 +442,13 @@ export default function Home() {
                       <span className="text-4xl font-black italic">R$ {finalTotal.toFixed(2)}</span>
                     </div>
                   </div>
-                  {/* --- FIM DA LÓGICA DE FRETE --- */}
 
-                  <button onClick={finalizeOrder} disabled={!isStoreOpenNow} className={`w-full py-8 rounded-[2.5rem] font-black text-xl mt-8 uppercase tracking-widest shadow-2xl transition-all ${isStoreOpenNow ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white' : 'bg-slate-500 text-slate-300 cursor-not-allowed'}`}>
-                    Confirmar Pedido
+                  <button 
+                    onClick={finalizeOrder} 
+                    disabled={!isStoreOpenNow || isCepLoading} 
+                    className={`w-full py-8 rounded-[2.5rem] font-black text-xl mt-8 uppercase tracking-widest shadow-2xl transition-all ${!isStoreOpenNow || isCepLoading ? 'bg-slate-500 text-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white'}`}
+                  >
+                    {isCepLoading ? 'Calculando Frete...' : 'Confirmar Pedido'}
                   </button>
                 </>
               )}
