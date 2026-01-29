@@ -14,8 +14,8 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
-const CLOUDINARY_CLOUD_NAME = 'dud8fzi5r'; // <--- SUBSTITUA PELO SEU CLOUD NAME REAL
-const CLOUDINARY_UPLOAD_PRESET = 'bzlpl7bj'; // <--- SUBSTITUA PELO SEU UPLOAD PRESET NAME REAL
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 // ---------------------------------
 
 export default function Admin() {
