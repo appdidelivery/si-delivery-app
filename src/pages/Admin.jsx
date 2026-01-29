@@ -61,13 +61,11 @@ export default function Admin() {
   const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
   const [promoBannerUploadError, setPromoBannerUploadError] = useState('');
 
-  // --- INÍCIO DA LÓGICA DE FRETE ---
   // Estados para a gestão de fretes
   const [shippingRates, setShippingRates] = useState([]);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
   const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
   const [editingRateId, setEditingRateId] = useState(null);
-  // --- FIM DA LÓGICA DE FRETE ---
 
   // --- Array de itens de navegação para reutilização ---
   const navItems = [
@@ -147,19 +145,16 @@ export default function Admin() {
       }
     });
 
-    // --- INÍCIO DA LÓGICA DE FRETE ---
-    // Listener para buscar as taxas de frete em tempo real
     const unsubShippingRates = onSnapshot(collection(db, "shipping_rates"), (s) => {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood)));
     });
-    // --- FIM DA LÓGICA DE FRETE ---
 
     return () => { 
       unsubOrders(); 
       unsubProducts(); 
       unsubSettings();
       unsubStoreStatus();
-      unsubShippingRates(); // <-- Limpando o novo listener de fretes
+      unsubShippingRates();
     };
   }, []);
 
@@ -646,8 +641,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
-            {/* Card de Gestão de Fretes */}
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-black text-slate-800 uppercase">Taxas de Entrega por Bairro</h2>
@@ -672,7 +665,6 @@ export default function Admin() {
                 ))}
               </div>
             </div>
-            {/* --- FIM DA LÓGICA DE FRETE --- */}
 
           </div>
         )}
@@ -766,7 +758,6 @@ export default function Admin() {
         )}
       </AnimatePresence>
 
-      {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
       {/* Modal para Adicionar/Editar Taxa de Frete */}
       <AnimatePresence>
         {isRateModalOpen && (
@@ -774,16 +765,41 @@ export default function Admin() {
             <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
               <button onClick={() => setIsRateModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
               <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingRateId ? 'Editar' : 'Nova'} Taxa de Frete</h2>
+              
+              {/* --- INÍCIO DA CORREÇÃO --- */}
               <form onSubmit={async (e) => {
                   e.preventDefault();
-                  const data = { ...rateForm, fee: parseFloat(rateForm.fee) };
-                  if (editingRateId) {
-                    await updateDoc(doc(db, "shipping_rates", editingRateId), data);
-                  } else {
-                    await addDoc(collection(db, "shipping_rates"), data);
+
+                  // Validação para garantir que o valor do frete é um número válido
+                  const feeValue = parseFloat(rateForm.fee);
+                  if (isNaN(feeValue) || feeValue < 0) {
+                      alert("Por favor, insira um valor de frete válido.");
+                      return; // Impede o envio do formulário
                   }
-                  setIsRateModalOpen(false);
+
+                  const data = { 
+                      neighborhood: rateForm.neighborhood, 
+                      fee: feeValue 
+                  };
+
+                  // Bloco try...catch para capturar e exibir erros do Firebase
+                  try {
+                      if (editingRateId) {
+                          const docRef = doc(db, "shipping_rates", editingRateId);
+                          await updateDoc(docRef, data);
+                      } else {
+                          await addDoc(collection(db, "shipping_rates"), data);
+                      }
+                      
+                      setIsRateModalOpen(false); // Fecha o modal apenas se for bem-sucedido
+
+                  } catch (error) {
+                      console.error("Erro ao salvar a taxa de frete: ", error);
+                      alert(`Ocorreu um erro ao salvar. Verifique o console para mais detalhes. (Erro: ${error.message})`);
+                  }
               }} className="space-y-4">
+              {/* --- FIM DA CORREÇÃO --- */}
+
                 <input type="text" placeholder="Nome do Bairro" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.neighborhood} onChange={e => setRateForm({...rateForm, neighborhood: e.target.value})} required />
                 <input type="number" step="0.01" placeholder="Valor do Frete (ex: 8.00)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.fee} onChange={e => setRateForm({...rateForm, fee: e.target.value})} required />
                 <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar</button>
@@ -792,7 +808,6 @@ export default function Admin() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* --- FIM DA LÓGICA DE FRETE --- */}
 
     </div>
   );
