@@ -1,8 +1,9 @@
+// si-delivery-app-main/src/pages/Home.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle } from 'lucide-react'; // Adicionado XCircle
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -21,27 +22,97 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCheckout, setShowCheckout] = useState(false);
   const [customer, setCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
+  const [cartAnimationKey, setCartAnimationKey] = useState(0); 
   const [promo, setPromo] = useState(null);
-  const [cartAnimationKey, setCartAnimationKey] = useState(0);
-  
+
+  // --- Novos Estados para Status da Loja ---
+  const [storeStatus, setStoreStatus] = useState({
+    isOpen: true,
+    openTime: '08:00',
+    closeTime: '23:00',
+    message: 'Aberto agora!',
+  });
+  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); // Estado calculado
+  const [storeMessage, setStoreMessage] = useState('Verificando status...');
 
   useEffect(() => {
-    onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
+    // Listener para Produtos
+    const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // Listener para Promoção
+    const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
+    
+    // --- NOVO: Listener para Status da Loja ---
+    const unsubStoreStatus = onSnapshot(doc(db, "settings", "store_status"), (d) => {
+      if (d.exists()) {
+        const data = d.data();
+        setStoreStatus(data); // Atualiza o estado com os dados do Firestore
+
+        // Lógica para verificar se a loja está aberta AGORA
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes(); // Tempo atual em minutos
+
+        const [openHour, openMinute] = data.openTime.split(':').map(Number);
+        const [closeHour, closeMinute] = data.closeTime.split(':').map(Number);
+
+        const scheduledOpenTime = openHour * 60 + openMinute;
+        const scheduledCloseTime = closeHour * 60 + closeMinute;
+
+        const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
+        
+        // A loja está aberta se o administrador marcou como aberta E (estiver dentro do horário programado OU não tiver horário programado)
+        const finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
+
+        setIsStoreOpenNow(finalStatus);
+        setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
+
+      } else {
+        // Se o documento não existir, usa valores padrão
+        setIsStoreOpenNow(true);
+        setStoreMessage('Aberto agora!');
+      }
+    });
+
+    return () => { 
+      unsubProducts(); 
+      unsubPromo(); 
+      unsubStoreStatus(); // <--- Retorna a função de limpeza
+    };
   }, []);
 
   const addToCart = (p) => {
+    if (!isStoreOpenNow) {
+      alert(storeMessage); // Alerta com a mensagem da loja se estiver fechada
+      return;
+    }
     setCart(prev => {
       const ex = prev.find(i => i.id === p.id);
       return ex ? prev.map(i => i.id === p.id ? {...i, quantity: i.quantity + 1} : i) : [...prev, {...p, quantity: 1}];
     });
-    setCartAnimationKey(prev => prev + 1); // <--- ADICIONE ESTA LINHA
+    setCartAnimationKey(prev => prev + 1); 
+  };
+
+  const updateQuantity = (productId, amount) => {
+    setCart(prevCart => {
+      const updatedCart = prevCart.map(item =>
+        item.id === productId ? { ...item, quantity: item.quantity + amount } : item
+      ).filter(item => item.quantity > 0); 
+      return updatedCart;
+    });
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(prevCart => prevCart.filter(item => item.id !== productId));
   };
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
 
   const finalizeOrder = async () => {
+    if (!isStoreOpenNow) { // Impede finalização se a loja estiver fechada
+      alert(storeMessage);
+      return;
+    }
     if(!customer.name || !customer.address || !customer.phone) return alert("Por favor, preencha todos os campos!");
+    if(cart.length === 0) return alert("Seu carrinho está vazio!");
     
     try {
       const docRef = await addDoc(collection(db, "orders"), {
@@ -75,9 +146,10 @@ export default function Home() {
             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-green-50 text-green-600 px-3 py-1.5 rounded-full border border-green-100">
-          <Clock size={14}/>
-          <span className="text-[10px] font-black uppercase">Aberto</span>
+        {/* Status da Loja (AGORA DINÂMICO) */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+          {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>}
+          <span className="text-[10px] font-black uppercase">{storeMessage}</span>
         </div>
       </header>
 
@@ -100,7 +172,7 @@ export default function Home() {
       {/* PROMOÇÃO RELÂMPAGO DINÂMICA */}
       <AnimatePresence>
         {promo?.promoActive && (
-          <motion.div initial={{height:0}} animate={{height:'auto'}} className="bg-orange-500 text-white p-3 text-center text-xs font-black uppercase italic tracking-tighter shadow-xl">
+          <motion.div initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-orange-500 text-white p-3 text-center text-xs font-black uppercase italic tracking-tighter shadow-xl">
             🔥 Ofertas Relâmpago Ativas! Aproveite agora!
           </motion.div>
         )}
@@ -133,7 +205,12 @@ export default function Home() {
               <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
               <div className="flex justify-between items-center mt-auto">
                 <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
-                <button onClick={() => addToCart(p)} className="bg-blue-600 text-white p-2.5 rounded-xl active:scale-90 shadow-lg shadow-blue-100">
+                {/* Desabilita botão se a loja estiver fechada */}
+                <button 
+                  onClick={() => addToCart(p)} 
+                  disabled={!isStoreOpenNow} // <--- Desabilita o botão
+                  className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
+                >
                   <ShoppingCart size={16} />
                 </button>
               </div>
@@ -170,7 +247,6 @@ Viamão - RS</p>
         {cart.length > 0 && !showCheckout && (
           <motion.div initial={{y:100}} animate={{y:0}} exit={{y:100}} className="fixed bottom-6 left-4 right-4 max-w-md mx-auto bg-slate-900 text-white p-4 rounded-[2.5rem] shadow-2xl flex justify-between items-center z-[60] border border-white/10">
             <div className="flex items-center gap-4 ml-2">
-              {/* ESTE É O BLOCO QUE FOI ALTERADO: AGORA É motion.div */}
               <motion.div 
                 key={cartAnimationKey} 
                 initial={{ scale: 0.8, rotate: -15 }} 
@@ -180,31 +256,88 @@ Viamão - RS</p>
               >
                 <ShoppingCart size={20}/>
               </motion.div>
-              {/* FIM DO BLOCO ALTERADO */}
               <div>
                 <p className="text-lg font-black italic">R$ {subtotal.toFixed(2)}</p>
                 <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">{cart.length} ITENS</p>
               </div>
             </div>
-            <button onClick={() => setShowCheckout(true)} className="bg-blue-600 px-10 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-blue-500 transition-all active:scale-95">Finalizar</button>
+            {/* Desabilita o botão Finalizar se a loja estiver fechada */}
+            <button 
+              onClick={() => setShowCheckout(true)} 
+              disabled={!isStoreOpenNow} // <--- Desabilita o botão
+              className={`px-10 py-4 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl transition-all ${isStoreOpenNow ? 'bg-blue-600 hover:bg-blue-500 active:scale-95 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+            >
+              Finalizar
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODAL DE CHECKOUT (O QUE ESTAVA FALTANDO!) */}
+      {/* MODAL DE CHECKOUT */}
       <AnimatePresence>
         {showCheckout && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
               <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
               
-              <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">CHECKOUT</h2>
-              <p className="text-slate-400 font-bold text-[10px] uppercase mb-10 tracking-[0.2em]">Onde entregamos sua gelada?</p>
+              <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
+              <p className="text-slate-400 font-bold text-[10px] uppercase mb-10 tracking-[0.2em]">Revise e finalize</p>
               
-              <div className="space-y-6">
-                <input type="text" placeholder="Seu Nome Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" onChange={e => setCustomer({...customer, name: e.target.value})} />
-                <input type="tel" placeholder="WhatsApp (00) 00000-0000" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" onChange={e => setCustomer({...customer, phone: e.target.value})} />
-                <input type="text" placeholder="Endereço de Entrega Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" onChange={e => setCustomer({...customer, address: e.target.value})} />
+              {cart.length === 0 ? (
+                <div className="text-center py-10 text-slate-500">
+                  <ShoppingCart size={48} className="mx-auto mb-4"/>
+                  <p className="font-bold text-lg">Seu carrinho está vazio.</p>
+                  <button onClick={() => setShowCheckout(false)} className="mt-4 text-blue-600 font-bold">Adicionar itens</button>
+                </div>
+              ) : (
+                <div className="space-y-4 mb-8">
+                  {cart.map(item => (
+                    <motion.div 
+                      key={item.id} 
+                      layout 
+                      initial={{opacity:0, x:-20}} 
+                      animate={{opacity:1, x:0}} 
+                      exit={{opacity:0, x:20}} 
+                      className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img src={item.imageUrl} alt={item.name} className="w-12 h-12 object-contain rounded-lg bg-white p-1"/>
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm leading-tight">{item.name}</p>
+                          <p className="text-blue-600 font-black text-xs">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => updateQuantity(item.id, -1)} 
+                          className="p-1.5 bg-white rounded-lg text-slate-500 hover:bg-slate-100 transition-colors border border-slate-100"
+                        >
+                          <Minus size={16}/>
+                        </button>
+                        <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
+                        <button 
+                          onClick={() => updateQuantity(item.id, 1)} 
+                          className="p-1.5 bg-white rounded-lg text-blue-600 hover:bg-blue-50 transition-colors border border-slate-100"
+                        >
+                          <Plus size={16}/>
+                        </button>
+                        <button 
+                          onClick={() => removeFromCart(item.id)} 
+                          className="p-1.5 bg-red-50 rounded-lg text-red-600 hover:bg-red-100 transition-colors border border-red-100 ml-2"
+                        >
+                          <Trash2 size={16}/>
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes da Entrega:</p>
+              <div className="space-y-6 mt-4">
+                <input type="text" placeholder="Seu Nome Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
+                <input type="tel" placeholder="WhatsApp (00) 00000-0000" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
+                <input type="text" placeholder="Endereço de Entrega Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} />
                 
                 <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Pagar na Entrega via:</p>
                 <div className="grid grid-cols-3 gap-3">
@@ -222,13 +355,19 @@ Viamão - RS</p>
 
               <div className="mt-10 p-8 bg-slate-900 rounded-[2.5rem] flex justify-between items-center text-white shadow-2xl relative overflow-hidden group">
                  <div className="relative z-10">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Valor do Pedido</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Valor Total</p>
                     <p className="text-4xl font-black italic">R$ {subtotal.toFixed(2)}</p>
                  </div>
                  <div className="bg-blue-600/20 p-4 rounded-full"><Navigation className="text-blue-500" size={32}/></div>
               </div>
 
-              <button onClick={finalizeOrder} className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl mt-8 uppercase tracking-widest shadow-2xl hover:bg-blue-700 active:scale-95 transition-all">Confirmar Pedido</button>
+              <button 
+                onClick={finalizeOrder} 
+                disabled={!isStoreOpenNow} // <--- Desabilita o botão se a loja estiver fechada
+                className={`w-full py-8 rounded-[2.5rem] font-black text-xl mt-8 uppercase tracking-widest shadow-2xl transition-all ${isStoreOpenNow ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white' : 'bg-slate-500 text-slate-300 cursor-not-allowed'}`}
+              >
+                Confirmar Pedido
+              </button>
             </motion.div>
           </motion.div>
         )}
