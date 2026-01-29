@@ -61,6 +61,14 @@ export default function Admin() {
   const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
   const [promoBannerUploadError, setPromoBannerUploadError] = useState('');
 
+  // --- INÍCIO DA LÓGICA DE FRETE ---
+  // Estados para a gestão de fretes
+  const [shippingRates, setShippingRates] = useState([]);
+  const [isRateModalOpen, setIsRateModalOpen] = useState(false);
+  const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
+  const [editingRateId, setEditingRateId] = useState(null);
+  // --- FIM DA LÓGICA DE FRETE ---
+
   // --- Array de itens de navegação para reutilização ---
   const navItems = [
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18}/>, mobileIcon: <LayoutDashboard size={22}/> },
@@ -139,11 +147,19 @@ export default function Admin() {
       }
     });
 
+    // --- INÍCIO DA LÓGICA DE FRETE ---
+    // Listener para buscar as taxas de frete em tempo real
+    const unsubShippingRates = onSnapshot(collection(db, "shipping_rates"), (s) => {
+      setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood)));
+    });
+    // --- FIM DA LÓGICA DE FRETE ---
+
     return () => { 
       unsubOrders(); 
       unsubProducts(); 
       unsubSettings();
       unsubStoreStatus();
+      unsubShippingRates(); // <-- Limpando o novo listener de fretes
     };
   }, []);
 
@@ -630,6 +646,34 @@ export default function Admin() {
               </div>
             </div>
 
+            {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
+            {/* Card de Gestão de Fretes */}
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-black text-slate-800 uppercase">Taxas de Entrega por Bairro</h2>
+                <button 
+                  onClick={() => { setEditingRateId(null); setRateForm({ neighborhood: '', fee: '' }); setIsRateModalOpen(true); }}
+                  className="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl font-black text-xs shadow-sm hover:bg-blue-100 transition-all"
+                >
+                  + NOVA TAXA
+                </button>
+              </div>
+              
+              <div className="space-y-2">
+                {shippingRates.map(rate => (
+                  <div key={rate.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                    <span className="font-bold text-slate-700">{rate.neighborhood}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="font-black text-blue-600">R$ {Number(rate.fee).toFixed(2)}</span>
+                      <button onClick={() => { setEditingRateId(rate.id); setRateForm(rate); setIsRateModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg"><Edit3 size={16}/></button>
+                      <button onClick={() => window.confirm(`Excluir a taxa para ${rate.neighborhood}?`) && deleteDoc(doc(db, "shipping_rates", rate.id))} className="p-2 text-red-600 hover:bg-red-100 rounded-lg"><Trash2 size={16}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* --- FIM DA LÓGICA DE FRETE --- */}
+
           </div>
         )}
       </main>
@@ -721,6 +765,35 @@ export default function Admin() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
+      {/* Modal para Adicionar/Editar Taxa de Frete */}
+      <AnimatePresence>
+        {isRateModalOpen && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
+              <button onClick={() => setIsRateModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
+              <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingRateId ? 'Editar' : 'Nova'} Taxa de Frete</h2>
+              <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const data = { ...rateForm, fee: parseFloat(rateForm.fee) };
+                  if (editingRateId) {
+                    await updateDoc(doc(db, "shipping_rates", editingRateId), data);
+                  } else {
+                    await addDoc(collection(db, "shipping_rates"), data);
+                  }
+                  setIsRateModalOpen(false);
+              }} className="space-y-4">
+                <input type="text" placeholder="Nome do Bairro" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.neighborhood} onChange={e => setRateForm({...rateForm, neighborhood: e.target.value})} required />
+                <input type="number" step="0.01" placeholder="Valor do Frete (ex: 8.00)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.fee} onChange={e => setRateForm({...rateForm, fee: e.target.value})} required />
+                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar</button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* --- FIM DA LÓGICA DE FRETE --- */}
+
     </div>
   );
 }

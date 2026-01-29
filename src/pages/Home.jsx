@@ -38,6 +38,13 @@ export default function Home() {
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); 
   const [storeMessage, setStoreMessage] = useState('Verificando status...');
 
+  // --- INÍCIO DA LÓGICA DE FRETE ---
+  // Novos estados para o cálculo de frete
+  const [shippingRates, setShippingRates] = useState([]);
+  const [shippingFee, setShippingFee] = useState(null); // null = não calculado, 0 = grátis, >0 = valor
+  const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
+  // --- FIM DA LÓGICA DE FRETE ---
+
   useEffect(() => {
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
@@ -56,28 +63,56 @@ export default function Home() {
         const scheduledOpenTime = openHour * 60 + openMinute;
         const scheduledCloseTime = closeHour * 60 + closeMinute;
 
-        // Verifica se a hora atual está dentro do horário de funcionamento agendado
         const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
         
-        // O status final da loja depende tanto da configuração manual (isOpen) quanto do horário agendado
         const finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
 
         setIsStoreOpenNow(finalStatus);
         setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
 
       } else {
-        // Se o documento de configuração não existir, assume-se aberto com mensagem padrão
         setIsStoreOpenNow(true);
         setStoreMessage('Aberto agora!');
       }
     });
 
+    // --- INÍCIO DA LÓGICA DE FRETE ---
+    // Listener para buscar as taxas de frete
+    const unsubShippingRates = onSnapshot(collection(db, "shipping_rates"), (s) => {
+      setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    // --- FIM DA LÓGICA DE FRETE ---
+
     return () => { 
       unsubProducts(); 
       unsubPromo(); 
       unsubStoreConfig();
+      unsubShippingRates(); // <-- Limpando o novo listener
     };
   }, []);
+
+  // --- INÍCIO DA LÓGICA DE FRETE ---
+  // Novo useEffect para calcular o frete automaticamente quando o endereço muda
+  useEffect(() => {
+    if (customer.address.length < 3) {
+      setShippingFee(null);
+      setDeliveryAreaMessage('');
+      return;
+    }
+
+    const addressLowerCase = customer.address.toLowerCase();
+    const foundRate = shippingRates.find(rate => addressLowerCase.includes(rate.neighborhood.toLowerCase()));
+
+    if (foundRate) {
+      setShippingFee(foundRate.fee);
+      setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
+    } else {
+      setShippingFee(null); // Define como nulo se não encontrar, para bloquear o pedido
+      setDeliveryAreaMessage("Digite seu bairro para calcularmos a entrega.");
+    }
+
+  }, [customer.address, shippingRates]);
+  // --- FIM DA LÓGICA DE FRETE ---
 
   const addToCart = (p) => {
     // Apenas alerte se a loja não estiver aberta e retorne
@@ -106,9 +141,13 @@ export default function Home() {
   };
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+  
+  // --- INÍCIO DA LÓGICA DE FRETE ---
+  // Calcula o total final somando o frete
+  const finalTotal = subtotal + (shippingFee || 0);
+  // --- FIM DA LÓGICA DE FRETE ---
 
   const finalizeOrder = async () => {
-    // Apenas alerte se a loja não estiver aberta e retorne
     if (!isStoreOpenNow) { 
       alert(storeMessage);
       return;
@@ -116,7 +155,13 @@ export default function Home() {
     if(!customer.name || !customer.address || !customer.phone) return alert("Por favor, preencha todos os campos!");
     if(cart.length === 0) return alert("Seu carrinho está vazio!");
     
-    // Se o pagamento for em dinheiro e o campo de troco não for preenchido, alerte.
+    // --- INÍCIO DA LÓGICA DE FRETE ---
+    // Bloqueia o pedido se o frete não foi calculado
+    if (shippingFee === null) {
+      return alert("Por favor, digite um endereço em uma área de entrega válida para calcularmos o frete.");
+    }
+    // --- FIM DA LÓGICA DE FRETE ---
+
     if (customer.payment === 'dinheiro' && !customer.changeFor) {
       const confirmWithoutChange = window.confirm("Você selecionou 'Dinheiro' mas não especificou o valor para troco. Deseja continuar mesmo assim? Caso precise de troco, por favor, volte e preencha.");
       if (!confirmWithoutChange) {
@@ -124,23 +169,27 @@ export default function Home() {
       }
     }
 
-
     try {
       const docRef = await addDoc(collection(db, "orders"), {
         customerName: customer.name,
         customerAddress: customer.address,
         customerPhone: customer.phone,
         payment: customer.payment,
-        customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '', // Envia o troco apenas se for dinheiro
+        customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
         items: cart,
-        total: subtotal,
+        // --- INÍCIO DA LÓGICA DE FRETE ---
+        // Adiciona os novos campos ao pedido
+        subtotal: subtotal,
+        shippingFee: shippingFee,
+        total: finalTotal,
+        // --- FIM DA LÓGICA DE FRETE ---
         status: 'pending',
         createdAt: serverTimestamp()
       });
       navigate(`/track/${docRef.id}`);
       setCart([]);
       setShowCheckout(false);
-      setCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); // Limpa o formulário do cliente
+      setCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
     } catch (e) {
       console.error("Erro ao processar pedido:", e);
       alert("Erro ao processar pedido. Tente novamente.");
@@ -291,6 +340,13 @@ export default function Home() {
                     <input type="tel" placeholder="WhatsApp (00) 00000-0000" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
                     <input type="text" placeholder="Endereço de Entrega Completo" className="w-full p-6 bg-slate-50 rounded-[2rem] outline-none font-bold shadow-inner border-none transition-all focus:ring-4 ring-blue-50" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} />
                     
+                    {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
+                    {/* Mensagem dinâmica do cálculo do frete */}
+                    {deliveryAreaMessage && (
+                      <p className="text-center font-bold text-sm text-blue-600 -mt-2">{deliveryAreaMessage}</p>
+                    )}
+                    {/* --- FIM DA LÓGICA DE FRETE --- */}
+                    
                     <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Pagar na Entrega via:</p>
                     <div className="grid grid-cols-3 gap-3">
                         {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(pay => (
@@ -300,7 +356,6 @@ export default function Home() {
                         ))}
                     </div>
 
-                    {/* --- CAMPO DE TROCO CONDICIONAL --- */}
                     <AnimatePresence>
                       {customer.payment === 'dinheiro' && (
                         <motion.div initial={{opacity:0, height: 0}} animate={{opacity:1, height: 'auto'}} exit={{opacity:0, height: 0}} className="overflow-hidden">
@@ -315,13 +370,23 @@ export default function Home() {
                     </AnimatePresence>
                   </div>
 
-                  <div className="mt-10 p-8 bg-slate-900 rounded-[2.5rem] flex justify-between items-center text-white shadow-2xl relative overflow-hidden group">
-                    <div className="relative z-10">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Valor Total</p>
-                        <p className="text-4xl font-black italic">R$ {subtotal.toFixed(2)}</p>
+                  {/* --- INÍCIO DA LÓGICA DE FRETE --- */}
+                  {/* Bloco de totais atualizado para incluir o frete */}
+                  <div className="mt-10 p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl space-y-3">
+                    <div className="flex justify-between items-center text-slate-400 font-bold text-sm border-b border-slate-700 pb-3">
+                      <span>Subtotal</span>
+                      <span>R$ {subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="bg-blue-600/20 p-4 rounded-full"><Navigation className="text-blue-500" size={32}/></div>
+                    <div className="flex justify-between items-center text-slate-400 font-bold text-sm">
+                      <span>Taxa de Entrega</span>
+                      <span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : 'A calcular'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-white pt-3">
+                      <span className="text-lg font-black uppercase">Total</span>
+                      <span className="text-4xl font-black italic">R$ {finalTotal.toFixed(2)}</span>
+                    </div>
                   </div>
+                  {/* --- FIM DA LÓGICA DE FRETE --- */}
 
                   <button onClick={finalizeOrder} disabled={!isStoreOpenNow} className={`w-full py-8 rounded-[2.5rem] font-black text-xl mt-8 uppercase tracking-widest shadow-2xl transition-all ${isStoreOpenNow ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 text-white' : 'bg-slate-500 text-slate-300 cursor-not-allowed'}`}>
                     Confirmar Pedido
