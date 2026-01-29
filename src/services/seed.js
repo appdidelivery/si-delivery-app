@@ -10,6 +10,14 @@ const sampleProducts = [
   { name: "Cerveja Spaten Lata 350ml", price: 4.29, imageUrl: "/images/Cerveja Spaten Lata 350ml.png", category: "Cervejas", tag: "Puro Malte" },
   { name: "Cerveja Skol Lata 350ml", price: 3.29, imageUrl: "/images/Cerveja Skol Lata 350ml.png", category: "Cervejas", tag: "Refrescante" },
 
+  // --- CIGARRO ---
+  { name: "Cerveja Heineken Long Neck 330ml", price: 6.49, imageUrl: "/images/heineken.png", category: "Cervejas", tag: "Mais Vendida" },
+  { name: "Cerveja Stella Artois 330ml", price: 5.99, imageUrl: "/images/Cerveja Stella Artois 330ml.png", category: "Cervejas", tag: "Premium" },
+  { name: "Cerveja Corona Extra 330ml", price: 6.99, imageUrl: "/images/Cerveja Corona Extra 330ml.png", category: "Cervejas", tag: "Gelada" },
+  { name: "Cerveja Brahma Duplo Malte 350ml", price: 3.99, imageUrl: "/images/Cerveja Brahma Duplo Malte 350ml.png", category: "Cervejas", tag: "Oferta" },
+  { name: "Cerveja Spaten Lata 350ml", price: 4.29, imageUrl: "/images/Cerveja Spaten Lata 350ml.png", category: "Cervejas", tag: "Puro Malte" },
+  { name: "Cerveja Skol Lata 350ml", price: 3.29, imageUrl: "/images/Cerveja Skol Lata 350ml.png", category: "Cervejas", tag: "Refrescante" },
+
   // --- DESTILADOS ---
   { name: "Vodka Absolut Original 750ml", price: 89.90, imageUrl: "/images/absolut.png", category: "Destilados", tag: "Premium" },
   { name: "Whisky Johnnie Walker Black Label 1L", price: 169.90, imageUrl: "/images/Whisky Johnnie Walker Black Label 1L.png", category: "Destilados", tag: "Original" },
