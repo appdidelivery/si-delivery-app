@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2 } from 'lucide-react';
+// NOVO: Adicionado o ícone 'Truck' para o botão de rastreamento
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -53,8 +54,17 @@ export default function Home() {
   const [shippingRates, setShippingRates] = useState([]);
   const [shippingFee, setShippingFee] = useState(null);
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
+  
+  // NOVO: Estado para armazenar o ID do pedido ativo
+  const [activeOrderId, setActiveOrderId] = useState(null);
 
   useEffect(() => {
+    // NOVO: Verifica o localStorage por um pedido ativo ao carregar a página
+    const savedOrderId = localStorage.getItem('activeOrderId');
+    if (savedOrderId) {
+      setActiveOrderId(savedOrderId);
+    }
+
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
     
@@ -62,26 +72,16 @@ export default function Home() {
       if (d.exists()) {
         const data = d.data();
         setStoreConfig(data);
-
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes(); 
-
         const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
         const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
-
         const scheduledOpenTime = openHour * 60 + openMinute;
         const scheduledCloseTime = closeHour * 60 + closeMinute;
-
         const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-        
         const finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
-
         setIsStoreOpenNow(finalStatus);
         setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
-
-      } else {
-        setIsStoreOpenNow(true);
-        setStoreMessage('Aberto agora!');
       }
     });
 
@@ -114,15 +114,9 @@ export default function Home() {
         const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await response.json();
 
-        if (data.erro) {
-          throw new Error("CEP não encontrado.");
-        }
+        if (data.erro) { throw new Error("CEP não encontrado."); }
 
-        setCustomer(c => ({
-            ...c,
-            street: data.logradouro,
-            neighborhood: data.bairro
-        }));
+        setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
         
         const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase());
 
@@ -134,7 +128,6 @@ export default function Home() {
           setDeliveryAreaMessage("Infelizmente, não atendemos esta região.");
           setCepError("Região não atendida.");
         }
-
       } catch (error) {
         setCepError(error.message);
         setCustomer(c => ({ ...c, street: '', neighborhood: '' }));
@@ -143,20 +136,12 @@ export default function Home() {
       }
     };
 
-    const handler = setTimeout(() => {
-      fetchCep();
-    }, 500);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => { fetchCep(); }, 500);
+    return () => { clearTimeout(handler); };
   }, [customer.cep, shippingRates]);
 
   const addToCart = (p) => {
-    if (!isStoreOpenNow) {
-      alert(storeMessage); 
-      return;
-    }
+    if (!isStoreOpenNow) { alert(storeMessage); return; }
     setCart(prev => {
       const ex = prev.find(i => i.id === p.id);
       return ex ? prev.map(i => i.id === p.id ? {...i, quantity: i.quantity + 1} : i) : [...prev, {...p, quantity: 1}];
@@ -165,12 +150,7 @@ export default function Home() {
   };
 
   const updateQuantity = (productId, amount) => {
-    setCart(prevCart => {
-      const updatedCart = prevCart.map(item =>
-        item.id === productId ? { ...item, quantity: item.quantity + amount } : item
-      ).filter(item => item.quantity > 0); 
-      return updatedCart;
-    });
+    setCart(prevCart => prevCart.map(item => item.id === productId ? { ...item, quantity: item.quantity + amount } : item).filter(item => item.quantity > 0));
   };
 
   const removeFromCart = (productId) => {
@@ -181,40 +161,29 @@ export default function Home() {
   const finalTotal = subtotal + (shippingFee || 0);
 
   const finalizeOrder = async () => {
-    if (!isStoreOpenNow) { 
-      alert(storeMessage);
-      return;
-    }
-
-    if(!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) {
-        return alert("Por favor, preencha todos os campos de entrega (CEP, número, etc).");
-    }
+    if (!isStoreOpenNow) { alert(storeMessage); return; }
+    if(!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) { return alert("Por favor, preencha todos os campos de entrega (CEP, número, etc)."); }
     if(cart.length === 0) return alert("Seu carrinho está vazio!");
     if (shippingFee === null) return alert("Não foi possível calcular o frete. Verifique o CEP ou se atendemos sua região.");
-
     if (customer.payment === 'dinheiro' && !customer.changeFor) {
-      const confirmWithoutChange = window.confirm("Você selecionou 'Dinheiro' mas não especificou o valor para troco. Deseja continuar mesmo assim? Caso precise de troco, por favor, volte e preencha.");
-      if (!confirmWithoutChange) {
-        return; 
-      }
+      const confirm = window.confirm("Você selecionou 'Dinheiro' mas não especificou o valor para troco. Deseja continuar?");
+      if (!confirm) { return; }
     }
 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
 
     try {
       const docRef = await addDoc(collection(db, "orders"), {
-        customerName: customer.name,
-        customerAddress: fullAddress,
-        customerPhone: customer.phone,
-        payment: customer.payment,
-        customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
-        items: cart,
-        subtotal: subtotal,
-        shippingFee: shippingFee,
-        total: finalTotal,
-        status: 'pending',
-        createdAt: serverTimestamp()
+        customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
+        payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
+        items: cart, subtotal: subtotal, shippingFee: shippingFee, total: finalTotal,
+        status: 'pending', createdAt: serverTimestamp()
       });
+
+      // NOVO: Salva o ID do pedido no localStorage
+      localStorage.setItem('activeOrderId', docRef.id);
+      setActiveOrderId(docRef.id);
+
       navigate(`/track/${docRef.id}`);
       setCart([]);
       setShowCheckout(false);
@@ -228,7 +197,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       <SEO title="Conveniência Santa Isabel" description="Bebidas geladas e muito mais." />
-
+      {/* O Header, Main, Section e Footer continuam exatamente como estavam */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
           <img src={storeConfig.storeLogoUrl} alt="Logo" className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
@@ -315,6 +284,7 @@ export default function Home() {
         </div>
       </footer>
 
+      {/* --- Ícone do carrinho fixo --- */}
       <motion.button onClick={() => setShowCheckout(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-blue-700 transition-all active:scale-90" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.5, type: 'spring', stiffness: 300, damping: 20 }}>
         <ShoppingCart size={24} />
         {cart.length > 0 && (
@@ -324,12 +294,29 @@ export default function Home() {
         )}
       </motion.button>
       
+      {/* NOVO: Botão de Rastreamento Flutuante */}
+      <AnimatePresence>
+        {activeOrderId && (
+          <motion.button 
+            onClick={() => navigate(`/track/${activeOrderId}`)} 
+            className="fixed bottom-6 left-6 bg-purple-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-purple-700 transition-all active:scale-90 flex items-center gap-2" 
+            initial={{ scale: 0, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ delay: 0.5, type: 'spring', stiffness: 300, damping: 20 }}
+          >
+            <Truck size={24} />
+            <span className="font-bold text-sm pr-2">Acompanhar Pedido</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+      
+      {/* MODAL DE CHECKOUT */}
       <AnimatePresence>
         {showCheckout && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
               <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
-              
               <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
               <p className="text-slate-400 font-bold text-[10px] uppercase mb-10 tracking-[0.2em]">Revise e finalize</p>
               
@@ -397,13 +384,8 @@ export default function Home() {
                         </>
                     )}
 
-                    {cepError && (
-                      <p className="text-center font-bold text-sm text-red-500 -mt-2">{cepError}</p>
-                    )}
-                    
-                    {deliveryAreaMessage && !cepError && (
-                      <p className="text-center font-bold text-sm text-blue-600 -mt-2">{deliveryAreaMessage}</p>
-                    )}
+                    {cepError && ( <p className="text-center font-bold text-sm text-red-500 -mt-2">{cepError}</p> )}
+                    {deliveryAreaMessage && !cepError && ( <p className="text-center font-bold text-sm text-blue-600 -mt-2">{deliveryAreaMessage}</p> )}
                     
                     <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Pagar na Entrega via:</p>
                     <div className="grid grid-cols-3 gap-3">
