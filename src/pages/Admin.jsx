@@ -1,18 +1,17 @@
 // si-delivery-app-main/src/pages/Admin.jsx
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../services/firebase'; // 'auth' importado
+import { db, auth } from '../services/firebase';
 import { 
   collection, onSnapshot, doc, updateDoc, deleteDoc, 
-  addDoc, query, orderBy, serverTimestamp, setDoc 
+  addDoc, query, orderBy, serverTimestamp, setDoc, getDoc // <--- getDoc ADICIONADO AQUI
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3, 
-  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image // Ícones LogOut, UploadCloud, Loader2, Image ADICIONADOS
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { signOut } from 'firebase/auth'; // signOut importado
-import { useNavigate } from 'react-router-dom'; // useNavigate importado
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Importações do Firebase Storage REMOVIDAS, mas essa linha estava aqui antes, entao deixo como comentario.
+import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
 const CLOUDINARY_CLOUD_NAME = 'dud8fzi5r'; // <--- SUBSTITUA PELO SEU CLOUD NAME REAL
@@ -41,10 +40,10 @@ export default function Admin() {
 
   // --- Novos Estados para Status da Loja ---
   const [storeStatus, setStoreStatus] = useState({
-    isOpen: true, // true/false para indicar se a loja está aberta
-    openTime: '08:00', // Horário de abertura padrão
-    closeTime: '23:00', // Horário de fechamento padrão
-    message: 'Aberto agora!', // Mensagem personalizada
+    isOpen: true,
+    openTime: '08:00',
+    closeTime: '23:00',
+    message: 'Aberto agora!',
   });
 
   // Função para Logout
@@ -76,15 +75,34 @@ export default function Admin() {
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubSettings = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setSettings(d.data()));
 
-    // --- NOVO: Listener para Store Status ---
-    const unsubStoreStatus = onSnapshot(doc(db, "settings", "store_status"), (d) => {
+    // --- NOVO: Inicializa o documento store_status se não existir ---
+    const storeStatusDocRef = doc(db, "settings", "store_status");
+    const initializeStoreStatus = async () => {
+      try {
+        const docSnap = await getDoc(storeStatusDocRef);
+        if (!docSnap.exists()) {
+          console.log("Documento settings/store_status não existe. Criando com valores padrão.");
+          await setDoc(storeStatusDocRef, {
+            isOpen: true,
+            openTime: '08:00',
+            closeTime: '23:00',
+            message: 'Aberto agora!',
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao inicializar store_status no Firestore:", error);
+      }
+    };
+    initializeStoreStatus(); // Chama a função de inicialização no mount
+
+    // --- Listener para Store Status ---
+    const unsubStoreStatus = onSnapshot(storeStatusDocRef, (d) => {
       if (d.exists()) {
         setStoreStatus(d.data());
       } else {
-        // Se o documento não existir, cria-o no Firestore com os valores padrão iniciais do estado
-        // Certifique-se que 'storeStatus' já tem os valores default quando esta linha é executada pela primeira vez.
-        // O setDoc inicializa o documento se ele não existir
-        setDoc(doc(db, "settings", "store_status"), {
+        // Se o documento for deletado externamente após a inicialização, ele será recriado
+        console.warn("Documento settings/store_status foi excluído e será recriado com valores padrão.");
+        setDoc(storeStatusDocRef, {
           isOpen: true,
           openTime: '08:00',
           closeTime: '23:00',
@@ -93,14 +111,13 @@ export default function Admin() {
       }
     });
 
-
     return () => { 
       unsubOrders(); 
       unsubProducts(); 
       unsubSettings();
-      unsubStoreStatus(); // <--- NÃO ESQUEÇA DE RETORNAR ESTE UNSUBSCRIBE
+      unsubStoreStatus();
     };
-  }, []);
+  }, []); // Dependências vazias para rodar apenas uma vez no mount
 
   // --- Função para Upload da Imagem para Cloudinary ---
   const handleImageUpload = async () => {
