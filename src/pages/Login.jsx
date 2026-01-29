@@ -1,4 +1,3 @@
-// si-delivery-app-main/src/pages/Login.jsx
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth'; // Importa a função de login
 import { auth } from '../services/firebase'; // Importa o objeto 'auth' que você exportou
@@ -52,3 +51,15 @@ export default function Login() {
             className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-500 transition-all"
             required
           />
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase text-xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all mt-8"
+          >
+            Entrar
+          </button>
+        </form>
+      </div>
+    </motion.div>
+  );
+}
