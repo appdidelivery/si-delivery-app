@@ -1,16 +1,20 @@
+// si-delivery-app-main/src/pages/Admin.jsx
 import React, { useState, useEffect } from 'react';
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase'; // <--- AGORA IMPORTA 'auth'
 import { 
   collection, onSnapshot, doc, updateDoc, deleteDoc, 
   addDoc, query, orderBy, serverTimestamp, setDoc 
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3, 
-  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink 
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut // <--- LogOut ADICIONADO
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { signOut } from 'firebase/auth'; // <--- Importa signOut
+import { useNavigate } from 'react-router-dom'; // <--- Importa useNavigate
 
 export default function Admin() {
+  const navigate = useNavigate(); // <--- Inicializa useNavigate
   const [activeTab, setActiveTab] = useState('dashboard');
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -23,7 +27,17 @@ export default function Admin() {
   const [manualCart, setManualCart] = useState([]);
   const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
 
- useEffect(() => {
+  // Função para Logout
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Desloga o usuário do Firebase
+      navigate('/login'); // Redireciona para a página de login após o logout
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error.message);
+    }
+  };
+
+  useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     
     const unsubOrders = onSnapshot(q, (snapshot) => {
@@ -95,7 +109,7 @@ export default function Admin() {
       {/* SIDEBAR COM ASSINATURA VELO */}
       <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="flex flex-col items-center mb-10">
-          <img src="/logo retangular vero delivery.png" className="h-16 w-16 rounded-full border-4 border-blue-50 shadow-sm mb-4" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
+          <img src="/logo retangular vero delivery.png" className="h-16 w-auto rounded-full border-4 border-blue-50 shadow-sm mb-4" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Painel Gestão</h2>
           <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
         </div>
@@ -114,6 +128,14 @@ export default function Admin() {
             </button>
           ))}
         </nav>
+
+        {/* Botão de Logout na Sidebar */}
+        <button 
+          onClick={handleLogout} 
+          className="mt-6 w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all"
+        >
+          <LogOut size={18}/> Sair
+        </button>
 
         <div className="mt-auto pt-6 border-t border-slate-50 flex flex-col items-center opacity-30">
           <img src="/logo retangular Vero Delivery.png" className="h-6 w-auto grayscale mb-1" />
