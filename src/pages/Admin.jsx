@@ -1,22 +1,22 @@
 // si-delivery-app-main/src/pages/Admin.jsx
 import React, { useState, useEffect } from 'react';
-import { db, auth /* , storage */ } from '../services/firebase'; // <--- REMOVE 'storage' daqui
+import { db, auth } from '../services/firebase'; // 'auth' importado
 import { 
   collection, onSnapshot, doc, updateDoc, deleteDoc, 
   addDoc, query, orderBy, serverTimestamp, setDoc 
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3, 
-  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image // <--- Ícones
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image // Ícones LogOut, UploadCloud, Loader2, Image ADICIONADOS
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { signOut } from 'firebase/auth';
-import { useNavigate } from 'react-router-dom';
-// import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // <--- REMOVE ESTAS IMPORTAÇÕES DO STORAGE
+import { signOut } from 'firebase/auth'; // signOut importado
+import { useNavigate } from 'react-router-dom'; // useNavigate importado
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Importações do Firebase Storage REMOVIDAS, mas essa linha estava aqui antes, entao deixo como comentario.
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
-const CLOUDINARY_CLOUD_NAME = 'dud8fzi5r'; // <--- SUBSTITUA PELO SEU CLOUD NAME
-const CLOUDINARY_UPLOAD_PRESET = 'bzlpl7bj'; // <--- SUBSTITUA PELO SEU UPLOAD PRESET NAME
+const CLOUDINARY_CLOUD_NAME = 'dud8fzi5r'; // <--- SUBSTITUA PELO SEU CLOUD NAME REAL
+const CLOUDINARY_UPLOAD_PRESET = 'bzlpl7bj'; // <--- SUBSTITUA PELO SEU UPLOAD PRESET NAME REAL
 // ---------------------------------
 
 export default function Admin() {
@@ -33,11 +33,19 @@ export default function Admin() {
   const [manualCart, setManualCart] = useState([]);
   const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
 
-  // --- Novos Estados para Upload de Imagem ---
+  // --- Novos Estados para Upload de Imagem (Cloudinary) ---
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0); // Para exibir progresso do upload
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // --- Novos Estados para Status da Loja ---
+  const [storeStatus, setStoreStatus] = useState({
+    isOpen: true, // true/false para indicar se a loja está aberta
+    openTime: '08:00', // Horário de abertura padrão
+    closeTime: '23:00', // Horário de fechamento padrão
+    message: 'Aberto agora!', // Mensagem personalizada
+  });
 
   // Função para Logout
   const handleLogout = async () => {
@@ -68,7 +76,30 @@ export default function Admin() {
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubSettings = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setSettings(d.data()));
 
-    return () => { unsubOrders(); unsubProducts(); unsubSettings(); };
+    // --- NOVO: Listener para Store Status ---
+    const unsubStoreStatus = onSnapshot(doc(db, "settings", "store_status"), (d) => {
+      if (d.exists()) {
+        setStoreStatus(d.data());
+      } else {
+        // Se o documento não existir, cria-o no Firestore com os valores padrão iniciais do estado
+        // Certifique-se que 'storeStatus' já tem os valores default quando esta linha é executada pela primeira vez.
+        // O setDoc inicializa o documento se ele não existir
+        setDoc(doc(db, "settings", "store_status"), {
+          isOpen: true,
+          openTime: '08:00',
+          closeTime: '23:00',
+          message: 'Aberto agora!',
+        }, { merge: true });
+      }
+    });
+
+
+    return () => { 
+      unsubOrders(); 
+      unsubProducts(); 
+      unsubSettings();
+      unsubStoreStatus(); // <--- NÃO ESQUEÇA DE RETORNAR ESTE UNSUBSCRIBE
+    };
   }, []);
 
   // --- Função para Upload da Imagem para Cloudinary ---
@@ -96,9 +127,9 @@ export default function Admin() {
       }
 
       const data = await response.json();
-      setForm(prevForm => ({ ...prevForm, imageUrl: data.secure_url })); // Salva a URL segura
+      setForm(prevForm => ({ ...prevForm, imageUrl: data.secure_url }));
       setUploading(false);
-      setImageFile(null); // Limpa o arquivo selecionado
+      setImageFile(null);
       setUploadProgress(100); 
 
     } catch (error) {
@@ -168,6 +199,8 @@ export default function Admin() {
             { id: 'products', name: 'Estoque', icon: <Package size={18}/> },
             { id: 'customers', name: 'Clientes VIP', icon: <Users size={18}/> },
             { id: 'marketing', name: 'Marketing', icon: <Trophy size={18}/> },
+            // --- NOVA ABA DE CONFIGURAÇÕES DA LOJA ---
+            { id: 'store_settings', name: 'Loja', icon: <Bell size={18}/> },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50'}`}>
               {item.icon} {item.name}
@@ -342,6 +375,65 @@ export default function Admin() {
             </div>
           </div>
         )}
+
+        {/* --- NOVO: CONTEÚDO PARA CONFIGURAÇÕES DA LOJA --- */}
+        {activeTab === 'store_settings' && (
+          <div className="space-y-8">
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações da Loja</h1>
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+              <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status da Loja</h2>
+              
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                <span className="font-bold text-slate-700">Loja Aberta Agora:</span>
+                <input 
+                  type="checkbox" 
+                  checked={storeStatus.isOpen} 
+                  onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { isOpen: e.target.checked })}
+                  className="toggle toggle-lg toggle-primary"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                <span className="font-bold text-slate-700">Horário de Abertura:</span>
+                <input 
+                  type="time" 
+                  value={storeStatus.openTime} 
+                  onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { openTime: e.target.value })}
+                  className="p-3 bg-white rounded-xl border border-slate-200 font-bold"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                <span className="font-bold text-slate-700">Horário de Fechamento:</span>
+                <input 
+                  type="time" 
+                  value={storeStatus.closeTime} 
+                  onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { closeTime: e.target.value })}
+                  className="p-3 bg-white rounded-xl border border-slate-200 font-bold"
+                />
+              </div>
+
+              <div className="space-y-4 pt-6 border-t border-slate-100">
+                <label className="block text-slate-700 font-bold text-sm">Mensagem da Loja:</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: Aberto até as 23h, Fechado para almoço"
+                  value={storeStatus.message} 
+                  onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { message: e.target.value })}
+                  className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-500"
+                />
+              </div>
+
+              {/* Opção de Fechamento Agendado (mais avançado, se quiser implementar mais tarde) */}
+              <div className="pt-6 border-t border-slate-100">
+                  <h3 className="text-xl font-black text-slate-800 uppercase mb-4">Agendamento</h3>
+                  <p className="font-medium text-slate-500 italic">Módulo de agendamento de abertura/fechamento em desenvolvimento.</p>
+              </div>
+
+            </div>
+          </div>
+        )}
+        {/* --- FIM DO NOVO CONTEÚDO --- */}
       </main>
 
       {/* MODAL PRODUTO */}
@@ -354,12 +446,10 @@ export default function Admin() {
               <form onSubmit={async (e) => {
                   e.preventDefault();
                   const data = { ...form, price: parseFloat(form.price) };
-                  // Se uma nova imagem foi carregada, ela já estará em form.imageUrl
-                  // Se não, form.imageUrl manterá a URL existente ou estará vazia
                   if (editingId) { await updateDoc(doc(db,"products",editingId), data); } 
                   else { await addDoc(collection(db,"products"), data); }
                   setIsModalOpen(false);
-                  setImageFile(null); // Limpa o arquivo de imagem após salvar/atualizar
+                  setImageFile(null);
                   setUploadError('');
                   setUploadProgress(0);
               }} className="space-y-6">
@@ -386,7 +476,7 @@ export default function Admin() {
 
                     {imageFile && (
                         <button 
-                            type="button" // Importante: type="button" para não submeter o form
+                            type="button"
                             onClick={handleImageUpload} 
                             disabled={uploading}
                             className={`w-full p-4 rounded-3xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
@@ -399,20 +489,18 @@ export default function Admin() {
                 </div>
                 
                 {/* Prévia da imagem carregada (ou URL existente) */}
-                {(form.imageUrl && !imageFile) && ( // Mostra a URL existente se não houver arquivo novo selecionado
+                {(form.imageUrl && !imageFile) && (
                     <div className="flex flex-col items-center gap-3">
                         <img src={form.imageUrl} alt="Prévia do Produto" className="w-32 h-32 object-contain rounded-xl border border-slate-100 p-2 bg-slate-50"/>
                         <a href={form.imageUrl} target="_blank" className="text-blue-500 text-xs font-medium flex items-center gap-1 hover:underline">Ver Imagem <ExternalLink size={12}/></a>
                     </div>
                 )}
-                {imageFile && ( // Mostra a prévia do arquivo selecionado antes do upload
+                {imageFile && (
                     <div className="flex flex-col items-center gap-3">
                         <img src={URL.createObjectURL(imageFile)} alt="Prévia do Arquivo" className="w-32 h-32 object-contain rounded-xl border border-slate-100 p-2 bg-slate-50"/>
                         <p className="text-slate-500 text-xs font-medium">Arquivo selecionado para upload</p>
                     </div>
                 )}
-                {/* --- FIM CAMPO DE UPLOAD DE IMAGEM --- */}
-
                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
               </form>
             </motion.div>
