@@ -25,36 +25,31 @@ export default function Home() {
   const [cartAnimationKey, setCartAnimationKey] = useState(0); 
   const [promo, setPromo] = useState(null);
 
-  // --- Estados para Status da Loja (agora incluindo Logo e Banner URLs) ---
-  const [storeConfig, setStoreConfig] = useState({ // Renomeado de storeStatus para storeConfig para incluir mais que só status
+  const [storeConfig, setStoreConfig] = useState({
     isOpen: true,
     openTime: '08:00',
     closeTime: '23:00',
     message: 'Aberto agora!',
-    storeLogoUrl: '/logo-loja.png', // <--- Padrão
-    storeBannerUrl: '/fachada.jpg', // <--- Padrão
+    storeLogoUrl: '/logo-loja.png',
+    storeBannerUrl: '/fachada.jpg',
   });
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); 
   const [storeMessage, setStoreMessage] = useState('Verificando status...');
 
   useEffect(() => {
-    // Listener para Produtos
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    // Listener para Promoção
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
     
-    // --- NOVO: Listener para Configurações da Loja ---
     const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
       if (d.exists()) {
         const data = d.data();
-        setStoreConfig(data); // Atualiza o estado com todos os dados do Firestore
+        setStoreConfig(data);
 
-        // Lógica para verificar se a loja está aberta AGORA
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes(); 
 
-        const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number); // Adicionado default para evitar erro se campo estiver vazio
-        const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number); // Adicionado default
+        const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
+        const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
 
         const scheduledOpenTime = openHour * 60 + openMinute;
         const scheduledCloseTime = closeHour * 60 + closeMinute;
@@ -67,7 +62,6 @@ export default function Home() {
         setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
 
       } else {
-        // Se o documento não existir, usa valores padrão
         setIsStoreOpenNow(true);
         setStoreMessage('Aberto agora!');
       }
@@ -76,7 +70,7 @@ export default function Home() {
     return () => { 
       unsubProducts(); 
       unsubPromo(); 
-      unsubStoreConfig(); // <--- Retorna a função de limpeza
+      unsubStoreConfig();
     };
   }, []);
 
@@ -141,32 +135,30 @@ export default function Home() {
       {/* 1. TOPO: LOGO E STATUS */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
-          {/* LOGO DA LOJA (AGORA DINÂMICO) */}
           <img 
-            src={storeConfig.storeLogoUrl} // <--- USA A URL DO FIRESTORE
+            src={storeConfig.storeLogoUrl}
             alt="Logo" 
             className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" 
-            onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} // Fallback
+            onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}
           />
           <div>
             <h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1>
             <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p>
           </div>
         </div>
-        {/* Status da Loja Dinâmico */}
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>}
           <span className="text-[10px] font-black uppercase">{storeMessage}</span>
         </div>
       </header>
 
-      {/* 2. BANNER DA FACHADA (AGORA DINÂMICO) */}
+      {/* 2. BANNER DA FACHADA */}
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
         <img 
-          src={storeConfig.storeBannerUrl} // <--- USA A URL DO FIRESTORE
+          src={storeConfig.storeBannerUrl}
           alt="Fachada" 
           className="w-full h-full object-cover brightness-75"
-          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} // Fallback
+          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
           <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest">
@@ -176,14 +168,28 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PROMOÇÃO RELÂMPAGO DINÂMICA */}
+      {/* --- INÍCIO DA ALTERAÇÃO --- */}
+      {/* EXIBIÇÃO DO BANNER DE PROMOÇÃO RELÂMPAGO */}
       <AnimatePresence>
-        {promo?.promoActive && (
-          <motion.div initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-orange-500 text-white p-3 text-center text-xs font-black uppercase italic tracking-tighter shadow-xl">
-            🔥 Ofertas Relâmpago Ativas! Aproveite agora!
+        {/* A condição agora verifica se a promo está ativa E se existe uma URL de banner */}
+        {promo?.promoActive && promo?.promoBannerUrl && (
+          <motion.div
+            layout
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className="overflow-hidden p-6"
+          >
+            <img
+              src={promo.promoBannerUrl} // A URL vem do Firestore
+              alt="Banner de Promoção Relâmpago"
+              className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white"
+            />
           </motion.div>
         )}
       </AnimatePresence>
+      {/* --- FIM DA ALTERAÇÃO --- */}
 
       {/* BUSCA E CATEGORIAS */}
       <div className="p-6">
