@@ -22,7 +22,6 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCheckout, setShowCheckout] = useState(false);
   
-  // --- ALTERAÇÃO: Adicionar 'changeFor' ao estado do cliente ---
   const [customer, setCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
   
   const [cartAnimationKey, setCartAnimationKey] = useState(0); 
@@ -57,14 +56,17 @@ export default function Home() {
         const scheduledOpenTime = openHour * 60 + openMinute;
         const scheduledCloseTime = closeHour * 60 + closeMinute;
 
+        // Verifica se a hora atual está dentro do horário de funcionamento agendado
         const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
         
+        // O status final da loja depende tanto da configuração manual (isOpen) quanto do horário agendado
         const finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
 
         setIsStoreOpenNow(finalStatus);
         setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
 
       } else {
+        // Se o documento de configuração não existir, assume-se aberto com mensagem padrão
         setIsStoreOpenNow(true);
         setStoreMessage('Aberto agora!');
       }
@@ -78,6 +80,7 @@ export default function Home() {
   }, []);
 
   const addToCart = (p) => {
+    // Apenas alerte se a loja não estiver aberta e retorne
     if (!isStoreOpenNow) {
       alert(storeMessage); 
       return;
@@ -105,6 +108,7 @@ export default function Home() {
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
 
   const finalizeOrder = async () => {
+    // Apenas alerte se a loja não estiver aberta e retorne
     if (!isStoreOpenNow) { 
       alert(storeMessage);
       return;
@@ -112,14 +116,22 @@ export default function Home() {
     if(!customer.name || !customer.address || !customer.phone) return alert("Por favor, preencha todos os campos!");
     if(cart.length === 0) return alert("Seu carrinho está vazio!");
     
+    // Se o pagamento for em dinheiro e o campo de troco não for preenchido, alerte.
+    if (customer.payment === 'dinheiro' && !customer.changeFor) {
+      const confirmWithoutChange = window.confirm("Você selecionou 'Dinheiro' mas não especificou o valor para troco. Deseja continuar mesmo assim? Caso precise de troco, por favor, volte e preencha.");
+      if (!confirmWithoutChange) {
+        return; 
+      }
+    }
+
+
     try {
-      // --- ALTERAÇÃO: Enviar o campo de troco para o Firestore ---
       const docRef = await addDoc(collection(db, "orders"), {
         customerName: customer.name,
         customerAddress: customer.address,
         customerPhone: customer.phone,
         payment: customer.payment,
-        customerChangeFor: customer.changeFor, // <-- Novo campo
+        customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '', // Envia o troco apenas se for dinheiro
         items: cart,
         total: subtotal,
         status: 'pending',
@@ -128,7 +140,9 @@ export default function Home() {
       navigate(`/track/${docRef.id}`);
       setCart([]);
       setShowCheckout(false);
+      setCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); // Limpa o formulário do cliente
     } catch (e) {
+      console.error("Erro ao processar pedido:", e);
       alert("Erro ao processar pedido. Tente novamente.");
     }
   };

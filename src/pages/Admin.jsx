@@ -30,7 +30,7 @@ export default function Admin() {
 
   // Estados para Pedido Manual
   const [manualCart, setManualCart] = useState([]);
-  const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
+  const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); // Adicionado changeFor
 
   // --- Estados para Upload de Imagem de Produto (Cloudinary) ---
   const [imageFile, setImageFile] = useState(null);
@@ -222,6 +222,7 @@ export default function Admin() {
     const w = window.open('', '_blank');
     const itemsHtml = (o.items || []).map(i => `<li>${i.quantity}x ${i.name}</li>`).join('');
     const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.payment] || 'PIX';
+    const trocoInfo = o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : '';
     
     w.document.write(`
       <html><body style="font-family:sans-serif;width:300px;padding:10px;color:#333;">
@@ -230,7 +231,9 @@ export default function Admin() {
           <strong>PEDIDO:</strong> #${o.id.slice(0,6)}<br>
           <strong>CLIENTE:</strong> ${o.customerName}<br>
           <strong>FONE:</strong> ${o.customerPhone}<br>
-          <strong>PAGTO:</strong> ${pagto}<br><hr>
+          <strong>PAGTO:</strong> ${pagto}<br>
+          ${trocoInfo}
+          <hr>
           <ul style="padding-left:15px;">${itemsHtml}</ul><hr>
           <div style="text-align:right;font-size:18px;"><strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong></div>
         </div>
@@ -239,7 +242,9 @@ export default function Admin() {
           <strong>NOME:</strong> ${o.customerName}<br>
           <strong>ENDEREÇO:</strong> ${o.customerAddress}<br>
           <strong>FONE:</strong> ${o.customerPhone}<br>
-          <strong>PAGTO:</strong> ${pagto}<br><hr>
+          <strong>PAGTO:</strong> ${pagto}<br>
+          ${trocoInfo}
+          <hr>
           <div style="text-align:right;font-size:18px;"><strong>COBRAR: R$ ${Number(o.total || 0).toFixed(2)}</strong></div>
         </div>
         <p style="text-align:center;font-size:8px;margin-top:20px;opacity:0.5;">Powered by Velo Delivery</p>
@@ -321,10 +326,13 @@ export default function Admin() {
                   <p className="text-slate-500 font-medium italic text-sm">{o.customerAddress}</p>
                   <div className="flex gap-2 flex-wrap mt-4">{o.items?.map((it, i) => <span key={i} className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-[10px] font-black">x{it.quantity} {it.name}</span>)}</div>
                 </div>
-                <div className="mt-4 bg-yellow-100 text-yellow-800 p-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-    <span>LEVAR TROCO PARA:</span>
-    <span className="font-black text-base">{o.customerChangeFor}</span>
-  </div>
+                {o.customerChangeFor && (
+                  <div className="mt-4 bg-yellow-100 text-yellow-800 p-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                      <span>LEVAR TROCO PARA:</span>
+                      <span className="font-black text-base">{o.customerChangeFor}</span>
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-3">
                   <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
                   <button onClick={() => printLabel(o)} className="p-4 bg-slate-50 rounded-2xl text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-sm"><Printer size={20}/></button>
@@ -353,16 +361,35 @@ export default function Admin() {
                  <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.name} onChange={e=>setManualCustomer({...manualCustomer, name: e.target.value})}/>
                  <input type="text" placeholder="Endereço Completo" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.address} onChange={e=>setManualCustomer({...manualCustomer, address: e.target.value})}/>
                  <input type="tel" placeholder="WhatsApp" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.phone} onChange={e=>setManualCustomer({...manualCustomer, phone: e.target.value})}/>
-                 <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e=>setManualCustomer({...manualCustomer, payment: e.target.value})}>
+                 <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e=>setManualCustomer({...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : ''})}>
                     <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
                  </select>
+                 {manualCustomer.payment === 'dinheiro' && (
+                  <input type="text" placeholder="Troco para qual valor?" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.changeFor} onChange={e=>setManualCustomer({...manualCustomer, changeFor: e.target.value})}/>
+                 )}
                  <div className="pt-6 border-t border-slate-100">
                     {manualCart.map(i => <div key={i.id} className="flex justify-between mb-2 font-bold text-slate-600 text-sm"><span>{i.quantity}x {i.name}</span><span>R$ {(i.price*i.quantity).toFixed(2)}</span></div>)}
                     <div className="text-3xl font-black text-slate-900 mt-6 italic">Total R$ {manualCart.reduce((a,i)=>a+(i.price*i.quantity),0).toFixed(2)}</div>
                     <button onClick={async () => {
                       if(!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length===0) return alert("Por favor, preencha o nome, endereço, telefone e adicione itens ao carrinho para salvar o pedido!");
-                      await addDoc(collection(db,"orders"),{...manualCustomer, customerName: manualCustomer.name, customerAddress: manualCustomer.address, customerPhone: manualCustomer.phone, items: manualCart, total: manualCart.reduce((a,i)=>a+(i.price*i.quantity),0), status:'pending', createdAt: serverTimestamp()});
-                      setManualCart([]); setManualCustomer({name:'', address:'', phone:'', payment:'pix'}); alert("Pedido Manual Lançado com sucesso!");
+                      if (manualCustomer.payment === 'dinheiro' && !manualCustomer.changeFor) {
+                          const confirmWithoutChange = window.confirm("Você selecionou 'Dinheiro' mas não especificou o valor para troco. Deseja continuar mesmo assim? Caso precise de troco, por favor, volte e preencha.");
+                          if (!confirmWithoutChange) {
+                              return; 
+                          }
+                      }
+                      await addDoc(collection(db,"orders"),{
+                        ...manualCustomer, 
+                        customerName: manualCustomer.name, 
+                        customerAddress: manualCustomer.address, 
+                        customerPhone: manualCustomer.phone, 
+                        items: manualCart, 
+                        total: manualCart.reduce((a,i)=>a+(i.price*i.quantity),0), 
+                        status:'pending', 
+                        createdAt: serverTimestamp(),
+                        customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : ''
+                      });
+                      setManualCart([]); setManualCustomer({name:'', address:'', phone:'', payment:'pix', changeFor: ''}); alert("Pedido Manual Lançado com sucesso!");
                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-8 shadow-xl">Salvar no Sistema</button>
                  </div>
                </div>
