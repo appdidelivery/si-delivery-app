@@ -23,7 +23,7 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
-  const [settings, setSettings] = useState({ promoActive: false, promoBannerUrl: '' }); // <--- NOVO: promoBannerUrl no estado settings
+  const [settings, setSettings] = useState({ promoActive: false, promoBannerUrl: '' });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({ name: '', price: '', category: 'Cervejas', imageUrl: '', tag: '' });
   const [editingId, setEditingId] = useState(null);
@@ -33,7 +33,7 @@ export default function Admin() {
   const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
 
   // --- Estados para Upload de Imagem de Produto (Cloudinary) ---
-  const [imageFile, setImageFile] = useState(null); // Para o modal de produto
+  const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -61,7 +61,15 @@ export default function Admin() {
   const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
   const [promoBannerUploadError, setPromoBannerUploadError] = useState('');
 
-  // Função para Logout
+  // --- Array de itens de navegação para reutilização ---
+  const navItems = [
+    { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18}/>, mobileIcon: <LayoutDashboard size={22}/> },
+    { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18}/>, mobileIcon: <ShoppingBag size={22}/> },
+    { id: 'products', name: 'Estoque', icon: <Package size={18}/>, mobileIcon: <Package size={22}/> },
+    { id: 'customers', name: 'Clientes VIP', icon: <Users size={18}/>, mobileIcon: <Users size={22}/> },
+    { id: 'store_settings', name: 'Loja', icon: <Bell size={18}/>, mobileIcon: <Bell size={22}/> },
+  ];
+  
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -87,39 +95,31 @@ export default function Admin() {
       setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // --- AJUSTADO: Listener para Settings de Marketing (agora inclui promoBannerUrl) ---
     const marketingDocRef = doc(db, "settings", "marketing");
     const initializeMarketingSettings = async () => {
         try {
             const docSnap = await getDoc(marketingDocRef);
             if (!docSnap.exists()) {
-                console.log("Documento settings/marketing não existe. Criando com valores padrão.");
                 await setDoc(marketingDocRef, { promoActive: false, promoBannerUrl: '' });
             }
         } catch (error) {
             console.error("Erro ao inicializar marketing settings no Firestore:", error);
         }
     };
-    initializeMarketingSettings(); // Chama a função de inicialização
+    initializeMarketingSettings();
     const unsubSettings = onSnapshot(marketingDocRef, (d) => d.exists() && setSettings(d.data()));
 
 
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-    // --- Inicializa o documento store_status se não existir ---
     const storeStatusDocRef = doc(db, "settings", "store_status");
     const initializeStoreStatus = async () => {
       try {
         const docSnap = await getDoc(storeStatusDocRef);
         if (!docSnap.exists()) {
-          console.log("Documento settings/store_status não existe. Criando com valores padrão.");
           await setDoc(storeStatusDocRef, {
-            isOpen: true,
-            openTime: '08:00',
-            closeTime: '23:00',
-            message: 'Aberto agora!',
-            storeLogoUrl: '/logo-loja.png', // Default
-            storeBannerUrl: '/fachada.jpg', // Default
+            isOpen: true, openTime: '08:00', closeTime: '23:00',
+            message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
           });
         }
       } catch (error) {
@@ -132,14 +132,9 @@ export default function Admin() {
       if (d.exists()) {
         setStoreStatus(d.data());
       } else {
-        console.warn("Documento settings/store_status foi excluído e será recriado com valores padrão.");
         setDoc(storeStatusDocRef, {
-          isOpen: true,
-          openTime: '08:00',
-          closeTime: '23:00',
-          message: 'Aberto agora!',
-          storeLogoUrl: '/logo-loja.png', // Default
-          storeBannerUrl: '/fachada.jpg', // Default
+          isOpen: true, openTime: '08:00', closeTime: '23:00',
+          message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
         }, { merge: true });
       }
     });
@@ -152,7 +147,6 @@ export default function Admin() {
     };
   }, []);
 
-  // --- Função GLOBAL para Upload de Imagem para Cloudinary (reutilizável) ---
   const uploadToCloudinary = async (file, uploadPreset, cloudName, setLoading, setError) => {
     if (!file) {
       setError("Nenhuma imagem selecionada.");
@@ -189,15 +183,8 @@ export default function Admin() {
   };
 
 
-  // --- Função para Upload da Imagem de Produto (chamando a função global) ---
   const handleProductImageUpload = async () => {
-    const url = await uploadToCloudinary(
-      imageFile, 
-      CLOUDINARY_UPLOAD_PRESET, 
-      CLOUDINARY_CLOUD_NAME, 
-      setUploading, 
-      setUploadError
-    );
+    const url = await uploadToCloudinary(imageFile, CLOUDINARY_UPLOAD_PRESET, CLOUDINARY_CLOUD_NAME, setUploading, setUploadError);
     if (url) {
       setForm(prevForm => ({ ...prevForm, imageUrl: url }));
       setImageFile(null);
@@ -207,53 +194,30 @@ export default function Admin() {
     }
   };
 
-  // --- Função para Upload do Logo (chamando a função global) ---
   const handleLogoUpload = async () => {
-    const url = await uploadToCloudinary(
-      logoFile, 
-      CLOUDINARY_UPLOAD_PRESET, 
-      CLOUDINARY_CLOUD_NAME, 
-      setUploadingLogo, 
-      setLogoUploadError
-    );
+    const url = await uploadToCloudinary(logoFile, CLOUDINARY_UPLOAD_PRESET, CLOUDINARY_CLOUD_NAME, setUploadingLogo, setLogoUploadError);
     if (url) {
       await updateDoc(doc(db, "settings", "store_status"), { storeLogoUrl: url });
       setLogoFile(null);
     }
   };
 
-  // --- Função para Upload do Banner (chamando a função global) ---
   const handleBannerUpload = async () => {
-    const url = await uploadToCloudinary(
-      bannerFile, 
-      CLOUDINARY_UPLOAD_PRESET, 
-      CLOUDINARY_CLOUD_NAME, 
-      setUploadingBanner, 
-      setBannerUploadError
-    );
+    const url = await uploadToCloudinary(bannerFile, CLOUDINARY_UPLOAD_PRESET, CLOUDINARY_CLOUD_NAME, setUploadingBanner, setBannerUploadError);
     if (url) {
       await updateDoc(doc(db, "settings", "store_status"), { storeBannerUrl: url });
       setBannerFile(null);
     }
   };
 
-  // --- NOVO: Função para Upload do Banner de Promoção ---
   const handlePromoBannerUpload = async () => {
-    const url = await uploadToCloudinary(
-      promoBannerFile, 
-      CLOUDINARY_UPLOAD_PRESET, 
-      CLOUDINARY_CLOUD_NAME, 
-      setUploadingPromoBanner, 
-      setPromoBannerUploadError
-    );
+    const url = await uploadToCloudinary(promoBannerFile, CLOUDINARY_UPLOAD_PRESET, CLOUDINARY_CLOUD_NAME, setUploadingPromoBanner, setPromoBannerUploadError);
     if (url) {
-      // Atualiza o documento 'settings/marketing' com a URL do banner
       await updateDoc(doc(db, "settings", "marketing"), { promoBannerUrl: url });
       setPromoBannerFile(null);
     }
   };
 
-  // --- Função de Impressão (Etiqueta Dupla) ---
   const printLabel = (o) => {
     const w = window.open('', '_blank');
     const itemsHtml = (o.items || []).map(i => `<li>${i.quantity}x ${i.name}</li>`).join('');
@@ -285,7 +249,6 @@ export default function Admin() {
     w.document.close();
   };
 
-  // --- Lógica de Ranking VIP ---
   const customers = Object.values(orders.reduce((acc, o) => {
     const p = o.customerPhone || 'N/A';
     if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
@@ -297,7 +260,7 @@ export default function Admin() {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
       
-      {/* SIDEBAR COM ASSINATURA VELO */}
+      {/* SIDEBAR DESKTOP */}
       <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="flex flex-col items-center mb-10">
           <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 shadow-sm mb-4 object-cover" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
@@ -307,36 +270,24 @@ export default function Admin() {
 
         <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
           {[
-            { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18}/> },
-            { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18}/> },
+            ...navItems, // Reutiliza o array principal
             { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18}/> },
-            { id: 'products', name: 'Estoque', icon: <Package size={18}/> },
-            { id: 'customers', name: 'Clientes VIP', icon: <Users size={18}/> },
             { id: 'marketing', name: 'Marketing', icon: <Trophy size={18}/> },
-            { id: 'store_settings', name: 'Loja', icon: <Bell size={18}/> },
-          ].map(item => (
+          ].sort((a, b) => [...navItems.map(i => i.id), 'manual', 'marketing'].indexOf(a.id) - [...navItems.map(i => i.id), 'manual', 'marketing'].indexOf(b.id))
+          .map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50'}`}>
               {item.icon} {item.name}
             </button>
           ))}
         </nav>
 
-        {/* Botão de Logout na Sidebar */}
-        <button 
-          onClick={handleLogout} 
-          className="mt-6 w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all"
-        >
+        <button onClick={handleLogout} className="mt-6 w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all">
           <LogOut size={18}/> Sair
         </button>
-
-        <div className="mt-auto pt-6 border-t border-slate-50 flex flex-col items-center opacity-30">
-          <img src="/logo retangular Vero Delivery.png" className="h-6 w-auto grayscale mb-1" />
-          <p className="text-[8px] font-black uppercase">Velo Admin Console</p>
-        </div>
       </aside>
 
-      {/* ÁREA DE CONTEÚDO */}
-      <main className="flex-1 p-8 lg:p-12 overflow-y-auto">
+      {/* ÁREA DE CONTEÚDO (COM PADDING RESPONSIVO) */}
+      <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
         
         {activeTab === 'dashboard' && (
           <div className="space-y-8">
@@ -374,16 +325,16 @@ export default function Admin() {
                   <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
                   <button onClick={() => printLabel(o)} className="p-4 bg-slate-50 rounded-2xl text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-sm"><Printer size={20}/></button>
                   <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g,'')}`} target="_blank" className="p-4 bg-green-500 text-white rounded-2xl shadow-lg"><MessageCircle size={20}/></a>
-<select 
-  value={o.status} 
-  onChange={(e) => updateDoc(doc(db,"orders",o.id), {status: e.target.value})} 
-  className="bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] outline-none border-none cursor-pointer"
->
-    <option value="pending">🟡 Pendente</option>
-    <option value="preparing">🟠 Preparando</option>
-    <option value="delivery">🟣 Em Rota</option>
-    <option value="completed">🟢 Entregue</option>
-</select>
+                  <select 
+                    value={o.status} 
+                    onChange={(e) => updateDoc(doc(db,"orders",o.id), {status: e.target.value})} 
+                    className="bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px] outline-none border-none cursor-pointer"
+                  >
+                    <option value="pending">🟡 Pendente</option>
+                    <option value="preparing">🟠 Preparando</option>
+                    <option value="delivery">🟣 Em Rota</option>
+                    <option value="completed">🟢 Entregue</option>
+                  </select>
                 </div>
               </div>
             ))}
@@ -482,7 +433,6 @@ export default function Admin() {
                     {settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}
                 </button>
 
-                {/* --- NOVO: SEÇÃO DE UPLOAD DE BANNER DE PROMOÇÃO --- */}
                 <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
                     <h3 className="text-xl font-black text-slate-800 uppercase mb-4">Banner da Promoção</h3>
                     <div className="flex flex-col items-center gap-4">
@@ -517,7 +467,6 @@ export default function Admin() {
                         {promoBannerUploadError && <p className="text-red-500 text-sm text-center">{promoBannerUploadError}</p>}
                     </div>
                 </div>
-                {/* --- FIM SEÇÃO DE UPLOAD DE BANNER DE PROMOÇÃO --- */}
 
             </div>
             <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40">
@@ -527,12 +476,10 @@ export default function Admin() {
           </div>
         )}
 
-        {/* --- CONTEÚDO PARA CONFIGURAÇÕES DA LOJA (com Logo e Banner da Loja) --- */}
         {activeTab === 'store_settings' && (
           <div className="space-y-8">
             <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações da Loja</h1>
             
-            {/* Seção de Status e Horário */}
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
               <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status e Horário</h2>
               
@@ -578,7 +525,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Seção de Logo da Loja */}
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
               <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Logo da Loja</h2>
               
@@ -588,7 +534,7 @@ export default function Admin() {
                           src={logoFile ? URL.createObjectURL(logoFile) : storeStatus.storeLogoUrl} 
                           alt="Logo da Loja" 
                           className="w-24 h-24 object-contain rounded-full border-2 border-blue-50 shadow-md p-2 bg-slate-50"
-                          onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} // Fallback
+                          onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}
                       />
                   )}
                   <input 
@@ -616,7 +562,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Seção de Banner do Frontend */}
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
               <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Banner do Frontend</h2>
               
@@ -626,7 +571,7 @@ export default function Admin() {
                           src={bannerFile ? URL.createObjectURL(bannerFile) : storeStatus.storeBannerUrl} 
                           alt="Banner do Frontend" 
                           className="w-full max-w-lg h-40 object-cover rounded-2xl border-2 border-blue-50 shadow-md bg-slate-50"
-                          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} // Fallback
+                          onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"}
                       />
                   )}
                   <input 
@@ -656,8 +601,25 @@ export default function Admin() {
 
           </div>
         )}
-        {/* --- FIM DO CONTEÚDO PARA CONFIGURAÇÕES DA LOJA --- */}
       </main>
+
+      {/* --- NOVA BARRA DE NAVEGAÇÃO MOBILE --- */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 shadow-t-lg p-2 flex justify-around items-center z-50 lg:hidden">
+        {navItems.map(item => (
+          <button 
+            key={item.id} 
+            onClick={() => setActiveTab(item.id)} 
+            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg transition-all w-16 h-16 ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}
+          >
+            {item.mobileIcon}
+            <span className="text-[10px] font-bold">{item.name}</span>
+          </button>
+        ))}
+        <button onClick={handleLogout} className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg text-red-500 w-16 h-16">
+          <LogOut size={22}/>
+          <span className="text-[10px] font-bold">Sair</span>
+        </button>
+      </nav>
 
       {/* MODAL PRODUTO */}
       <AnimatePresence>
@@ -684,7 +646,6 @@ export default function Admin() {
                   </select>
                 </div>
                 
-                {/* --- CAMPO DE UPLOAD DE IMAGEM DE PRODUTO --- */}
                 <div className="space-y-3">
                     <input 
                         type="file" 
@@ -711,7 +672,6 @@ export default function Admin() {
                     {uploadError && <p className="text-red-500 text-sm">{uploadError}</p>}
                 </div>
                 
-                {/* Prévia da imagem carregada (ou URL existente) */}
                 {(form.imageUrl && !imageFile) && (
                     <div className="flex flex-col items-center gap-3">
                         <img src={form.imageUrl} alt="Prévia do Produto" className="w-32 h-32 object-contain rounded-xl border border-slate-100 p-2 bg-slate-50"/>
