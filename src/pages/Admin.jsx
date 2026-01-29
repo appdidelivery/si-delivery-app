@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import { 
   collection, onSnapshot, doc, updateDoc, deleteDoc, 
-  addDoc, query, orderBy, serverTimestamp, setDoc, getDoc // <--- getDoc ADICIONADO AQUI
+  addDoc, query, orderBy, serverTimestamp, setDoc, getDoc 
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3, 
-  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image 
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, Image // <--- Image para preview
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -32,8 +32,8 @@ export default function Admin() {
   const [manualCart, setManualCart] = useState([]);
   const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix' });
 
-  // --- Novos Estados para Upload de Imagem (Cloudinary) ---
-  const [imageFile, setImageFile] = useState(null);
+  // --- Novos Estados para Upload de Imagem de Produto (Cloudinary) ---
+  const [imageFile, setImageFile] = useState(null); // Para o modal de produto
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -44,7 +44,17 @@ export default function Admin() {
     openTime: '08:00',
     closeTime: '23:00',
     message: 'Aberto agora!',
+    storeLogoUrl: '/logo-loja.png', // <--- NOVO: URL do logo da loja (padrão)
+    storeBannerUrl: '/fachada.jpg', // <--- NOVO: URL do banner da loja (padrão)
   });
+
+  // --- Novos Estados para Upload de Logo/Banner (na aba Loja) ---
+  const [logoFile, setLogoFile] = useState(null);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState('');
+  const [bannerUploadError, setBannerUploadError] = useState('');
 
   // Função para Logout
   const handleLogout = async () => {
@@ -75,7 +85,7 @@ export default function Admin() {
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubSettings = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setSettings(d.data()));
 
-    // --- NOVO: Inicializa o documento store_status se não existir ---
+    // --- NOVO/AJUSTADO: Inicializa o documento store_status se não existir e escuta ---
     const storeStatusDocRef = doc(db, "settings", "store_status");
     const initializeStoreStatus = async () => {
       try {
@@ -87,26 +97,28 @@ export default function Admin() {
             openTime: '08:00',
             closeTime: '23:00',
             message: 'Aberto agora!',
+            storeLogoUrl: '/logo-loja.png', // Default
+            storeBannerUrl: '/fachada.jpg', // Default
           });
         }
       } catch (error) {
         console.error("Erro ao inicializar store_status no Firestore:", error);
       }
     };
-    initializeStoreStatus(); // Chama a função de inicialização no mount
+    initializeStoreStatus();
 
-    // --- Listener para Store Status ---
     const unsubStoreStatus = onSnapshot(storeStatusDocRef, (d) => {
       if (d.exists()) {
         setStoreStatus(d.data());
       } else {
-        // Se o documento for deletado externamente após a inicialização, ele será recriado
         console.warn("Documento settings/store_status foi excluído e será recriado com valores padrão.");
         setDoc(storeStatusDocRef, {
           isOpen: true,
           openTime: '08:00',
           closeTime: '23:00',
           message: 'Aberto agora!',
+          storeLogoUrl: '/logo-loja.png', // Default
+          storeBannerUrl: '/fachada.jpg', // Default
         }, { merge: true });
       }
     });
@@ -117,42 +129,90 @@ export default function Admin() {
       unsubSettings();
       unsubStoreStatus();
     };
-  }, []); // Dependências vazias para rodar apenas uma vez no mount
+  }, []);
 
-  // --- Função para Upload da Imagem para Cloudinary ---
-  const handleImageUpload = async () => {
-    if (!imageFile) {
-      setUploadError("Nenhuma imagem selecionada.");
-      return;
+  // --- Função GLOBAL para Upload de Imagem para Cloudinary (reutilizável) ---
+  const uploadToCloudinary = async (file, uploadPreset, cloudName, setLoading, setError) => {
+    if (!file) {
+      setError("Nenhuma imagem selecionada.");
+      return null;
     }
-    setUploading(true);
-    setUploadError('');
-    setUploadProgress(0);
+    setLoading(true);
+    setError('');
 
     const formData = new FormData();
-    formData.append('file', imageFile);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
 
     try {
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error(`Cloudinary upload failed: ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(`Cloudinary upload failed: ${response.statusText} - ${errorData.error?.message}`);
       }
 
       const data = await response.json();
-      setForm(prevForm => ({ ...prevForm, imageUrl: data.secure_url }));
-      setUploading(false);
-      setImageFile(null);
-      setUploadProgress(100); 
+      setLoading(false);
+      return data.secure_url;
 
     } catch (error) {
       console.error("Erro no upload para Cloudinary:", error);
-      setUploadError(`Falha no upload da imagem: ${error.message}. Verifique o Cloud Name e Upload Preset.`);
-      setUploading(false);
+      setError(`Falha no upload da imagem: ${error.message}. Verifique configurações.`);
+      setLoading(false);
+      return null;
+    }
+  };
+
+
+  // --- Função para Upload da Imagem de Produto (chamando a função global) ---
+  const handleProductImageUpload = async () => {
+    const url = await uploadToCloudinary(
+      imageFile, 
+      CLOUDINARY_UPLOAD_PRESET, 
+      CLOUDINARY_CLOUD_NAME, 
+      setUploading, 
+      setUploadError
+    );
+    if (url) {
+      setForm(prevForm => ({ ...prevForm, imageUrl: url }));
+      setImageFile(null);
+      setUploadProgress(100);
+    } else {
+      setUploadProgress(0); // Reseta progresso se falhar
+    }
+  };
+
+  // --- Função para Upload do Logo (chamando a função global) ---
+  const handleLogoUpload = async () => {
+    const url = await uploadToCloudinary(
+      logoFile, 
+      CLOUDINARY_UPLOAD_PRESET, 
+      CLOUDINARY_CLOUD_NAME, 
+      setUploadingLogo, 
+      setLogoUploadError
+    );
+    if (url) {
+      await updateDoc(doc(db, "settings", "store_status"), { storeLogoUrl: url });
+      setLogoFile(null);
+    }
+  };
+
+  // --- Função para Upload do Banner (chamando a função global) ---
+  const handleBannerUpload = async () => {
+    const url = await uploadToCloudinary(
+      bannerFile, 
+      CLOUDINARY_UPLOAD_PRESET, 
+      CLOUDINARY_CLOUD_NAME, 
+      setUploadingBanner, 
+      setBannerUploadError
+    );
+    if (url) {
+      await updateDoc(doc(db, "settings", "store_status"), { storeBannerUrl: url });
+      setBannerFile(null);
     }
   };
 
@@ -203,7 +263,8 @@ export default function Admin() {
       {/* SIDEBAR COM ASSINATURA VELO */}
       <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="flex flex-col items-center mb-10">
-          <img src="/logo retangular vero delivery.png" className="h-16 w-auto rounded-full border-4 border-blue-50 shadow-sm mb-4" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
+          {/* LOGO DA LOJA (AGORA DINÂMICO) */}
+          <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 shadow-sm mb-4 object-cover" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"}/>
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Painel Gestão</h2>
           <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
         </div>
@@ -216,7 +277,6 @@ export default function Admin() {
             { id: 'products', name: 'Estoque', icon: <Package size={18}/> },
             { id: 'customers', name: 'Clientes VIP', icon: <Users size={18}/> },
             { id: 'marketing', name: 'Marketing', icon: <Trophy size={18}/> },
-            // --- NOVA ABA DE CONFIGURAÇÕES DA LOJA ---
             { id: 'store_settings', name: 'Loja', icon: <Bell size={18}/> },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50'}`}>
@@ -393,12 +453,14 @@ export default function Admin() {
           </div>
         )}
 
-        {/* --- NOVO: CONTEÚDO PARA CONFIGURAÇÕES DA LOJA --- */}
+        {/* --- CONTEÚDO PARA CONFIGURAÇÕES DA LOJA (AGORA COM UPLOAD DE LOGO/BANNER) --- */}
         {activeTab === 'store_settings' && (
           <div className="space-y-8">
             <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações da Loja</h1>
+            
+            {/* Seção de Status e Horário */}
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
-              <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status da Loja</h2>
+              <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status e Horário</h2>
               
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
                 <span className="font-bold text-slate-700">Loja Aberta Agora:</span>
@@ -440,17 +502,85 @@ export default function Admin() {
                   className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-500"
                 />
               </div>
-
-              {/* Opção de Fechamento Agendado (mais avançado, se quiser implementar mais tarde) */}
-              <div className="pt-6 border-t border-slate-100">
-                  <h3 className="text-xl font-black text-slate-800 uppercase mb-4">Agendamento</h3>
-                  <p className="font-medium text-slate-500 italic">Módulo de agendamento de abertura/fechamento em desenvolvimento.</p>
-              </div>
-
             </div>
+
+            {/* Seção de Logo da Loja */}
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+              <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Logo da Loja</h2>
+              
+              <div className="flex flex-col items-center gap-4">
+                  {(logoFile || storeStatus.storeLogoUrl) && (
+                      <img 
+                          src={logoFile ? URL.createObjectURL(logoFile) : storeStatus.storeLogoUrl} 
+                          alt="Logo da Loja" 
+                          className="w-24 h-24 object-contain rounded-full border-2 border-blue-50 shadow-md p-2 bg-slate-50"
+                      />
+                  )}
+                  <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setLogoFile(e.target.files[0])} 
+                      className="hidden" 
+                      id="logo-upload"
+                  />
+                  <label htmlFor="logo-upload" className="w-full max-w-sm p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
+                      {logoFile ? logoFile.name : (storeStatus.storeLogoUrl ? 'Mudar Logo' : 'Selecionar Logo')} <UploadCloud size={20}/>
+                  </label>
+                  {logoFile && (
+                      <button 
+                          type="button"
+                          onClick={handleLogoUpload} 
+                          disabled={uploadingLogo}
+                          className={`w-full max-w-sm p-3 rounded-2xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploadingLogo ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+                      >
+                          {uploadingLogo ? <Loader2 className="animate-spin" size={20}/> : <UploadCloud size={20}/>}
+                          {uploadingLogo ? `Enviando Logo...` : 'Fazer Upload do Logo'}
+                      </button>
+                  )}
+                  {logoUploadError && <p className="text-red-500 text-sm text-center">{logoUploadError}</p>}
+              </div>
+            </div>
+
+            {/* Seção de Banner do Frontend */}
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+              <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Banner do Frontend</h2>
+              
+              <div className="flex flex-col items-center gap-4">
+                  {(bannerFile || storeStatus.storeBannerUrl) && (
+                      <img 
+                          src={bannerFile ? URL.createObjectURL(bannerFile) : storeStatus.storeBannerUrl} 
+                          alt="Banner do Frontend" 
+                          className="w-full max-w-lg h-40 object-cover rounded-2xl border-2 border-blue-50 shadow-md bg-slate-50"
+                      />
+                  )}
+                  <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setBannerFile(e.target.files[0])} 
+                      className="hidden" 
+                      id="banner-upload"
+                  />
+                  <label htmlFor="banner-upload" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
+                      {bannerFile ? bannerFile.name : (storeStatus.storeBannerUrl ? 'Mudar Banner' : 'Selecionar Banner')} <UploadCloud size={20}/>
+                  </label>
+                  {bannerFile && (
+                      <button 
+                          type="button"
+                          onClick={handleBannerUpload} 
+                          disabled={uploadingBanner}
+                          className={`w-full max-w-lg p-3 rounded-2xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploadingBanner ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+                      >
+                          {uploadingBanner ? <Loader2 className="animate-spin" size={20}/> : <UploadCloud size={20}/>}
+                          {uploadingBanner ? `Enviando Banner...` : 'Fazer Upload do Banner'}
+                      </button>
+                  )}
+                  {bannerUploadError && <p className="text-red-500 text-sm text-center">{bannerUploadError}</p>}
+              </div>
+            </div>
+
           </div>
         )}
-        {/* --- FIM DO NOVO CONTEÚDO --- */}
+        {/* --- FIM DO CONTEÚDO PARA CONFIGURAÇÕES DA LOJA --- */}
       </main>
 
       {/* MODAL PRODUTO */}
@@ -478,28 +608,28 @@ export default function Admin() {
                   </select>
                 </div>
                 
-                {/* --- CAMPO DE UPLOAD DE IMAGEM (Cloudinary) --- */}
+                {/* --- CAMPO DE UPLOAD DE IMAGEM DE PRODUTO --- */}
                 <div className="space-y-3">
                     <input 
                         type="file" 
                         accept="image/*" 
                         onChange={(e) => setImageFile(e.target.files[0])} 
                         className="hidden" 
-                        id="image-upload"
+                        id="product-image-upload" // ID único para o label
                     />
-                    <label htmlFor="image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
-                        {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20}/>
+                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-500 hover:text-blue-600 transition-all">
+                        {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem do Produto' : 'Selecionar Imagem do Produto')} <UploadCloud size={20}/>
                     </label>
 
                     {imageFile && (
                         <button 
                             type="button"
-                            onClick={handleImageUpload} 
+                            onClick={handleProductImageUpload} // Função específica para upload de produto
                             disabled={uploading}
                             className={`w-full p-4 rounded-3xl flex items-center justify-center gap-2 font-black text-white transition-all ${uploading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
                         >
                             {uploading ? <Loader2 className="animate-spin" size={20}/> : <UploadCloud size={20}/>}
-                            {uploading ? `Enviando... (${uploadProgress.toFixed(0)}%)` : 'Fazer Upload da Imagem'}
+                            {uploading ? `Enviando... (${uploadProgress.toFixed(0)}%)` : 'Fazer Upload da Imagem do Produto'}
                         </button>
                     )}
                     {uploadError && <p className="text-red-500 text-sm">{uploadError}</p>}
@@ -518,6 +648,8 @@ export default function Admin() {
                         <p className="text-slate-500 text-xs font-medium">Arquivo selecionado para upload</p>
                     </div>
                 )}
+                {/* --- FIM CAMPO DE UPLOAD DE IMAGEM DE PRODUTO --- */}
+
                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
               </form>
             </motion.div>
