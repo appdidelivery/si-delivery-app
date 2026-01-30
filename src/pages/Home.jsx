@@ -54,21 +54,28 @@ export default function Home() {
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
     
     const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
-      if (d.exists()) {
-        const data = d.data();
-        setStoreConfig(data);
+    if (d.exists()) {
+      const data = d.data();
+      setStoreConfig(data);
+
+      let finalStatus = data.isOpen; // Assume que a loja está aberta por padrão
+
+      // Se os horários estiverem preenchidos, verifique se está dentro do horário
+      if (data.openTime && data.closeTime) {
         const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes(); 
+        const currentTime = now.getHours() * 60 + now.getMinutes();
         const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
         const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
         const scheduledOpenTime = openHour * 60 + openMinute;
         const scheduledCloseTime = closeHour * 60 + closeMinute;
         const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-        const finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
-        setIsStoreOpenNow(finalStatus);
-        setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
+        finalStatus = data.isOpen && isCurrentlyOpenBySchedule; // Considera os horários se estiverem definidos
       }
-    });
+
+      setIsStoreOpenNow(finalStatus);
+      setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
+    }
+  });
 
     const unsubShippingRates = onSnapshot(collection(db, "shipping_rates"), (s) => {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
