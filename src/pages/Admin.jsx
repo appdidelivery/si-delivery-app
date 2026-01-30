@@ -399,17 +399,31 @@ export default function Admin() {
           <div className="space-y-8">
             <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
-              <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status e Horário</h2>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                <span className="font-bold text-slate-700">Loja Aberta:</span>
-                <input type="checkbox" checked={storeStatus.isOpen} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { isOpen: e.target.checked })} className="toggle toggle-lg toggle-primary"/>
-              </div>
-              <div className="flex gap-4">
-                  <div className="flex-1 p-4 bg-slate-50 rounded-2xl"><span className="block font-bold text-slate-700 mb-2">Abre:</span><input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { openTime: e.target.value })} className="p-3 bg-white rounded-xl w-full font-bold"/></div>
-                  <div className="flex-1 p-4 bg-slate-50 rounded-2xl"><span className="block font-bold text-slate-700 mb-2">Fecha:</span><input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { closeTime: e.target.value })} className="p-3 bg-white rounded-xl w-full font-bold"/></div>
-              </div>
-              <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { message: e.target.value })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none"/>
-            </div>
+    <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status da Loja</h2>
+
+    {/* Botão Aberto/Fechado */}
+    <button
+        onClick={() => updateDoc(doc(db, "settings", "store_status"), { isOpen: !storeStatus.isOpen })}
+        className={`w-full p-4 rounded-2xl font-bold uppercase transition-all 
+                    ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg'}`}
+    >
+        {storeStatus.isOpen ? 'FECHAR LOJA' : 'ABRIR LOJA'}
+    </button>
+
+    {/* Horários (Opcional) */}
+    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Horário de Funcionamento (Opcional)</p>
+    <div className="flex gap-4">
+      <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
+        <span className="block font-bold text-slate-700 mb-2">Abre:</span>
+        <input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { openTime: e.target.value })} className="p-3 bg-white rounded-xl w-full font-bold"/>
+      </div>
+      <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
+        <span className="block font-bold text-slate-700 mb-2">Fecha:</span>
+        <input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { closeTime: e.target.value })} className="p-3 bg-white rounded-xl w-full font-bold"/>
+      </div>
+    </div>
+    <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { message: e.target.value })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none"/>
+  </div>
 
             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
               <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Mídia da Loja</h2>
