@@ -283,29 +283,33 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* Ícone Carrinho e Track */}
-      <motion.button onClick={() => setShowCheckout(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-blue-700 active:scale-90" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-        <ShoppingCart size={24} />
-        {cart.length > 0 && <motion.div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{cart.reduce((acc, item) => acc + item.quantity, 0)}</motion.div>}
-      </motion.button>
+      {/* Contêiner para os botões fixos */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
+        {/* Botão "Acompanhar Pedidos" */}
+        <AnimatePresence>
+          {activeOrderId && (
+            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
+              <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
 
-      <AnimatePresence>
-        {activeOrderId && (
-          <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="fixed bottom-6 left-6 bg-purple-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
-            <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
-          </motion.button>
-        )}
-      </AnimatePresence>
+        {/* Ícone Carrinho */}
+        <motion.button onClick={() => setShowCheckout(true)} className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" initial={{ scale: 0 }} animate={{ scale: 1 }}>
+          <ShoppingCart size={24} />
+          {cart.length > 0 && <motion.div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{cart.reduce((acc, item) => acc + item.quantity, 0)}</motion.div>}
+        </motion.button>
 
-      {/* NOVO BOTÃO AQUI */}
-      <motion.button
-        onClick={() => setShowLastOrders(true)}
-        className="fixed bottom-6 right-6 bg-orange-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-orange-700 active:scale-90 flex items-center gap-2"
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-      >
-        <Clock size={24} /> <span className="font-bold text-sm pr-2">Últimos Pedidos</span>
-      </motion.button>
+        {/* Botão "Últimos Pedidos" */}
+        <motion.button
+          onClick={() => setShowLastOrders(true)}
+          className="bg-orange-600 text-white rounded-full p-4 shadow-xl hover:bg-orange-700 active:scale-90 flex items-center gap-2"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+        >
+          <Clock size={24} /> <span className="font-bold text-sm pr-2">Últimos Pedidos</span>
+        </motion.button>
+      </div>
 
       {/* CHECKOUT COMPLETO */}
       <AnimatePresence>
