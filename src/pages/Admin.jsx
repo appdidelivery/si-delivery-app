@@ -22,7 +22,7 @@ export default function Admin() {
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] }); // MODIFICADO AQUI: agora é um array
+    const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
 
     // Modais
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,7 +40,7 @@ export default function Admin() {
     // Uploads
     const [imageFile, setImageFile] = useState(null);
     const [uploading, setUploading] = useState(false);
-    const [uploadError, setUploadError] = '';
+    const [uploadError, setUploadError] = useState('');
 
     // Loja
     const [storeStatus, setStoreStatus] = useState({
@@ -52,7 +52,6 @@ export default function Admin() {
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [uploadingBanner, setUploadingBanner] = useState(false);
 
-    // ADICIONADOS AQUI: Estados para os 3 arquivos de banner da promoção
     const [promoBannerFile1, setPromoBannerFile1] = useState(null);
     const [promoBannerFile2, setPromoBannerFile2] = useState(null);
     const [promoBannerFile3, setPromoBannerFile3] = useState(null);
@@ -62,7 +61,18 @@ export default function Admin() {
     const [isRateModalOpen, setIsRateModalOpen] = useState(false);
     const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
     const [editingRateId, setEditingRateId] = useState(null);
-  
+
+    // Cupons - NOVOS ESTADOS AQUI
+    const [coupons, setCoupons] = useState([]);
+    const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+    const [couponForm, setCouponForm] = useState({
+        code: '', type: 'percentage', value: 0, minimumOrderValue: 0,
+        usageLimit: null, userUsageLimit: null, expirationDate: '',
+        firstPurchaseOnly: false, active: true
+    });
+    const [editingCouponId, setEditingCouponId] = useState(null);
+
+
     const navItems = [
         { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
         { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
@@ -92,15 +102,26 @@ export default function Admin() {
         const unsubShipping = onSnapshot(collection(db, "shipping_rates"), (s) => setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood))));
 
         const mkRef = doc(db, "settings", "marketing");
-        // MODIFICADO AQUI: Inicializa promoBannerUrls como um array vazio
         getDoc(mkRef).then(s => !s.exists() && setDoc(mkRef, { promoActive: false, promoBannerUrls: [] }));
         const unsubMk = onSnapshot(mkRef, (d) => d.exists() && setSettings(d.data()));
 
         const stRef = doc(db, "settings", "store_status");
         getDoc(stRef).then(s => !s.exists() && setDoc(stRef, { isOpen: true, openTime: '08:00', closeTime: '23:00', message: 'Aberto!' }));
         const unsubSt = onSnapshot(stRef, (d) => d.exists() && setStoreStatus(d.data()));
+        
+        // Cupons - NOVO onSnapshot AQUI
+        const unsubCoupons = onSnapshot(collection(db, "coupons"), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        return () => { unsubOrders(); unsubProducts(); unsubCategories(); unsubShipping(); unsubMk(); unsubSt(); };
+
+        return () => { 
+            unsubOrders();
+            unsubProducts();
+            unsubCategories();
+            unsubShipping();
+            unsubMk();
+            unsubSt();
+            unsubCoupons(); // Adicionado aqui
+        };
     }, []);
 
     // --- FUNÇÃO DE UPLOAD ROBUSTA (Corrigida) ---
@@ -164,7 +185,6 @@ export default function Admin() {
         setUploadingBanner(false);
     };
 
-    // MODIFICADO AQUI: Lógica de upload para múltiplos banners
     const handlePromoBannerUpload = async () => {
         setUploadingPromoBanner(true);
         const bannerFiles = [promoBannerFile1, promoBannerFile2, promoBannerFile3].filter(file => file !== null);
@@ -397,38 +417,77 @@ export default function Admin() {
                 )}
 
                 {activeTab === 'marketing' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className={`p-12 rounded-[4rem] shadow-2xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-transparent'}`}>
-                            <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
-                            <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
-                            <button onClick={async () => {
-                                const s = !settings.promoActive; await setDoc(doc(db, "settings", "marketing"), { promoActive: s }, { merge: true });
-                            }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
+                    <div className="space-y-8"> {/* Adicionado um contêiner para espaçar as seções */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Promo Relâmpago */}
+                            <div className={`p-12 rounded-[4rem] shadow-2xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-transparent'}`}>
+                                <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
+                                <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
+                                <button onClick={async () => {
+                                    const s = !settings.promoActive; await setDoc(doc(db, "settings", "marketing"), { promoActive: s }, { merge: true });
+                                }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
 
-                            {/* BANNERS DA PROMO RELÂMPAGO */}
-                            <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
-                                <h3 className="text-xl font-black uppercase mb-4">Banners</h3>
-                                <div className="flex flex-col items-center gap-4">
-                                    {/* Banner 1 */}
-                                    {(promoBannerFile1 || (settings.promoBannerUrls && settings.promoBannerUrls[0])) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
-                                    <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile1(e.target.files[0])} className="hidden" id="promo-banner-upload-1"/>
-                                    <label htmlFor="promo-banner-upload-1" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 1 <UploadCloud size={20}/></label>
+                                {/* BANNERS DA PROMO RELÂMPAGO */}
+                                <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
+                                    <h3 className="text-xl font-black uppercase mb-4">Banners</h3>
+                                    <div className="flex flex-col items-center gap-4">
+                                        {/* Banner 1 */}
+                                        {(promoBannerFile1 || (settings.promoBannerUrls && settings.promoBannerUrls[0])) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile1(e.target.files[0])} className="hidden" id="promo-banner-upload-1"/>
+                                        <label htmlFor="promo-banner-upload-1" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 1 <UploadCloud size={20}/></label>
 
-                                    {/* Banner 2 */}
-                                    {(promoBannerFile2 || (settings.promoBannerUrls && settings.promoBannerUrls[1])) && <img src={promoBannerFile2 ? URL.createObjectURL(promoBannerFile2) : settings.promoBannerUrls[1]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
-                                    <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile2(e.target.files[0])} className="hidden" id="promo-banner-upload-2"/>
-                                    <label htmlFor="promo-banner-upload-2" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 2 <UploadCloud size={20}/></label>
+                                        {/* Banner 2 */}
+                                        {(promoBannerFile2 || (settings.promoBannerUrls && settings.promoBannerUrls[1])) && <img src={promoBannerFile2 ? URL.createObjectURL(promoBannerFile2) : settings.promoBannerUrls[1]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile2(e.target.files[0])} className="hidden" id="promo-banner-upload-2"/>
+                                        <label htmlFor="promo-banner-upload-2" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 2 <UploadCloud size={20}/></label>
 
-                                    {/* Banner 3 */}
-                                    {(promoBannerFile3 || (settings.promoBannerUrls && settings.promoBannerUrls[2])) && <img src={promoBannerFile3 ? URL.createObjectURL(promoBannerFile3) : settings.promoBannerUrls[2]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
-                                    <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile3(e.target.files[0])} className="hidden" id="promo-banner-upload-3"/>
-                                    <label htmlFor="promo-banner-upload-3" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 3 <UploadCloud size={20}/></label>
+                                        {/* Banner 3 */}
+                                        {(promoBannerFile3 || (settings.promoBannerUrls && settings.promoBannerUrls[2])) && <img src={promoBannerFile3 ? URL.createObjectURL(promoBannerFile3) : settings.promoBannerUrls[2]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile3(e.target.files[0])} className="hidden" id="promo-banner-upload-3"/>
+                                        <label htmlFor="promo-banner-upload-3" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 3 <UploadCloud size={20}/></label>
 
-                                    <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className="w-full max-w-lg p-3 bg-blue-600 text-white rounded-2xl font-black">{uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}</button>
+                                        <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className="w-full max-w-lg p-3 bg-blue-600 text-white rounded-2xl font-black">{uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}</button>
+                                    </div>
                                 </div>
                             </div>
+                            {/* Bloco de Fidelidade (EXISTENTE) */}
+                            <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40"><Trophy size={64} className="text-slate-200 mb-4" /><p className="font-black text-slate-300 uppercase tracking-widest leading-tight text-xl">Fidelidade<br />EM BREVE</p></div>
                         </div>
-                        <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40"><Trophy size={64} className="text-slate-200 mb-4" /><p className="font-black text-slate-300 uppercase tracking-widest leading-tight text-xl">Fidelidade<br />EM BREVE</p></div>
+
+                        {/* NOVO: SEÇÃO DE CUPONS DE DESCONTO - FORA DO GRID, PARA OCUPAR TODA A LARGURA ABAIXO */}
+                        <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 space-y-8">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-4xl font-black italic tracking-tighter uppercase">Cupons de Desconto</h2>
+                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO CUPOM</button>
+                            </div>
+
+                            {coupons.length === 0 ? (
+                                <p className="text-center py-10 text-slate-400 font-bold">Nenhum cupom cadastrado.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {coupons.map(c => (
+                                        <div key={c.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center">
+                                            <div>
+                                                <p className="font-black text-slate-800 text-xl">{c.code} <span className={`text-xs font-bold px-2 py-1 rounded-md ${c.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{c.active ? 'Ativo' : 'Inativo'}</span></p>
+                                                <p className="text-sm text-slate-600 mt-1">
+                                                    {c.type === 'percentage' ? `${c.value}% de desconto` : `R$ ${c.value?.toFixed(2)} de desconto`}
+                                                    {c.minimumOrderValue > 0 && ` (Min: R$ ${c.minimumOrderValue?.toFixed(2)})`}
+                                                    {c.firstPurchaseOnly && ` (1ª Compra)`}
+                                                    {c.expirationDate && ` (Expira: ${new Date(c.expirationDate.toDate()).toLocaleDateString('pt-BR')})`}
+                                                </p>
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    Usos: {c.currentUsage || 0} {c.usageLimit && ` / ${c.usageLimit}`}
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingCouponId(c.id); setCouponForm({ ...c, expirationDate: c.expirationDate ? new Date(c.expirationDate.toDate()).toISOString().slice(0, 16) : '' }); setIsCouponModalOpen(true); }} className="p-2 bg-slate-100 rounded-xl text-blue-600 hover:bg-blue-200"><Edit3 size={18} /></button>
+                                                <button onClick={() => window.confirm("Excluir cupom?") && deleteDoc(doc(db, "coupons", c.id))} className="p-2 bg-slate-100 rounded-xl text-red-600 hover:bg-red-200"><Trash2 size={18} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -600,6 +659,76 @@ export default function Admin() {
                                 <input type="text" placeholder="Nome do Bairro" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.neighborhood} onChange={e => setRateForm({ ...rateForm, neighborhood: e.target.value })} required />
                                 <input type="number" step="0.01" placeholder="Valor do Frete" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.fee} onChange={e => setRateForm({ ...rateForm, fee: e.target.value })} required />
                                 <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* MODAL CUPOM DE DESCONTO - NOVO MODAL AQUI */}
+            <AnimatePresence>
+                {isCouponModalOpen && (
+                    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative">
+                            <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
+                            <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const dataToSave = {
+                                    ...couponForm,
+                                    value: parseFloat(couponForm.value),
+                                    minimumOrderValue: parseFloat(couponForm.minimumOrderValue || 0),
+                                    usageLimit: couponForm.usageLimit ? parseInt(couponForm.usageLimit) : null,
+                                    userUsageLimit: couponForm.userUsageLimit ? parseInt(couponForm.userUsageLimit) : null,
+                                    expirationDate: couponForm.expirationDate ? new Date(couponForm.expirationDate) : null,
+                                    code: couponForm.code.toUpperCase(), // Códigos em maiúsculas
+                                    currentUsage: couponForm.currentUsage || 0,
+                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
+                                };
+                                try {
+                                    if (editingCouponId) {
+                                        await updateDoc(doc(db, "coupons", editingCouponId), dataToSave);
+                                    } else {
+                                        await addDoc(collection(db, "coupons"), dataToSave);
+                                    }
+                                    setIsCouponModalOpen(false);
+                                    alert("Cupom salvo com sucesso!");
+                                } catch (error) {
+                                    alert("Erro ao salvar cupom: " + error.message);
+                                    console.error(error);
+                                }
+                            }} className="space-y-4">
+                                <input type="text" placeholder="Código do Cupom (ex: PRIMEIRACOMPRA)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
+
+                                <div className="flex gap-4">
+                                    <select className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
+                                        <option value="percentage">Porcentagem (%)</option>
+                                        <option value="fixed_amount">Valor Fixo (R$)</option>
+                                    </select>
+                                    <input type="number" step="0.01" placeholder="Valor (ex: 10 ou 5.50)" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required />
+                                </div>
+
+                                <input type="number" step="0.01" placeholder="Valor Mínimo do Pedido (opcional)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.minimumOrderValue || ''} onChange={e => setCouponForm({...couponForm, minimumOrderValue: e.target.value})} />
+
+                                <div className="flex gap-4">
+                                    <input type="number" placeholder="Limite de Usos Totais (opcional)" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.usageLimit || ''} onChange={e => setCouponForm({...couponForm, usageLimit: e.target.value})} />
+                                    <input type="number" placeholder="Limite de Usos por Cliente (opcional)" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.userUsageLimit || ''} onChange={e => setCouponForm({...couponForm, userUsageLimit: e.target.value})} />
+                                </div>
+                                
+                                <label className="block text-slate-700 font-bold text-sm mb-2 mt-4">Data/Hora de Expiração (opcional):</label>
+                                <input type="datetime-local" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.expirationDate} onChange={e => setCouponForm({...couponForm, expirationDate: e.target.value})} />
+                                
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Apenas Primeira Compra:</span>
+                                    <input type="checkbox" checked={couponForm.firstPurchaseOnly} onChange={e => setCouponForm({...couponForm, firstPurchaseOnly: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Cupom Ativo:</span>
+                                    <input type="checkbox" checked={couponForm.active} onChange={e => setCouponForm({...couponForm, active: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar Cupom</button>
                             </form>
                         </motion.div>
                     </motion.div>
