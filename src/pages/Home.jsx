@@ -300,7 +300,7 @@ export default function Home() {
       {/* NOVO BOTÃO AQUI */}
       <motion.button
         onClick={() => setShowLastOrders(true)}
-        className="fixed bottom-24 right-6 bg-orange-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-orange-700 active:scale-90 flex items-center gap-2"
+        className="fixed bottom-6 right-6 bg-orange-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-orange-700 active:scale-90 flex items-center gap-2"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
       >
