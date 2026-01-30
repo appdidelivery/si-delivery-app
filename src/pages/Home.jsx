@@ -1,4 +1,7 @@
 // si-delivery-app-main/src/pages/Home.jsx
+import { Clock, X } from 'lucide-react'; // Certifique-se de ter o X para fechar o modal
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -28,7 +31,45 @@ export default function Home() {
   const [customer, setCustomer] = useState({ 
     name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: '' 
   });
-  
+  const [showLastOrders, setShowLastOrders] = useState(false);
+  const [lastOrders, setLastOrders] = useState([]);
+
+  const handlePhoneChange = (e) => {
+    const phone = e.target.value;
+    setCustomer({...customer, phone: phone});
+    localStorage.setItem('customerPhone', phone);
+  };
+
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('customerPhone');
+    if (savedPhone) {
+      setCustomer(prev => ({ ...prev, phone: savedPhone }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showLastOrders) {
+      const customerPhone = localStorage.getItem('customerPhone');
+      if (customerPhone) {
+        const q = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setLastOrders(orders);
+        });
+        return () => unsubscribe();
+      } else {
+        alert("Número de telefone não encontrado. Preencha seus dados para ver seus últimos pedidos.");
+        setShowLastOrders(false);
+      }
+    }
+  }, [showLastOrders]);
+
+  const repeatOrder = (order) => {
+    order.items.forEach(item => {
+      addToCart({...item, id: item.id});
+    });
+    setShowLastOrders(false);
+  };
   const [isCepLoading, setIsCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
   const [promo, setPromo] = useState(null);
@@ -284,8 +325,13 @@ export default function Home() {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
                   <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
-                  <input type="tel" placeholder="WhatsApp" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
-                  <div className="relative">
+<input
+     type="tel"
+     placeholder="WhatsApp"
+     className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
+     value={customer.phone}
+     onChange={handlePhoneChange} // MODIFIQUE PARA handlePhoneChange
+  />                  <div className="relative">
                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
                      {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
                   </div>
@@ -323,6 +369,37 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {showLastOrders && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[101] p-6">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
+              <button onClick={() => setShowLastOrders(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32} /></button>
+              <h2 className="text-4xl font-black text-slate-900 mb-6 tracking-tighter italic">SEUS PEDIDOS</h2>
+              {lastOrders.length === 0 ? (
+                <p className="text-center py-10 font-bold text-slate-500">Nenhum pedido encontrado.</p>
+              ) : (
+                <div className="space-y-4">
+                  {lastOrders.map(order => (
+                    <div key={order.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="font-bold text-sm text-slate-700">Pedido #{order.id.substring(0, 6)}</p>
+                      <ul className="list-disc pl-5 text-sm text-slate-600">
+                        {order.items.map(item => (
+                          <li key={item.id}>{item.name} (x{item.quantity})</li>
+                        ))}
+                      </ul>
+                      <div className="flex justify-between items-center mt-4">
+                        <p className="font-black text-blue-600 italic">Total: R$ {order.total?.toFixed(2)}</p>
+                        <button onClick={() => repeatOrder(order)} className="bg-orange-600 text-white py-2 px-4 rounded-xl font-bold uppercase text-xs">Repetir Pedido</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+    
   );
 }
