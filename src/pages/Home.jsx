@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc } from 'firebase/firestore'; // Adicionado getDocs e updateDoc
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
@@ -33,6 +33,14 @@ export default function Home() {
   });
   const [showLastOrders, setShowLastOrders] = useState(false);
   const [lastOrders, setLastOrders] = useState([]);
+
+  // Cupons
+  const [availableCoupons, setAvailableCoupons] = useState([]); // Para armazenar cupons do Firestore
+  const [couponCode, setCouponCode] = useState(''); // Para o input do cliente
+  const [appliedCoupon, setAppliedCoupon] = useState(null); // Cupom que foi aplicado com sucesso
+  const [couponError, setCouponError] = useState(''); // Mensagem de erro do cupom
+  const [discountAmount, setDiscountAmount] = useState(0); // Valor do desconto calculado
+
 
   const handlePhoneChange = (e) => {
     const phone = e.target.value;
@@ -92,7 +100,12 @@ export default function Home() {
     // Carregar Categorias
     const unsubCategories = onSnapshot(collection(db, "categories"), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-    // MODIFICADO AQUI: Agora espera promoBannerUrls (array)
+    // Cupons Ativos
+    const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true)), (s) => {
+        setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // Estado da promoção (incluindo array de URLs)
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
 
     const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
@@ -123,7 +136,14 @@ export default function Home() {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => { unsubProducts(); unsubCategories(); unsubPromo(); unsubStoreConfig(); unsubShippingRates(); };
+    return () => {
+        unsubProducts();
+        unsubCategories();
+        unsubPromo();
+        unsubStoreConfig();
+        unsubShippingRates();
+        unsubCoupons(); // Adicionado aqui
+    };
   }, []);
 
   // Lógica de CEP (ViaCEP)
@@ -170,7 +190,98 @@ export default function Home() {
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const finalTotal = subtotal + (shippingFee || 0);
+  const finalTotal = subtotal + (shippingFee || 0) - discountAmount; // MODIFICADO AQUI
+
+
+  // Lógica para aplicar o cupom
+  const applyCoupon = async () => {
+    setCouponError(''); // Limpa erros anteriores
+    setDiscountAmount(0);
+    setAppliedCoupon(null);
+
+    if (!couponCode) {
+      setCouponError('Por favor, digite um código de cupom.');
+      return;
+    }
+
+    const coupon = availableCoupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+
+    if (!coupon) {
+      setCouponError('Cupom inválido ou não encontrado.');
+      return;
+    }
+
+    if (!coupon.active) {
+      setCouponError('Este cupom não está ativo.');
+      return;
+    }
+
+    // Validações de uso e expiração
+    const now = new Date(); // Use new Date() para comparação consistente no cliente
+    if (coupon.expirationDate && coupon.expirationDate.toDate() < now) { // .toDate() é necessário se for Firestore Timestamp
+      setCouponError('Este cupom expirou.');
+      return;
+    }
+
+    if (coupon.usageLimit && coupon.currentUsage >= coupon.usageLimit) {
+      setCouponError('Este cupom atingiu o limite máximo de usos.');
+      return;
+    }
+
+    // Validação de limite de uso por cliente (requer buscar pedidos anteriores do cliente)
+    if (coupon.userUsageLimit) {
+        const customerPhone = localStorage.getItem('customerPhone'); // Usamos o telefone como ID do cliente
+        if (customerPhone) {
+            const customerOrdersWithCouponQuery = query(
+                collection(db, "orders"),
+                where("customerPhone", "==", customerPhone),
+                where("couponCode", "==", coupon.code),
+                where("status", "==", "completed") // Apenas pedidos completos contam para o uso
+            );
+            const snapshot = await getDocs(customerOrdersWithCouponQuery);
+            if (snapshot.size >= coupon.userUsageLimit) {
+                setCouponError('Você já usou este cupom o número máximo de vezes.');
+                return;
+            }
+        }
+    }
+
+    // Validação de primeira compra (requer verificar se o cliente já fez outros pedidos)
+    if (coupon.firstPurchaseOnly) {
+        const customerPhone = localStorage.getItem('customerPhone');
+        if (customerPhone) {
+            const customerTotalOrdersQuery = query(
+                collection(db, "orders"),
+                where("customerPhone", "==", customerPhone),
+                where("status", "==", "completed")
+            );
+            const snapshot = await getDocs(customerTotalOrdersQuery);
+            if (snapshot.size > 0) { // Se o cliente já tem pedidos completos
+                setCouponError('Este cupom é válido apenas para a primeira compra.');
+                return;
+            }
+        }
+    }
+
+    // Validação de valor mínimo do pedido
+    if (coupon.minimumOrderValue > subtotal) {
+      setCouponError(`Valor mínimo do pedido para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}.`);
+      return;
+    }
+
+    // Calcula o desconto
+    let calculatedDiscount = 0;
+    if (coupon.type === 'percentage') {
+      calculatedDiscount = subtotal * (coupon.value / 100);
+    } else if (coupon.type === 'fixed_amount') {
+      calculatedDiscount = coupon.value;
+    }
+
+    setAppliedCoupon(coupon);
+    setDiscountAmount(calculatedDiscount);
+    setCouponError('Cupom aplicado com sucesso!'); // Mensagem de sucesso
+  };
+
 
   const finalizeOrder = async () => {
     if (!isStoreOpenNow) return alert(storeMessage);
@@ -180,16 +291,40 @@ export default function Home() {
 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     try {
-      const docRef = await addDoc(collection(db, "orders"), {
+      const orderData = {
         customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
         payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
         items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp()
-      });
+      };
+
+      // Adiciona informações do cupom se houver
+      if (appliedCoupon) {
+        orderData.couponCode = appliedCoupon.code;
+        orderData.discountAmount = discountAmount;
+      }
+
+      const docRef = await addDoc(collection(db, "orders"), orderData);
+
+      // Se um cupom foi aplicado, atualiza o contador de uso
+      if (appliedCoupon) {
+        await updateDoc(doc(db, "coupons", appliedCoupon.id), {
+          currentUsage: (appliedCoupon.currentUsage || 0) + 1
+        });
+      }
+
       localStorage.setItem('activeOrderId', docRef.id);
       setActiveOrderId(docRef.id);
       navigate(`/track/${docRef.id}`);
-      setCart([]); setShowCheckout(false);
-    } catch (e) { alert("Erro ao processar. Tente novamente."); }
+      setCart([]);
+      setShowCheckout(false);
+      setAppliedCoupon(null); // Limpa o cupom aplicado
+      setDiscountAmount(0);   // Limpa o desconto
+      setCouponCode('');      // Limpa o código do cupom
+      alert("Pedido finalizado com sucesso!"); // Feedback visual
+    } catch (e) {
+        alert("Erro ao processar. Tente novamente.");
+        console.error("Erro ao finalizar pedido:", e);
+    }
   };
 
   const displayCategories = [
@@ -221,7 +356,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* NOVO CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
+      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
       <AnimatePresence>
         {promo?.promoActive && promo?.promoBannerUrls && promo.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
@@ -295,7 +430,7 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* Contêiner para os botões fixos */}
+      {/* Contêiner para os botões fixos (Acompanhar, Carrinho, Últimos Pedidos) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
         {/* Botão "Acompanhar Pedidos" */}
         <AnimatePresence>
@@ -367,6 +502,21 @@ export default function Home() {
                   {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
                   {deliveryAreaMessage && !cepError && <p className="text-blue-500 text-xs font-bold text-center">{deliveryAreaMessage}</p>}
 
+                  {/* Cupom de Desconto */}
+                  <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="text"
+                      placeholder="Insira o código do cupom"
+                      className="flex-1 p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none"
+                      value={couponCode}
+                      onChange={e => setCouponCode(e.target.value)}
+                    />
+                    <button onClick={applyCoupon} className="bg-blue-600 text-white p-5 rounded-[2rem] font-black uppercase shadow-xl hover:bg-blue-700">Aplicar</button>
+                  </div>
+                  {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
+
+
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                   <div className="grid grid-cols-3 gap-2 mt-2">
                      {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
@@ -379,7 +529,8 @@ export default function Home() {
 
                   <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
                       <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-sm opacity-60 font-bold mb-4"><span>Frete</span><span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : '--'}</span></div>
+                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Frete</span><span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : '--'}</span></div>
+                      {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
                       <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
 
