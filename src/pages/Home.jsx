@@ -1,11 +1,7 @@
-// si-delivery-app-main/src/pages/Home.jsx
-import { Clock, X } from 'lucide-react'; // Certifique-se de ter o X para fechar o modal
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'framer-motion';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
@@ -16,7 +12,7 @@ const getCategoryIcon = (name) => {
     if (n.includes('cerveja')) return <Beer size={18}/>;
     if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
     if (n.includes('suco') || n.includes('refri') || n.includes('água')) return <Refrigerator size={18}/>;
-    return <List size={18}/>; 
+    return <List size={18}/>;
 };
 
 export default function Home() {
@@ -27,9 +23,9 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [showCheckout, setShowCheckout] = useState(false);
-  
-  const [customer, setCustomer] = useState({ 
-    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: '' 
+
+  const [customer, setCustomer] = useState({
+    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
   const [showLastOrders, setShowLastOrders] = useState(false);
   const [lastOrders, setLastOrders] = useState([]);
@@ -74,9 +70,9 @@ export default function Home() {
   const [cepError, setCepError] = useState('');
   const [promo, setPromo] = useState(null);
   const [storeConfig, setStoreConfig] = useState({ isOpen: true, openTime: '08:00', closeTime: '23:00', message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg' });
-  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); 
+  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
-  
+
   const [shippingRates, setShippingRates] = useState([]);
   const [shippingFee, setShippingFee] = useState(null);
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
@@ -88,12 +84,12 @@ export default function Home() {
 
     // Carregar Produtos
     const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    
+
     // Carregar Categorias
     const unsubCategories = onSnapshot(collection(db, "categories"), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
-    
+
     const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
     if (d.exists()) {
       const data = d.data();
@@ -199,7 +195,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       <SEO title="Velo Delivery" description="Bebidas geladas." />
-      
+
       {/* HEADER */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
@@ -248,7 +244,7 @@ export default function Home() {
       <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
         <AnimatePresence mode='popLayout'>
           {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
-             const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock; 
+             const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
              return (
                 <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
@@ -267,7 +263,7 @@ export default function Home() {
           })}
         </AnimatePresence>
       </main>
-      
+
       <section className="px-6 py-10 bg-slate-100/50 text-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
@@ -292,7 +288,7 @@ export default function Home() {
         <ShoppingCart size={24} />
         {cart.length > 0 && <motion.div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{cart.reduce((acc, item) => acc + item.quantity, 0)}</motion.div>}
       </motion.button>
-      
+
       <AnimatePresence>
         {activeOrderId && (
           <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="fixed bottom-6 left-6 bg-purple-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
@@ -300,7 +296,17 @@ export default function Home() {
           </motion.button>
         )}
       </AnimatePresence>
-      
+
+      {/* NOVO BOTÃO AQUI */}
+      <motion.button
+        onClick={() => setShowLastOrders(true)}
+        className="fixed bottom-24 right-6 bg-orange-600 text-white rounded-full p-4 shadow-xl z-50 hover:bg-orange-700 active:scale-90 flex items-center gap-2"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+      >
+        <Clock size={24} /> <span className="font-bold text-sm pr-2">Últimos Pedidos</span>
+      </motion.button>
+
       {/* CHECKOUT COMPLETO */}
       <AnimatePresence>
         {showCheckout && (
@@ -308,7 +314,7 @@ export default function Home() {
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
               <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
               <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
-              
+
               {cart.length === 0 ? <p className="text-center py-10 font-bold text-slate-500">Carrinho vazio.</p> : (
                 <>
                   <div className="space-y-4 mb-8 mt-4">
@@ -325,13 +331,14 @@ export default function Home() {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
                   <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
-<input
-     type="tel"
-     placeholder="WhatsApp"
-     className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
-     value={customer.phone}
-     onChange={handlePhoneChange} // MODIFIQUE PARA handlePhoneChange
-  />                  <div className="relative">
+                  <input
+                     type="tel"
+                     placeholder="WhatsApp"
+                     className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
+                     value={customer.phone}
+                     onChange={handlePhoneChange}
+                  />
+                  <div className="relative">
                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
                      {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
                   </div>
@@ -343,7 +350,7 @@ export default function Home() {
                   )}
                   {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
                   {deliveryAreaMessage && !cepError && <p className="text-blue-500 text-xs font-bold text-center">{deliveryAreaMessage}</p>}
-                  
+
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                   <div className="grid grid-cols-3 gap-2 mt-2">
                      {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
@@ -369,6 +376,8 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* MODAL ÚLTIMOS PEDIDOS */}
       <AnimatePresence>
         {showLastOrders && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[101] p-6">
@@ -400,6 +409,6 @@ export default function Home() {
         )}
       </AnimatePresence>
     </div>
-    
+
   );
 }
