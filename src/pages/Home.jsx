@@ -6,6 +6,10 @@ import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Nav
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
+// Importa o componente Carousel e seus estilos
+import { Carousel } from 'react-responsive-carousel';
+import "react-responsive-carousel/lib/styles/carousel.min.css"; // Importa os estilos do carrossel
+
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
@@ -88,6 +92,7 @@ export default function Home() {
     // Carregar Categorias
     const unsubCategories = onSnapshot(collection(db, "categories"), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
+    // MODIFICADO AQUI: Agora espera promoBannerUrls (array)
     const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
 
     const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
@@ -216,10 +221,17 @@ export default function Home() {
         </div>
       </div>
 
+      {/* NOVO CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
       <AnimatePresence>
-        {promo?.promoActive && promo?.promoBannerUrl && (
+        {promo?.promoActive && promo?.promoBannerUrls && promo.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
-            <img src={promo.promoBannerUrl} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white"/>
+            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
+              {promo.promoBannerUrls.map((url, index) => (
+                <div key={index}>
+                  <img src={url} alt={`Banner ${index + 1}`} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                </div>
+              ))}
+            </Carousel>
           </motion.div>
         )}
       </AnimatePresence>
@@ -413,6 +425,5 @@ export default function Home() {
         )}
       </AnimatePresence>
     </div>
-
   );
 }
