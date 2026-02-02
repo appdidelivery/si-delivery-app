@@ -107,7 +107,22 @@ export default function Home() {
   useEffect(() => {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
+useEffect(() => {
+    if (storeSettings && storeSettings.storeLogoUrl) {
+      // Altera o Favicon (ícone da aba e Android)
+      const favicon = document.getElementById('dynamic-favicon');
+      if (favicon) favicon.href = storeSettings.storeLogoUrl;
 
+      // Altera o ícone de instalação (iPhone/iOS)
+      const appleIcon = document.getElementById('dynamic-apple-icon');
+      if (appleIcon) appleIcon.href = storeSettings.storeLogoUrl;
+
+      // Altera o título da página para o nome da loja
+      if (storeSettings.message) {
+        document.title = `${storeSettings.message} - Velo Delivery`;
+      }
+    }
+  }, [storeSettings.storeLogoUrl, storeSettings.message]);
     // Carregar Produtos - AGORA FILTRADO POR storeId
     const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
