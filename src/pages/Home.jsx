@@ -426,30 +426,12 @@ export default function Home() {
                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                 </div>
                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                <div className="relative"> 
-  <motion.button 
-    onClick={() => setShowCheckout(true)} 
-    className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
-    initial={{ scale: 0 }} 
-    animate={{ scale: 1 }}
-  >
-    <ShoppingCart size={24} />
-  </motion.button>
-
-  {/* Notificação (Badge) posicionada exatamente acima do ícone */}
-  <AnimatePresence>
-    {cart.length > 0 && (
-      <motion.div 
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0, opacity: 0 }}
-        className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
-      >
-        {cart.reduce((acc, item) => acc + item.quantity, 0)}
-      </motion.div>
-    )}
-  </AnimatePresence>
-</div>
+                <div className="flex justify-between items-center mt-auto">
+                    <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
+                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                    <ShoppingCart size={16} />
+                    </button>
+                </div>
                 </motion.div>
              );
           })}
