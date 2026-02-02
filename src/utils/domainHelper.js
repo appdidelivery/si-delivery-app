@@ -4,28 +4,28 @@ export const getStoreIdFromHostname = () => {
   const hostname = window.location.hostname;
   const baseDomain = 'velodelivery.com.br'; // Seu domínio principal
 
-  // 1. Caso de desenvolvimento local (localhost)
+  // Caso de desenvolvimento local (localhost)
+  // Para testar a loja 'csi' localmente, mude 'default' para 'csi'.
+  // Ex: return 'csi';
   if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
-    // Para testar a loja 'csi' localmente, você pode retornar 'csi' aqui:
-    // return 'csi';
-    // Ou mantenha 'default' se quiser uma loja genérica para localhost
-    return 'default'; 
+    return 'default'; // Ou 'csi' para testar a loja específica
   }
 
-  // 2. Caso de subdomínios do seu domínio principal (ex: csi.velodelivery.com.br ou admin.csi.velodelivery.com.br)
-  // Remove o domínio principal para isolar o subdomínio(s)
-  const parts = hostname.replace(`.${baseDomain}`, '').split('.');
-
-  // Se for admin.nomedaloja.velodelivery.com.br, o nome da loja é o segundo elemento
-  if (parts.length >= 2 && parts[0] === 'admin') {
-    return parts[1];
-  }
-  // Se for nomedaloja.velodelivery.com.br, o nome da loja é o primeiro elemento
-  else if (parts.length >= 1) {
-    return parts[0];
+  // Caso do domínio principal velodelivery.com.br (página inicial da plataforma)
+  if (hostname === baseDomain || hostname === `www.${baseDomain}`) {
+    return 'main-platform'; // Ou o ID da sua "loja principal" se velodelivery.com.br for uma loja
   }
 
-  // 3. Caso do domínio principal velodelivery.com.br (página inicial da plataforma)
-  // Ou qualquer outro fallback se nada corresponder.
-  return 'main-platform';
+  // Caso de subdomínios (ex: csi.velodelivery.com.br)
+  // Extrai a parte antes de .velodelivery.com.br
+  const subdomains = hostname.replace(`.${baseDomain}`, '');
+  const parts = subdomains.split('.'); // Divide por ponto, caso haja admin.csi, etc.
+
+  // Se for admin.csi, queremos 'csi'. Se for csi, queremos 'csi'.
+  // O último elemento antes do domínio base é o ID da loja.
+  if (parts.length > 0) {
+    return parts[parts.length - 1]; // Retorna o último componente do subdomínio (e.g., 'csi' de 'admin.csi' ou 'csi' de 'csi')
+  }
+  
+  return 'main-platform'; // Fallback
 };
