@@ -167,6 +167,20 @@ export default function Home() {
         unsubShippingRates();
         unsubStoreSettings(); // Unsubscribe do novo listener
     };
+    // Lógica para mudar o ícone e título dinamicamente por lojista
+  useEffect(() => {
+    if (storeSettings && storeSettings.storeLogoUrl) {
+      const favicon = document.getElementById('dynamic-favicon');
+      const appleIcon = document.getElementById('dynamic-apple-icon');
+      
+      if (favicon) favicon.href = storeSettings.storeLogoUrl;
+      if (appleIcon) appleIcon.href = storeSettings.storeLogoUrl;
+      
+      if (storeSettings.message) {
+        document.title = `${storeSettings.message} - Velo Delivery`;
+      }
+    }
+  }, [storeSettings.storeLogoUrl, storeSettings.message]);
   }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
 
   // Lógica de CEP (ViaCEP)
