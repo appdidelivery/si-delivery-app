@@ -19,7 +19,10 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export default function Admin() {
     const navigate = useNavigate();
-    const storeId = getStoreIdFromHostname(); // Obtém o ID da loja do hostname
+    // === CORREÇÃO: DECLARAÇÃO DE storeId NO TOPO DO COMPONENTE ===
+    const storeId = getStoreIdFromHostname();
+    console.log("Admin - storeId detectado:", storeId);
+    // ==========================================================
 
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
