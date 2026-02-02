@@ -468,11 +468,30 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Ícone Carrinho */}
-        <motion.button onClick={() => setShowCheckout(true)} className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-          <ShoppingCart size={24} />
-          {cart.length > 0 && <motion.div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{cart.reduce((acc, item) => acc + item.quantity, 0)}</motion.div>}
-        </motion.button>
+        <div className="relative flex items-center justify-center">
+  <motion.button 
+    onClick={() => setShowCheckout(true)} 
+    className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
+    initial={{ scale: 0 }} 
+    animate={{ scale: 1 }}
+  >
+    <ShoppingCart size={24} />
+  </motion.button>
+  
+  <AnimatePresence>
+    {cart.length > 0 && (
+      <motion.div 
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0, opacity: 0 }}
+        /* O segredo está no absolute com as coordenadas negativas para "pendurar" no botão */
+        className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
+      >
+        {cart.reduce((acc, item) => acc + item.quantity, 0)}
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
 
         {/* Botão "Últimos Pedidos" */}
         <motion.button
