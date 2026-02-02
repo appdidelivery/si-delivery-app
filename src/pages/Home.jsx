@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc } from 'firebase/firestore'; // Adicionado getDocs e updateDoc
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
@@ -9,6 +9,9 @@ import SEO from '../components/SEO';
 // Importa o componente Carousel e seus estilos
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; // Importa os estilos do carrossel
+
+// Importa o helper para obter o storeId
+import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
@@ -21,6 +24,8 @@ const getCategoryIcon = (name) => {
 
 export default function Home() {
   const navigate = useNavigate();
+  const storeId = getStoreIdFromHostname(); // OBTÉM O ID DA LOJA DA URL
+
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]); // Categorias do Banco
   const [cart, setCart] = useState([]);
@@ -41,7 +46,6 @@ export default function Home() {
   const [couponError, setCouponError] = useState(''); // Mensagem de erro do cupom
   const [discountAmount, setDiscountAmount] = useState(0); // Valor do desconto calculado
 
-
   const handlePhoneChange = (e) => {
     const phone = e.target.value;
     setCustomer({...customer, phone: phone});
@@ -59,7 +63,8 @@ export default function Home() {
     if (showLastOrders) {
       const customerPhone = localStorage.getItem('customerPhone');
       if (customerPhone) {
-        const q = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), orderBy("createdAt", "desc"));
+        // Busca os pedidos do cliente FILTRADOS POR LOJA
+        const q = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), where("storeId", "==", storeId), orderBy("createdAt", "desc"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setLastOrders(orders);
@@ -70,7 +75,7 @@ export default function Home() {
         setShowLastOrders(false);
       }
     }
-  }, [showLastOrders]);
+  }, [showLastOrders, storeId]); // Adicionado storeId às dependências
 
   const repeatOrder = (order) => {
     order.items.forEach(item => {
@@ -80,8 +85,13 @@ export default function Home() {
   };
   const [isCepLoading, setIsCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
-  const [promo, setPromo] = useState(null);
-  const [storeConfig, setStoreConfig] = useState({ isOpen: true, openTime: '08:00', closeTime: '23:00', message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg' });
+
+  // NOVO ESTADO: Consolida todas as configurações da loja
+  const [storeSettings, setStoreSettings] = useState({
+    promoActive: false, promoBannerUrls: [],
+    isOpen: true, openTime: '08:00', closeTime: '23:00',
+    message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
+  });
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
@@ -94,57 +104,65 @@ export default function Home() {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
-    // Carregar Produtos
-    const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // Carregar Produtos - AGORA FILTRADO POR storeId
+    const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-    // Carregar Categorias
-    const unsubCategories = onSnapshot(collection(db, "categories"), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // Carregar Categorias - AGORA FILTRADO POR storeId
+    const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-    // Cupons Ativos
-    const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true)), (s) => {
+    // Cupons Ativos - AGORA FILTRADO POR storeId
+    const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId)), (s) => {
         setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Estado da promoção (incluindo array de URLs)
-    const unsubPromo = onSnapshot(doc(db, "settings", "marketing"), (d) => d.exists() && setPromo(d.data()));
-
-    const unsubStoreConfig = onSnapshot(doc(db, "settings", "store_status"), (d) => {
-    if (d.exists()) {
-      const data = d.data();
-      setStoreConfig(data);
-
-      let finalStatus = data.isOpen; // Assume que a loja está aberta por padrão
-
-      // Se os horários estiverem preenchidos, verifique se está dentro do horário
-      if (data.openTime && data.closeTime) {
-        const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
-        const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
-        const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
-        const scheduledOpenTime = openHour * 60 + openMinute;
-        const scheduledCloseTime = closeHour * 60 + closeMinute;
-        const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-        finalStatus = data.isOpen && isCurrentlyOpenBySchedule; // Considera os horários se estiverem definidos
-      }
-
-      setIsStoreOpenNow(finalStatus);
-      setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
-    }
-  });
-
-    const unsubShippingRates = onSnapshot(collection(db, "shipping_rates"), (s) => {
+    // Taxas de Frete - AGORA FILTRADO POR storeId
+    const unsubShippingRates = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // Configurações da Loja (settings/{storeId}) - Unificado promo e storeStatus
+    const storeSettingsRef = doc(db, "settings", storeId);
+    getDoc(storeSettingsRef).then(s => {
+      if (!s.exists()) {
+        // Se as configurações para esta loja não existirem, cria com valores padrão
+        // (Isso deve ser feito uma vez no Admin ao criar a loja, mas é um fallback seguro)
+        setDoc(storeSettingsRef, {
+          promoActive: false, promoBannerUrls: [],
+          isOpen: true, openTime: '08:00', closeTime: '23:00',
+          message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
+        });
+      }
+    });
+    const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
+      if (d.exists()) {
+        const data = d.data();
+        setStoreSettings(data);
+
+        // Lógica para verificar horário de funcionamento
+        let finalStatus = data.isOpen;
+        if (data.openTime && data.closeTime) {
+          const now = new Date();
+          const currentTime = now.getHours() * 60 + now.getMinutes();
+          const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
+          const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
+          const scheduledOpenTime = openHour * 60 + openMinute;
+          const scheduledCloseTime = closeHour * 60 + closeMinute;
+          const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
+          finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
+        }
+        setIsStoreOpenNow(finalStatus);
+        setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
+      }
     });
 
     return () => {
         unsubProducts();
         unsubCategories();
-        unsubPromo();
-        unsubStoreConfig();
+        unsubCoupons();
         unsubShippingRates();
-        unsubCoupons(); // Adicionado aqui
+        unsubStoreSettings(); // Unsubscribe do novo listener
     };
-  }, []);
+  }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
 
   // Lógica de CEP (ViaCEP)
   useEffect(() => {
@@ -157,7 +175,8 @@ export default function Home() {
         const data = await response.json();
         if (data.erro) throw new Error("CEP não encontrado.");
         setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
-        const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase());
+        // Filtra as taxas de frete por storeId antes de encontrar
+        const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase() && rate.storeId === storeId);
         if (foundRate) {
           setShippingFee(foundRate.fee);
           setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
@@ -168,7 +187,7 @@ export default function Home() {
     };
     const handler = setTimeout(() => fetchCep(), 500);
     return () => clearTimeout(handler);
-  }, [customer.cep, shippingRates]);
+  }, [customer.cep, shippingRates, storeId]); // Adicionado storeId às dependências
 
   const addToCart = (p) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
@@ -236,7 +255,8 @@ export default function Home() {
                 collection(db, "orders"),
                 where("customerPhone", "==", customerPhone),
                 where("couponCode", "==", coupon.code),
-                where("status", "==", "completed") // Apenas pedidos completos contam para o uso
+                where("status", "==", "completed"),
+                where("storeId", "==", storeId) // FILTRA POR LOJA
             );
             const snapshot = await getDocs(customerOrdersWithCouponQuery);
             if (snapshot.size >= coupon.userUsageLimit) {
@@ -253,7 +273,8 @@ export default function Home() {
             const customerTotalOrdersQuery = query(
                 collection(db, "orders"),
                 where("customerPhone", "==", customerPhone),
-                where("status", "==", "completed")
+                where("status", "==", "completed"),
+                where("storeId", "==", storeId) // FILTRA POR LOJA
             );
             const snapshot = await getDocs(customerTotalOrdersQuery);
             if (snapshot.size > 0) { // Se o cliente já tem pedidos completos
@@ -294,7 +315,8 @@ export default function Home() {
       const orderData = {
         customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
         payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
-        items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp()
+        items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp(),
+        storeId: storeId // ADICIONADO storeId AQUI para que o pedido seja associado à loja
       };
 
       // Adiciona informações do cupom se houver
@@ -317,9 +339,9 @@ export default function Home() {
       navigate(`/track/${docRef.id}`);
       setCart([]);
       setShowCheckout(false);
-      setAppliedCoupon(null); // Limpa o cupom aplicado
-      setDiscountAmount(0);   // Limpa o desconto
-      setCouponCode('');      // Limpa o código do cupom
+      setAppliedCoupon(null);
+      setDiscountAmount(0);
+      setCouponCode('');
       alert("Pedido finalizado com sucesso!"); // Feedback visual
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
@@ -339,7 +361,7 @@ export default function Home() {
       {/* HEADER */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
-          <img src={storeConfig.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+          <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
           <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p></div>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
@@ -349,7 +371,7 @@ export default function Home() {
 
       {/* BANNER */}
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
-        <img src={storeConfig.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
+        <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
           <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> Santa Isabel - Loja principal</div>
           <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.</p>
@@ -358,10 +380,10 @@ export default function Home() {
 
       {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
       <AnimatePresence>
-        {promo?.promoActive && promo?.promoBannerUrls && promo.promoBannerUrls.length > 0 && (
+        {storeSettings.promoActive && storeSettings.promoBannerUrls && storeSettings.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
-              {promo.promoBannerUrls.map((url, index) => (
+              {storeSettings.promoBannerUrls.map((url, index) => (
                 <div key={index}>
                   <img src={url} alt={`Banner ${index + 1}`} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
                 </div>
@@ -490,7 +512,7 @@ export default function Home() {
                      onChange={handlePhoneChange}
                   />
                   <div className="relative">
-                     <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
+                     <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer.cep, cep: e.target.value})} />
                      {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
                   </div>
                   {customer.street && (
