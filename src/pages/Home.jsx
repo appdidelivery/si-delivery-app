@@ -321,7 +321,7 @@ export default function Home() {
         customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
         payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
         items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp(),
-        storeId: storeId // ADICIONADO storeId AQUI para que o pedido seja associado à loja
+        storeId: storeId // <<<<<<< ESTA LINHA É CRÍTICA E PRECISA ESTAR AQUI!
       };
 
       // Adiciona informações do cupom se houver
