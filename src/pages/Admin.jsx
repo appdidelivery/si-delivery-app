@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
 } from 'firebase/firestore';
 import {
     LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { getStoreIdFromHostname } from '../utils/domainHelper'; // Importa o helper do domínio
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -18,6 +19,8 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export default function Admin() {
     const navigate = useNavigate();
+    const storeId = getStoreIdFromHostname(); // Obtém o ID da loja do hostname
+
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
@@ -87,7 +90,8 @@ export default function Admin() {
     };
 
     useEffect(() => {
-        const unsubOrders = onSnapshot(query(collection(db, "orders"), orderBy("createdAt", "desc")), (s) => {
+        // Pedidos - Filtrado por storeId
+        const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), (s) => {
             s.docChanges().forEach((change) => {
                 if (change.type === "added" && change.doc.data().createdAt?.toMillis() > Date.now() - 10000) {
                     new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
@@ -96,21 +100,27 @@ export default function Admin() {
             setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-        const unsubProducts = onSnapshot(collection(db, "products"), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        // IMPORTANTE: Se o Firebase bloquear, isso aqui dá erro no console e a lista fica vazia.
-        const unsubCategories = onSnapshot(collection(db, "categories"), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        const unsubShipping = onSnapshot(collection(db, "shipping_rates"), (s) => setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood))));
+        // Produtos - Filtrado por storeId
+        const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        
+        // Categorias - Filtrado por storeId
+        const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        
+        // Taxas de Frete - Filtrado por storeId
+        const unsubShipping = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood))));
 
-        const mkRef = doc(db, "settings", "marketing");
-        getDoc(mkRef).then(s => !s.exists() && setDoc(mkRef, { promoActive: false, promoBannerUrls: [] }));
+        // Configurações de Marketing (promoções) - Usa storeId como ID do documento
+        const mkRef = doc(db, "settings", storeId);
+        getDoc(mkRef).then(s => !s.exists() && setDoc(mkRef, { promoActive: false, promoBannerUrls: [], storeId: storeId }, { merge: true }));
         const unsubMk = onSnapshot(mkRef, (d) => d.exists() && setSettings(d.data()));
 
-        const stRef = doc(db, "settings", "store_status");
-        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, { isOpen: true, openTime: '08:00', closeTime: '23:00', message: 'Aberto!' }));
+        // Status da Loja - Usa storeId como ID do documento
+        const stRef = doc(db, "settings", storeId);
+        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, { isOpen: true, openTime: '08:00', closeTime: '23:00', message: 'Aberto!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg', storeId: storeId }, { merge: true }));
         const unsubSt = onSnapshot(stRef, (d) => d.exists() && setStoreStatus(d.data()));
         
-        // Cupons - NOVO onSnapshot AQUI
-        const unsubCoupons = onSnapshot(collection(db, "coupons"), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        // Cupons - Filtrado por storeId
+        const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
 
         return () => { 
@@ -120,9 +130,9 @@ export default function Admin() {
             unsubShipping();
             unsubMk();
             unsubSt();
-            unsubCoupons(); // Adicionado aqui
+            unsubCoupons();
         };
-    }, []);
+    }, [storeId]); // Adicionado storeId como dependência
 
     // --- FUNÇÃO DE UPLOAD ROBUSTA (Corrigida) ---
     const handleProductImageUpload = async () => {
@@ -166,7 +176,7 @@ export default function Admin() {
         try {
             const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
             const data = await res.json();
-            await updateDoc(doc(db, "settings", "store_status"), { storeLogoUrl: data.secure_url });
+            await updateDoc(doc(db, "settings", storeId), { storeLogoUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
             setLogoFile(null);
         } catch (e) { alert("Erro upload logo"); }
         setUploadingLogo(false);
@@ -179,7 +189,7 @@ export default function Admin() {
         try {
             const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
             const data = await res.json();
-            await updateDoc(doc(db, "settings", "store_status"), { storeBannerUrl: data.secure_url });
+            await updateDoc(doc(db, "settings", storeId), { storeBannerUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
             setBannerFile(null);
         } catch (e) { alert("Erro upload banner"); }
         setUploadingBanner(false);
@@ -206,7 +216,7 @@ export default function Admin() {
             const bannerUrls = await Promise.all(uploadPromises);
             // Filtra URLs nulas caso ocorra erro no upload
             const filteredBannerUrls = bannerUrls.filter(url => url !== null);
-            await updateDoc(doc(db, "settings", "marketing"), { promoBannerUrls: filteredBannerUrls });
+            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true }); // Atualizado para usar storeId
             setPromoBannerFile1(null);
             setPromoBannerFile2(null);
             setPromoBannerFile3(null);
@@ -392,8 +402,16 @@ export default function Admin() {
                                     <button onClick={async () => {
                                         if (!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length === 0) return alert("Preencha tudo!");
                                         await addDoc(collection(db, "orders"), {
-                                            ...manualCustomer, customerName: manualCustomer.name, customerAddress: manualCustomer.address, customerPhone: manualCustomer.phone, items: manualCart, total: manualCart.reduce((a, i) => a + (i.price * i.quantity), 0), status: 'pending', createdAt: serverTimestamp(),
-                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : ''
+                                            ...manualCustomer,
+                                            customerName: manualCustomer.name,
+                                            customerAddress: manualCustomer.address,
+                                            customerPhone: manualCustomer.phone,
+                                            items: manualCart,
+                                            total: manualCart.reduce((a, i) => a + (i.price * i.quantity), 0),
+                                            status: 'pending',
+                                            createdAt: serverTimestamp(),
+                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '',
+                                            storeId: storeId // ADICIONADO: Associar pedido manual ao storeId
                                         });
                                         setManualCart([]); setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); alert("Pedido Lançado!");
                                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-8 shadow-xl">Salvar</button>
@@ -424,7 +442,7 @@ export default function Admin() {
                                 <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
                                 <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
                                 <button onClick={async () => {
-                                    const s = !settings.promoActive; await setDoc(doc(db, "settings", "marketing"), { promoActive: s }, { merge: true });
+                                    const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); // Atualizado para usar storeId
                                 }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
 
                                 {/* BANNERS DA PROMO RELÂMPAGO */}
@@ -498,7 +516,7 @@ export default function Admin() {
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status da Loja</h2>
                             {/* Botão Aberto/Fechado */}
                             <button
-                                onClick={() => updateDoc(doc(db, "settings", "store_status"), { isOpen: !storeStatus.isOpen })}
+                                onClick={() => updateDoc(doc(db, "settings", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })} // Atualizado para usar storeId
                                 className={`w-full p-4 rounded-2xl font-bold uppercase transition-all
                                         ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg'}`}
                             >
@@ -509,14 +527,14 @@ export default function Admin() {
                             <div className="flex gap-4">
                                 <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
                                     <span className="block font-bold text-slate-700 mb-2">Abre:</span>
-                                    <input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { openTime: e.target.value })} className="p-3 bg-white rounded-xl w-full font-bold" />
+                                    <input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { openTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" /> {/* Atualizado para usar storeId */}
                                 </div>
                                 <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
                                     <span className="block font-bold text-slate-700 mb-2">Fecha:</span>
-                                    <input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { closeTime: e.target.value })} className="p-3 bg-white rounded-xl w-full font-bold" />
+                                    <input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { closeTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" /> {/* Atualizado para usar storeId */}
                                 </div>
                             </div>
-                            <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", "store_status"), { message: e.target.value })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" />
+                            <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" /> {/* Atualizado para usar storeId */}
                         </div>
 
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
@@ -578,8 +596,9 @@ export default function Admin() {
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), catForm);
-                                    else await addDoc(collection(db, "categories"), catForm);
+                                    const dataToSave = { ...catForm, storeId: storeId }; // ADICIONADO: Associar categoria ao storeId
+                                    if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave);
+                                    else await addDoc(collection(db, "categories"), dataToSave);
                                     setIsCatModalOpen(false);
                                     alert("Categoria salva com sucesso!"); // FEEDBACK VISUAL
                                 } catch (error) {
@@ -604,7 +623,12 @@ export default function Admin() {
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                const data = { ...form, price: parseFloat(form.price), stock: parseInt(form.stock || 0) };
+                                const data = { 
+                                    ...form, 
+                                    price: parseFloat(form.price), 
+                                    stock: parseInt(form.stock || 0),
+                                    storeId: storeId // ADICIONADO: Associar produto ao storeId
+                                };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); }
                                 else { await addDoc(collection(db, "products"), data); }
                                 setIsModalOpen(false); setImageFile(null);
@@ -649,7 +673,11 @@ export default function Admin() {
                                 e.preventDefault();
                                 const feeValue = parseFloat(rateForm.fee);
                                 if (isNaN(feeValue) || feeValue < 0) return alert("Valor inválido");
-                                const data = { neighborhood: rateForm.neighborhood, fee: feeValue };
+                                const data = { 
+                                    neighborhood: rateForm.neighborhood, 
+                                    fee: feeValue,
+                                    storeId: storeId // ADICIONADO: Associar taxa de frete ao storeId
+                                };
                                 try {
                                     if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data);
                                     else await addDoc(collection(db, "shipping_rates"), data);
@@ -684,6 +712,7 @@ export default function Admin() {
                                     code: couponForm.code.toUpperCase(), // Códigos em maiúsculas
                                     currentUsage: couponForm.currentUsage || 0,
                                     createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
+                                    storeId: storeId // ADICIONADO: Associar cupom ao storeId
                                 };
                                 try {
                                     if (editingCouponId) {
