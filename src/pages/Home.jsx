@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc } from 'firebase/firestore'; // Adicionado getDocs e updateDoc
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
@@ -45,6 +45,7 @@ export default function Home() {
   const [appliedCoupon, setAppliedCoupon] = useState(null); // Cupom que foi aplicado com sucesso
   const [couponError, setCouponError] = useState(''); // Mensagem de erro do cupom
   const [discountAmount, setDiscountAmount] = useState(0); // Valor do desconto calculado
+
 
   const handlePhoneChange = (e) => {
     const phone = e.target.value;
@@ -209,7 +210,7 @@ export default function Home() {
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const finalTotal = subtotal + (shippingFee || 0) - discountAmount; // MODIFICADO AQUI
+  const finalTotal = subtotal + (shippingFee || 0) - discountAmount;
 
 
   // Lógica para aplicar o cupom
@@ -512,7 +513,7 @@ export default function Home() {
                      onChange={handlePhoneChange}
                   />
                   <div className="relative">
-                     <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer.cep, cep: e.target.value})} />
+                     <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
                      {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
                   </div>
                   {customer.street && (
