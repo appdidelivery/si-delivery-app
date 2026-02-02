@@ -167,17 +167,33 @@ export default function Home() {
         unsubShippingRates();
         unsubStoreSettings(); // Unsubscribe do novo listener
     };
-    // Lógica para mudar o ícone e título dinamicamente por lojista
+   // LÓGICA DE ÍCONE DINÂMICO PARA PWA (COPIAR E COLAR AQUI)
   useEffect(() => {
     if (storeSettings && storeSettings.storeLogoUrl) {
+      // 1. Atualiza Favicon e Ícone iOS
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
-      
       if (favicon) favicon.href = storeSettings.storeLogoUrl;
       if (appleIcon) appleIcon.href = storeSettings.storeLogoUrl;
-      
-      if (storeSettings.message) {
-        document.title = `${storeSettings.message} - Velo Delivery`;
+
+      // 2. Cria um Manifesto Dinâmico para o Android pegar a logo da loja
+      const manifestTag = document.getElementById('manifest-tag');
+      if (manifestTag) {
+        const dynamicManifest = {
+          "short_name": storeSettings.message || "Velo",
+          "name": storeSettings.message || "Velo Delivery",
+          "icons": [
+            { "src": storeSettings.storeLogoUrl, "sizes": "192x192", "type": "image/png", "purpose": "any" },
+            { "src": storeSettings.storeLogoUrl, "sizes": "512x512", "type": "image/png", "purpose": "any" }
+          ],
+          "start_url": ".",
+          "display": "standalone",
+          "theme_color": "#1d4ed8",
+          "background_color": "#ffffff"
+        };
+        const blob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/json' });
+        const manifestURL = URL.createObjectURL(blob);
+        manifestTag.setAttribute('href', manifestURL);
       }
     }
   }, [storeSettings.storeLogoUrl, storeSettings.message]);
