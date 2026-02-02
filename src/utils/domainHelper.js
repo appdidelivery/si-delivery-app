@@ -4,28 +4,38 @@ export const getStoreIdFromHostname = () => {
   const hostname = window.location.hostname;
   const baseDomain = 'velodelivery.com.br'; // Seu domínio principal
 
-  // Caso de desenvolvimento local (localhost)
-  // Para testar a loja 'csi' localmente, mude 'default' para 'csi'.
-  // Ex: return 'csi';
+  // 1. Caso de desenvolvimento local (localhost)
   if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
-    return 'default'; // Ou 'csi' para testar a loja específica
+    // Para testar a loja 'csi' localmente, mude 'default' para 'csi'.
+    // Ex: return 'csi';
+    return 'default'; // Ou 'csi' para testar uma loja específica localmente
   }
 
-  // Caso do domínio principal velodelivery.com.br (página inicial da plataforma)
+  // 2. Caso de domínio provisório do Vercel (ex: si-delivery-app-git-main-eyagencia.vercel.app)
+  if (hostname.endsWith('.vercel.app')) {
+    const parts = hostname.split('.');
+    // O ID da loja é o primeiro segmento do subdomínio para URLs do Vercel
+    // Ex: "si-delivery-app-git-main-eyagencia" de "si-delivery-app-git-main-eyagencia.vercel.app"
+    if (parts.length >= 3) { // Deve ter pelo menos [id].vercel.app
+      return parts[0]; 
+    }
+    return 'vercel-fallback'; // Fallback se a URL do Vercel for inesperada
+  }
+
+  // 3. Caso do seu domínio principal (velodelivery.com.br ou www.velodelivery.com.br)
   if (hostname === baseDomain || hostname === `www.${baseDomain}`) {
     return 'main-platform'; // Ou o ID da sua "loja principal" se velodelivery.com.br for uma loja
   }
 
-  // Caso de subdomínios (ex: csi.velodelivery.com.br)
+  // 4. Caso de subdomínios do seu domínio principal (ex: csi.velodelivery.com.br)
   // Extrai a parte antes de .velodelivery.com.br
-  const subdomains = hostname.replace(`.${baseDomain}`, '');
-  const parts = subdomains.split('.'); // Divide por ponto, caso haja admin.csi, etc.
-
-  // Se for admin.csi, queremos 'csi'. Se for csi, queremos 'csi'.
-  // O último elemento antes do domínio base é o ID da loja.
-  if (parts.length > 0) {
-    return parts[parts.length - 1]; // Retorna o último componente do subdomínio (e.g., 'csi' de 'admin.csi' ou 'csi' de 'csi')
+  if (hostname.endsWith(`.${baseDomain}`)) {
+    const subdomains = hostname.replace(`.${baseDomain}`, '');
+    const parts = subdomains.split('.');
+    // O ID da loja é o último componente do subdomínio
+    // Ex: 'csi' de 'csi.velodelivery.com.br'
+    return parts[parts.length - 1]; 
   }
   
-  return 'main-platform'; // Fallback
+  return 'unknown-store'; // Último fallback para qualquer outro caso não previsto
 };
