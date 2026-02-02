@@ -1,603 +1,768 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { db, auth } from '../services/firebase';
+import {
+    collection, onSnapshot, doc, updateDoc, deleteDoc,
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
+} from 'firebase/firestore';
+import {
+    LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
+    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import SEO from '../components/SEO';
+import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
+import { getStoreIdFromHostname } from '../utils/domainHelper'; // Importa o helper do domínio
 
-// Importa o componente Carousel e seus estilos
-import { Carousel } from 'react-responsive-carousel';
-import "react-responsive-carousel/lib/styles/carousel.min.css"; // Importa os estilos do carrossel
+// --- CONFIGURAÇÕES DO CLOUDINARY ---
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-// Importa o helper para obter o storeId
-import { getStoreIdFromHostname } from '../utils/domainHelper';
-console.log("Home/Admin - storeId detectado:", storeId);
-// Função auxiliar para ícones de categoria
-const getCategoryIcon = (name) => {
-    const n = name.toLowerCase();
-    if (n.includes('cerveja')) return <Beer size={18}/>;
-    if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
-    if (n.includes('suco') || n.includes('refri') || n.includes('água')) return <Refrigerator size={18}/>;
-    return <List size={18}/>;
-};
+export default function Admin() {
+    const navigate = useNavigate();
+    const storeId = getStoreIdFromHostname(); // Obtém o ID da loja do hostname
 
-export default function Home() {
-  const navigate = useNavigate();
-  const storeId = getStoreIdFromHostname(); // OBTÉM O ID DA LOJA DA URL
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [orders, setOrders] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
 
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]); // Categorias do Banco
-  const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [showCheckout, setShowCheckout] = useState(false);
+    // Modais
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [form, setForm] = useState({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0 });
+    const [editingId, setEditingId] = useState(null);
 
-  const [customer, setCustomer] = useState({
-    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
-  });
-  const [showLastOrders, setShowLastOrders] = useState(false);
-  const [lastOrders, setLastOrders] = useState([]);
+    const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+    const [catForm, setCatForm] = useState({ name: '' });
+    const [editingCatId, setEditingCatId] = useState(null);
 
-  // Cupons
-  const [availableCoupons, setAvailableCoupons] = useState([]); // Para armazenar cupons do Firestore
-  const [couponCode, setCouponCode] = useState(''); // Para o input do cliente
-  const [appliedCoupon, setAppliedCoupon] = useState(null); // Cupom que foi aplicado com sucesso
-  const [couponError, setCouponError] = useState(''); // Mensagem de erro do cupom
-  const [discountAmount, setDiscountAmount] = useState(0); // Valor do desconto calculado
+    // Estados Pedido Manual
+    const [manualCart, setManualCart] = useState([]);
+    const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
 
+    // Uploads
+    const [imageFile, setImageFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState('');
 
-  const handlePhoneChange = (e) => {
-    const phone = e.target.value;
-    setCustomer({...customer, phone: phone});
-    localStorage.setItem('customerPhone', phone);
-  };
-
-  useEffect(() => {
-    const savedPhone = localStorage.getItem('customerPhone');
-    if (savedPhone) {
-      setCustomer(prev => ({ ...prev, phone: savedPhone }));
-    }
-  }, []);
-
-  useEffect(() => {
-    if (showLastOrders) {
-      const customerPhone = localStorage.getItem('customerPhone');
-      if (customerPhone) {
-        // Busca os pedidos do cliente FILTRADOS POR LOJA
-        const q = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), where("storeId", "==", storeId), orderBy("createdAt", "desc"));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-          const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setLastOrders(orders);
-        });
-        return () => unsubscribe();
-      } else {
-        alert("Número de telefone não encontrado. Preencha seus dados para ver seus últimos pedidos.");
-        setShowLastOrders(false);
-      }
-    }
-  }, [showLastOrders, storeId]); // Adicionado storeId às dependências
-
-  const repeatOrder = (order) => {
-    order.items.forEach(item => {
-      addToCart({...item, id: item.id});
+    // Loja
+    const [storeStatus, setStoreStatus] = useState({
+        isOpen: true, openTime: '08:00', closeTime: '23:00',
+        message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
     });
-    setShowLastOrders(false);
-  };
-  const [isCepLoading, setIsCepLoading] = useState(false);
-  const [cepError, setCepError] = useState('');
+    const [logoFile, setLogoFile] = useState(null);
+    const [bannerFile, setBannerFile] = useState(null);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingBanner, setUploadingBanner] = useState(false);
 
-  // NOVO ESTADO: Consolida todas as configurações da loja
-  const [storeSettings, setStoreSettings] = useState({
-    promoActive: false, promoBannerUrls: [],
-    isOpen: true, openTime: '08:00', closeTime: '23:00',
-    message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
-  });
-  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
-  const [storeMessage, setStoreMessage] = useState('Verificando...');
+    const [promoBannerFile1, setPromoBannerFile1] = useState(null);
+    const [promoBannerFile2, setPromoBannerFile2] = useState(null);
+    const [promoBannerFile3, setPromoBannerFile3] = useState(null);
+    const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
 
-  const [shippingRates, setShippingRates] = useState([]);
-  const [shippingFee, setShippingFee] = useState(null);
-  const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
-  const [activeOrderId, setActiveOrderId] = useState(null);
+    const [shippingRates, setShippingRates] = useState([]);
+    const [isRateModalOpen, setIsRateModalOpen] = useState(false);
+    const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
+    const [editingRateId, setEditingRateId] = useState(null);
 
-  useEffect(() => {
-    const savedOrderId = localStorage.getItem('activeOrderId');
-    if (savedOrderId) setActiveOrderId(savedOrderId);
-
-    // Carregar Produtos - AGORA FILTRADO POR storeId
-    const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
-    // Carregar Categorias - AGORA FILTRADO POR storeId
-    const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
-    // Cupons Ativos - AGORA FILTRADO POR storeId
-    const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId)), (s) => {
-        setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    // Cupons - NOVOS ESTADOS AQUI
+    const [coupons, setCoupons] = useState([]);
+    const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+    const [couponForm, setCouponForm] = useState({
+        code: '', type: 'percentage', value: 0, minimumOrderValue: 0,
+        usageLimit: null, userUsageLimit: null, expirationDate: '',
+        firstPurchaseOnly: false, active: true
     });
+    const [editingCouponId, setEditingCouponId] = useState(null);
 
-    // Taxas de Frete - AGORA FILTRADO POR storeId
-    const unsubShippingRates = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => {
-      setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
 
-    // Configurações da Loja (settings/{storeId}) - Unificado promo e storeStatus
-    const storeSettingsRef = doc(db, "settings", storeId);
-    getDoc(storeSettingsRef).then(s => {
-      if (!s.exists()) {
-        // Se as configurações para esta loja não existirem, cria com valores padrão
-        // (Isso deve ser feito uma vez no Admin ao criar a loja, mas é um fallback seguro)
-        setDoc(storeSettingsRef, {
-          promoActive: false, promoBannerUrls: [],
-          isOpen: true, openTime: '08:00', closeTime: '23:00',
-          message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
-        });
-      }
-    });
-    const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
-      if (d.exists()) {
-        const data = d.data();
-        setStoreSettings(data);
+    const navItems = [
+        { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
+        { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+        { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
+        { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
+        { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
+        { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
+    ];
 
-        // Lógica para verificar horário de funcionamento
-        let finalStatus = data.isOpen;
-        if (data.openTime && data.closeTime) {
-          const now = new Date();
-          const currentTime = now.getHours() * 60 + now.getMinutes();
-          const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
-          const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
-          const scheduledOpenTime = openHour * 60 + openMinute;
-          const scheduledCloseTime = closeHour * 60 + closeMinute;
-          const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-          finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
-        }
-        setIsStoreOpenNow(finalStatus);
-        setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
-      }
-    });
-
-    return () => {
-        unsubProducts();
-        unsubCategories();
-        unsubCoupons();
-        unsubShippingRates();
-        unsubStoreSettings(); // Unsubscribe do novo listener
+    const handleLogout = async () => {
+        try { await signOut(auth); navigate('/login'); } catch (error) { console.error("Erro logout:", error); }
     };
-  }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
 
-  // Lógica de CEP (ViaCEP)
-  useEffect(() => {
-    const cep = customer.cep.replace(/\D/g, '');
-    if (cep.length !== 8) { setCepError(''); return; }
-    const fetchCep = async () => {
-      setIsCepLoading(true); setCepError(''); setShippingFee(null); setDeliveryAreaMessage('');
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-        const data = await response.json();
-        if (data.erro) throw new Error("CEP não encontrado.");
-        setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
-        // Filtra as taxas de frete por storeId antes de encontrar
-        const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase() && rate.storeId === storeId);
-        if (foundRate) {
-          setShippingFee(foundRate.fee);
-          setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
-        } else {
-          setShippingFee(null); setDeliveryAreaMessage("Infelizmente, não atendemos esta região."); setCepError("Região não atendida.");
-        }
-      } catch (error) { setCepError(error.message); setCustomer(c => ({ ...c, street: '', neighborhood: '' })); } finally { setIsCepLoading(false); }
-    };
-    const handler = setTimeout(() => fetchCep(), 500);
-    return () => clearTimeout(handler);
-  }, [customer.cep, shippingRates, storeId]); // Adicionado storeId às dependências
-
-  const addToCart = (p) => {
-    if (!isStoreOpenNow) { alert(storeMessage); return; }
-    // Validação de Estoque
-    if (p.stock && p.stock <= 0) { alert("Produto fora de estoque!"); return; }
-    setCart(prev => {
-      const ex = prev.find(i => i.id === p.id);
-      if (ex && p.stock && (ex.quantity + 1 > p.stock)) {
-          alert("Limite de estoque atingido!");
-          return prev;
-      }
-      return ex ? prev.map(i => i.id === p.id ? {...i, quantity: i.quantity + 1} : i) : [...prev, {...p, quantity: 1}];
-    });
-  };
-
-  const updateQuantity = (productId, amount) => {
-    setCart(prevCart => prevCart.map(item => item.id === productId ? { ...item, quantity: item.quantity + amount } : item).filter(item => item.quantity > 0));
-  };
-  const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
-
-  const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const finalTotal = subtotal + (shippingFee || 0) - discountAmount;
-
-
-  // Lógica para aplicar o cupom
-  const applyCoupon = async () => {
-    setCouponError(''); // Limpa erros anteriores
-    setDiscountAmount(0);
-    setAppliedCoupon(null);
-
-    if (!couponCode) {
-      setCouponError('Por favor, digite um código de cupom.');
-      return;
-    }
-
-    const coupon = availableCoupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
-
-    if (!coupon) {
-      setCouponError('Cupom inválido ou não encontrado.');
-      return;
-    }
-
-    if (!coupon.active) {
-      setCouponError('Este cupom não está ativo.');
-      return;
-    }
-
-    // Validações de uso e expiração
-    const now = new Date(); // Use new Date() para comparação consistente no cliente
-    if (coupon.expirationDate && coupon.expirationDate.toDate() < now) { // .toDate() é necessário se for Firestore Timestamp
-      setCouponError('Este cupom expirou.');
-      return;
-    }
-
-    if (coupon.usageLimit && coupon.currentUsage >= coupon.usageLimit) {
-      setCouponError('Este cupom atingiu o limite máximo de usos.');
-      return;
-    }
-
-    // Validação de limite de uso por cliente (requer buscar pedidos anteriores do cliente)
-    if (coupon.userUsageLimit) {
-        const customerPhone = localStorage.getItem('customerPhone'); // Usamos o telefone como ID do cliente
-        if (customerPhone) {
-            const customerOrdersWithCouponQuery = query(
-                collection(db, "orders"),
-                where("customerPhone", "==", customerPhone),
-                where("couponCode", "==", coupon.code),
-                where("status", "==", "completed"),
-                where("storeId", "==", storeId) // FILTRA POR LOJA
-            );
-            const snapshot = await getDocs(customerOrdersWithCouponQuery);
-            if (snapshot.size >= coupon.userUsageLimit) {
-                setCouponError('Você já usou este cupom o número máximo de vezes.');
-                return;
-            }
-        }
-    }
-
-    // Validação de primeira compra (requer verificar se o cliente já fez outros pedidos)
-    if (coupon.firstPurchaseOnly) {
-        const customerPhone = localStorage.getItem('customerPhone');
-        if (customerPhone) {
-            const customerTotalOrdersQuery = query(
-                collection(db, "orders"),
-                where("customerPhone", "==", customerPhone),
-                where("status", "==", "completed"),
-                where("storeId", "==", storeId) // FILTRA POR LOJA
-            );
-            const snapshot = await getDocs(customerTotalOrdersQuery);
-            if (snapshot.size > 0) { // Se o cliente já tem pedidos completos
-                setCouponError('Este cupom é válido apenas para a primeira compra.');
-                return;
-            }
-        }
-    }
-
-    // Validação de valor mínimo do pedido
-    if (coupon.minimumOrderValue > subtotal) {
-      setCouponError(`Valor mínimo do pedido para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}.`);
-      return;
-    }
-
-    // Calcula o desconto
-    let calculatedDiscount = 0;
-    if (coupon.type === 'percentage') {
-      calculatedDiscount = subtotal * (coupon.value / 100);
-    } else if (coupon.type === 'fixed_amount') {
-      calculatedDiscount = coupon.value;
-    }
-
-    setAppliedCoupon(coupon);
-    setDiscountAmount(calculatedDiscount);
-    setCouponError('Cupom aplicado com sucesso!'); // Mensagem de sucesso
-  };
-
-
-  const finalizeOrder = async () => {
-    if (!isStoreOpenNow) return alert(storeMessage);
-    if(!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha o endereço completo.");
-    if(cart.length === 0) return alert("Carrinho vazio!");
-    if (shippingFee === null) return alert("Frete não calculado.");
-
-    const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
-    try {
-      const orderData = {
-        customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
-        payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
-        items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp(),
-        storeId: storeId // ADICIONADO storeId AQUI para que o pedido seja associado à loja
-      };
-
-      // Adiciona informações do cupom se houver
-      if (appliedCoupon) {
-        orderData.couponCode = appliedCoupon.code;
-        orderData.discountAmount = discountAmount;
-      }
-
-      const docRef = await addDoc(collection(db, "orders"), orderData);
-
-      // Se um cupom foi aplicado, atualiza o contador de uso
-      if (appliedCoupon) {
-        await updateDoc(doc(db, "coupons", appliedCoupon.id), {
-          currentUsage: (appliedCoupon.currentUsage || 0) + 1
+    useEffect(() => {
+        // Pedidos - Filtrado por storeId
+        const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), (s) => {
+            s.docChanges().forEach((change) => {
+                if (change.type === "added" && change.doc.data().createdAt?.toMillis() > Date.now() - 10000) {
+                    new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
+                }
+            });
+            setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
-      }
 
-      localStorage.setItem('activeOrderId', docRef.id);
-      setActiveOrderId(docRef.id);
-      navigate(`/track/${docRef.id}`);
-      setCart([]);
-      setShowCheckout(false);
-      setAppliedCoupon(null);
-      setDiscountAmount(0);
-      setCouponCode('');
-      alert("Pedido finalizado com sucesso!"); // Feedback visual
-    } catch (e) {
-        alert("Erro ao processar. Tente novamente.");
-        console.error("Erro ao finalizar pedido:", e);
-    }
-  };
+        // Produtos - Filtrado por storeId
+        const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        
+        // Categorias - Filtrado por storeId
+        const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        
+        // Taxas de Frete - Filtrado por storeId
+        const unsubShipping = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood))));
 
-  const displayCategories = [
-      { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
-      ...categories.map(c => ({ id: c.name, name: c.name, icon: getCategoryIcon(c.name) }))
-  ];
+        // Configurações de Marketing (promoções) - Usa storeId como ID do documento
+        const mkRef = doc(db, "settings", storeId);
+        getDoc(mkRef).then(s => !s.exists() && setDoc(mkRef, { promoActive: false, promoBannerUrls: [], storeId: storeId }, { merge: true }));
+        const unsubMk = onSnapshot(mkRef, (d) => d.exists() && setSettings(d.data()));
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-      <SEO title="Velo Delivery" description="Bebidas geladas." />
+        // Status da Loja - Usa storeId como ID do documento
+        const stRef = doc(db, "settings", storeId);
+        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, { isOpen: true, openTime: '08:00', closeTime: '23:00', message: 'Aberto!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg', storeId: storeId }, { merge: true }));
+        const unsubSt = onSnapshot(stRef, (d) => d.exists() && setStoreStatus(d.data()));
+        
+        // Cupons - Filtrado por storeId
+        const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3">
-          <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-          <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p></div>
-        </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-          {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
-        </div>
-      </header>
 
-      {/* BANNER */}
-      <div className="w-full h-48 md:h-64 relative overflow-hidden">
-        <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
-          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> Santa Isabel - Loja principal</div>
-          <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.</p>
-        </div>
-      </div>
+        return () => { 
+            unsubOrders();
+            unsubProducts();
+            unsubCategories();
+            unsubShipping();
+            unsubMk();
+            unsubSt();
+            unsubCoupons();
+        };
+    }, [storeId]); // Adicionado storeId como dependência
 
-      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
-      <AnimatePresence>
-        {storeSettings.promoActive && storeSettings.promoBannerUrls && storeSettings.promoBannerUrls.length > 0 && (
-          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
-            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
-              {storeSettings.promoBannerUrls.map((url, index) => (
-                <div key={index}>
-                  <img src={url} alt={`Banner ${index + 1}`} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+    // --- FUNÇÃO DE UPLOAD ROBUSTA (Corrigida) ---
+    const handleProductImageUpload = async () => {
+        if (!imageFile) { alert("Selecione um arquivo primeiro!"); return; }
+
+        setUploading(true);
+        setUploadError('');
+
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        try {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Falha no upload. Verifique conexão ou configurações.');
+            }
+
+            const data = await response.json();
+            setForm(prev => ({ ...prev, imageUrl: data.secure_url }));
+            setImageFile(null);
+            alert("Imagem enviada com sucesso!");
+
+        } catch (error) {
+            console.error("Erro upload:", error);
+            setUploadError('Erro ao enviar imagem. Tente novamente.');
+        } finally {
+            setUploading(false);
+        }
+    };
+    // ---------------------------------------------
+
+    const handleLogoUpload = async () => {
+        if (!logoFile) return;
+        setUploadingLogo(true);
+        const fd = new FormData(); fd.append('file', logoFile); fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        try {
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+            const data = await res.json();
+            await updateDoc(doc(db, "settings", storeId), { storeLogoUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
+            setLogoFile(null);
+        } catch (e) { alert("Erro upload logo"); }
+        setUploadingLogo(false);
+    };
+
+    const handleBannerUpload = async () => {
+        if (!bannerFile) return;
+        setUploadingBanner(true);
+        const fd = new FormData(); fd.append('file', bannerFile); fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        try {
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+            const data = await res.json();
+            await updateDoc(doc(db, "settings", storeId), { storeBannerUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
+            setBannerFile(null);
+        } catch (e) { alert("Erro upload banner"); }
+        setUploadingBanner(false);
+    };
+
+    const handlePromoBannerUpload = async () => {
+        setUploadingPromoBanner(true);
+        const bannerFiles = [promoBannerFile1, promoBannerFile2, promoBannerFile3].filter(file => file !== null);
+        const uploadPromises = bannerFiles.map(async (bannerFile) => {
+            const fd = new FormData();
+            fd.append('file', bannerFile);
+            fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            try {
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+                const data = await res.json();
+                return data.secure_url;
+            } catch (e) {
+                alert("Erro upload promo banner");
+                return null;
+            }
+        });
+
+        try {
+            const bannerUrls = await Promise.all(uploadPromises);
+            // Filtra URLs nulas caso ocorra erro no upload
+            const filteredBannerUrls = bannerUrls.filter(url => url !== null);
+            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true }); // Atualizado para usar storeId
+            setPromoBannerFile1(null);
+            setPromoBannerFile2(null);
+            setPromoBannerFile3(null);
+            alert("Banners da promoção relâmpago atualizados!");
+        } catch (e) {
+            alert("Erro ao salvar URLs dos banners da promoção");
+        }
+        setUploadingPromoBanner(false);
+    };
+
+    const printLabel = (o) => {
+        const w = window.open('', '_blank');
+        const itemsHtml = (o.items || []).map(i => `<li>${i.quantity}x ${i.name}</li>`).join('');
+        const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.payment] || 'PIX';
+        w.document.write(`<html><body style="font-family:sans-serif;width:300px;padding:10px;"><center><h2>CONVENIÊNCIA SI</h2></center><hr><strong>PEDIDO:</strong> #${o.id.slice(0, 6)}<br><strong>CLIENTE:</strong> ${o.customerName}<br><strong>ENDEREÇO:</strong> ${o.customerAddress}<br><strong>PAGTO:</strong> ${pagto}<br>${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}<hr><ul>${itemsHtml}</ul><hr><div style="text-align:right;font-size:18px;"><strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong></div><script>window.print();window.close();</script></body></html>`);
+        w.document.close();
+    };
+
+    const customers = Object.values(orders.reduce((acc, o) => {
+        const p = o.customerPhone || 'N/A';
+        if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
+        acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
+    }, {})).sort((a, b) => b.total - a.total);
+
+    return (
+        <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
+            <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
+                <div className="flex flex-col items-center mb-10">
+                    <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+                    <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
                 </div>
-              ))}
-            </Carousel>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="p-6">
-        <div className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input type="text" placeholder="O que você procura?" className="w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-blue-600 font-medium" onChange={e => setSearchTerm(e.target.value)} />
-        </div>
-
-        {/* CATEGORIAS DINÂMICAS */}
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-          {displayCategories.map(c => (
-            <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
-              {c.icon} {c.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* PRODUTOS */}
-      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
-        <AnimatePresence mode='popLayout'>
-          {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
-             const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-             return (
-                <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
-                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                </div>
-                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                <div className="flex justify-between items-center mt-auto">
-                    <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
-                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                    <ShoppingCart size={16} />
-                    </button>
-                </div>
-                </motion.div>
-             );
-          })}
-        </AnimatePresence>
-      </main>
-
-      <section className="px-6 py-10 bg-slate-100/50 text-center">
-        <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
-            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">CONVENIÊNCIA SANTA ISABEL</p>
-            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">R. Neida Maciel, 122 - Santa Isabel Viamão - RS</p>
-            <a href="https://share.google/BM8tOiMLqp6yzxibm" target="_blank" className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
-                Ver no Google Maps <ExternalLink size={14}/>
-            </a>
-        </div>
-      </section>
-
-      <footer className="p-12 text-center">
-        <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
-        <div className="flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer">
-          <img src="/logo retangular Vero Delivery.png" className="h-6 w-auto mb-2" />
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
-        </div>
-      </footer>
-
-      {/* Contêiner para os botões fixos (Acompanhar, Carrinho, Últimos Pedidos) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
-        {/* Botão "Acompanhar Pedidos" */}
-        <AnimatePresence>
-          {activeOrderId && (
-            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
-              <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {/* Ícone Carrinho */}
-        <motion.button onClick={() => setShowCheckout(true)} className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-          <ShoppingCart size={24} />
-          {cart.length > 0 && <motion.div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">{cart.reduce((acc, item) => acc + item.quantity, 0)}</motion.div>}
-        </motion.button>
-
-        {/* Botão "Últimos Pedidos" */}
-        <motion.button
-          onClick={() => setShowLastOrders(true)}
-          className="bg-orange-600 text-white rounded-full p-4 shadow-xl hover:bg-orange-700 active:scale-90 flex items-center gap-2"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-        >
-          <Clock size={24} /> <span className="font-bold text-sm pr-2">Últimos Pedidos</span>
-        </motion.button>
-      </div>
-
-      {/* CHECKOUT COMPLETO */}
-      <AnimatePresence>
-        {showCheckout && (
-          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
-            <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
-              <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
-              <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
-
-              {cart.length === 0 ? <p className="text-center py-10 font-bold text-slate-500">Carrinho vazio.</p> : (
-                <>
-                  <div className="space-y-4 mb-8 mt-4">
-                    {cart.map(item => (
-                      <div key={item.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-3"><img src={item.imageUrl} className="w-12 h-12 object-contain rounded-lg bg-white p-1"/><div className="text-sm font-bold">{item.name}</div></div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus size={16}/></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus size={16}/></button>
-                          <button onClick={() => removeFromCart(item.id)} className="p-1 text-red-500"><Trash2 size={16}/></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
-                  <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
-                  <input
-                     type="tel"
-                     placeholder="WhatsApp"
-                     className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
-                     value={customer.phone}
-                     onChange={handlePhoneChange}
-                  />
-                  <div className="relative">
-                     <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
-                     {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
-                  </div>
-                  {customer.street && (
-                    <>
-                        <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                        <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => setCustomer({...customer, number: e.target.value})}/>
-                    </>
-                  )}
-                  {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
-                  {deliveryAreaMessage && !cepError && <p className="text-blue-500 text-xs font-bold text-center">{deliveryAreaMessage}</p>}
-
-                  {/* Cupom de Desconto */}
-                  <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
-                  <div className="flex gap-2 mt-2">
-                    <input
-                      type="text"
-                      placeholder="Insira o código do cupom"
-                      className="flex-1 p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none"
-                      value={couponCode}
-                      onChange={e => setCouponCode(e.target.value)}
-                    />
-                    <button onClick={applyCoupon} className="bg-blue-600 text-white p-5 rounded-[2rem] font-black uppercase shadow-xl hover:bg-blue-700">Aplicar</button>
-                  </div>
-                  {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
-
-
-                  <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                     {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
-                        <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?'bg-blue-50 border-blue-600 text-blue-600':'border-transparent bg-slate-50 text-slate-400'}`}>
-                            {m.icon} <span className="text-[9px] font-black uppercase mt-1">{m.name}</span>
-                        </button>
-                     ))}
-                  </div>
-                  {customer.payment === 'dinheiro' && <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />}
-
-                  <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Frete</span><span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : '--'}</span></div>
-                      {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
-                      <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
-                  </div>
-
-                  <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl hover:bg-blue-700 disabled:opacity-50">
-                     {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
-                  </button>
-                </>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL ÚLTIMOS PEDIDOS */}
-      <AnimatePresence>
-        {showLastOrders && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[101] p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
-              <button onClick={() => setShowLastOrders(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32} /></button>
-              <h2 className="text-4xl font-black text-slate-900 mb-6 tracking-tighter italic">SEUS PEDIDOS</h2>
-              {lastOrders.length === 0 ? (
-                <p className="text-center py-10 font-bold text-slate-500">Nenhum pedido encontrado.</p>
-              ) : (
-                <div className="space-y-4">
-                  {lastOrders.map(order => (
-                    <div key={order.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="font-bold text-sm text-slate-700">Pedido #{order.id.substring(0, 6)}</p>
-                      <ul className="list-disc pl-5 text-sm text-slate-600">
-                        {order.items.map(item => (
-                          <li key={item.id}>{item.name} (x{item.quantity})</li>
+                <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
+                    {[...navItems, { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} /> }, { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} /> }]
+                        .map(item => (
+                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+                                {item.icon} {item.name}
+                            </button>
                         ))}
-                      </ul>
-                      <div className="flex justify-between items-center mt-4">
-                        <p className="font-black text-blue-600 italic">Total: R$ {order.total?.toFixed(2)}</p>
-                        <button onClick={() => repeatOrder(order)} className="bg-orange-600 text-white py-2 px-4 rounded-xl font-bold uppercase text-xs">Repetir Pedido</button>
-                      </div>
+                </nav>
+                <button onClick={handleLogout} className="mt-6 w-full flex items-center gap-3 p-4 text-red-500 hover:bg-red-50 font-bold text-[10px] uppercase"><LogOut size={18} /> Sair</button>
+            </aside>
+
+            <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
+
+                {activeTab === 'dashboard' && (
+                    <div className="space-y-8">
+                        <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
+                        {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
+                            <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
+                                <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
+                                <div className="flex gap-2 flex-wrap mt-2">
+                                    {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).map(p => <span key={p.id} className="bg-white text-red-600 px-3 py-1 rounded-lg text-xs font-bold border border-red-100">{p.name} ({p.stock} un)</span>)}
+                                </div>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Vendas Hoje</p>
+                                <p className="text-4xl font-black text-green-500 italic">R$ {orders.filter(o => o.status === 'completed' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
+                            </div>
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
+                                <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
+                            </div>
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Novos Clientes</p>
+                                <p className="text-4xl font-black text-purple-500 italic">{customers.filter(c => c.count === 1).length}</p>
+                            </div>
+                        </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+                )}
+
+                {activeTab === 'orders' && (
+                    <div className="space-y-6">
+                        <h1 className="text-4xl font-black italic uppercase mb-8">Pedidos</h1>
+                        {orders.map(o => (
+                            <div key={o.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div className="flex-1">
+                                    <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase mb-2 inline-block">#{o.id.slice(0, 6)}</span>
+                                    <h3 className="text-2xl font-black text-slate-800 uppercase leading-none mb-1">{o.customerName}</h3>
+                                    <p className="text-xs text-slate-500">{o.customerAddress}</p>
+                                    <div className="flex gap-2 flex-wrap mt-4">{o.items?.map((it, i) => <span key={i} className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-[10px] font-black">x{it.quantity} {it.name}</span>)}</div>
+                                    {o.customerChangeFor && <div className="mt-2 text-xs bg-yellow-100 p-2 rounded text-yellow-800 font-bold">Troco para: {o.customerChangeFor}</div>}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
+                                    <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
+                                    <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
+                                    <select value={o.status} onChange={(e) => updateDoc(doc(db, "orders", o.id), { status: e.target.value })} className="bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px]">
+                                        <option value="pending">Pendente</option><option value="preparing">Preparando</option><option value="delivery">Em Rota</option><option value="completed">Entregue</option>
+                                    </select>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'categories' && (
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Categorias</h1>
+                            <button onClick={() => { setEditingCatId(null); setCatForm({ name: '' }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
+                        </div>
+                        {/* LISTAGEM DE CATEGORIAS */}
+                        {categories.length === 0 ? (
+                            <div className="text-center p-10 text-slate-400">
+                                <p>Nenhuma categoria encontrada.</p>
+                                <p className="text-xs mt-2">Se você criou e não apareceu, verifique as REGRAS do Firebase.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {categories.map(c => (
+                                    <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
+                                        <span className="font-bold text-lg">{c.name}</span>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setEditingCatId(c.id); setCatForm(c); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
+                                            <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600"><Trash2 size={16} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'products' && (
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
+                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0 }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {products.map(p => (
+                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
+                                    <img src={p.imageUrl} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" />
+                                    <div className="flex-1">
+                                        <p className="font-bold text-slate-800 leading-tight mb-1">{p.name}</p>
+                                        <p className="text-blue-600 font-black">R$ {Number(p.price)?.toFixed(2)}</p>
+                                        <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => { setEditingId(p.id); setForm(p); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'customers' && (
+                    <div className="space-y-6">
+                        <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 mb-10 text-center">RANKING VIP</h1>
+                        <div className="grid gap-4 max-w-4xl mx-auto">
+                            {customers.map((c, i) => (
+                                <div key={i} className="bg-white p-8 rounded-[3.5rem] shadow-sm border border-slate-100 flex items-center justify-between hover:scale-[1.02] transition-all">
+                                    <div className="flex items-center gap-6">
+                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl ${i === 0 ? 'bg-amber-400 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>{i === 0 ? <Crown /> : i + 1}</div>
+                                        <div><h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">{c.name}</h3><p className="text-slate-400 font-bold text-xs tracking-widest">{c.phone}</p></div>
+                                    </div>
+                                    <div className="text-right"><p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">Total Comprado</p><p className="text-3xl font-black text-blue-600 italic">R$ {c.total.toFixed(2)}</p></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'manual' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div className="space-y-6">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Novo Pedido</h1>
+                            <div className="bg-white p-8 rounded-[3rem] shadow-sm space-y-4 border border-slate-100">
+                                <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
+                                <input type="text" placeholder="Endereço Completo" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.address} onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} />
+                                <input type="tel" placeholder="WhatsApp" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
+                                <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
+                                    <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
+                                </select>
+                                {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
+                                <div className="pt-6 border-t border-slate-100">
+                                    {manualCart.map(i => <div key={i.id} className="flex justify-between mb-2 font-bold text-slate-600 text-sm"><span>{i.quantity}x {i.name}</span><span>R$ {(i.price * i.quantity).toFixed(2)}</span></div>)}
+                                    <div className="text-3xl font-black text-slate-900 mt-6 italic">Total R$ {manualCart.reduce((a, i) => a + (i.price * i.quantity), 0).toFixed(2)}</div>
+                                    <button onClick={async () => {
+                                        if (!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length === 0) return alert("Preencha tudo!");
+                                        await addDoc(collection(db, "orders"), {
+                                            ...manualCustomer,
+                                            customerName: manualCustomer.name,
+                                            customerAddress: manualCustomer.address,
+                                            customerPhone: manualCustomer.phone,
+                                            items: manualCart,
+                                            total: manualCart.reduce((a, i) => a + (i.price * i.quantity), 0),
+                                            status: 'pending',
+                                            createdAt: serverTimestamp(),
+                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '',
+                                            storeId: storeId // ADICIONADO: Associar pedido manual ao storeId
+                                        });
+                                        setManualCart([]); setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); alert("Pedido Lançado!");
+                                    }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-8 shadow-xl">Salvar</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                            <h2 className="text-xl font-black uppercase mb-6 text-slate-300">Adicionar Produtos</h2>
+                            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                {products.map(p => (
+                                    <button key={p.id} onClick={() => {
+                                        const ex = manualCart.find(it => it.id === p.id);
+                                        if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it)); else setManualCart([...manualCart, { ...p, quantity: 1 }]);
+                                    }} className="w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200">
+                                        <span className="font-bold text-slate-700">{p.name}</span><span className="bg-blue-600 text-white px-3 py-1 rounded-xl text-[10px] font-black">R$ {p.price.toFixed(2)}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'marketing' && (
+                    <div className="space-y-8"> {/* Adicionado um contêiner para espaçar as seções */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Promo Relâmpago */}
+                            <div className={`p-12 rounded-[4rem] shadow-2xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-transparent'}`}>
+                                <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
+                                <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
+                                <button onClick={async () => {
+                                    const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); // Atualizado para usar storeId
+                                }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
+
+                                {/* BANNERS DA PROMO RELÂMPAGO */}
+                                <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
+                                    <h3 className="text-xl font-black uppercase mb-4">Banners</h3>
+                                    <div className="flex flex-col items-center gap-4">
+                                        {/* Banner 1 */}
+                                        {(promoBannerFile1 || (settings.promoBannerUrls && settings.promoBannerUrls[0])) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile1(e.target.files[0])} className="hidden" id="promo-banner-upload-1"/>
+                                        <label htmlFor="promo-banner-upload-1" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 1 <UploadCloud size={20}/></label>
+
+                                        {/* Banner 2 */}
+                                        {(promoBannerFile2 || (settings.promoBannerUrls && settings.promoBannerUrls[1])) && <img src={promoBannerFile2 ? URL.createObjectURL(promoBannerFile2) : settings.promoBannerUrls[1]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile2(e.target.files[0])} className="hidden" id="promo-banner-upload-2"/>
+                                        <label htmlFor="promo-banner-upload-2" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 2 <UploadCloud size={20}/></label>
+
+                                        {/* Banner 3 */}
+                                        {(promoBannerFile3 || (settings.promoBannerUrls && settings.promoBannerUrls[2])) && <img src={promoBannerFile3 ? URL.createObjectURL(promoBannerFile3) : settings.promoBannerUrls[2]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile3(e.target.files[0])} className="hidden" id="promo-banner-upload-3"/>
+                                        <label htmlFor="promo-banner-upload-3" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 3 <UploadCloud size={20}/></label>
+
+                                        <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className="w-full max-w-lg p-3 bg-blue-600 text-white rounded-2xl font-black">{uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}</button>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Bloco de Fidelidade (EXISTENTE) */}
+                            <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40"><Trophy size={64} className="text-slate-200 mb-4" /><p className="font-black text-slate-300 uppercase tracking-widest leading-tight text-xl">Fidelidade<br />EM BREVE</p></div>
+                        </div>
+
+                        {/* NOVO: SEÇÃO DE CUPONS DE DESCONTO - FORA DO GRID, PARA OCUPAR TODA A LARGURA ABAIXO */}
+                        <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 space-y-8">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-4xl font-black italic tracking-tighter uppercase">Cupons de Desconto</h2>
+                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO CUPOM</button>
+                            </div>
+
+                            {coupons.length === 0 ? (
+                                <p className="text-center py-10 text-slate-400 font-bold">Nenhum cupom cadastrado.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {coupons.map(c => (
+                                        <div key={c.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center">
+                                            <div>
+                                                <p className="font-black text-slate-800 text-xl">{c.code} <span className={`text-xs font-bold px-2 py-1 rounded-md ${c.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{c.active ? 'Ativo' : 'Inativo'}</span></p>
+                                                <p className="text-sm text-slate-600 mt-1">
+                                                    {c.type === 'percentage' ? `${c.value}% de desconto` : `R$ ${c.value?.toFixed(2)} de desconto`}
+                                                    {c.minimumOrderValue > 0 && ` (Min: R$ ${c.minimumOrderValue?.toFixed(2)})`}
+                                                    {c.firstPurchaseOnly && ` (1ª Compra)`}
+                                                    {c.expirationDate && ` (Expira: ${new Date(c.expirationDate.toDate()).toLocaleDateString('pt-BR')})`}
+                                                </p>
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    Usos: {c.currentUsage || 0} {c.usageLimit && ` / ${c.usageLimit}`}
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingCouponId(c.id); setCouponForm({ ...c, expirationDate: c.expirationDate ? new Date(c.expirationDate.toDate()).toISOString().slice(0, 16) : '' }); setIsCouponModalOpen(true); }} className="p-2 bg-slate-100 rounded-xl text-blue-600 hover:bg-blue-200"><Edit3 size={18} /></button>
+                                                <button onClick={() => window.confirm("Excluir cupom?") && deleteDoc(doc(db, "coupons", c.id))} className="p-2 bg-slate-100 rounded-xl text-red-600 hover:bg-red-200"><Trash2 size={18} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'store_settings' && (
+                    <div className="space-y-8">
+                        <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status da Loja</h2>
+                            {/* Botão Aberto/Fechado */}
+                            <button
+                                onClick={() => updateDoc(doc(db, "settings", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })} // Atualizado para usar storeId
+                                className={`w-full p-4 rounded-2xl font-bold uppercase transition-all
+                                        ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg'}`}
+                            >
+                                {storeStatus.isOpen ? 'FECHAR LOJA' : 'ABRIR LOJA'}
+                            </button>
+                            {/* Horários (Opcional) */}
+                            <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Horário de Funcionamento (Opcional)</p>
+                            <div className="flex gap-4">
+                                <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
+                                    <span className="block font-bold text-slate-700 mb-2">Abre:</span>
+                                    <input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { openTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" /> {/* Atualizado para usar storeId */}
+                                </div>
+                                <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
+                                    <span className="block font-bold text-slate-700 mb-2">Fecha:</span>
+                                    <input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { closeTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" /> {/* Atualizado para usar storeId */}
+                                </div>
+                            </div>
+                            <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" /> {/* Atualizado para usar storeId */}
+                        </div>
+
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Mídia da Loja</h2>
+                            <div className="flex flex-col gap-6">
+                                <div className="flex flex-col items-center gap-4 border-b pb-6">
+                                    <img src={logoFile ? URL.createObjectURL(logoFile) : storeStatus.storeLogoUrl} className="w-24 h-24 object-contain rounded-full border-2 border-blue-50" />
+                                    <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files[0])} className="hidden" id="logo-upload" />
+                                    <label htmlFor="logo-upload" className="p-3 bg-slate-50 rounded-xl font-bold cursor-pointer text-sm">Selecionar Logo</label>
+                                    {logoFile && <button onClick={handleLogoUpload} disabled={uploadingLogo} className="p-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Enviar Logo</button>}
+                                </div>
+                                <div className="flex flex-col items-center gap-4">
+                                    <img src={bannerFile ? URL.createObjectURL(bannerFile) : storeStatus.storeBannerUrl} className="w-full h-32 object-cover rounded-xl" />
+                                    <input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files[0])} className="hidden" id="banner-upload" />
+                                    <label htmlFor="banner-upload" className="p-3 bg-slate-50 rounded-xl font-bold cursor-pointer text-sm">Selecionar Banner</label>
+                                    {bannerFile && <button onClick={handleBannerUpload} disabled={uploadingBanner} className="p-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Enviar Banner</button>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-black text-slate-800 uppercase">Fretes</h2>
+                                <button onClick={() => { setEditingRateId(null); setRateForm({ neighborhood: '', fee: '' }); setIsRateModalOpen(true); }} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-xs">+ TAXA</button>
+                            </div>
+                            <div className="space-y-2">
+                                {shippingRates.map(rate => (
+                                    <div key={rate.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                                        <span className="font-bold text-slate-700">{rate.neighborhood}</span>
+                                        <div className="flex items-center gap-4">
+                                            <span className="font-black text-blue-600">R$ {Number(rate.fee).toFixed(2)}</span>
+                                            <button onClick={() => { setEditingRateId(rate.id); setRateForm(rate); setIsRateModalOpen(true); }} className="p-2 text-blue-600"><Edit3 size={16} /></button>
+                                            <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "shipping_rates", rate.id))} className="p-2 text-red-600"><Trash2 size={16} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+            </main>
+
+            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
+                {navItems.map(item => (
+                    <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center p-2 rounded-lg ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
+                        {item.mobileIcon} <span className="text-[10px] font-bold">{item.name}</span>
+                    </button>
+                ))}
+            </nav>
+
+            {/* MODAL CATEGORIA (Com alert de erro se falhar) */}
+            <AnimatePresence>
+                {isCatModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative">
+                            <button onClick={() => setIsCatModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X /></button>
+                            <h2 className="text-2xl font-black uppercase mb-6">{editingCatId ? 'Editar' : 'Nova'} Categoria</h2>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const dataToSave = { ...catForm, storeId: storeId }; // ADICIONADO: Associar categoria ao storeId
+                                    if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave);
+                                    else await addDoc(collection(db, "categories"), dataToSave);
+                                    setIsCatModalOpen(false);
+                                    alert("Categoria salva com sucesso!"); // FEEDBACK VISUAL
+                                } catch (error) {
+                                    alert("Erro ao salvar: Verifique as Permissões (Regras) do Firebase!");
+                                    console.error(error);
+                                }
+                            }}>
+                                <input type="text" placeholder="Nome da Categoria" className="w-full p-4 bg-slate-50 rounded-xl font-bold mb-4" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
+                                <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Salvar</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* MODAL PRODUTO */}
+            <AnimatePresence>
+                {isModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative">
+                            <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
+                            <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const data = { 
+                                    ...form, 
+                                    price: parseFloat(form.price), 
+                                    stock: parseInt(form.stock || 0),
+                                    storeId: storeId // ADICIONADO: Associar produto ao storeId
+                                };
+                                if (editingId) { await updateDoc(doc(db, "products", editingId), data); }
+                                else { await addDoc(collection(db, "products"), data); }
+                                setIsModalOpen(false); setImageFile(null);
+                            }} className="space-y-6">
+                                <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <input type="number" step="0.01" placeholder="Preço" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
+                                    <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                </div>
+                                <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                                    <option value="">Selecione a Categoria</option>
+                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                                <div className="space-y-3">
+                                    <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
+                                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
+                                        {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                    </label>
+                                    {/* Botão de Upload com estado visual de carregando */}
+                                    {imageFile && (
+                                        <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>
+                                            {uploading ? 'Enviando Imagem...' : 'Confirmar Upload da Imagem'}
+                                        </button>
+                                    )}
+                                    {uploadError && <p className="text-red-500 text-sm font-bold text-center">{uploadError}</p>}
+                                </div>
+                                <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal Taxa de Frete */}
+            <AnimatePresence>
+                {isRateModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
+                            <button onClick={() => setIsRateModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
+                            <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingRateId ? 'Editar' : 'Nova'} Taxa</h2>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const feeValue = parseFloat(rateForm.fee);
+                                if (isNaN(feeValue) || feeValue < 0) return alert("Valor inválido");
+                                const data = { 
+                                    neighborhood: rateForm.neighborhood, 
+                                    fee: feeValue,
+                                    storeId: storeId // ADICIONADO: Associar taxa de frete ao storeId
+                                };
+                                try {
+                                    if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data);
+                                    else await addDoc(collection(db, "shipping_rates"), data);
+                                    setIsRateModalOpen(false);
+                                } catch (error) { alert(error.message); }
+                            }} className="space-y-4">
+                                <input type="text" placeholder="Nome do Bairro" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.neighborhood} onChange={e => setRateForm({ ...rateForm, neighborhood: e.target.value })} required />
+                                <input type="number" step="0.01" placeholder="Valor do Frete" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.fee} onChange={e => setRateForm({ ...rateForm, fee: e.target.value })} required />
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* MODAL CUPOM DE DESCONTO - NOVO MODAL AQUI */}
+            <AnimatePresence>
+                {isCouponModalOpen && (
+                    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative">
+                            <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
+                            <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const dataToSave = {
+                                    ...couponForm,
+                                    value: parseFloat(couponForm.value),
+                                    minimumOrderValue: parseFloat(couponForm.minimumOrderValue || 0),
+                                    usageLimit: couponForm.usageLimit ? parseInt(couponForm.usageLimit) : null,
+                                    userUsageLimit: couponForm.userUsageLimit ? parseInt(couponForm.userUsageLimit) : null,
+                                    expirationDate: couponForm.expirationDate ? new Date(couponForm.expirationDate) : null,
+                                    code: couponForm.code.toUpperCase(), // Códigos em maiúsculas
+                                    currentUsage: couponForm.currentUsage || 0,
+                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
+                                    storeId: storeId // ADICIONADO: Associar cupom ao storeId
+                                };
+                                try {
+                                    if (editingCouponId) {
+                                        await updateDoc(doc(db, "coupons", editingCouponId), dataToSave);
+                                    } else {
+                                        await addDoc(collection(db, "coupons"), dataToSave);
+                                    }
+                                    setIsCouponModalOpen(false);
+                                    alert("Cupom salvo com sucesso!");
+                                } catch (error) {
+                                    alert("Erro ao salvar cupom: " + error.message);
+                                    console.error(error);
+                                }
+                            }} className="space-y-4">
+                                <input type="text" placeholder="Código do Cupom (ex: PRIMEIRACOMPRA)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
+
+                                <div className="flex gap-4">
+                                    <select className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
+                                        <option value="percentage">Porcentagem (%)</option>
+                                        <option value="fixed_amount">Valor Fixo (R$)</option>
+                                    </select>
+                                    <input type="number" step="0.01" placeholder="Valor (ex: 10 ou 5.50)" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required />
+                                </div>
+
+                                <input type="number" step="0.01" placeholder="Valor Mínimo do Pedido (opcional)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.minimumOrderValue || ''} onChange={e => setCouponForm({...couponForm, minimumOrderValue: e.target.value})} />
+
+                                <div className="flex gap-4">
+                                    <input type="number" placeholder="Limite de Usos Totais (opcional)" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.usageLimit || ''} onChange={e => setCouponForm({...couponForm, usageLimit: e.target.value})} />
+                                    <input type="number" placeholder="Limite de Usos por Cliente (opcional)" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.userUsageLimit || ''} onChange={e => setCouponForm({...couponForm, userUsageLimit: e.target.value})} />
+                                </div>
+                                
+                                <label className="block text-slate-700 font-bold text-sm mb-2 mt-4">Data/Hora de Expiração (opcional):</label>
+                                <input type="datetime-local" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.expirationDate} onChange={e => setCouponForm({...couponForm, expirationDate: e.target.value})} />
+                                
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Apenas Primeira Compra:</span>
+                                    <input type="checkbox" checked={couponForm.firstPurchaseOnly} onChange={e => setCouponForm({...couponForm, firstPurchaseOnly: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Cupom Ativo:</span>
+                                    <input type="checkbox" checked={couponForm.active} onChange={e => setCouponForm({...couponForm, active: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar Cupom</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 }
