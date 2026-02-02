@@ -317,42 +317,42 @@ export default function Home() {
 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     try {
-      const orderData = {
-        customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
-        payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
-        items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp(),
-        storeId: storeId // <<<<<<< ESTA LINHA É CRÍTICA E PRECISA ESTAR AQUI!
-      };
+        const orderData = {
+            customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
+            payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
+            items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp(),
+            storeId: storeId // <<<<<<< ESTA LINHA É A CHAVE! PRECISA ESTAR AQUI!
+        };
 
-      // Adiciona informações do cupom se houver
-      if (appliedCoupon) {
-        orderData.couponCode = appliedCoupon.code;
-        orderData.discountAmount = discountAmount;
-      }
+        // Adiciona informações do cupom se houver
+        if (appliedCoupon) {
+            orderData.couponCode = appliedCoupon.code;
+            orderData.discountAmount = discountAmount;
+        }
 
-      const docRef = await addDoc(collection(db, "orders"), orderData);
+        const docRef = await addDoc(collection(db, "orders"), orderData);
 
-      // Se um cupom foi aplicado, atualiza o contador de uso
-      if (appliedCoupon) {
-        await updateDoc(doc(db, "coupons", appliedCoupon.id), {
-          currentUsage: (appliedCoupon.currentUsage || 0) + 1
-        });
-      }
+        // Se um cupom foi aplicado, atualiza o contador de uso
+        if (appliedCoupon) {
+            await updateDoc(doc(db, "coupons", appliedCoupon.id), {
+                currentUsage: (appliedCoupon.currentUsage || 0) + 1
+            });
+        }
 
-      localStorage.setItem('activeOrderId', docRef.id);
-      setActiveOrderId(docRef.id);
-      navigate(`/track/${docRef.id}`);
-      setCart([]);
-      setShowCheckout(false);
-      setAppliedCoupon(null);
-      setDiscountAmount(0);
-      setCouponCode('');
-      alert("Pedido finalizado com sucesso!"); // Feedback visual
+        localStorage.setItem('activeOrderId', docRef.id);
+        setActiveOrderId(docRef.id);
+        navigate(`/track/${docRef.id}`);
+        setCart([]);
+        setShowCheckout(false);
+        setAppliedCoupon(null);
+        setDiscountAmount(0);
+        setCouponCode('');
+        alert("Pedido finalizado com sucesso!"); // Feedback visual
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
         console.error("Erro ao finalizar pedido:", e);
     }
-  };
+};
 
   const displayCategories = [
       { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
