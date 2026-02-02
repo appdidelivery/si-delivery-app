@@ -167,30 +167,45 @@ export default function Home() {
         unsubShippingRates();
         unsubStoreSettings(); // Unsubscribe do novo listener
     };
-   // LÓGICA DE ÍCONE DINÂMICO PARA PWA (COPIAR E COLAR AQUI)
+   // LÓGICA FINAL DE ÍCONE DINÂMICO PARA PWA
   useEffect(() => {
-    if (storeSettings && storeSettings.storeLogoUrl) {
-      // 1. Atualiza Favicon e Ícone iOS
+    // Só executa se houver uma URL de logo válida
+    if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
+      const logoUrl = storeSettings.storeLogoUrl;
+      const storeName = storeSettings.message || "Velo Delivery";
+
+      // 1. Atualiza Favicon e Apple Icon (iOS)
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
-      if (favicon) favicon.href = storeSettings.storeLogoUrl;
-      if (appleIcon) appleIcon.href = storeSettings.storeLogoUrl;
+      if (favicon) favicon.href = logoUrl;
+      if (appleIcon) appleIcon.href = logoUrl;
 
-      // 2. Cria um Manifesto Dinâmico para o Android pegar a logo da loja
+      // 2. CONSTRUÇÃO DO MANIFESTO DINÂMICO (Para Android não ficar vazio)
       const manifestTag = document.getElementById('manifest-tag');
       if (manifestTag) {
         const dynamicManifest = {
-          "short_name": storeSettings.message || "Velo",
-          "name": storeSettings.message || "Velo Delivery",
-          "icons": [
-            { "src": storeSettings.storeLogoUrl, "sizes": "192x192", "type": "image/png", "purpose": "any" },
-            { "src": storeSettings.storeLogoUrl, "sizes": "512x512", "type": "image/png", "purpose": "any" }
-          ],
-          "start_url": ".",
+          "short_name": storeName,
+          "name": storeName,
+          "start_url": window.location.origin,
           "display": "standalone",
           "theme_color": "#1d4ed8",
-          "background_color": "#ffffff"
+          "background_color": "#ffffff",
+          "icons": [
+            {
+              "src": logoUrl,
+              "sizes": "192x192",
+              "type": "image/png",
+              "purpose": "any"
+            },
+            {
+              "src": logoUrl,
+              "sizes": "512x512",
+              "type": "image/png",
+              "purpose": "any"
+            }
+          ]
         };
+
         const blob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/json' });
         const manifestURL = URL.createObjectURL(blob);
         manifestTag.setAttribute('href', manifestURL);
