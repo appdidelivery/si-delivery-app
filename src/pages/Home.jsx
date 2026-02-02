@@ -12,7 +12,7 @@ import "react-responsive-carousel/lib/styles/carousel.min.css"; // Importa os es
 
 // Importa o helper para obter o storeId
 import { getStoreIdFromHostname } from '../utils/domainHelper';
-
+console.log("Home/Admin - storeId detectado:", storeId);
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
