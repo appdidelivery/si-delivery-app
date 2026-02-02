@@ -1,21 +1,25 @@
 {
-  "name": "Velo Delivery - Conveniência Santa Isabel",
   "short_name": "Velo Delivery",
-  "description": "Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1d4ed8",
+  "name": "Velo Delivery - Sua Bebida em Minutos",
   "icons": [
     {
       "src": "/logo-square.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/logo-square.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1d4ed8",
+  "background_color": "#ffffff",
+  "orientation": "portrait",
+  "scope": "/",
+  "description": "Plataforma de delivery de bebidas e conveniência com inteligência GEO e AEO."
 }
