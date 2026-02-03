@@ -252,45 +252,18 @@ export default function Admin() {
     // ------------------------------------------
 
     const printLabel = (o) => {
-  const w = window.open('', '_blank');
-  const itemsHtml = (o.items || []).map(i => `<li style="margin-bottom: 2px;">• ${i.quantity}x ${i.name}</li>`).join('');
-  const pagtoDesc = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'N/A';
-  
-  // Função interna para gerar o HTML de cada via
-  const gerarVia = (titulo, temCorte) => `
-    <div style="width: 72mm; padding: 4mm; font-family: 'Courier New', monospace; font-size: 12px; color: #000;">
-      <div style="text-align: center; font-weight: bold; border-bottom: 1px dashed #000; margin-bottom: 5px;">${titulo}</div>
-      <h2 style="text-align: center; margin: 10px 0; font-size: 16px;">CONVENIÊNCIA SI</h2>
-      <hr style="border: none; border-top: 1px solid #000;"/>
-      <p style="margin: 4px 0;"><strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}</p>
-      <p style="margin: 4px 0;"><strong>CLIENTE:</strong> ${o.customerName}</p>
-      <p style="margin: 4px 0;"><strong>ENDEREÇO:</strong> ${o.address}, ${o.number}</p>
-      <p style="margin: 4px 0;"><strong>BAIRRO:</strong> ${o.neighborhood || ''}</p>
-      <p style="margin: 4px 0;"><strong>PAGTO:</strong> ${pagtoDesc}</p>
-      <hr style="border: none; border-top: 1px dashed #000;"/>
-      <ul style="list-style: none; padding: 0; margin: 10px 0;">${itemsHtml}</ul>
-      <hr style="border: none; border-top: 1px dashed #000;"/>
-      <p style="text-align: right; font-weight: bold; font-size: 14px; margin-top: 10px;">TOTAL: R$ ${o.total?.toFixed(2)}</p>
-      ${temCorte ? '<div style="text-align: center; margin: 25px 0; border-top: 1px dashed #000; position: relative;"><span style="position: absolute; top: -10px; background: #fff; padding: 0 5px; font-size: 10px;">✂ CORTE AQUI ✂</span></div>' : ''}
-    </div>
-  `;
+        const w = window.open('', '_blank');
+        const itemsHtml = (o.items || []).map(i => `<li>${i.quantity}x ${i.name}</li>`).join('');
+        const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.payment] || 'PIX';
+        w.document.write(`<html><body style="font-family:sans-serif;width:300px;padding:10px;"><center><h2>CONVENIÊNCIA SI</h2></center><hr><strong>PEDIDO:</strong> #${o.id.slice(0, 6)}<br><strong>CLIENTE:</strong> ${o.customerName}<br><strong>ENDEREÇO:</strong> ${o.customerAddress}<br><strong>PAGTO:</strong> ${pagto}<br>${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}<hr><ul>${itemsHtml}</ul><hr><div style="text-align:right;font-size:18px;"><strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong></div><script>window.print();window.close();</script></body></html>`);
+        w.document.close();
+    };
 
-  w.document.write(`
-    <html>
-      <body style="margin: 0; padding: 0;">
-        ${gerarVia('VIA DA LOJA', true)}
-        ${gerarVia('VIA DO ENTREGADOR', false)}
-        <script>
-          setTimeout(() => { 
-            window.print(); 
-            window.close(); 
-          }, 500);
-        </script>
-      </body>
-    </html>
-  `);
-  w.document.close();
-};
+    const customers = Object.values(orders.reduce((acc, o) => {
+        const p = o.customerPhone || 'N/A';
+        if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
+        acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
+    }, {})).sort((a, b) => b.total - a.total);
 
     // --- LÓGICA PARA DESCONTOS POR QUANTIDADE ---
     const handleAddQuantityDiscount = () => {
@@ -804,7 +777,7 @@ export default function Admin() {
                                     quantityDiscounts: form.quantityDiscounts.filter(qd => qd.minQuantity > 0 && qd.value >= 0),
                                     storeId: storeId 
                                 };
-                                if (editingId) { await updateDoc(doc(db, "products", product.firestoreId || product.id), updatedData); }
+                                if (editingId) { await updateDoc(doc(db, "products", editingId), data); }
                                 else { await addDoc(collection(db, "products"), data); }
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
