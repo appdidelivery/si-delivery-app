@@ -5,16 +5,13 @@ import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, w
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
-import { ShoppingCart, Search, Flame, /* ... outros ícones */ } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import SEO from '../components/SEO';
 
-// IMPORTAÇÃO NOVA
+// IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR
 import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride';
 
 // Importa o componente Carousel e seus estilos
 import { Carousel } from 'react-responsive-carousel';
-import "react-responsive-carousel/lib/styles/carousel.min.css"; // Importa os estilos do carrossel
+import "react-responsive-carousel/lib/styles/carousel.min.css"; 
 
 // Importa o helper para obter o storeId
 import { getStoreIdFromHostname } from '../utils/domainHelper';
@@ -25,71 +22,75 @@ const getCategoryIcon = (name) => {
     if (n.includes('cerveja')) return <Beer size={18}/>;
     if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
     if (n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('não-alcóolicos')) return <Refrigerator size={18}/>;
-    if (n.includes('salgadinho')) return <Package size={18}/>; // Exemplo de um novo ícone
+    if (n.includes('salgadinho')) return <Package size={18}/>; 
     return <List size={18}/>;
 };
 
 // NOVO: Função auxiliar para calcular o preço unitário com desconto de quantidade
 const getPriceWithQuantityDiscount = (product, quantity) => {
     if (!product.quantityDiscounts || product.quantityDiscounts.length === 0) {
-        return product.price; // Sem descontos de quantidade, retorna o preço normal (já com desconto de item se houver)
+        return product.price; 
     }
 
-    // Encontra o melhor desconto de quantidade aplicável para a quantidade atual
     const applicableDiscount = product.quantityDiscounts
         .filter(qd => quantity >= qd.minQuantity)
-        .sort((a, b) => b.minQuantity - a.minQuantity)[0]; // Pega o maior minQuantity aplicável
+        .sort((a, b) => b.minQuantity - a.minQuantity)[0]; 
 
     if (applicableDiscount) {
-        let discountedPrice = product.price; // Começa com o preço unitário já com o desconto do item
+        let discountedPrice = product.price; 
         if (applicableDiscount.type === 'percentage') {
             discountedPrice = product.price * (1 - applicableDiscount.value / 100);
-        } else if (applicableDiscount.type === 'fixed') { // Desconto fixo por unidade
+        } else if (applicableDiscount.type === 'fixed') { 
             discountedPrice = product.price - applicableDiscount.value;
         }
-        return discountedPrice > 0 ? discountedPrice : 0; // Garante que o preço não seja negativo
+        return discountedPrice > 0 ? discountedPrice : 0; 
     }
 
-    return product.price; // Nenhum desconto de quantidade aplicável, retorna o preço normal
+    return product.price; 
 };
 
 
 export default function Home() {
   const navigate = useNavigate();
+  const storeId = getStoreIdFromHostname();
+  console.log("Home - storeId detectado:", storeId);
+
+  // --- LÓGICA DO TOUR (ONBOARDING) ---
   const [runTour, setRunTour] = useState(false);
   const [tourStepIndex, setTourStepIndex] = useState(0);
 
-  // Definição dos passos conforme seu pedido
   const tourSteps = [
     {
-      target: '.tour-vitrine', // Vamos adicionar essa classe no HTML
+      target: '.tour-vitrine', 
       content: 'Bem-vindo à Conv St Isabel! Explore nossas bebidas geladas.',
       disableBeacon: true,
     },
     {
-      target: '.tour-btn-add', // Botão de adicionar
+      target: '.tour-btn-add', 
       content: 'Clique no + para adicionar o item ao seu pedido.',
     },
     {
-      target: '.tour-sacola', // Botão da sacola
+      target: '.tour-sacola', 
       content: 'Clique na sacola para ver o frete e cupons de desconto.',
       spotlightClicks: true, // Permite clicar na sacola para abrir o modal
+      disableOverlayClose: true,
+      hideCloseButton: true,
+      hideFooter: false, // Pode manter o footer se quiser, mas o foco é o clique
     },
     {
-      target: '.tour-dados', // Formulário de dados
+      target: '.tour-dados', 
       content: 'Digite seus dados: nome, CEP, número da casa e telefone WhatsApp.',
     },
     {
-      target: '.tour-pagamento', // Seção de pagamento
+      target: '.tour-pagamento', 
       content: 'Defina a forma de pagamento (PIX, dinheiro ou cartão). Se dinheiro, escolha se precisa de troco e clique em finalizar pedido.',
     },
     {
-      target: '.tour-acompanhar', // Botão acompanhar
+      target: '.tour-acompanhar', 
       content: 'Clique em acompanhar pedido para ver o status do seu pedido.',
     }
   ];
 
-  // Efeito para iniciar o tour apenas na primeira vez
   useEffect(() => {
     const hasSeenTour = localStorage.getItem('hasSeenTour');
     if (!hasSeenTour) {
@@ -97,7 +98,6 @@ export default function Home() {
     }
   }, []);
 
-  // Callback para controlar o fluxo do tour
   const handleJoyrideCallback = (data) => {
     const { action, index, status, type } = data;
 
@@ -105,12 +105,10 @@ export default function Home() {
       setRunTour(false);
       localStorage.setItem('hasSeenTour', 'true');
     } else if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
-      // Avança o índice para o próximo passo
       setTourStepIndex(index + (action === ACTIONS.PREV ? -1 : 1));
     }
   };
-  const storeId = getStoreIdFromHostname();
-  console.log("Home - storeId detectado:", storeId);
+  // --- FIM DA LÓGICA DO TOUR ---
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -171,7 +169,6 @@ export default function Home() {
   const [isCepLoading, setIsCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
 
-  // NOVO ESTADO: Consolida todas as configurações da loja
   const [storeSettings, setStoreSettings] = useState({
     promoActive: false, promoBannerUrls: [],
     isOpen: true, openTime: '08:00', closeTime: '23:00',
@@ -180,12 +177,9 @@ export default function Home() {
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
-  // NOVO ESTADO: Banners Gerais
   const [generalBanners, setGeneralBanners] = useState([]);
-  // NOVO ESTADO: Produtos em Destaque e Mais Vendidos
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [bestsellingProducts, setBestsellingProducts] = useState([]);
-
 
   const [shippingRates, setShippingRates] = useState([]);
   const [shippingFee, setShippingFee] = useState(null);
@@ -196,36 +190,27 @@ export default function Home() {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
-    // Carregar Produtos - AGORA FILTRADO POR storeId
     const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => {
         const fetchedProducts = s.docs.map(d => ({ id: d.id, ...d.data() }));
         setProducts(fetchedProducts);
-        // Filtrar produtos em destaque
         setFeaturedProducts(fetchedProducts.filter(p => p.isFeatured && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
-        // Filtrar produtos mais vendidos (neste caso, por flag manual)
         setBestsellingProducts(fetchedProducts.filter(p => p.isBestSeller && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
     });
 
-    // Carregar Categorias - AGORA FILTRADO POR storeId
     const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-    // Cupons Ativos - AGORA FILTRADO POR storeId
     const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId)), (s) => {
         setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Taxas de Frete - AGORA FILTRADO POR storeId
     const unsubShippingRates = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Banners Gerais - AGORA FILTRADO POR storeId (NOVO)
     const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), where("isActive", "==", true), orderBy("order", "asc")), (s) => {
       setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-
-    // Configurações da Loja (settings/{storeId}) - Unificado promo e storeStatus
     const storeSettingsRef = doc(db, "settings", storeId);
     getDoc(storeSettingsRef).then(s => {
       if (!s.exists()) {
@@ -266,22 +251,18 @@ export default function Home() {
         unsubGeneralBanners();
         unsubStoreSettings();
     };
-  }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
+  }, [storeId]);
 
-   // LÓGICA FINAL DE ÍCONE DINÂMICO PARA PWA (AGORA UM useEffect SEPARADO)
   useEffect(() => {
-    // Só executa se houver uma URL de logo válida
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
       const storeName = storeSettings.message || "Velo Delivery";
 
-      // 1. Atualiza Favicon e Apple Icon (iOS)
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
 
-      // 2. CONSTRUÇÃO DO MANIFESTO DINÂMICO (Para Android não ficar vazio)
       const manifestTag = document.getElementById('manifest-tag');
       if (manifestTag) {
         const dynamicManifest = {
@@ -312,9 +293,8 @@ export default function Home() {
         manifestTag.setAttribute('href', manifestURL);
       }
     }
-  }, [storeSettings.storeLogoUrl, storeSettings.message]); // Dependências corretas para este useEffect
+  }, [storeSettings.storeLogoUrl, storeSettings.message]);
   
-  // Lógica de CEP (ViaCEP)
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
     if (cep.length !== 8) { setCepError(''); return; }
@@ -338,16 +318,16 @@ export default function Home() {
     return () => clearTimeout(handler);
   }, [customer.cep, shippingRates, storeId]);
 
-  const addToCart = (p, quantity = 1) => { // Adiciona 'quantity' como parâmetro opcional
+  const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
     if (p.stock && p.stock <= 0) { alert("Produto fora de estoque!"); return; }
 
     setCart(prev => {
       const existingItem = prev.find(i => i.id === p.id);
-      let newQuantity = quantity; // Começa com a quantidade que se quer adicionar
+      let newQuantity = quantity;
 
       if (existingItem) {
-        newQuantity += existingItem.quantity; // Se já existe, soma
+        newQuantity += existingItem.quantity;
       }
 
       if (p.stock && (newQuantity > p.stock)) {
@@ -355,7 +335,6 @@ export default function Home() {
           return prev;
       }
       
-      // Calcula o preço unitário já considerando os descontos por quantidade
       const finalPricePerUnit = getPriceWithQuantityDiscount(p, newQuantity);
 
       if (existingItem) {
@@ -366,15 +345,14 @@ export default function Home() {
     });
   };
 
-
   const updateQuantity = (productId, amount) => {
     setCart(prevCart => {
         return prevCart.map(item => {
             if (item.id === productId) {
                 const newQuantity = item.quantity + amount;
-                if (newQuantity <= 0) return null; // Será filtrado
+                if (newQuantity <= 0) return null;
 
-                const productOriginal = products.find(p => p.id === productId); // Encontra o produto original para pegar quantityDiscounts
+                const productOriginal = products.find(p => p.id === productId);
                 const priceWithDiscount = productOriginal ? getPriceWithQuantityDiscount(productOriginal, newQuantity) : item.price;
 
                 return { ...item, quantity: newQuantity, price: priceWithDiscount };
@@ -389,8 +367,6 @@ export default function Home() {
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
   const finalTotal = subtotal + (shippingFee || 0) - discountAmount;
 
-
-  // Lógica para aplicar o cupom
   const applyCoupon = async () => {
     setCouponError('');
     setDiscountAmount(0);
@@ -519,49 +495,45 @@ export default function Home() {
         console.error("Erro ao finalizar pedido:", e);
     }
   };
-  const sendWhatsAppOrder = (order) => {
-  // Número da sua equipe (ex: 51981850978) - Use o seu cadastrado no Show Conceito
-  const phone = "5551981850978"; 
-  
-  const itemsText = order.items
-    .map(i => `✅ *${i.quantity}x* ${i.name}`)
-    .join('\n');
-
-  const message = encodeURIComponent(
-`🚀 *NOVO PEDIDO - VELO DELIVERY (#${order.id?.slice(-5).toUpperCase()})*
-
-👤 *CLIENTE:* ${order.customerName}
-📍 *ENDEREÇO:* ${order.address}, ${order.number}
-🏘️ *BAIRRO:* ${order.neighborhood}
-
----
-*ITENS:*
-${itemsText}
----
-
-💳 *PAGAMENTO:* ${order.paymentMethod?.toUpperCase()}
-💰 *TOTAL: R$ ${order.total?.toFixed(2)}*
-
-_Gerado automaticamente por Velo Delivery (CSI)_`
-  );
-
-  window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
-};
 
   const displayCategories = [
       { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
       ...categories.map(c => ({ id: c.name, name: c.name, icon: getCategoryIcon(c.name) }))
   ];
 
-  // FILTRA PRODUTOS PARA SUGESTÕES DE UPSELL
   const upsellProducts = products
-    .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) // Não estão no carrinho e em estoque
-    .filter(p => p.isBestSeller || p.isFeatured) // Prioriza Mais Vendidos ou Destaques (se houver, senão pega alguns aleatórios)
-    .slice(0, 5); // Limita a 5 sugestões
+    .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) 
+    .filter(p => p.isBestSeller || p.isFeatured) 
+    .slice(0, 5); 
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       <SEO title="Velo Delivery" description="Bebidas geladas." />
+      
+      {/* COMPONENTE DO TOUR */}
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        stepIndex={tourStepIndex}
+        callback={handleJoyrideCallback}
+        continuous={true}
+        showSkipButton={true}
+        showProgress={true}
+        spotlightClicks={true} 
+        styles={{
+          options: {
+            zIndex: 10000, 
+            primaryColor: '#2563eb', 
+          },
+        }}
+        locale={{
+          back: 'Voltar',
+          close: 'Fechar',
+          last: 'Entendi',
+          next: 'Próximo',
+          skip: 'Pular',
+        }}
+      />
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
@@ -715,7 +687,7 @@ _Gerado automaticamente por Velo Delivery (CSI)_`
 
 
       {/* PRODUTOS (VITRINE PRINCIPAL) */}
-      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20 mt-8">
+      <main className="tour-vitrine px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20 mt-8">
         <AnimatePresence mode='popLayout'>
           {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
              const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
@@ -738,7 +710,7 @@ _Gerado automaticamente por Velo Delivery (CSI)_`
                             <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
                         )}
                     </div>
-                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`tour-btn-add p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                     <ShoppingCart size={16} />
                     </button>
                 </div>
@@ -772,7 +744,7 @@ _Gerado automaticamente por Velo Delivery (CSI)_`
         {/* Botão "Acompanhar Pedidos" */}
         <AnimatePresence>
           {activeOrderId && (
-            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
+            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="tour-acompanhar bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
               <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
             </motion.button>
           )}
@@ -781,7 +753,7 @@ _Gerado automaticamente por Velo Delivery (CSI)_`
         <div className="relative flex items-center justify-center">
             <motion.button 
                 onClick={() => setShowCheckout(true)} 
-                className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
+                className="tour-sacola bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
                 initial={{ scale: 0 }} 
                 animate={{ scale: 1 }}
             >
@@ -836,24 +808,30 @@ _Gerado automaticamente por Velo Delivery (CSI)_`
                   </div>
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
-                  <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
-                  <input
-                     type="tel"
-                     placeholder="WhatsApp"
-                     className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
-                     value={customer.phone}
-                     onChange={handlePhoneChange}
-                  />
-                  <div className="relative">
-                     <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
-                     {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
+                  
+                  {/* WRAPPER TOUR DADOS */}
+                  <div className="tour-dados">
+                    <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
+                    <input
+                      type="tel"
+                      placeholder="WhatsApp"
+                      className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
+                      value={customer.phone}
+                      onChange={handlePhoneChange}
+                    />
+                    <div className="relative">
+                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
+                      {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
+                    </div>
+                    {customer.street && (
+                      <>
+                          <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
+                          <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => setCustomer({...customer, number: e.target.value})}/>
+                      </>
+                    )}
                   </div>
-                  {customer.street && (
-                    <>
-                        <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                        <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => setCustomer({...customer, number: e.target.value})}/>
-                    </>
-                  )}
+                  {/* FIM WRAPPER TOUR DADOS */}
+
                   {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
                   {deliveryAreaMessage && !cepError && <p className="text-blue-500 text-xs font-bold text-center">{deliveryAreaMessage}</p>}
 
@@ -889,25 +867,31 @@ _Gerado automaticamente por Velo Delivery (CSI)_`
                   )}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                     {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
-                        <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?'bg-blue-50 border-blue-600 text-blue-600':'border-transparent bg-slate-50 text-slate-400'}`}>
-                            {m.icon} <span className="text-[9px] font-black uppercase mt-1">{m.name}</span>
-                        </button>
-                     ))}
-                  </div>
-                  {customer.payment === 'dinheiro' && <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />}
+                  
+                  {/* WRAPPER TOUR PAGAMENTO */}
+                  <div className="tour-pagamento">
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
+                          <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?'bg-blue-50 border-blue-600 text-blue-600':'border-transparent bg-slate-50 text-slate-400'}`}>
+                              {m.icon} <span className="text-[9px] font-black uppercase mt-1">{m.name}</span>
+                          </button>
+                      ))}
+                    </div>
+                    {customer.payment === 'dinheiro' && <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />}
 
-                  <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Frete</span><span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : '--'}</span></div>
-                      {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
-                      <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
-                  </div>
+                    <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
+                        <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
+                        <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Frete</span><span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : '--'}</span></div>
+                        {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
+                        <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
+                    </div>
 
-                  <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl hover:bg-blue-700 disabled:opacity-50">
-                     {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
-                  </button>
+                    <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl hover:bg-blue-700 disabled:opacity-50">
+                      {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
+                    </button>
+                  </div>
+                  {/* FIM WRAPPER TOUR PAGAMENTO */}
+
                 </>
               )}
             </motion.div>
