@@ -460,6 +460,34 @@ export default function Home() {
         console.error("Erro ao finalizar pedido:", e);
     }
   };
+  const sendWhatsAppOrder = (order) => {
+  // Número da sua equipe (ex: 51981850978) - Use o seu cadastrado no Show Conceito
+  const phone = "5551981850978"; 
+  
+  const itemsText = order.items
+    .map(i => `✅ *${i.quantity}x* ${i.name}`)
+    .join('\n');
+
+  const message = encodeURIComponent(
+`🚀 *NOVO PEDIDO - VELO DELIVERY (#${order.id?.slice(-5).toUpperCase()})*
+
+👤 *CLIENTE:* ${order.customerName}
+📍 *ENDEREÇO:* ${order.address}, ${order.number}
+🏘️ *BAIRRO:* ${order.neighborhood}
+
+---
+*ITENS:*
+${itemsText}
+---
+
+💳 *PAGAMENTO:* ${order.paymentMethod?.toUpperCase()}
+💰 *TOTAL: R$ ${order.total?.toFixed(2)}*
+
+_Gerado automaticamente por Velo Delivery (CSI)_`
+  );
+
+  window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+};
 
   const displayCategories = [
       { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
