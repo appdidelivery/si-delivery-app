@@ -1,8 +1,9 @@
+jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -18,19 +19,43 @@ const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
     if (n.includes('cerveja')) return <Beer size={18}/>;
     if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
-    if (n.includes('suco') || n.includes('refri') || n.includes('água')) return <Refrigerator size={18}/>;
+    if (n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('não-alcóolicos')) return <Refrigerator size={18}/>;
+    if (n.includes('salgadinho')) return <Package size={18}/>; // Exemplo de um novo ícone
     return <List size={18}/>;
 };
 
+// NOVO: Função auxiliar para calcular o preço unitário com desconto de quantidade
+const getPriceWithQuantityDiscount = (product, quantity) => {
+    if (!product.quantityDiscounts || product.quantityDiscounts.length === 0) {
+        return product.price; // Sem descontos de quantidade, retorna o preço normal (já com desconto de item se houver)
+    }
+
+    // Encontra o melhor desconto de quantidade aplicável para a quantidade atual
+    const applicableDiscount = product.quantityDiscounts
+        .filter(qd => quantity >= qd.minQuantity)
+        .sort((a, b) => b.minQuantity - a.minQuantity)[0]; // Pega o maior minQuantity aplicável
+
+    if (applicableDiscount) {
+        let discountedPrice = product.price; // Começa com o preço unitário já com o desconto do item
+        if (applicableDiscount.type === 'percentage') {
+            discountedPrice = product.price * (1 - applicableDiscount.value / 100);
+        } else if (applicableDiscount.type === 'fixed') { // Desconto fixo por unidade
+            discountedPrice = product.price - applicableDiscount.value;
+        }
+        return discountedPrice > 0 ? discountedPrice : 0; // Garante que o preço não seja negativo
+    }
+
+    return product.price; // Nenhum desconto de quantidade aplicável, retorna o preço normal
+};
+
+
 export default function Home() {
   const navigate = useNavigate();
-  // === CORREÇÃO: DECLARAÇÃO DE storeId NO TOPO DO COMPONENTE ===
   const storeId = getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
-  // ==========================================================
 
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]); // Categorias do Banco
+  const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -43,12 +68,11 @@ export default function Home() {
   const [lastOrders, setLastOrders] = useState([]);
 
   // Cupons
-  const [availableCoupons, setAvailableCoupons] = useState([]); // Para armazenar cupons do Firestore
-  const [couponCode, setCouponCode] = useState(''); // Para o input do cliente
-  const [appliedCoupon, setAppliedCoupon] = useState(null); // Cupom que foi aplicado com sucesso
-  const [couponError, setCouponError] = useState(''); // Mensagem de erro do cupom
-  const [discountAmount, setDiscountAmount] = useState(0); // Valor do desconto calculado
-
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState('');
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   const handlePhoneChange = (e) => {
     const phone = e.target.value;
@@ -67,7 +91,6 @@ export default function Home() {
     if (showLastOrders) {
       const customerPhone = localStorage.getItem('customerPhone');
       if (customerPhone) {
-        // Busca os pedidos do cliente FILTRADOS POR LOJA
         const q = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), where("storeId", "==", storeId), orderBy("createdAt", "desc"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -79,11 +102,13 @@ export default function Home() {
         setShowLastOrders(false);
       }
     }
-  }, [showLastOrders, storeId]); // Adicionado storeId às dependências
+  }, [showLastOrders, storeId]);
 
   const repeatOrder = (order) => {
     order.items.forEach(item => {
-      addToCart({...item, id: item.id});
+      // Usar addToCart com o preço unitário do item no pedido original, ou buscar o produto atualizado
+      // Para simplicidade, vamos usar o preço que estava no pedido repetido
+      addToCart({...item, id: item.id}, item.quantity); 
     });
     setShowLastOrders(false);
   };
@@ -99,6 +124,13 @@ export default function Home() {
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
+  // NOVO ESTADO: Banners Gerais
+  const [generalBanners, setGeneralBanners] = useState([]);
+  // NOVO ESTADO: Produtos em Destaque e Mais Vendidos
+  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [bestsellingProducts, setBestsellingProducts] = useState([]);
+
+
   const [shippingRates, setShippingRates] = useState([]);
   const [shippingFee, setShippingFee] = useState(null);
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
@@ -109,7 +141,14 @@ export default function Home() {
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
     // Carregar Produtos - AGORA FILTRADO POR storeId
-    const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => {
+        const fetchedProducts = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        setProducts(fetchedProducts);
+        // Filtrar produtos em destaque
+        setFeaturedProducts(fetchedProducts.filter(p => p.isFeatured && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
+        // Filtrar produtos mais vendidos (neste caso, por flag manual)
+        setBestsellingProducts(fetchedProducts.filter(p => p.isBestSeller && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
+    });
 
     // Carregar Categorias - AGORA FILTRADO POR storeId
     const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -124,17 +163,21 @@ export default function Home() {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    // Banners Gerais - AGORA FILTRADO POR storeId (NOVO)
+    const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), where("isActive", "==", true), orderBy("order", "asc")), (s) => {
+      setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+
     // Configurações da Loja (settings/{storeId}) - Unificado promo e storeStatus
     const storeSettingsRef = doc(db, "settings", storeId);
     getDoc(storeSettingsRef).then(s => {
       if (!s.exists()) {
-        // Se as configurações para esta loja não existirem, cria com valores padrão
-        // (Isso deve ser feito uma vez no Admin ao criar a loja, mas é um fallback seguro)
         setDoc(storeSettingsRef, {
           promoActive: false, promoBannerUrls: [],
           isOpen: true, openTime: '08:00', closeTime: '23:00',
           message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
-          storeId: storeId // Garantindo que o storeId seja salvo aqui também
+          storeId: storeId
         }, { merge: true });
       }
     });
@@ -143,7 +186,6 @@ export default function Home() {
         const data = d.data();
         setStoreSettings(data);
 
-        // Lógica para verificar horário de funcionamento
         let finalStatus = data.isOpen;
         if (data.openTime && data.closeTime) {
           const now = new Date();
@@ -165,22 +207,20 @@ export default function Home() {
         unsubCategories();
         unsubCoupons();
         unsubShippingRates();
-        unsubStoreSettings(); // Unsubscribe do novo listener
+        unsubGeneralBanners(); // NOVO: Cleanup
+        unsubStoreSettings();
     };
    // LÓGICA FINAL DE ÍCONE DINÂMICO PARA PWA
   useEffect(() => {
-    // Só executa se houver uma URL de logo válida
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
       const storeName = storeSettings.message || "Velo Delivery";
 
-      // 1. Atualiza Favicon e Apple Icon (iOS)
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
 
-      // 2. CONSTRUÇÃO DO MANIFESTO DINÂMICO (Para Android não ficar vazio)
       const manifestTag = document.getElementById('manifest-tag');
       if (manifestTag) {
         const dynamicManifest = {
@@ -212,7 +252,7 @@ export default function Home() {
       }
     }
   }, [storeSettings.storeLogoUrl, storeSettings.message]);
-  }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
+  }, [storeId]);
 
   // Lógica de CEP (ViaCEP)
   useEffect(() => {
@@ -225,7 +265,6 @@ export default function Home() {
         const data = await response.json();
         if (data.erro) throw new Error("CEP não encontrado.");
         setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
-        // Filtra as taxas de frete por storeId antes de encontrar
         const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase() && rate.storeId === storeId);
         if (foundRate) {
           setShippingFee(foundRate.fee);
@@ -237,25 +276,54 @@ export default function Home() {
     };
     const handler = setTimeout(() => fetchCep(), 500);
     return () => clearTimeout(handler);
-  }, [customer.cep, shippingRates, storeId]); // Adicionado storeId às dependências
+  }, [customer.cep, shippingRates, storeId]);
 
-  const addToCart = (p) => {
+  const addToCart = (p, quantity = 1) => { // Adiciona 'quantity' como parâmetro opcional
     if (!isStoreOpenNow) { alert(storeMessage); return; }
-    // Validação de Estoque
     if (p.stock && p.stock <= 0) { alert("Produto fora de estoque!"); return; }
+
     setCart(prev => {
-      const ex = prev.find(i => i.id === p.id);
-      if (ex && p.stock && (ex.quantity + 1 > p.stock)) {
+      const existingItem = prev.find(i => i.id === p.id);
+      let newQuantity = quantity; // Começa com a quantidade que se quer adicionar
+
+      if (existingItem) {
+        newQuantity += existingItem.quantity; // Se já existe, soma
+      }
+
+      if (p.stock && (newQuantity > p.stock)) {
           alert("Limite de estoque atingido!");
           return prev;
       }
-      return ex ? prev.map(i => i.id === p.id ? {...i, quantity: i.quantity + 1} : i) : [...prev, {...p, quantity: 1}];
+      
+      // Calcula o preço unitário já considerando os descontos por quantidade
+      const finalPricePerUnit = getPriceWithQuantityDiscount(p, newQuantity);
+
+      if (existingItem) {
+          return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit } : i);
+      } else {
+          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit }];
+      }
     });
   };
 
+
   const updateQuantity = (productId, amount) => {
-    setCart(prevCart => prevCart.map(item => item.id === productId ? { ...item, quantity: item.quantity + amount } : item).filter(item => item.quantity > 0));
+    setCart(prevCart => {
+        return prevCart.map(item => {
+            if (item.id === productId) {
+                const newQuantity = item.quantity + amount;
+                if (newQuantity <= 0) return null; // Será filtrado
+
+                const productOriginal = products.find(p => p.id === productId); // Encontra o produto original para pegar quantityDiscounts
+                const priceWithDiscount = productOriginal ? getPriceWithQuantityDiscount(productOriginal, newQuantity) : item.price;
+
+                return { ...item, quantity: newQuantity, price: priceWithDiscount };
+            }
+            return item;
+        }).filter(item => item !== null);
+    });
   };
+
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
   const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
@@ -264,7 +332,7 @@ export default function Home() {
 
   // Lógica para aplicar o cupom
   const applyCoupon = async () => {
-    setCouponError(''); // Limpa erros anteriores
+    setCouponError('');
     setDiscountAmount(0);
     setAppliedCoupon(null);
 
@@ -285,9 +353,8 @@ export default function Home() {
       return;
     }
 
-    // Validações de uso e expiração
-    const now = new Date(); // Use new Date() para comparação consistente no cliente
-    if (coupon.expirationDate && coupon.expirationDate.toDate() < now) { // .toDate() é necessário se for Firestore Timestamp
+    const now = new Date();
+    if (coupon.expirationDate && coupon.expirationDate.toDate() < now) {
       setCouponError('Este cupom expirou.');
       return;
     }
@@ -297,16 +364,15 @@ export default function Home() {
       return;
     }
 
-    // Validação de limite de uso por cliente (requer buscar pedidos anteriores do cliente)
     if (coupon.userUsageLimit) {
-        const customerPhone = localStorage.getItem('customerPhone'); // Usamos o telefone como ID do cliente
+        const customerPhone = localStorage.getItem('customerPhone');
         if (customerPhone) {
             const customerOrdersWithCouponQuery = query(
                 collection(db, "orders"),
                 where("customerPhone", "==", customerPhone),
                 where("couponCode", "==", coupon.code),
                 where("status", "==", "completed"),
-                where("storeId", "==", storeId) // FILTRA POR LOJA
+                where("storeId", "==", storeId)
             );
             const snapshot = await getDocs(customerOrdersWithCouponQuery);
             if (snapshot.size >= coupon.userUsageLimit) {
@@ -316,7 +382,6 @@ export default function Home() {
         }
     }
 
-    // Validação de primeira compra (requer verificar se o cliente já fez outros pedidos)
     if (coupon.firstPurchaseOnly) {
         const customerPhone = localStorage.getItem('customerPhone');
         if (customerPhone) {
@@ -324,23 +389,21 @@ export default function Home() {
                 collection(db, "orders"),
                 where("customerPhone", "==", customerPhone),
                 where("status", "==", "completed"),
-                where("storeId", "==", storeId) // FILTRA POR LOJA
+                where("storeId", "==", storeId)
             );
             const snapshot = await getDocs(customerTotalOrdersQuery);
-            if (snapshot.size > 0) { // Se o cliente já tem pedidos completos
+            if (snapshot.size > 0) {
                 setCouponError('Este cupom é válido apenas para a primeira compra.');
                 return;
             }
         }
     }
 
-    // Validação de valor mínimo do pedido
     if (coupon.minimumOrderValue > subtotal) {
       setCouponError(`Valor mínimo do pedido para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}.`);
       return;
     }
 
-    // Calcula o desconto
     let calculatedDiscount = 0;
     if (coupon.type === 'percentage') {
       calculatedDiscount = subtotal * (coupon.value / 100);
@@ -350,7 +413,7 @@ export default function Home() {
 
     setAppliedCoupon(coupon);
     setDiscountAmount(calculatedDiscount);
-    setCouponError('Cupom aplicado com sucesso!'); // Mensagem de sucesso
+    setCouponError('Cupom aplicado com sucesso!');
   };
 
 
@@ -366,10 +429,9 @@ export default function Home() {
         customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
         payment: customer.payment, customerChangeFor: customer.payment === 'dinheiro' ? customer.changeFor : '',
         items: cart, subtotal, shippingFee, total: finalTotal, status: 'pending', createdAt: serverTimestamp(),
-        storeId: storeId // ADICIONADO storeId AQUI para que o pedido seja associado à loja
+        storeId: storeId
       };
 
-      // Adiciona informações do cupom se houver
       if (appliedCoupon) {
         orderData.couponCode = appliedCoupon.code;
         orderData.discountAmount = discountAmount;
@@ -377,7 +439,6 @@ export default function Home() {
 
       const docRef = await addDoc(collection(db, "orders"), orderData);
 
-      // Se um cupom foi aplicado, atualiza o contador de uso
       if (appliedCoupon) {
         await updateDoc(doc(db, "coupons", appliedCoupon.id), {
           currentUsage: (appliedCoupon.currentUsage || 0) + 1
@@ -392,7 +453,7 @@ export default function Home() {
       setAppliedCoupon(null);
       setDiscountAmount(0);
       setCouponCode('');
-      alert("Pedido finalizado com sucesso!"); // Feedback visual
+      alert("Pedido finalizado com sucesso!");
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
         console.error("Erro ao finalizar pedido:", e);
@@ -403,6 +464,12 @@ export default function Home() {
       { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
       ...categories.map(c => ({ id: c.name, name: c.name, icon: getCategoryIcon(c.name) }))
   ];
+
+  // FILTRA PRODUTOS PARA SUGESTÕES DE UPSELL
+  const upsellProducts = products
+    .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) // Não estão no carrinho e em estoque
+    .filter(p => p.isBestSeller || p.isFeatured) // Prioriza Mais Vendidos ou Destaques
+    .slice(0, 5); // Limita a 5 sugestões
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
@@ -428,7 +495,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
+      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO */}
       <AnimatePresence>
         {storeSettings.promoActive && storeSettings.promoBannerUrls && storeSettings.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
@@ -436,6 +503,23 @@ export default function Home() {
               {storeSettings.promoBannerUrls.map((url, index) => (
                 <div key={index}>
                   <img src={url} alt={`Banner ${index + 1}`} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                </div>
+              ))}
+            </Carousel>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* NOVO: CARROSSEL DE BANNERS GERAIS / DE MARCAS */}
+      <AnimatePresence>
+        {generalBanners.length > 0 && (
+          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 pt-0">
+            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
+              {generalBanners.map((banner) => (
+                <div key={banner.id}>
+                    <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
+                        <img src={banner.imageUrl} alt={banner.linkTo} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                    </a>
                 </div>
               ))}
             </Carousel>
@@ -459,8 +543,91 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PRODUTOS */}
-      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
+      {/* NOVO: SEÇÃO DE PRODUTOS EM DESTAQUE */}
+      {featuredProducts.length > 0 && (
+          <div className="px-6 mt-8">
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
+                  Nossos Destaques <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span>
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <AnimatePresence mode='popLayout'>
+                      {featuredProducts.map(p => {
+                          const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                          return (
+                              <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                                      <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                      {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
+                                  </div>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                                  <div className="flex justify-between items-center mt-auto">
+                                      <div>
+                                          {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                              <>
+                                                  <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                                  <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
+                                              </>
+                                          ) : (
+                                              <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                                          )}
+                                      </div>
+                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} />
+                                      </button>
+                                  </div>
+                              </motion.div>
+                          );
+                      })}
+                  </AnimatePresence>
+              </div>
+          </div>
+      )}
+
+      {/* NOVO: SEÇÃO DE PRODUTOS MAIS VENDIDOS */}
+      {bestsellingProducts.length > 0 && (
+          <div className="px-6 mt-8">
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
+                  Mais Vendidos <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span>
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <AnimatePresence mode='popLayout'>
+                      {bestsellingProducts.map(p => {
+                          const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                          return (
+                              <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                                      <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                      {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
+                                  </div>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                                  <div className="flex justify-between items-center mt-auto">
+                                      <div>
+                                          {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                              <>
+                                                  <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                                  <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
+                                              </>
+                                          ) : (
+                                              <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                                          )}
+                                      </div>
+                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} />
+                                      </button>
+                                  </div>
+                              </motion.div>
+                          );
+                      })}
+                  </AnimatePresence>
+              </div>
+          </div>
+      )}
+
+
+      {/* PRODUTOS (VITRINE PRINCIPAL) */}
+      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20 mt-8">
         <AnimatePresence mode='popLayout'>
           {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
              const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
@@ -469,10 +636,20 @@ export default function Home() {
                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
                     <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                 </div>
                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
                 <div className="flex justify-between items-center mt-auto">
-                    <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
+                    <div>
+                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                            <>
+                                <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
+                            </>
+                        ) : (
+                            <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                        )}
+                    </div>
                     <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                     <ShoppingCart size={16} />
                     </button>
@@ -514,29 +691,28 @@ export default function Home() {
         </AnimatePresence>
 
         <div className="relative flex items-center justify-center">
-  <motion.button 
-    onClick={() => setShowCheckout(true)} 
-    className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
-    initial={{ scale: 0 }} 
-    animate={{ scale: 1 }}
-  >
-    <ShoppingCart size={24} />
-  </motion.button>
-  
-  <AnimatePresence>
-    {cart.length > 0 && (
-      <motion.div 
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0, opacity: 0 }}
-        /* O segredo está no absolute com as coordenadas negativas para "pendurar" no botão */
-        className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
-      >
-        {cart.reduce((acc, item) => acc + item.quantity, 0)}
-      </motion.div>
-    )}
-  </AnimatePresence>
-</div>
+            <motion.button 
+                onClick={() => setShowCheckout(true)} 
+                className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
+                initial={{ scale: 0 }} 
+                animate={{ scale: 1 }}
+            >
+                <ShoppingCart size={24} />
+            </motion.button>
+            
+            <AnimatePresence>
+                {cart.length > 0 && (
+                <motion.div 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
+                >
+                    {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
 
         {/* Botão "Últimos Pedidos" */}
         <motion.button
@@ -607,6 +783,22 @@ export default function Home() {
                   </div>
                   {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
 
+                  {/* NOVO: SEÇÃO "QUE TAL PEDIR TAMBÉM?" (UPSELL) */}
+                  {upsellProducts.length > 0 && (
+                      <div className="mt-8 pt-6 border-t border-slate-100">
+                          <p className="font-black text-xs text-slate-400 uppercase ml-4 tracking-widest mb-4">Que tal pedir também?</p>
+                          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                              {upsellProducts.map(p => (
+                                  <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
+                                      <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
+                                      <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
+                                      <p className="text-blue-600 font-black text-sm">R$ {p.price?.toFixed(2)}</p>
+                                      <button onClick={() => addToCart(p)} className="absolute bottom-3 right-3 p-1.5 bg-blue-600 text-white rounded-full"><Plus size={16}/></button>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                   <div className="grid grid-cols-3 gap-2 mt-2">

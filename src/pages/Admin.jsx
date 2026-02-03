@@ -1,3 +1,4 @@
+jsx
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import {
@@ -6,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List
+    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -19,33 +20,44 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export default function Admin() {
     const navigate = useNavigate();
-    // === CORREÇÃO: DECLARAÇÃO DE storeId NO TOPO DO COMPONENTE ===
     const storeId = getStoreIdFromHostname();
     console.log("Admin - storeId detectado:", storeId);
-    // ==========================================================
 
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
+    const [generalBanners, setGeneralBanners] = useState([]); // NOVO: Estado para banners gerais
 
-    // Modais
+    // Modais Produto
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [form, setForm] = useState({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0 });
+    const [form, setForm] = useState({ 
+        name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
+        hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false,
+        quantityDiscounts: [] // NOVO: Descontos por quantidade
+    });
     const [editingId, setEditingId] = useState(null);
 
+    // Modais Categoria
     const [isCatModalOpen, setIsCatModalOpen] = useState(false);
     const [catForm, setCatForm] = useState({ name: '' });
     const [editingCatId, setEditingCatId] = useState(null);
+
+    // Modais Banners Gerais (NOVO)
+    const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+    const [bannerForm, setBannerForm] = useState({ imageUrl: '', linkTo: '', order: 0, isActive: true });
+    const [editingBannerId, setEditingBannerId] = useState(null);
+    const [bannerImageFile, setBannerImageFile] = useState(null);
+    const [uploadingBannerImage, setUploadingBannerImage] = useState(false);
 
     // Estados Pedido Manual
     const [manualCart, setManualCart] = useState([]);
     const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
 
     // Uploads
-    const [imageFile, setImageFile] = useState(null);
-    const [uploading, setUploading] = useState(false);
+    const [imageFile, setImageFile] = useState(null); // Para imagem de produto
+    const [uploading, setUploading] = useState(false); // Para imagem de produto
     const [uploadError, setUploadError] = useState('');
 
     // Loja
@@ -58,17 +70,19 @@ export default function Admin() {
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [uploadingBanner, setUploadingBanner] = useState(false);
 
+    // Banners de Promoção (Relâmpago)
     const [promoBannerFile1, setPromoBannerFile1] = useState(null);
     const [promoBannerFile2, setPromoBannerFile2] = useState(null);
     const [promoBannerFile3, setPromoBannerFile3] = useState(null);
     const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
 
+    // Fretes
     const [shippingRates, setShippingRates] = useState([]);
     const [isRateModalOpen, setIsRateModalOpen] = useState(false);
     const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
     const [editingRateId, setEditingRateId] = useState(null);
 
-    // Cupons - NOVOS ESTADOS AQUI
+    // Cupons
     const [coupons, setCoupons] = useState([]);
     const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
     const [couponForm, setCouponForm] = useState({
@@ -78,12 +92,12 @@ export default function Admin() {
     });
     const [editingCouponId, setEditingCouponId] = useState(null);
 
-
     const navItems = [
         { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
         { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
         { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
         { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
+        { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> }, // NOVO ITEM DE NAVEGAÇÃO
         { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
         { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
     ];
@@ -109,6 +123,9 @@ export default function Admin() {
         // Categorias - Filtrado por storeId
         const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         
+        // Banners Gerais - Filtrado por storeId (NOVO)
+        const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), orderBy("order", "asc")), (s) => setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+
         // Taxas de Frete - Filtrado por storeId
         const unsubShipping = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood))));
 
@@ -130,6 +147,7 @@ export default function Admin() {
             unsubOrders();
             unsubProducts();
             unsubCategories();
+            unsubGeneralBanners(); // NOVO: Cleanup
             unsubShipping();
             unsubMk();
             unsubSt();
@@ -137,32 +155,35 @@ export default function Admin() {
         };
     }, [storeId]); // Adicionado storeId como dependência
 
-    // --- FUNÇÃO DE UPLOAD ROBUSTA (Corrigida) ---
-    const handleProductImageUpload = async () => {
-        if (!imageFile) { alert("Selecione um arquivo primeiro!"); return; }
-
-        setUploading(true);
-        setUploadError('');
+    // --- FUNÇÕES DE UPLOAD (COMPARTILHADAS) ---
+    const uploadImageToCloudinary = async (file) => {
+        if (!file) throw new Error("Selecione um arquivo primeiro!");
 
         const formData = new FormData();
-        formData.append('file', imageFile);
+        formData.append('file', file);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha no upload. Verifique conexão ou configurações.');
+        }
+
+        const data = await response.json();
+        return data.secure_url;
+    };
+
+    const handleProductImageUpload = async () => {
+        setUploading(true);
+        setUploadError('');
         try {
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error('Falha no upload. Verifique conexão ou configurações.');
-            }
-
-            const data = await response.json();
-            setForm(prev => ({ ...prev, imageUrl: data.secure_url }));
+            const url = await uploadImageToCloudinary(imageFile);
+            setForm(prev => ({ ...prev, imageUrl: url }));
             setImageFile(null);
-            alert("Imagem enviada com sucesso!");
-
+            alert("Imagem do produto enviada com sucesso!");
         } catch (error) {
             console.error("Erro upload:", error);
             setUploadError('Erro ao enviar imagem. Tente novamente.');
@@ -170,65 +191,66 @@ export default function Admin() {
             setUploading(false);
         }
     };
-    // ---------------------------------------------
 
     const handleLogoUpload = async () => {
         if (!logoFile) return;
         setUploadingLogo(true);
-        const fd = new FormData(); fd.append('file', logoFile); fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         try {
-            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
-            const data = await res.json();
-            await updateDoc(doc(db, "settings", storeId), { storeLogoUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
+            const url = await uploadImageToCloudinary(logoFile);
+            await updateDoc(doc(db, "settings", storeId), { storeLogoUrl: url }, { merge: true });
             setLogoFile(null);
-        } catch (e) { alert("Erro upload logo"); }
+            alert("Logo atualizada!");
+        } catch (e) { alert("Erro upload logo"); console.error(e); }
         setUploadingLogo(false);
     };
 
     const handleBannerUpload = async () => {
         if (!bannerFile) return;
         setUploadingBanner(true);
-        const fd = new FormData(); fd.append('file', bannerFile); fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         try {
-            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
-            const data = await res.json();
-            await updateDoc(doc(db, "settings", storeId), { storeBannerUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
+            const url = await uploadImageToCloudinary(bannerFile);
+            await updateDoc(doc(db, "settings", storeId), { storeBannerUrl: url }, { merge: true });
             setBannerFile(null);
-        } catch (e) { alert("Erro upload banner"); }
+            alert("Banner da loja atualizado!");
+        } catch (e) { alert("Erro upload banner da loja"); console.error(e); }
         setUploadingBanner(false);
     };
 
     const handlePromoBannerUpload = async () => {
         setUploadingPromoBanner(true);
         const bannerFiles = [promoBannerFile1, promoBannerFile2, promoBannerFile3].filter(file => file !== null);
-        const uploadPromises = bannerFiles.map(async (bannerFile) => {
-            const fd = new FormData();
-            fd.append('file', bannerFile);
-            fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-            try {
-                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
-                const data = await res.json();
-                return data.secure_url;
-            } catch (e) {
-                alert("Erro upload promo banner");
-                return null;
-            }
-        });
+        const uploadPromises = bannerFiles.map(file => uploadImageToCloudinary(file).catch(e => {
+            alert(`Erro upload promo banner: ${e.message}`);
+            console.error(e);
+            return null;
+        }));
 
         try {
             const bannerUrls = await Promise.all(uploadPromises);
-            // Filtra URLs nulas caso ocorra erro no upload
             const filteredBannerUrls = bannerUrls.filter(url => url !== null);
-            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true }); // Atualizado para usar storeId
-            setPromoBannerFile1(null);
-            setPromoBannerFile2(null);
-            setPromoBannerFile3(null);
+            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true });
+            setPromoBannerFile1(null); setPromoBannerFile2(null); setPromoBannerFile3(null);
             alert("Banners da promoção relâmpago atualizados!");
-        } catch (e) {
-            alert("Erro ao salvar URLs dos banners da promoção");
-        }
+        } catch (e) { alert("Erro ao salvar URLs dos banners da promoção"); console.error(e); }
         setUploadingPromoBanner(false);
     };
+
+    // NOVO: Upload de Imagem para Banners Gerais
+    const handleGeneralBannerImageUpload = async () => {
+        setUploadingBannerImage(true);
+        try {
+            const url = await uploadImageToCloudinary(bannerImageFile);
+            setBannerForm(prev => ({ ...prev, imageUrl: url }));
+            setBannerImageFile(null);
+            alert("Imagem do banner enviada com sucesso!");
+        } catch (error) {
+            console.error("Erro upload banner:", error);
+            alert('Erro ao enviar imagem do banner. Tente novamente.');
+        } finally {
+            setUploadingBannerImage(false);
+        }
+    };
+    // ------------------------------------------
 
     const printLabel = (o) => {
         const w = window.open('', '_blank');
@@ -243,6 +265,45 @@ export default function Admin() {
         if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
         acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
     }, {})).sort((a, b) => b.total - a.total);
+
+    // --- LÓGICA PARA DESCONTOS POR QUANTIDADE ---
+    const handleAddQuantityDiscount = () => {
+        setForm(prev => ({ 
+            ...prev, 
+            quantityDiscounts: [...prev.quantityDiscounts, { minQuantity: 1, type: 'percentage', value: 0, description: '' }] 
+        }));
+    };
+
+    const handleUpdateQuantityDiscount = (index, field, value) => {
+        const newDiscounts = [...form.quantityDiscounts];
+        newDiscounts[index][field] = value;
+        setForm(prev => ({ ...prev, quantityDiscounts: newDiscounts }));
+    };
+
+    const handleRemoveQuantityDiscount = (index) => {
+        setForm(prev => ({
+            ...prev,
+            quantityDiscounts: prev.quantityDiscounts.filter((_, i) => i !== index)
+        }));
+    };
+    // ------------------------------------------
+
+    // --- LÓGICA PARA BANNERS GERAIS ---
+    const handleSaveGeneralBanner = async (e) => {
+        e.preventDefault();
+        const dataToSave = { ...bannerForm, order: Number(bannerForm.order), storeId: storeId };
+        try {
+            if (editingBannerId) await updateDoc(doc(db, "banners", editingBannerId), dataToSave);
+            else await addDoc(collection(db, "banners"), dataToSave);
+            setIsBannerModalOpen(false);
+            alert("Banner salvo com sucesso!");
+        } catch (error) {
+            alert("Erro ao salvar banner: Verifique as Permissões (Regras) do Firebase!");
+            console.error(error);
+        }
+    };
+    // ----------------------------------
+
 
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -345,11 +406,50 @@ export default function Admin() {
                     </div>
                 )}
 
+                {/* NOVO: ABA DE BANNERS GERAIS */}
+                {activeTab === 'banners' && (
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Banners Gerais</h1>
+                            <button onClick={() => { setEditingBannerId(null); setBannerForm({ imageUrl: '', linkTo: '', order: 0, isActive: true }); setIsBannerModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO BANNER</button>
+                        </div>
+                        {generalBanners.length === 0 ? (
+                            <p className="text-center py-10 text-slate-400 font-bold">Nenhum banner cadastrado.</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {generalBanners.map(b => (
+                                    <div key={b.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
+                                        <img src={b.imageUrl} className="w-24 h-24 object-contain rounded-2xl bg-slate-50 p-2" />
+                                        <div className="flex-1">
+                                            <p className="font-bold text-slate-800 leading-tight mb-1">Ordem: {b.order}</p>
+                                            <p className="text-blue-600 font-black break-all text-xs">Link: <a href={b.linkTo} target="_blank" rel="noopener noreferrer">{b.linkTo}</a></p>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-md mt-2 inline-block ${b.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                {b.isActive ? 'Ativo' : 'Inativo'}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <button onClick={() => { setEditingBannerId(b.id); setBannerForm(b); setIsBannerModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                            <button onClick={() => window.confirm("Excluir banner?") && deleteDoc(doc(db, "banners", b.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {activeTab === 'products' && (
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0 }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            <button onClick={() => { 
+                                setEditingId(null); 
+                                setForm({ 
+                                    name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
+                                    hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: []
+                                }); 
+                                setIsModalOpen(true); 
+                            }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {products.map(p => (
@@ -357,7 +457,15 @@ export default function Admin() {
                                     <img src={p.imageUrl} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" />
                                     <div className="flex-1">
                                         <p className="font-bold text-slate-800 leading-tight mb-1">{p.name}</p>
-                                        <p className="text-blue-600 font-black">R$ {Number(p.price)?.toFixed(2)}</p>
+                                        {p.hasDiscount && p.originalPrice ? (
+                                            <>
+                                                <p className="text-slate-400 text-xs line-through">R$ {Number(p.originalPrice).toFixed(2)}</p>
+                                                <p className="text-blue-600 font-black">R$ {Number(p.price)?.toFixed(2)}</p>
+                                                {p.discountPercentage && <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full mt-1 inline-block">-{p.discountPercentage}%</span>}
+                                            </>
+                                        ) : (
+                                            <p className="text-blue-600 font-black">R$ {Number(p.price)?.toFixed(2)}</p>
+                                        )}
                                         <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
                                     </div>
                                     <div className="flex flex-col gap-2">
@@ -445,7 +553,7 @@ export default function Admin() {
                                 <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
                                 <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
                                 <button onClick={async () => {
-                                    const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); // Atualizado para usar storeId
+                                    const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true });
                                 }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
 
                                 {/* BANNERS DA PROMO RELÂMPAGO */}
@@ -475,7 +583,7 @@ export default function Admin() {
                             <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40"><Trophy size={64} className="text-slate-200 mb-4" /><p className="font-black text-slate-300 uppercase tracking-widest leading-tight text-xl">Fidelidade<br />EM BREVE</p></div>
                         </div>
 
-                        {/* NOVO: SEÇÃO DE CUPONS DE DESCONTO - FORA DO GRID, PARA OCUPAR TODA A LARGURA ABAIXO */}
+                        {/* CUPONS DE DESCONTO */}
                         <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 space-y-8">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-4xl font-black italic tracking-tighter uppercase">Cupons de Desconto</h2>
@@ -519,7 +627,7 @@ export default function Admin() {
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Status da Loja</h2>
                             {/* Botão Aberto/Fechado */}
                             <button
-                                onClick={() => updateDoc(doc(db, "settings", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })} // Atualizado para usar storeId
+                                onClick={() => updateDoc(doc(db, "settings", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })}
                                 className={`w-full p-4 rounded-2xl font-bold uppercase transition-all
                                         ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg'}`}
                             >
@@ -530,14 +638,14 @@ export default function Admin() {
                             <div className="flex gap-4">
                                 <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
                                     <span className="block font-bold text-slate-700 mb-2">Abre:</span>
-                                    <input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { openTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" /> {/* Atualizado para usar storeId */}
+                                    <input type="time" value={storeStatus.openTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { openTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" />
                                 </div>
                                 <div className="flex-1 p-4 bg-slate-50 rounded-2xl">
                                     <span className="block font-bold text-slate-700 mb-2">Fecha:</span>
-                                    <input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { closeTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" /> {/* Atualizado para usar storeId */}
+                                    <input type="time" value={storeStatus.closeTime} onChange={(e) => updateDoc(doc(db, "settings", storeId), { closeTime: e.target.value }, { merge: true })} className="p-3 bg-white rounded-xl w-full font-bold" />
                                 </div>
                             </div>
-                            <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" /> {/* Atualizado para usar storeId */}
+                            <input type="text" placeholder="Mensagem da Loja" value={storeStatus.message} onChange={(e) => updateDoc(doc(db, "settings", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" />
                         </div>
 
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
@@ -589,7 +697,7 @@ export default function Admin() {
                 ))}
             </nav>
 
-            {/* MODAL CATEGORIA (Com alert de erro se falhar) */}
+            {/* MODAL CATEGORIA */}
             <AnimatePresence>
                 {isCatModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -599,11 +707,11 @@ export default function Admin() {
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    const dataToSave = { ...catForm, storeId: storeId }; // ADICIONADO: Associar categoria ao storeId
+                                    const dataToSave = { ...catForm, storeId: storeId };
                                     if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave);
                                     else await addDoc(collection(db, "categories"), dataToSave);
                                     setIsCatModalOpen(false);
-                                    alert("Categoria salva com sucesso!"); // FEEDBACK VISUAL
+                                    alert("Categoria salva com sucesso!");
                                 } catch (error) {
                                     alert("Erro ao salvar: Verifique as Permissões (Regras) do Firebase!");
                                     console.error(error);
@@ -617,11 +725,45 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
+            {/* NOVO: MODAL BANNER GERAL */}
+            <AnimatePresence>
+                {isBannerModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative">
+                            <button onClick={() => setIsBannerModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
+                            <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingBannerId ? 'Editar' : 'Novo'} Banner</h2>
+                            <form onSubmit={handleSaveGeneralBanner} className="space-y-6">
+                                <input type="text" placeholder="Link do Banner (URL ou /caminho)" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={bannerForm.linkTo} onChange={e => setBannerForm({ ...bannerForm, linkTo: e.target.value })} required />
+                                <input type="number" placeholder="Ordem de exibição" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={bannerForm.order} onChange={e => setBannerForm({ ...bannerForm, order: e.target.value })} required />
+
+                                <div className="space-y-3">
+                                    {(bannerImageFile || bannerForm.imageUrl) && <img src={bannerImageFile ? URL.createObjectURL(bannerImageFile) : bannerForm.imageUrl} className="w-full h-40 object-contain rounded-2xl bg-slate-50" />}
+                                    <input type="file" accept="image/*" onChange={(e) => setBannerImageFile(e.target.files[0])} className="hidden" id="banner-general-image-upload" />
+                                    <label htmlFor="banner-general-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
+                                        {bannerImageFile ? bannerImageFile.name : (bannerForm.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem do Banner')} <UploadCloud size={20} />
+                                    </label>
+                                    {bannerImageFile && (
+                                        <button type="button" onClick={handleGeneralBannerImageUpload} disabled={uploadingBannerImage} className={`w-full p-4 rounded-3xl font-black text-white ${uploadingBannerImage ? 'bg-blue-400' : 'bg-blue-600'}`}>
+                                            {uploadingBannerImage ? 'Enviando Imagem...' : 'Confirmar Upload da Imagem'}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Banner Ativo:</span>
+                                    <input type="checkbox" checked={bannerForm.isActive} onChange={e => setBannerForm({ ...bannerForm, isActive: e.target.checked })} className="toggle toggle-sm toggle-primary" />
+                                </div>
+                                <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Banner</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* MODAL PRODUTO */}
             <AnimatePresence>
                 {isModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto"> {/* Adicionado overflow-y-auto */}
                             <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
                             <form onSubmit={async (e) => {
@@ -629,8 +771,12 @@ export default function Admin() {
                                 const data = { 
                                     ...form, 
                                     price: parseFloat(form.price), 
+                                    originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
+                                    discountPercentage: form.discountPercentage ? parseFloat(form.discountPercentage) : null,
                                     stock: parseInt(form.stock || 0),
-                                    storeId: storeId // ADICIONADO: Associar produto ao storeId
+                                    // Limpar quantityDiscounts se estiver vazio para não salvar arrays vazios
+                                    quantityDiscounts: form.quantityDiscounts.filter(qd => qd.minQuantity > 0 && qd.value >= 0),
+                                    storeId: storeId 
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); }
                                 else { await addDoc(collection(db, "products"), data); }
@@ -638,19 +784,65 @@ export default function Admin() {
                             }} className="space-y-6">
                                 <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input type="number" step="0.01" placeholder="Preço" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
+                                    <input type="number" step="0.01" placeholder="Preço (COM desconto, se houver)" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
                                     <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
                                 </div>
                                 <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>
                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
-                                <div className="space-y-3">
+                                
+                                {/* Campos de Desconto Simples */}
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Produto em Promoção:</span>
+                                    <input type="checkbox" checked={form.hasDiscount} onChange={e => setForm({...form, hasDiscount: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+                                {form.hasDiscount && (
+                                    <>
+                                        <input type="number" step="0.01" placeholder="Preço ORIGINAL (antes do desconto)" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.originalPrice || ''} onChange={e => setForm({ ...form, originalPrice: e.target.value })} />
+                                        <input type="number" step="0.01" placeholder="Porcentagem de Desconto (ex: 10 para 10%)" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.discountPercentage || ''} onChange={e => setForm({ ...form, discountPercentage: e.target.value })} />
+                                    </>
+                                )}
+
+                                {/* Campos de Destaque e Mais Vendido */}
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Produto em Destaque:</span>
+                                    <input type="checkbox" checked={form.isFeatured} onChange={e => setForm({...form, isFeatured: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span className="font-bold text-slate-700">Produto Mais Vendido (Marcação Manual):</span>
+                                    <input type="checkbox" checked={form.isBestSeller} onChange={e => setForm({...form, isBestSeller: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
+                                </div>
+
+                                {/* Descontos por Quantidade (NOVO) */}
+                                <div className="pt-6 border-t border-slate-100 space-y-4">
+                                    <h3 className="text-xl font-black uppercase flex justify-between items-center">
+                                        Descontos por Quantidade
+                                        <button type="button" onClick={handleAddQuantityDiscount} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-xs">+ ADICIONAR</button>
+                                    </h3>
+                                    {form.quantityDiscounts.length === 0 && (
+                                        <p className="text-sm text-slate-400">Nenhum desconto por quantidade. Clique em + ADICIONAR.</p>
+                                    )}
+                                    {form.quantityDiscounts.map((qd, index) => (
+                                        <div key={index} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 relative">
+                                            <button type="button" onClick={() => handleRemoveQuantityDiscount(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700"><X size={16}/></button>
+                                            <input type="number" placeholder="Quantidade Mínima" className="w-full p-3 bg-white rounded-lg font-bold" value={qd.minQuantity} onChange={e => handleUpdateQuantityDiscount(index, 'minQuantity', parseInt(e.target.value))} required />
+                                            <select className="w-full p-3 bg-white rounded-lg font-bold" value={qd.type} onChange={e => handleUpdateQuantityDiscount(index, 'type', e.target.value)}>
+                                                <option value="percentage">Porcentagem (%)</option>
+                                                <option value="fixed">Valor Fixo por Unidade (R$)</option>
+                                            </select>
+                                            <input type="number" step="0.01" placeholder="Valor do Desconto" className="w-full p-3 bg-white rounded-lg font-bold" value={qd.value} onChange={e => handleUpdateQuantityDiscount(index, 'value', parseFloat(e.target.value))} required />
+                                            <input type="text" placeholder="Descrição (Ex: Leve 4, pague menos!)" className="w-full p-3 bg-white rounded-lg font-bold" value={qd.description} onChange={e => handleUpdateQuantityDiscount(index, 'description', e.target.value)} />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Upload de Imagem do Produto */}
+                                <div className="space-y-3 pt-6 border-t border-slate-100">
                                     <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
                                     <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
                                         {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
                                     </label>
-                                    {/* Botão de Upload com estado visual de carregando */}
                                     {imageFile && (
                                         <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>
                                             {uploading ? 'Enviando Imagem...' : 'Confirmar Upload da Imagem'}
@@ -679,7 +871,7 @@ export default function Admin() {
                                 const data = { 
                                     neighborhood: rateForm.neighborhood, 
                                     fee: feeValue,
-                                    storeId: storeId // ADICIONADO: Associar taxa de frete ao storeId
+                                    storeId: storeId
                                 };
                                 try {
                                     if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data);
@@ -696,7 +888,7 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
-            {/* MODAL CUPOM DE DESCONTO - NOVO MODAL AQUI */}
+            {/* MODAL CUPOM DE DESCONTO */}
             <AnimatePresence>
                 {isCouponModalOpen && (
                     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -712,10 +904,10 @@ export default function Admin() {
                                     usageLimit: couponForm.usageLimit ? parseInt(couponForm.usageLimit) : null,
                                     userUsageLimit: couponForm.userUsageLimit ? parseInt(couponForm.userUsageLimit) : null,
                                     expirationDate: couponForm.expirationDate ? new Date(couponForm.expirationDate) : null,
-                                    code: couponForm.code.toUpperCase(), // Códigos em maiúsculas
+                                    code: couponForm.code.toUpperCase(),
                                     currentUsage: couponForm.currentUsage || 0,
                                     createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
-                                    storeId: storeId // ADICIONADO: Associar cupom ao storeId
+                                    storeId: storeId
                                 };
                                 try {
                                     if (editingCouponId) {
