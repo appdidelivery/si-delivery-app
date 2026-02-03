@@ -13,7 +13,7 @@ import "react-responsive-carousel/lib/styles/carousel.min.css"; // Importa os es
 // Importa o helper para obter o storeId
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
-// Função auxiliar para ícones de categoria
+// Função auxiliar para ícones de categoria (Ainda útil para a lista de filtros, se mantivermos)
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
     if (n.includes('cerveja')) return <Beer size={18}/>;
@@ -24,10 +24,8 @@ const getCategoryIcon = (name) => {
 
 export default function Home() {
   const navigate = useNavigate();
-  // === CORREÇÃO: DECLARAÇÃO DE storeId NO TOPO DO COMPONENTE ===
   const storeId = getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
-  // ==========================================================
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]); // Categorias do Banco
@@ -48,6 +46,9 @@ export default function Home() {
   const [appliedCoupon, setAppliedCoupon] = useState(null); // Cupom que foi aplicado com sucesso
   const [couponError, setCouponError] = useState(''); // Mensagem de erro do cupom
   const [discountAmount, setDiscountAmount] = useState(0); // Valor do desconto calculado
+
+  // NOVO ESTADO: Banners de meio de página
+  const [midPageBanners, setMidPageBanners] = useState([]);
 
 
   const handlePhoneChange = (e) => {
@@ -124,6 +125,11 @@ export default function Home() {
       setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    // Banners de meio de página - Filtrado por storeId e ordenado
+    const unsubMidPageBanners = onSnapshot(query(collection(db, "mid_page_banners"), where("storeId", "==", storeId), orderBy("order")), (s) => {
+        setMidPageBanners(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     // Configurações da Loja (settings/{storeId}) - Unificado promo e storeStatus
     const storeSettingsRef = doc(db, "settings", storeId);
     getDoc(storeSettingsRef).then(s => {
@@ -166,52 +172,20 @@ export default function Home() {
         unsubCoupons();
         unsubShippingRates();
         unsubStoreSettings(); // Unsubscribe do novo listener
+        unsubMidPageBanners(); // Unsubscribe do novo listener
     };
    // LÓGICA FINAL DE ÍCONE DINÂMICO PARA PWA
   useEffect(() => {
     // Só executa se houver uma URL de logo válida
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
-      const storeName = storeSettings.message || "Velo Delivery";
-
       // 1. Atualiza Favicon e Apple Icon (iOS)
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
-
-      // 2. CONSTRUÇÃO DO MANIFESTO DINÂMICO (Para Android não ficar vazio)
-      const manifestTag = document.getElementById('manifest-tag');
-      if (manifestTag) {
-        const dynamicManifest = {
-          "short_name": storeName,
-          "name": storeName,
-          "start_url": window.location.origin,
-          "display": "standalone",
-          "theme_color": "#1d4ed8",
-          "background_color": "#ffffff",
-          "icons": [
-            {
-              "src": logoUrl,
-              "sizes": "192x192",
-              "type": "image/png",
-              "purpose": "any"
-            },
-            {
-              "src": logoUrl,
-              "sizes": "512x512",
-              "type": "image/png",
-              "purpose": "any"
-            }
-          ]
-        };
-
-        const blob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/json' });
-        const manifestURL = URL.createObjectURL(blob);
-        manifestTag.setAttribute('href', manifestURL);
-      }
     }
-  }, [storeSettings.storeLogoUrl, storeSettings.message]);
+  }, [storeSettings.storeLogoUrl]);
   }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
 
   // Lógica de CEP (ViaCEP)
@@ -399,19 +373,28 @@ export default function Home() {
     }
   };
 
-  const displayCategories = [
-      { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
-      ...categories.map(c => ({ id: c.name, name: c.name, icon: getCategoryIcon(c.name) }))
-  ];
+  // REMOVIDA A FUNÇÃO displayCategories antiga
+  // Agora as categorias são renderizadas diretamente do estado `categories` com imagens.
+
+  const featuredProductsBestSellers = products.filter(p => p.isBestSeller && (!activeCategory || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const featuredProductsPromotions = products.filter(p => p.isPromotion && (!activeCategory || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = activeCategory === 'all' || p.category === activeCategory;
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    // Exclui produtos que já estão nas vitrines "Mais Vendidos" e "Promoções" da listagem principal,
+    // a menos que a busca seja ativa para evitar duplicação ou o filtro de categoria seja específico.
+    const isFeatured = p.isBestSeller || p.isPromotion;
+    return matchesCategory && matchesSearch && !(isFeatured && searchTerm === '' && activeCategory === 'all');
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-      <SEO title="Velo Delivery" description="Bebidas geladas." />
+      <SEO title="Conveniência Santa Isabel" description="Bebidas geladas." />
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
-          <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+          <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="/logo-loja.png"} /> {/* Fallback para logo-loja.png */}
           <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p></div>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
@@ -419,7 +402,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* BANNER */}
+      {/* BANNER PRINCIPAL DA LOJA */}
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
         <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
@@ -428,7 +411,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO */}
+      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO (Existente) */}
       <AnimatePresence>
         {storeSettings.promoActive && storeSettings.promoBannerUrls && storeSettings.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
@@ -449,39 +432,139 @@ export default function Home() {
           <input type="text" placeholder="O que você procura?" className="w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-blue-600 font-medium" onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
-        {/* CATEGORIAS DINÂMICAS */}
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-          {displayCategories.map(c => (
-            <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
-              {c.icon} {c.name}
-            </button>
-          ))}
+        {/* BANNERS DE CATEGORIAS (NOVO - Zé Delivery Style) */}
+        <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-900 mt-8 mb-4">Categorias</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 overflow-x-auto no-scrollbar pb-2">
+            {categories.map(c => (
+                <motion.button
+                    key={c.id}
+                    onClick={() => setActiveCategory(c.name)}
+                    className={`relative w-full aspect-video rounded-2xl overflow-hidden shadow-md group ${activeCategory === c.name ? 'border-2 border-blue-600' : 'border border-slate-100 hover:scale-[1.02]'} transition-all`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    whileTap={{ scale: 0.95 }}
+                >
+                    <img src={c.imageUrl || 'https://via.placeholder.com/200x100?text=Categoria'} alt={c.name} className="w-full h-full object-cover brightness-75 group-hover:brightness-90 transition-all"/>
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent flex items-end p-3">
+                        <span className="text-white font-black text-xs uppercase">{c.name}</span>
+                    </div>
+                </motion.button>
+            ))}
         </div>
+        {activeCategory !== 'all' && (
+            <button onClick={() => setActiveCategory('all')} className="mt-4 px-6 py-3 rounded-full font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all">Ver Todas as Categorias <X size={14} className="inline-block ml-1"/></button>
+        )}
       </div>
 
-      {/* PRODUTOS */}
-      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
-        <AnimatePresence mode='popLayout'>
-          {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
-             const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-             return (
-                <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
-                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                </div>
-                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                <div className="flex justify-between items-center mt-auto">
-                    <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
-                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                    <ShoppingCart size={16} />
-                    </button>
-                </div>
-                </motion.div>
-             );
-          })}
-        </AnimatePresence>
-      </main>
+      {/* CARROSSEL DE MARCAS/BANNERS DE MEIO DE PÁGINA (NOVO) */}
+      {midPageBanners.length > 0 && (
+          <div className="px-6 mt-10">
+              <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-900 mb-4">Nossos Parceiros</h2>
+              <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={4000} showStatus={false} showIndicators={false} centerMode={true} centerSlidePercentage={80}>
+                  {midPageBanners.map((banner, index) => (
+                      <div key={index} className="px-2"> {/* Adicionado padding para espaçamento no carrossel */}
+                          <a href={banner.linkTo || '#'} target="_blank" className="block w-full h-32 md:h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-100 hover:scale-[1.02] transition-transform">
+                              <img src={banner.imageUrl || 'https://via.placeholder.com/300x150?text=Banner+Marca'} alt={`Banner ${index + 1}`} className="w-full h-full object-cover" />
+                          </a>
+                      </div>
+                  ))}
+              </Carousel>
+          </div>
+      )}
+
+
+      {/* VITRINE: PRODUTOS EM PROMOÇÃO (NOVO) */}
+      {featuredProductsPromotions.length > 0 && (
+          <div className="px-6 mt-10">
+              <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-900 mb-4 flex items-center gap-2"><Flame size={22} className="text-orange-500"/> Promoções</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <AnimatePresence>
+                      {featuredProductsPromotions.map(p => {
+                          const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                          return (
+                              <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                                      <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                      {p.isPromotion && <span className="absolute top-2 left-2 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase shadow-md">PROMO</span>}
+                                  </div>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                                  <div className="flex justify-between items-center mt-auto">
+                                      <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
+                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} />
+                                      </button>
+                                  </div>
+                              </motion.div>
+                          );
+                      })}
+                  </AnimatePresence>
+              </div>
+          </div>
+      )}
+
+      {/* VITRINE: MAIS VENDIDOS (NOVO) */}
+      {featuredProductsBestSellers.length > 0 && (
+          <div className="px-6 mt-10">
+              <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-900 mb-4 flex items-center gap-2"><Star size={22} className="text-amber-400"/> Mais Vendidos</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <AnimatePresence>
+                      {featuredProductsBestSellers.map(p => {
+                          const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                          return (
+                              <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                                      <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                      {p.isBestSeller && <span className="absolute top-2 left-2 bg-blue-500 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase shadow-md">TOP</span>}
+                                  </div>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                                  <div className="flex justify-between items-center mt-auto">
+                                      <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
+                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} />
+                                      </button>
+                                  </div>
+                              </motion.div>
+                          );
+                      })}
+                  </AnimatePresence>
+              </div>
+          </div>
+      )}
+
+      {/* VITRINE PRINCIPAL DE PRODUTOS (o restante) */}
+      {filteredProducts.length > 0 && (
+          <div className="px-6 mt-10">
+              <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-900 mb-4">Todos os Produtos</h2>
+              <main className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
+                <AnimatePresence mode='popLayout'>
+                  {filteredProducts.map(p => {
+                    const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                    return (
+                        <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                        <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                            <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                            {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                            {p.isPromotion && <span className="absolute top-2 left-2 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase shadow-md">PROMO</span>}
+                            {p.isBestSeller && <span className="absolute top-2 right-2 bg-blue-500 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase shadow-md">TOP</span>}
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                        <div className="flex justify-between items-center mt-auto">
+                            <span className="text-blue-600 font-black text-sm italic leading-none">R$ {p.price?.toFixed(2)}</span>
+                            <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                            <ShoppingCart size={16} />
+                            </button>
+                        </div>
+                        </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </main>
+          </div>
+      )}
+
 
       <section className="px-6 py-10 bg-slate-100/50 text-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
