@@ -13,6 +13,14 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../utils/domainHelper'; // Importa o helper do domínio
 
+// --- MAPEAMENTO DE NOMES DAS LOJAS ---
+const NOMES_LOJAS = {
+    csi: "Conv St Isabel",
+    mamedes: "Mamedes Papéis",
+    soller: "Soller Embalagens",
+    futtalento: "FutTalento",
+    default: "Velo Delivery"
+};
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
