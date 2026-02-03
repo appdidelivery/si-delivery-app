@@ -36,7 +36,9 @@ export default function Admin() {
     const [categories, setCategories] = useState([]);
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
     const [generalBanners, setGeneralBanners] = useState([]); // NOVO: Estado para banners gerais
-
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportPeriod, setReportPeriod] = useState('today'); // 'today' ou 'all'
+    
     // Modais Produto
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [form, setForm] = useState({ 
