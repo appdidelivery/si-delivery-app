@@ -804,7 +804,7 @@ export default function Admin() {
                                     quantityDiscounts: form.quantityDiscounts.filter(qd => qd.minQuantity > 0 && qd.value >= 0),
                                     storeId: storeId 
                                 };
-                                if (editingId) { await updateDoc(doc(db, "products", editingId), data); }
+                                if (editingId) { await updateDoc(doc(db, "products", product.firestoreId || product.id), updatedData); }
                                 else { await addDoc(collection(db, "products"), data); }
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
