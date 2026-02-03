@@ -256,9 +256,8 @@ export default function Admin() {
         const itemsHtml = (o.items || []).map(i => `<li>• ${i.quantity}x ${i.name}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
-        // Template para gerar as duas vias
         const gerarVia = (titulo, temCorte) => `
-            <div style="width: 280px; padding: 10px; font-family: sans-serif; border-bottom: ${temCorte ? '2px dashed #000' : 'none'}; padding-bottom: ${temCorte ? '40px' : '10px'}; margin-bottom: ${temCorte ? '40px' : '0'};">
+            <div style="width: 280px; padding: 10px; font-family: sans-serif; border-bottom: ${temCorte ? '2px dashed #000' : 'none'}; padding-bottom: 20px; margin-bottom: 40px;">
                 <center><small>-- ${titulo} --</small><h2>CONVENIÊNCIA SI</h2></center>
                 <hr>
                 <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
@@ -275,19 +274,15 @@ export default function Admin() {
             </div>
         `;
 
-        w.document.write(`
-            <html>
-                <body style="margin:0; padding:0;">
-                    ${gerarVia('VIA DA LOJA', true)}
-                    ${gerarVia('VIA DO ENTREGADOR', false)}
-                    <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
-                </body>
-            </html>
-        `);
+        w.document.write(`<html><body style="margin:0; padding:0;">
+            ${gerarVia('VIA DA LOJA', true)}
+            ${gerarVia('VIA DO ENTREGADOR', false)}
+            <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+        </body></html>`);
         w.document.close();
     };
 
-    const customers = Object.values(orders.reduce((acc, o) => {
+    const customers = Object.values((orders || []).reduce((acc, o) => {
         const p = o.customerPhone || 'N/A';
         if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
         acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
