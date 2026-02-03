@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, BookOpen
+    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -19,35 +19,34 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export default function Admin() {
     const navigate = useNavigate();
+    // === CORREÇÃO: DECLARAÇÃO DE storeId NO TOPO DO COMPONENTE ===
     const storeId = getStoreIdFromHostname();
     console.log("Admin - storeId detectado:", storeId);
+    // ==========================================================
 
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
-    const [midPageBanners, setMidPageBanners] = useState([]); // NOVO ESTADO: Banners de meio de página
 
     // Modais
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [form, setForm] = useState({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0, isBestSeller: false, isPromotion: false }); // ADICIONADO: isBestSeller, isPromotion
+    const [form, setForm] = useState({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0 });
     const [editingId, setEditingId] = useState(null);
 
     const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-    const [catForm, setCatForm] = useState({ name: '', imageUrl: '' }); // ADICIONADO: imageUrl para categorias
+    const [catForm, setCatForm] = useState({ name: '' });
     const [editingCatId, setEditingCatId] = useState(null);
-    const [catImageFile, setCatImageFile] = useState(null); // NOVO ESTADO: Upload de imagem para categoria
-    const [uploadingCatImage, setUploadingCatImage] = useState(false);
 
     // Estados Pedido Manual
     const [manualCart, setManualCart] = useState([]);
     const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
 
-    // Uploads de produto
-    const [productImageFile, setProductImageFile] = useState(null); // Renomeado para clareza
-    const [uploadingProductImage, setUploadingProductImage] = useState(false);
-    const [uploadProductError, setUploadProductError] = useState('');
+    // Uploads
+    const [imageFile, setImageFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState('');
 
     // Loja
     const [storeStatus, setStoreStatus] = useState({
@@ -69,7 +68,7 @@ export default function Admin() {
     const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
     const [editingRateId, setEditingRateId] = useState(null);
 
-    // Cupons
+    // Cupons - NOVOS ESTADOS AQUI
     const [coupons, setCoupons] = useState([]);
     const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
     const [couponForm, setCouponForm] = useState({
@@ -78,13 +77,6 @@ export default function Admin() {
         firstPurchaseOnly: false, active: true
     });
     const [editingCouponId, setEditingCouponId] = useState(null);
-
-    // Banners de Meio de Página (NOVO)
-    const [isMidPageBannerModalOpen, setIsMidPageBannerModalOpen] = useState(false);
-    const [midPageBannerForm, setMidPageBannerForm] = useState({ imageUrl: '', linkTo: '', order: 0 });
-    const [editingMidPageBannerId, setEditingMidPageBannerId] = useState(null);
-    const [midPageBannerFile, setMidPageBannerFile] = useState(null);
-    const [uploadingMidPageBannerImage, setUploadingMidPageBannerImage] = useState(false);
 
 
     const navItems = [
@@ -133,9 +125,6 @@ export default function Admin() {
         // Cupons - Filtrado por storeId
         const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        // Banners de Meio de Página - Filtrado por storeId
-        const unsubMidPageBanners = onSnapshot(query(collection(db, "mid_page_banners"), where("storeId", "==", storeId), orderBy("order")), (s) => setMidPageBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
 
         return () => { 
             unsubOrders();
@@ -145,16 +134,18 @@ export default function Admin() {
             unsubMk();
             unsubSt();
             unsubCoupons();
-            unsubMidPageBanners();
         };
     }, [storeId]); // Adicionado storeId como dependência
 
-    // --- FUNÇÃO DE UPLOAD GERAL (Refatorada para ser reutilizável) ---
-    const uploadImageToCloudinary = async (file) => {
-        if (!file) throw new Error("Nenhum arquivo selecionado.");
+    // --- FUNÇÃO DE UPLOAD ROBUSTA (Corrigida) ---
+    const handleProductImageUpload = async () => {
+        if (!imageFile) { alert("Selecione um arquivo primeiro!"); return; }
+
+        setUploading(true);
+        setUploadError('');
 
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', imageFile);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
         try {
@@ -164,101 +155,77 @@ export default function Admin() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Falha no upload: ${errorData.error.message || response.statusText}`);
+                throw new Error('Falha no upload. Verifique conexão ou configurações.');
             }
 
             const data = await response.json();
-            return data.secure_url;
+            setForm(prev => ({ ...prev, imageUrl: data.secure_url }));
+            setImageFile(null);
+            alert("Imagem enviada com sucesso!");
 
         } catch (error) {
             console.error("Erro upload:", error);
-            throw new Error(`Erro ao enviar imagem: ${error.message}`);
-        }
-    };
-
-    const handleProductImageUpload = async () => {
-        setUploadingProductImage(true);
-        setUploadProductError('');
-        try {
-            const url = await uploadImageToCloudinary(productImageFile);
-            setForm(prev => ({ ...prev, imageUrl: url }));
-            setProductImageFile(null);
-            alert("Imagem do produto enviada com sucesso!");
-        } catch (error) {
-            setUploadProductError(error.message);
+            setUploadError('Erro ao enviar imagem. Tente novamente.');
         } finally {
-            setUploadingProductImage(false);
+            setUploading(false);
         }
     };
-
-    const handleCategoryImageUpload = async () => {
-        setUploadingCatImage(true);
-        try {
-            const url = await uploadImageToCloudinary(catImageFile);
-            setCatForm(prev => ({ ...prev, imageUrl: url }));
-            setCatImageFile(null);
-            alert("Imagem da categoria enviada com sucesso!");
-        } catch (error) {
-            alert(error.message);
-        } finally {
-            setUploadingCatImage(false);
-        }
-    };
-
-    const handleMidPageBannerImageUpload = async () => {
-        setUploadingMidPageBannerImage(true);
-        try {
-            const url = await uploadImageToCloudinary(midPageBannerFile);
-            setMidPageBannerForm(prev => ({ ...prev, imageUrl: url }));
-            setMidPageBannerFile(null);
-            alert("Imagem do banner de meio de página enviada com sucesso!");
-        } catch (error) {
-            alert(error.message);
-        } finally {
-            setUploadingMidPageBannerImage(false);
-        }
-    };
+    // ---------------------------------------------
 
     const handleLogoUpload = async () => {
         if (!logoFile) return;
         setUploadingLogo(true);
+        const fd = new FormData(); fd.append('file', logoFile); fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         try {
-            const url = await uploadImageToCloudinary(logoFile);
-            await updateDoc(doc(db, "settings", storeId), { storeLogoUrl: url }, { merge: true });
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+            const data = await res.json();
+            await updateDoc(doc(db, "settings", storeId), { storeLogoUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
             setLogoFile(null);
-            alert("Logo atualizada!");
-        } catch (e) { alert(e.message); }
+        } catch (e) { alert("Erro upload logo"); }
         setUploadingLogo(false);
     };
 
     const handleBannerUpload = async () => {
         if (!bannerFile) return;
         setUploadingBanner(true);
+        const fd = new FormData(); fd.append('file', bannerFile); fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         try {
-            const url = await uploadImageToCloudinary(bannerFile);
-            await updateDoc(doc(db, "settings", storeId), { storeBannerUrl: url }, { merge: true });
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+            const data = await res.json();
+            await updateDoc(doc(db, "settings", storeId), { storeBannerUrl: data.secure_url }, { merge: true }); // Atualizado para usar storeId
             setBannerFile(null);
-            alert("Banner da loja atualizado!");
-        } catch (e) { alert(e.message); }
+        } catch (e) { alert("Erro upload banner"); }
         setUploadingBanner(false);
     };
 
     const handlePromoBannerUpload = async () => {
         setUploadingPromoBanner(true);
         const bannerFiles = [promoBannerFile1, promoBannerFile2, promoBannerFile3].filter(file => file !== null);
-        const uploadPromises = bannerFiles.map(file => uploadImageToCloudinary(file));
+        const uploadPromises = bannerFiles.map(async (bannerFile) => {
+            const fd = new FormData();
+            fd.append('file', bannerFile);
+            fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            try {
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+                const data = await res.json();
+                return data.secure_url;
+            } catch (e) {
+                alert("Erro upload promo banner");
+                return null;
+            }
+        });
 
         try {
             const bannerUrls = await Promise.all(uploadPromises);
+            // Filtra URLs nulas caso ocorra erro no upload
             const filteredBannerUrls = bannerUrls.filter(url => url !== null);
-            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true });
+            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true }); // Atualizado para usar storeId
             setPromoBannerFile1(null);
             setPromoBannerFile2(null);
             setPromoBannerFile3(null);
             alert("Banners da promoção relâmpago atualizados!");
         } catch (e) {
-            alert(`Erro ao salvar URLs dos banners da promoção: ${e.message}`);
+            alert("Erro ao salvar URLs dos banners da promoção");
         }
         setUploadingPromoBanner(false);
     };
@@ -281,16 +248,12 @@ export default function Admin() {
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
                 <div className="flex flex-col items-center mb-10">
-                    <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "/logo-loja.png"} /> {/* Fallback para logo-loja.png */}
+                    <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
                     <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
                 </div>
                 <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
-                    {[
-                        ...navItems,
-                        { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} /> },
-                        { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} /> },
-                        { id: 'mid_page_banners', name: 'Banners Vitrine', icon: <Image size={18} /> } // NOVO ITEM DE NAVEGAÇÃO
-                    ].map(item => (
+                    {[...navItems, { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} /> }, { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} /> }]
+                        .map(item => (
                             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                                 {item.icon} {item.name}
                             </button>
@@ -358,7 +321,7 @@ export default function Admin() {
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Categorias</h1>
-                            <button onClick={() => { setEditingCatId(null); setCatForm({ name: '', imageUrl: '' }); setCatImageFile(null); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
+                            <button onClick={() => { setEditingCatId(null); setCatForm({ name: '' }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
                         </div>
                         {/* LISTAGEM DE CATEGORIAS */}
                         {categories.length === 0 ? (
@@ -369,11 +332,10 @@ export default function Admin() {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 {categories.map(c => (
-                                    <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex flex-col justify-between items-center shadow-sm text-center"> {/* Ajustado para layout de banner */}
-                                        <img src={c.imageUrl || 'https://via.placeholder.com/100x50?text=Sem+Imagem'} alt={c.name} className="w-full h-24 object-cover rounded-xl mb-4" />
+                                    <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
                                         <span className="font-bold text-lg">{c.name}</span>
-                                        <div className="flex gap-2 mt-4">
-                                            <button onClick={() => { setEditingCatId(c.id); setCatForm(c); setCatImageFile(null); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setEditingCatId(c.id); setCatForm(c); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
                                             <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600"><Trash2 size={16} /></button>
                                         </div>
                                     </div>
@@ -387,7 +349,7 @@ export default function Admin() {
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0, isBestSeller: false, isPromotion: false }); setProductImageFile(null); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', category: '', imageUrl: '', tag: '', stock: 0 }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {products.map(p => (
@@ -397,13 +359,9 @@ export default function Admin() {
                                         <p className="font-bold text-slate-800 leading-tight mb-1">{p.name}</p>
                                         <p className="text-blue-600 font-black">R$ {Number(p.price)?.toFixed(2)}</p>
                                         <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
-                                        <div className="flex gap-2 mt-2">
-                                            {p.isBestSeller && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[8px] font-bold">TOP VENDAS</span>}
-                                            {p.isPromotion && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[8px] font-bold">PROMOÇÃO</span>}
-                                        </div>
                                     </div>
                                     <div className="flex flex-col gap-2">
-                                        <button onClick={() => { setEditingId(p.id); setForm(p); setProductImageFile(null); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm(p); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -554,32 +512,6 @@ export default function Admin() {
                     </div>
                 )}
 
-                {activeTab === 'mid_page_banners' && ( // NOVA ABA: Gerenciamento de Banners de Meio de Página
-                    <div className="space-y-8">
-                        <div className="flex justify-between items-center">
-                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Banners Vitrine</h1>
-                            <button onClick={() => { setEditingMidPageBannerId(null); setMidPageBannerForm({ imageUrl: '', linkTo: '', order: midPageBanners.length + 1 }); setMidPageBannerFile(null); setIsMidPageBannerModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO BANNER</button>
-                        </div>
-                        {midPageBanners.length === 0 ? (
-                            <p className="text-center py-10 text-slate-400 font-bold">Nenhum banner de vitrine adicionado.</p>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {midPageBanners.map(b => (
-                                    <div key={b.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex flex-col items-center gap-4 shadow-sm">
-                                        <img src={b.imageUrl || 'https://via.placeholder.com/200x100?text=Sem+Imagem'} className="w-full h-32 object-cover rounded-xl" />
-                                        <p className="font-bold text-slate-800 text-sm">Ordem: {b.order}</p>
-                                        {b.linkTo && <a href={b.linkTo} target="_blank" className="text-blue-600 text-xs flex items-center gap-1">Link <ExternalLink size={12} /></a>}
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setEditingMidPageBannerId(b.id); setMidPageBannerForm(b); setMidPageBannerFile(null); setIsMidPageBannerModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
-                                            <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "mid_page_banners", b.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 {activeTab === 'store_settings' && (
                     <div className="space-y-8">
                         <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
@@ -650,19 +582,14 @@ export default function Admin() {
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
-                {[
-                    ...navItems,
-                    { id: 'manual', name: 'Lançar', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
-                    { id: 'marketing', name: 'Mkt', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
-                    { id: 'mid_page_banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> }
-                ].map(item => (
+                {navItems.map(item => (
                     <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center p-2 rounded-lg ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
                         {item.mobileIcon} <span className="text-[10px] font-bold">{item.name}</span>
                     </button>
                 ))}
             </nav>
 
-            {/* MODAL CATEGORIA */}
+            {/* MODAL CATEGORIA (Com alert de erro se falhar) */}
             <AnimatePresence>
                 {isCatModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -672,32 +599,17 @@ export default function Admin() {
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    const dataToSave = { ...catForm, storeId: storeId };
+                                    const dataToSave = { ...catForm, storeId: storeId }; // ADICIONADO: Associar categoria ao storeId
                                     if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave);
                                     else await addDoc(collection(db, "categories"), dataToSave);
                                     setIsCatModalOpen(false);
-                                    alert("Categoria salva com sucesso!");
+                                    alert("Categoria salva com sucesso!"); // FEEDBACK VISUAL
                                 } catch (error) {
                                     alert("Erro ao salvar: Verifique as Permissões (Regras) do Firebase!");
                                     console.error(error);
                                 }
                             }}>
                                 <input type="text" placeholder="Nome da Categoria" className="w-full p-4 bg-slate-50 rounded-xl font-bold mb-4" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
-                                {/* CAMPO DE UPLOAD PARA IMAGEM DA CATEGORIA */}
-                                <div className="space-y-3 mb-4">
-                                    {(catImageFile || catForm.imageUrl) && (
-                                        <img src={catImageFile ? URL.createObjectURL(catImageFile) : catForm.imageUrl} className="w-full h-32 object-cover rounded-xl bg-slate-50 p-2"/>
-                                    )}
-                                    <input type="file" accept="image/*" onChange={(e) => setCatImageFile(e.target.files[0])} className="hidden" id="category-image-upload" />
-                                    <label htmlFor="category-image-upload" className="w-full p-4 bg-slate-50 rounded-xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
-                                        {catImageFile ? catImageFile.name : (catForm.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem do Banner')} <UploadCloud size={20} />
-                                    </label>
-                                    {catImageFile && (
-                                        <button type="button" onClick={handleCategoryImageUpload} disabled={uploadingCatImage} className={`w-full p-3 rounded-xl font-black text-white ${uploadingCatImage ? 'bg-blue-400' : 'bg-blue-600'}`}>
-                                            {uploadingCatImage ? 'Enviando Imagem...' : 'Confirmar Upload Imagem'}
-                                        </button>
-                                    )}
-                                </div>
                                 <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Salvar</button>
                             </form>
                         </motion.div>
@@ -718,11 +630,11 @@ export default function Admin() {
                                     ...form, 
                                     price: parseFloat(form.price), 
                                     stock: parseInt(form.stock || 0),
-                                    storeId: storeId
+                                    storeId: storeId // ADICIONADO: Associar produto ao storeId
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); }
                                 else { await addDoc(collection(db, "products"), data); }
-                                setIsModalOpen(false); setProductImageFile(null);
+                                setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
                                 <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
                                 <div className="grid grid-cols-2 gap-4">
@@ -734,31 +646,18 @@ export default function Admin() {
                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                                 <div className="space-y-3">
-                                    {(productImageFile || form.imageUrl) && (
-                                        <img src={productImageFile ? URL.createObjectURL(productImageFile) : form.imageUrl} className="w-full h-32 object-cover rounded-xl bg-slate-50 p-2"/>
-                                    )}
-                                    <input type="file" accept="image/*" onChange={(e) => setProductImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
+                                    <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
                                     <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
-                                        {productImageFile ? productImageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem do Produto')} <UploadCloud size={20} />
+                                        {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
                                     </label>
                                     {/* Botão de Upload com estado visual de carregando */}
-                                    {productImageFile && (
-                                        <button type="button" onClick={handleProductImageUpload} disabled={uploadingProductImage} className={`w-full p-4 rounded-3xl font-black text-white ${uploadingProductImage ? 'bg-blue-400' : 'bg-blue-600'}`}>
-                                            {uploadingProductImage ? 'Enviando Imagem...' : 'Confirmar Upload da Imagem'}
+                                    {imageFile && (
+                                        <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>
+                                            {uploading ? 'Enviando Imagem...' : 'Confirmar Upload da Imagem'}
                                         </button>
                                     )}
-                                    {uploadProductError && <p className="text-red-500 text-sm font-bold text-center">{uploadProductError}</p>}
+                                    {uploadError && <p className="text-red-500 text-sm font-bold text-center">{uploadError}</p>}
                                 </div>
-                                {/* NOVOS CAMPOS: isBestSeller, isPromotion */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                                    <span className="font-bold text-slate-700">Item Mais Vendido:</span>
-                                    <input type="checkbox" checked={form.isBestSeller} onChange={e => setForm({...form, isBestSeller: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
-                                </div>
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                                    <span className="font-bold text-slate-700">Item em Promoção:</span>
-                                    <input type="checkbox" checked={form.isPromotion} onChange={e => setForm({...form, isPromotion: e.target.checked})} className="toggle toggle-sm toggle-primary"/>
-                                </div>
-
                                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
                             </form>
                         </motion.div>
@@ -780,7 +679,7 @@ export default function Admin() {
                                 const data = { 
                                     neighborhood: rateForm.neighborhood, 
                                     fee: feeValue,
-                                    storeId: storeId
+                                    storeId: storeId // ADICIONADO: Associar taxa de frete ao storeId
                                 };
                                 try {
                                     if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data);
@@ -797,7 +696,7 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
-            {/* MODAL CUPOM DE DESCONTO */}
+            {/* MODAL CUPOM DE DESCONTO - NOVO MODAL AQUI */}
             <AnimatePresence>
                 {isCouponModalOpen && (
                     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -816,7 +715,7 @@ export default function Admin() {
                                     code: couponForm.code.toUpperCase(), // Códigos em maiúsculas
                                     currentUsage: couponForm.currentUsage || 0,
                                     createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
-                                    storeId: storeId
+                                    storeId: storeId // ADICIONADO: Associar cupom ao storeId
                                 };
                                 try {
                                     if (editingCouponId) {
@@ -862,57 +761,6 @@ export default function Admin() {
                                 </div>
 
                                 <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar Cupom</button>
-                            </form>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* NOVO MODAL: Gerenciamento de Banners de Meio de Página */}
-            <AnimatePresence>
-                {isMidPageBannerModalOpen && (
-                    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
-                            <button onClick={() => setIsMidPageBannerModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
-                            <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingMidPageBannerId ? 'Editar' : 'Novo'} Banner</h2>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                const dataToSave = {
-                                    ...midPageBannerForm,
-                                    order: parseInt(midPageBannerForm.order || 0),
-                                    storeId: storeId
-                                };
-                                try {
-                                    if (editingMidPageBannerId) {
-                                        await updateDoc(doc(db, "mid_page_banners", editingMidPageBannerId), dataToSave);
-                                    } else {
-                                        await addDoc(collection(db, "mid_page_banners"), dataToSave);
-                                    }
-                                    setIsMidPageBannerModalOpen(false);
-                                    alert("Banner salvo com sucesso!");
-                                } catch (error) {
-                                    alert("Erro ao salvar banner: " + error.message);
-                                    console.error(error);
-                                }
-                            }} className="space-y-4">
-                                {/* IMAGEM DO BANNER */}
-                                <div className="space-y-3 mb-4">
-                                    {(midPageBannerFile || midPageBannerForm.imageUrl) && (
-                                        <img src={midPageBannerFile ? URL.createObjectURL(midPageBannerFile) : midPageBannerForm.imageUrl} className="w-full h-32 object-cover rounded-xl bg-slate-50 p-2"/>
-                                    )}
-                                    <input type="file" accept="image/*" onChange={(e) => setMidPageBannerFile(e.target.files[0])} className="hidden" id="mid-page-banner-image-upload" />
-                                    <label htmlFor="mid-page-banner-image-upload" className="w-full p-4 bg-slate-50 rounded-xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
-                                        {midPageBannerFile ? midPageBannerFile.name : (midPageBannerForm.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem do Banner')} <UploadCloud size={20} />
-                                    </label>
-                                    {midPageBannerFile && (
-                                        <button type="button" onClick={handleMidPageBannerImageUpload} disabled={uploadingMidPageBannerImage} className={`w-full p-3 rounded-xl font-black text-white ${uploadingMidPageBannerImage ? 'bg-blue-400' : 'bg-blue-600'}`}>
-                                            {uploadingMidPageBannerImage ? 'Enviando Imagem...' : 'Confirmar Upload Imagem'}
-                                        </button>
-                                    )}
-                                </div>
-                                <input type="text" placeholder="Link (opcional, ex: /products?tag=bebidas)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={midPageBannerForm.linkTo} onChange={e => setMidPageBannerForm({...midPageBannerForm, linkTo: e.target.value})} />
-                                <input type="number" placeholder="Ordem de exibição" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={midPageBannerForm.order} onChange={e => setMidPageBannerForm({...midPageBannerForm, order: e.target.value})} />
-                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar Banner</button>
                             </form>
                         </motion.div>
                     </motion.div>
