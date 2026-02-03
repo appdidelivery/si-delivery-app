@@ -1,4 +1,3 @@
-jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -106,8 +105,6 @@ export default function Home() {
 
   const repeatOrder = (order) => {
     order.items.forEach(item => {
-      // Usar addToCart com o preço unitário do item no pedido original, ou buscar o produto atualizado
-      // Para simplicidade, vamos usar o preço que estava no pedido repetido
       addToCart({...item, id: item.id}, item.quantity); 
     });
     setShowLastOrders(false);
@@ -207,20 +204,25 @@ export default function Home() {
         unsubCategories();
         unsubCoupons();
         unsubShippingRates();
-        unsubGeneralBanners(); // NOVO: Cleanup
+        unsubGeneralBanners();
         unsubStoreSettings();
     };
-   // LÓGICA FINAL DE ÍCONE DINÂMICO PARA PWA
+  }, [storeId]); // IMPORTANTE: Recarrega os dados se o storeId mudar
+
+   // LÓGICA FINAL DE ÍCONE DINÂMICO PARA PWA (AGORA UM useEffect SEPARADO)
   useEffect(() => {
+    // Só executa se houver uma URL de logo válida
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
       const storeName = storeSettings.message || "Velo Delivery";
 
+      // 1. Atualiza Favicon e Apple Icon (iOS)
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
 
+      // 2. CONSTRUÇÃO DO MANIFESTO DINÂMICO (Para Android não ficar vazio)
       const manifestTag = document.getElementById('manifest-tag');
       if (manifestTag) {
         const dynamicManifest = {
@@ -251,9 +253,8 @@ export default function Home() {
         manifestTag.setAttribute('href', manifestURL);
       }
     }
-  }, [storeSettings.storeLogoUrl, storeSettings.message]);
-  }, [storeId]);
-
+  }, [storeSettings.storeLogoUrl, storeSettings.message]); // Dependências corretas para este useEffect
+  
   // Lógica de CEP (ViaCEP)
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
@@ -468,7 +469,7 @@ export default function Home() {
   // FILTRA PRODUTOS PARA SUGESTÕES DE UPSELL
   const upsellProducts = products
     .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) // Não estão no carrinho e em estoque
-    .filter(p => p.isBestSeller || p.isFeatured) // Prioriza Mais Vendidos ou Destaques
+    .filter(p => p.isBestSeller || p.isFeatured) // Prioriza Mais Vendidos ou Destaques (se houver, senão pega alguns aleatórios)
     .slice(0, 5); // Limita a 5 sugestões
 
   return (
