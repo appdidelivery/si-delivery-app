@@ -295,7 +295,32 @@ export default function Admin() {
         if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
         acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
     }, {})).sort((a, b) => b.total - a.total);
+const updateStatusAndNotify = async (order, newStatus) => {
+        // 1. Atualiza no Firebase
+        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
 
+        // 2. Prepara a mensagem
+        const lojaNome = NOMES_LOJAS[storeId] || "Velo Delivery";
+        const messages = {
+            preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*. \nEm breve avisaremos quando sair para entrega! 🍔🥤`,
+            
+            delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}. \nPor favor, aguarde para receber. 💨`,
+            
+            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega do seu pedido. Muito obrigado pela preferência na *${lojaNome}*! \nEsperamos você na próxima! ⭐`,
+            
+            canceled: `❌ *ATUALIZAÇÃO DE STATUS* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado. \nCaso tenha dúvidas ou queira refazer, entre em contato conosco.`
+        };
+
+        // 3. Abre o WhatsApp se houver mensagem configurada
+        if (messages[newStatus]) {
+            const phone = order.customerPhone.replace(/\D/g, '');
+            if(phone) {
+                const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
+                const text = encodeURIComponent(messages[newStatus]);
+                window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
+            }
+        }
+    };
     // --- LÓGICA PARA DESCONTOS POR QUANTIDADE ---
     const handleAddQuantityDiscount = () => {
         setForm(prev => ({ 
