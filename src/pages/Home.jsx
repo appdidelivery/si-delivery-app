@@ -56,6 +56,59 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 export default function Home() {
   const navigate = useNavigate();
+  const [runTour, setRunTour] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
+
+  // Definição dos passos conforme seu pedido
+  const tourSteps = [
+    {
+      target: '.tour-vitrine', // Vamos adicionar essa classe no HTML
+      content: 'Bem-vindo à Conv St Isabel! Explore nossas bebidas geladas.',
+      disableBeacon: true,
+    },
+    {
+      target: '.tour-btn-add', // Botão de adicionar
+      content: 'Clique no + para adicionar o item ao seu pedido.',
+    },
+    {
+      target: '.tour-sacola', // Botão da sacola
+      content: 'Clique na sacola para ver o frete e cupons de desconto.',
+      spotlightClicks: true, // Permite clicar na sacola para abrir o modal
+    },
+    {
+      target: '.tour-dados', // Formulário de dados
+      content: 'Digite seus dados: nome, CEP, número da casa e telefone WhatsApp.',
+    },
+    {
+      target: '.tour-pagamento', // Seção de pagamento
+      content: 'Defina a forma de pagamento (PIX, dinheiro ou cartão). Se dinheiro, escolha se precisa de troco e clique em finalizar pedido.',
+    },
+    {
+      target: '.tour-acompanhar', // Botão acompanhar
+      content: 'Clique em acompanhar pedido para ver o status do seu pedido.',
+    }
+  ];
+
+  // Efeito para iniciar o tour apenas na primeira vez
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem('hasSeenTour');
+    if (!hasSeenTour) {
+      setRunTour(true);
+    }
+  }, []);
+
+  // Callback para controlar o fluxo do tour
+  const handleJoyrideCallback = (data) => {
+    const { action, index, status, type } = data;
+
+    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
+      setRunTour(false);
+      localStorage.setItem('hasSeenTour', 'true');
+    } else if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
+      // Avança o índice para o próximo passo
+      setTourStepIndex(index + (action === ACTIONS.PREV ? -1 : 1));
+    }
+  };
   const storeId = getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
 
