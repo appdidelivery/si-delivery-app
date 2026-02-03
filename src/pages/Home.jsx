@@ -5,6 +5,12 @@ import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, w
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
+import { ShoppingCart, Search, Flame, /* ... outros ícones */ } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import SEO from '../components/SEO';
+
+// IMPORTAÇÃO NOVA
+import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride';
 
 // Importa o componente Carousel e seus estilos
 import { Carousel } from 'react-responsive-carousel';
