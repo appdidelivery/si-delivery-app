@@ -38,7 +38,7 @@ export default function Admin() {
     const [generalBanners, setGeneralBanners] = useState([]); // NOVO: Estado para banners gerais
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     const [reportPeriod, setReportPeriod] = useState('today'); // 'today' ou 'all'
-    
+
     // Modais Produto
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [form, setForm] = useState({ 
@@ -384,7 +384,18 @@ const updateStatusAndNotify = async (order, newStatus) => {
 
                 {activeTab === 'dashboard' && (
                     <div className="space-y-8">
-                        <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
+                        {/* CABEÇALHO COM BOTÃO DE RELATÓRIO FINANCEIRO */}
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
+                            <button 
+                                onClick={() => setIsReportModalOpen(true)} 
+                                className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95"
+                            >
+                                <Printer size={20}/> Fechar Caixa / Relatório
+                            </button>
+                        </div>
+
+                        {/* ALERTA DE ESTOQUE (Mantido) */}
                         {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
                             <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
                                 <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
@@ -393,18 +404,88 @@ const updateStatusAndNotify = async (order, newStatus) => {
                                 </div>
                             </div>
                         )}
+
+                        {/* CARDS DE RESUMO FINANCEIRO (Atualizados) */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Vendas Hoje</p>
-                                <p className="text-4xl font-black text-green-500 italic">R$ {orders.filter(o => o.status === 'completed' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento Hoje</p>
+                                <p className="text-4xl font-black text-green-500 italic z-10 relative">
+                                    R$ {orders
+                                        .filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString())
+                                        .reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}
+                                </p>
+                                <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
                             </div>
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
                                 <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
-                                <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
+                                <p className="text-4xl font-black text-blue-600 italic">
+                                    {orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}
+                                </p>
                             </div>
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Novos Clientes</p>
-                                <p className="text-4xl font-black text-purple-500 italic">{customers.filter(c => c.count === 1).length}</p>
+                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Ticket Médio</p>
+                                <p className="text-4xl font-black text-purple-500 italic">
+                                    R$ {(orders.filter(o => o.status !== 'canceled').reduce((a, b) => a + (Number(b.total) || 0), 0) / (orders.filter(o => o.status !== 'canceled').length || 1)).toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* RANKING DE VENDAS E BAIRROS */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Top 5 Produtos */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2"><Crown size={20} className="text-amber-400"/> Campeões de Venda</h3>
+                                <div className="space-y-4">
+                                    {Object.values(orders.reduce((acc, order) => {
+                                        if (order.status === 'canceled') return acc;
+                                        (order.items || []).forEach(item => {
+                                            if (!acc[item.name]) acc[item.name] = { name: item.name, quantity: 0, revenue: 0 };
+                                            acc[item.name].quantity += item.quantity;
+                                            acc[item.name].revenue += item.quantity * item.price;
+                                        });
+                                        return acc;
+                                    }, {}))
+                                    .sort((a, b) => b.quantity - a.quantity)
+                                    .slice(0, 5)
+                                    .map((prod, idx) => (
+                                        <div key={idx} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0">
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-black text-slate-300 text-lg w-6">#{idx + 1}</span>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm">{prod.name}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400">{prod.quantity} un. vendidas</p>
+                                                </div>
+                                            </div>
+                                            <p className="font-black text-blue-600 text-sm">R$ {prod.revenue.toFixed(2)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Inteligência de Bairros */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2"><ExternalLink size={20} className="text-blue-400"/> Onde você mais vende</h3>
+                                <div className="space-y-4">
+                                    {Object.values(orders.reduce((acc, order) => {
+                                        const bairro = order.neighborhood || 'Retirada/Outros';
+                                        if (!acc[bairro]) acc[bairro] = { name: bairro, count: 0 };
+                                        acc[bairro].count += 1;
+                                        return acc;
+                                    }, {}))
+                                    .sort((a, b) => b.count - a.count)
+                                    .slice(0, 5)
+                                    .map((local, idx) => (
+                                        <div key={idx} className="flex items-center justify-between">
+                                            <p className="font-bold text-slate-700 text-sm">{local.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 md:w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(local.count / orders.length) * 100}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-black text-slate-400">{local.count}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
