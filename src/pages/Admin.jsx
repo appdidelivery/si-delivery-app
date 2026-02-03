@@ -987,7 +987,83 @@ const updateStatusAndNotify = async (order, newStatus) => {
                                         </div>
                                     ))}
                                 </div>
+{/* MODAL DE RELATÓRIO FINANCEIRO (FECHAMENTO DE CAIXA) */}
+            <AnimatePresence>
+                {isReportModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-10 relative shadow-2xl">
+                            <button onClick={() => setIsReportModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><X /></button>
+                            <h2 className="text-3xl font-black italic uppercase mb-2 text-slate-900">Fechamento de Caixa</h2>
+                            <p className="text-slate-400 font-bold text-xs uppercase mb-8 tracking-widest">Resumo financeiro detalhado</p>
 
+                            {(() => {
+                                const today = new Date().toDateString();
+                                const filteredOrders = orders.filter(o => 
+                                    o.status !== 'canceled' && 
+                                    (reportPeriod === 'today' ? new Date(o.createdAt?.toDate()).toDateString() === today : true)
+                                );
+
+                                // Cálculos Financeiros
+                                const stats = {
+                                    pix: filteredOrders.filter(o => o.payment === 'pix').reduce((a, b) => a + (Number(b.total) || 0), 0),
+                                    card: filteredOrders.filter(o => o.payment === 'cartao').reduce((a, b) => a + (Number(b.total) || 0), 0),
+                                    cash: filteredOrders.filter(o => o.payment === 'dinheiro').reduce((a, b) => a + (Number(b.total) || 0), 0),
+                                    deliveryFees: filteredOrders.reduce((a, b) => a + (Number(b.shippingFee) || 0), 0),
+                                    total: filteredOrders.reduce((a, b) => a + (Number(b.total) || 0), 0)
+                                };
+
+                                return (
+                                    <div className="space-y-6">
+                                        {/* Filtro Hoje / Geral */}
+                                        <div className="flex gap-2 mb-4 p-1 bg-slate-100 rounded-xl">
+                                            <button onClick={() => setReportPeriod('today')} className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all ${reportPeriod === 'today' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Hoje</button>
+                                            <button onClick={() => setReportPeriod('all')} className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all ${reportPeriod === 'all' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Total Geral</button>
+                                        </div>
+
+                                        {/* Grid de Valores */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-5 bg-green-50 rounded-[2rem] border border-green-100">
+                                                <p className="text-[9px] font-black uppercase text-green-600 mb-1 tracking-wider">PIX (Banco)</p>
+                                                <p className="text-xl font-black text-slate-800">R$ {stats.pix.toFixed(2)}</p>
+                                            </div>
+                                            <div className="p-5 bg-blue-50 rounded-[2rem] border border-blue-100">
+                                                <p className="text-[9px] font-black uppercase text-blue-600 mb-1 tracking-wider">Cartão (Maq.)</p>
+                                                <p className="text-xl font-black text-slate-800">R$ {stats.card.toFixed(2)}</p>
+                                            </div>
+                                            <div className="p-5 bg-amber-50 rounded-[2rem] border border-amber-100 col-span-2 flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase text-amber-600 mb-1 tracking-wider">Dinheiro (Gaveta)</p>
+                                                    <p className="text-3xl font-black text-slate-800">R$ {stats.cash.toFixed(2)}</p>
+                                                </div>
+                                                <div className="text-right opacity-50">
+                                                    <p className="text-[9px] font-bold uppercase">Conferir trocos</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Total Motoboy e Bruto */}
+                                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-[10px] font-black uppercase text-slate-400">Total Taxas (Motoboy)</p>
+                                                <p className="text-sm font-bold text-slate-600">R$ {stats.deliveryFees.toFixed(2)}</p>
+                                            </div>
+                                            <div className="h-px bg-slate-200 w-full my-2"></div>
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-[10px] font-black uppercase text-slate-400">Faturamento Bruto</p>
+                                                <p className="text-2xl font-black text-slate-900">R$ {stats.total.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+
+                                        <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl">
+                                            <Printer size={18}/> Imprimir Relatório
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
                                 {/* Upload de Imagem do Produto */}
                                 <div className="space-y-3 pt-6 border-t border-slate-100">
                                     <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
