@@ -253,9 +253,37 @@ export default function Admin() {
 
     const printLabel = (o) => {
         const w = window.open('', '_blank');
-        const itemsHtml = (o.items || []).map(i => `<li>${i.quantity}x ${i.name}</li>`).join('');
-        const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.payment] || 'PIX';
-        w.document.write(`<html><body style="font-family:sans-serif;width:300px;padding:10px;"><center><h2>CONVENIÊNCIA SI</h2></center><hr><strong>PEDIDO:</strong> #${o.id.slice(0, 6)}<br><strong>CLIENTE:</strong> ${o.customerName}<br><strong>ENDEREÇO:</strong> ${o.customerAddress}<br><strong>PAGTO:</strong> ${pagto}<br>${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}<hr><ul>${itemsHtml}</ul><hr><div style="text-align:right;font-size:18px;"><strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong></div><script>window.print();window.close();</script></body></html>`);
+        const itemsHtml = (o.items || []).map(i => `<li>• ${i.quantity}x ${i.name}</li>`).join('');
+        const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
+        
+        // Template para gerar as duas vias
+        const gerarVia = (titulo, temCorte) => `
+            <div style="width: 280px; padding: 10px; font-family: sans-serif; border-bottom: ${temCorte ? '2px dashed #000' : 'none'}; padding-bottom: ${temCorte ? '40px' : '10px'}; margin-bottom: ${temCorte ? '40px' : '0'};">
+                <center><small>-- ${titulo} --</small><h2>CONVENIÊNCIA SI</h2></center>
+                <hr>
+                <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
+                <strong>CLIENTE:</strong> ${o.customerName}<br>
+                <strong>ENDEREÇO:</strong> ${o.address || o.customerAddress}, ${o.number || ''}<br>
+                <strong>BAIRRO:</strong> ${o.neighborhood || ''}<br>
+                <strong>PAGTO:</strong> ${pagto}<br>
+                ${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}
+                <hr>
+                <ul style="list-style:none; padding:0;">${itemsHtml}</ul>
+                <hr>
+                <div style="text-align:right; font-size:18px;"><strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong></div>
+                ${temCorte ? '<center><br>✂--- CORTE AQUI ---✂</center>' : ''}
+            </div>
+        `;
+
+        w.document.write(`
+            <html>
+                <body style="margin:0; padding:0;">
+                    ${gerarVia('VIA DA LOJA', true)}
+                    ${gerarVia('VIA DO ENTREGADOR', false)}
+                    <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+                </body>
+            </html>
+        `);
         w.document.close();
     };
 
