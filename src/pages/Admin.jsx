@@ -424,9 +424,23 @@ const updateStatusAndNotify = async (order, newStatus) => {
                                     <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
                                     <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
                                     <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                    <select value={o.status} onChange={(e) => updateDoc(doc(db, "orders", o.id), { status: e.target.value })} className="bg-slate-900 text-white p-4 rounded-2xl font-black text-[10px]">
-                                        <option value="pending">Pendente</option><option value="preparing">Preparando</option><option value="delivery">Em Rota</option><option value="completed">Entregue</option>
-                                    </select>
+                                    <select 
+    value={o.status} 
+    onChange={(e) => updateStatusAndNotify(o, e.target.value)} 
+    className={`p-4 rounded-2xl font-black text-[10px] uppercase border-none outline-none cursor-pointer transition-all
+        ${o.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : ''}
+        ${o.status === 'preparing' ? 'bg-blue-100 text-blue-700' : ''}
+        ${o.status === 'delivery' ? 'bg-purple-100 text-purple-700' : ''}
+        ${o.status === 'completed' ? 'bg-green-100 text-green-700' : ''}
+        ${o.status === 'canceled' ? 'bg-red-100 text-red-700' : ''}
+    `}
+>
+    <option value="pending">⏳ Pendente</option>
+    <option value="preparing">👨‍🍳 Preparando</option>
+    <option value="delivery">🏍️ Em Rota</option>
+    <option value="completed">✅ Entregue</option>
+    <option value="canceled">❌ Cancelado</option>
+</select>
                                 </div>
                             </div>
                         ))}
