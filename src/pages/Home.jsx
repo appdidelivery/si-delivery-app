@@ -5,6 +5,7 @@ import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, w
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
+import { useStore } from '../context/StoreContext';
 
 // IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR
 import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride';
@@ -23,6 +24,7 @@ const getCategoryIcon = (name) => {
     if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
     if (n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('não-alcóolicos')) return <Refrigerator size={18}/>;
     if (n.includes('salgadinho')) return <Package size={18}/>; 
+    const { store } = useStore();
     return <List size={18}/>;
 };
 

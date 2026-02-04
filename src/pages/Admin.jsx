@@ -12,8 +12,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../utils/domainHelper'; // Importa o helper do domínio
+import { useStore } from '../context/StoreContext';
 
 // --- MAPEAMENTO DE NOMES DAS LOJAS ---
+const { store } = useStore();
 const NOMES_LOJAS = {
     csi: "Conv St Isabel",
     mamedes: "Mamedes Papéis",
@@ -367,7 +369,7 @@ const updateStatusAndNotify = async (order, newStatus) => {
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
                 <div className="flex flex-col items-center mb-10">
                     <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-                    <p className="text-[10px] font-bold text-blue-600">Conveniência Santa Isabel</p>
+                    <p className="text-[10px] font-bold text-blue-600">{store?.name || 'Carregando...'}</p>
                 </div>
                 <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
                     {[...navItems, { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} /> }, { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} /> }]
