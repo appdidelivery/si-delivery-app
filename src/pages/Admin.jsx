@@ -1,19 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../services/firebase';
-import {
-    collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
-} from 'firebase/firestore';
-import {
-    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags
+
+// 1. Ícones (Com a correção do conflito de imagem e todos os ícones necessários)
+import { 
+  LayoutDashboard, Clock, ShoppingBag, Package, Users, Trash2, Edit3, 
+  Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, 
+  List, LogOut, ExternalLink, UploadCloud, Image as ImageIcon 
 } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { getStoreIdFromHostname } from '../utils/domainHelper'; // Importa o helper do domínio
+import { getStoreIdFromHostname } from '../utils/domainHelper';
 import { useStore } from '../context/StoreContext';
 
+// 2. Banco de Dados e Autenticação (IMPORTADO UMA VEZ SÓ)
+import { db, auth } from '../services/firebase'; 
+
+// 3. Ferramentas do Firestore
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc,
+  setDoc,
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot,
+  orderBy,
+  serverTimestamp 
+} from 'firebase/firestore';
 // --- MAPEAMENTO DE NOMES DAS LOJAS ---
 const NOMES_LOJAS = {
     csi: "Conv St Isabel",
@@ -103,13 +121,109 @@ export default function Admin() {
         firstPurchaseOnly: false, active: true
     });
     const [editingCouponId, setEditingCouponId] = useState(null);
+// --- FUNÇÃO PARA GERAR DADOS DE EXEMPLO (LINKS CORRIGIDOS) ---
+  const handleLoadDemoData = async () => {
+    const targetStoreId = storeId; 
+    console.log("🚀 Iniciando criação de dados para:", targetStoreId);
 
+    if (!targetStoreId) return alert("Erro Crítico: ID da loja não detectado.");
+    
+    const confirm = window.confirm(`Criar Produtos e Banners com novas imagens para: ${targetStoreId}?`);
+    if (!confirm) return;
+
+    try {
+      // --- A. CATEGORIAS ---
+      const categoriesRef = collection(db, "categories");
+      // Verifica se já existem antes de criar para não duplicar (Opcional, mas bom)
+      const demoCategories = ["Cervejas", "Destilados", "Sem Álcool", "Petiscos", "Combos"];
+      for (const catName of demoCategories) {
+        await addDoc(categoriesRef, { name: catName, storeId: targetStoreId });
+      }
+
+      // --- B. BANNERS (Novas Imagens) ---
+      const bannersRef = collection(db, "banners");
+      
+      // Banner 1: Bebidas / Festa
+      await addDoc(bannersRef, { 
+        storeId: targetStoreId, 
+        imageUrl: "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1000&q=80", 
+        linkTo: "/produtos",
+        isActive: true, 
+        order: 1 
+      });
+      
+      // Banner 2: Entrega Rápida
+      await addDoc(bannersRef, { 
+        storeId: targetStoreId, 
+        imageUrl: "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1000&q=80", 
+        linkTo: "/promocoes",
+        isActive: true, 
+        order: 2 
+      });
+
+      // --- C. PRODUTOS (Imagens Corrigidas) ---
+      const productsRef = collection(db, "products");
+      const demoProducts = [
+        { 
+          name: "Cerveja Heineken 330ml", 
+          price: 6.99, 
+          category: "Cervejas", 
+          description: "Long Neck gelada", 
+          // Link Novo: Garrafas de cerveja
+          imageUrl: "https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=500&q=60" 
+        },
+        { 
+          name: "Coca-Cola 2L", 
+          price: 12.90, 
+          category: "Sem Álcool", 
+          description: "Sabor original", 
+          // Link que já funcionou (Mantido)
+          imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=500&q=60" 
+        },
+        { 
+          name: "Gelo em Cubos 5kg", 
+          price: 15.00, 
+          category: "Petiscos", 
+          description: "Pacote de gelo filtrado", 
+          // Link Novo: Copo com gelo
+          imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=60" 
+        },
+        { 
+          name: "Combo Gin Tônica", 
+          price: 149.90, 
+          category: "Combos", 
+          description: "Gin Importado + 4 Tônicas", 
+          // Link Novo: Drinks preparados
+          imageUrl: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=60" 
+        }
+      ];
+
+      for (const prod of demoProducts) {
+        await addDoc(productsRef, { 
+          ...prod, 
+          storeId: targetStoreId, 
+          active: true, 
+          stock: 50, 
+          rating: 5, 
+          sales: 0,
+          quantityDiscounts: []
+        });
+      }
+
+      alert("🎉 Imagens atualizadas! A página vai recarregar.");
+      window.location.reload();
+
+    } catch (error) {
+      console.error("ERRO:", error);
+      alert("Erro ao criar. Veja o console.");
+    }
+  };
     const navItems = [
         { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
         { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
         { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
         { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
-        { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> }, // NOVO ITEM DE NAVEGAÇÃO
+        { id: 'banners', name: 'Banners', icon: <ImageIcon size={18} />, mobileIcon: <ImageIcon size={22} /> }, 
         { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
         { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
     ];
@@ -397,7 +511,23 @@ const updateStatusAndNotify = async (order, newStatus) => {
                                 <Printer size={20}/> Fechar Caixa / Relatório
                             </button>
                         </div>
-
+{/* --- CARD DE SETUP INICIAL (SÓ APARECE SE A LOJA ESTIVER VAZIA) --- */}
+          {products.length === 0 && (
+            <div className="mb-8 mt-6 p-6 bg-blue-600 rounded-xl shadow-lg text-white flex flex-col md:flex-row items-center justify-between gap-4 animate-bounce-slow">
+              <div>
+                <h3 className="text-xl font-bold mb-1">Vamos começar? 🚀</h3>
+                <p className="text-blue-100 text-sm">
+                  Sua loja está vazia. Clique aqui para carregar produtos de exemplo num piscar de olhos!
+                </p>
+              </div>
+              <button 
+                onClick={handleLoadDemoData}
+                className="px-6 py-3 bg-white text-blue-700 font-bold rounded-lg hover:bg-blue-50 transition-colors shadow-lg whitespace-nowrap"
+              >
+                📦 Gerar Loja Automática
+              </button>
+            </div>
+          )}
                         {/* ALERTA DE ESTOQUE (Mantido) */}
                         {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
                             <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">

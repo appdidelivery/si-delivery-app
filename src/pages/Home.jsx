@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import { useStore } from '../context/StoreContext';
@@ -24,7 +24,6 @@ const getCategoryIcon = (name) => {
     if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
     if (n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('não-alcóolicos')) return <Refrigerator size={18}/>;
     if (n.includes('salgadinho')) return <Package size={18}/>; 
-    const { store } = useStore();
     return <List size={18}/>;
 };
 
@@ -53,6 +52,7 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 
 export default function Home() {
+  const { store } = useStore();
   const navigate = useNavigate();
   const storeId = getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
@@ -541,7 +541,7 @@ export default function Home() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
           <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-          <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p></div>
+          <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{store?.name || 'Minha Loja'}</p></div>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
@@ -552,7 +552,7 @@ export default function Home() {
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
         <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
-          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> Santa Isabel - Loja principal</div>
+          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> {store?.name || 'Minha Loja'}</div>
           <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.</p>
         </div>
       </div>
@@ -623,27 +623,19 @@ export default function Home() {
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                   </div>
                                   <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                                  <div className="flex justify-between items-center mt-auto">
-                                      <div>
-                                          {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                                              <>
-                                                  <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                  <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
-                                              </>
-                                          ) : (
-                                              <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                                          )}
-                                      </div>
-                                      <button 
-    onClick={() => addToCart(p)} 
-    disabled={!isStoreOpenNow || !hasStock}
-    className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95
-        ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
->
-    <span className="font-black text-[10px] uppercase tracking-widest">Adicionar</span>
-    <ShoppingCart size={16} />
-</button>
-                                  </div>
+                                  <div className="mt-4 flex flex-col gap-3">
+  <p className="text-xl font-black text-slate-800 tracking-tight">
+    R$ {Number(p.price).toFixed(2).replace('.', ',')}
+  </p>
+
+  <button 
+    onClick={() => addToCart(p)}
+    className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none"
+  >
+    <span>ADICIONAR</span>
+    <ShoppingBag size={16} className="group-hover:scale-110 transition-transform"/> 
+  </button>
+</div>
                               </motion.div>
                           );
                       })}
@@ -670,21 +662,19 @@ export default function Home() {
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                   </div>
                                   <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                                  <div className="flex justify-between items-center mt-auto">
-                                      <div>
-                                          {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                                              <>
-                                                  <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                  <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
-                                              </>
-                                          ) : (
-                                              <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                                          )}
-                                      </div>
-                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} />
-                                      </button>
-                                  </div>
+                                  <div className="mt-4 flex flex-col gap-3">
+  <p className="text-xl font-black text-slate-800 tracking-tight">
+    R$ {Number(p.price).toFixed(2).replace('.', ',')}
+  </p>
+
+  <button 
+    onClick={() => addToCart(p)}
+    className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none"
+  >
+    <span>ADICIONAR</span>
+    <ShoppingBag size={16} className="group-hover:scale-110 transition-transform"/> 
+  </button>
+</div>
                               </motion.div>
                           );
                       })}
@@ -707,21 +697,19 @@ export default function Home() {
                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                 </div>
                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                <div className="flex justify-between items-center mt-auto">
-                    <div>
-                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                            <>
-                                <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
-                            </>
-                        ) : (
-                            <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                        )}
-                    </div>
-                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`tour-btn-add p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                    <ShoppingCart size={16} />
-                    </button>
-                </div>
+                <div className="mt-4 flex flex-col gap-3">
+  <p className="text-xl font-black text-slate-800 tracking-tight">
+    R$ {Number(p.price).toFixed(2).replace('.', ',')}
+  </p>
+
+  <button 
+    onClick={() => addToCart(p)}
+    className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none"
+  >
+    <span>ADICIONAR</span>
+    <ShoppingBag size={16} className="group-hover:scale-110 transition-transform"/> 
+  </button>
+</div>
                 </motion.div>
              );
           })}
@@ -731,8 +719,10 @@ export default function Home() {
       <section className="px-6 py-10 bg-slate-100/50 text-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
-            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">CONVENIÊNCIA SANTA ISABEL</p>
-            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">R. Neida Maciel, 122 - Santa Isabel Viamão - RS</p>
+            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">{store?.name || 'Carregando...'}</p>
+            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">{store?.address ? 
+  `${store.address.street}, ${store.address.number} - ${store.address.district}, ${store.address.city} - ${store.address.state}` 
+  : 'Endereço não cadastrado'}</p>
             <a href="https://share.google/BM8tOiMLqp6yzxibm" target="_blank" className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
                 Ver no Google Maps <ExternalLink size={14}/>
             </a>
@@ -740,11 +730,31 @@ export default function Home() {
       </section>
 
       <footer className="p-12 text-center">
-        <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
-        <div className="flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer">
-          <img src="/logo retangular Vero Delivery.png" className="h-6 w-auto mb-2" />
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
-        </div>
+        {/* RODAPÉ DO SISTEMA SAAS (REFERRAL LINK) */}
+<div className="mt-12 mb-6 text-center">
+  <p className="text-[9px] uppercase tracking-[0.3em] mb-4 text-slate-400">
+    Plataforma de Vendas
+  </p>
+
+  <a 
+    href={`https://www.velodelivery.com.br/?utm_source=app_footer&utm_medium=referral&utm_campaign=${store?.slug || 'loja_indefinida'}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex flex-col items-center group cursor-pointer transition-all duration-300 hover:scale-105"
+  >
+    {/* Logo da Velo (se tiver imagem) ou Ícone */}
+    <img 
+      src="/logo retangular Vero Delivery.png" // Confirme se o nome do arquivo é esse na pasta public
+      alt="Velo Delivery" 
+      className="h-8 opacity-50 group-hover:opacity-100 transition-opacity mb-2 grayscale group-hover:grayscale-0"
+      onError={(e) => {e.target.style.display='none'}} // Esconde se a imagem quebrar
+    />
+
+    <p className="text-[10px] uppercase tracking-widest text-slate-500 group-hover:text-blue-600 transition-colors">
+      Powered by <span className="font-bold">VELO DELIVERY</span>
+    </p>
+  </a>
+</div>
       </footer>
 
       {/* Contêiner para os botões fixos (Acompanhar, Carrinho, Últimos Pedidos) */}
