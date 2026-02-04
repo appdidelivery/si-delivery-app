@@ -15,7 +15,6 @@ import { getStoreIdFromHostname } from '../utils/domainHelper'; // Importa o hel
 import { useStore } from '../context/StoreContext';
 
 // --- MAPEAMENTO DE NOMES DAS LOJAS ---
-const { store } = useStore();
 const NOMES_LOJAS = {
     csi: "Conv St Isabel",
     mamedes: "Mamedes Papéis",
@@ -28,9 +27,11 @@ const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export default function Admin() {
+    
     const navigate = useNavigate();
     const storeId = getStoreIdFromHostname();
     console.log("Admin - storeId detectado:", storeId);
+    const { store } = useStore();
 
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
