@@ -632,9 +632,15 @@ export default function Home() {
                                               <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} />
-                                      </button>
+                                      <button 
+    onClick={() => addToCart(p)} 
+    disabled={!isStoreOpenNow || !hasStock}
+    className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95
+        ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+>
+    <span className="font-black text-[10px] uppercase tracking-widest">Adicionar</span>
+    <ShoppingCart size={16} />
+</button>
                                   </div>
                               </motion.div>
                           );
