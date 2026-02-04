@@ -496,13 +496,17 @@ const updateStatusAndNotify = async (order, newStatus) => {
                         <h1 className="text-4xl font-black italic uppercase mb-8">Pedidos</h1>
                         {orders.map(o => (
                             <div key={o.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-                                <div className="flex-1">
-                                    <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase mb-2 inline-block">#{o.id.slice(0, 6)}</span>
-                                    <h3 className="text-2xl font-black text-slate-800 uppercase leading-none mb-1">{o.customerName}</h3>
-                                    <p className="text-xs text-slate-500">{o.customerAddress}</p>
-                                    <div className="flex gap-2 flex-wrap mt-4">{o.items?.map((it, i) => <span key={i} className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-[10px] font-black">x{it.quantity} {it.name}</span>)}</div>
-                                    {o.customerChangeFor && <div className="mt-2 text-xs bg-yellow-100 p-2 rounded text-yellow-800 font-bold">Troco para: {o.customerChangeFor}</div>}
-                                </div>
+                                <div className="flex items-center gap-3 mb-2">
+    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">
+        #{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}
+    </span>
+    <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+        <Clock size={12} />
+        {o.createdAt?.toDate 
+            ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+            : ''}
+    </span>
+</div>
                                 <div className="flex items-center gap-3">
                                     <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
                                     <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
