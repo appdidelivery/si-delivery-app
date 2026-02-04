@@ -496,16 +496,31 @@ const updateStatusAndNotify = async (order, newStatus) => {
                         <h1 className="text-4xl font-black italic uppercase mb-8">Pedidos</h1>
                         {orders.map(o => (
                             <div key={o.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-                                <div className="flex items-center gap-3 mb-2">
-    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">
-        #{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}
-    </span>
-    <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-        <Clock size={12} />
-        {o.createdAt?.toDate 
-            ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-            : ''}
-    </span>
+                                <div className="flex flex-col mb-2">
+    {/* Linha 1: ID e Data */}
+    <div className="flex items-center gap-3 mb-1">
+        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">
+            #{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}
+        </span>
+        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+            <Clock size={12} />
+            {o.createdAt?.toDate 
+                ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : ''}
+        </span>
+    </div>
+
+    {/* Linha 2: Nome do Cliente (Restaurado) */}
+    <h3 className="font-black text-lg text-slate-800 leading-tight">
+        {o.customerName}
+    </h3>
+
+    {/* Linha 3: Endereço (Restaurado) */}
+    <p className="text-xs text-slate-500 font-medium">
+        {typeof o.address === 'object' 
+            ? `${o.address.street}, ${o.address.number} - ${o.address.neighborhood}`
+            : o.address}
+    </p>
 </div>
                                 <div className="flex items-center gap-3">
                                     <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
