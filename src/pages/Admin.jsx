@@ -5,7 +5,7 @@ import {
     addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
 } from 'firebase/firestore';
 import {
-    LayoutDashboard, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
+    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
