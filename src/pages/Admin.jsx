@@ -489,8 +489,20 @@ export default function Admin() {
                                         onChange={(e) => setProductSearchTerm(e.target.value)}
                                     />
                                 </div>
-                                <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', category: '', imageUrl: '', stock: 0, hasDiscount: false, quantityDiscounts: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black shadow-xl whitespace-nowrap">+ NOVO</button>
-                            </div>
+<button 
+  onClick={() => { 
+    setEditingId(null); 
+    setForm({ 
+      name: '', price: '', category: '', imageUrl: '', stock: 0, 
+      hasDiscount: false, isFeatured: false, isBestSeller: false, 
+      quantityDiscounts: [], recommendedIds: [] 
+    }); 
+    setIsModalOpen(true); 
+  }} 
+  className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black shadow-xl whitespace-nowrap"
+>
+  + NOVO
+</button>                          </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {products
@@ -812,111 +824,104 @@ export default function Admin() {
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
+                            
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                // LINHA 805: PREPARAÇÃO DOS DADOS PARA O FIREBASE
-      const data = {
-        ...form,
-        price: parseFloat(form.price),
-        originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
-        discountPercentage: form.discountPercentage ? parseFloat(form.discountPercentage) : null,
-        stock: parseInt(form.stock || 0),
-        isFeatured: form.isFeatured || false,      // ADICIONADO PARA O UPSELL
-        isBestSeller: form.isBestSeller || false,  // ADICIONADO PARA O UPSELL
-        storeId: storeId
-      };
+                                const data = {
+                                    ...form,
+                                    price: parseFloat(form.price),
+                                    originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
+                                    discountPercentage: form.discountPercentage ? parseFloat(form.discountPercentage) : null,
+                                    stock: parseInt(form.stock || 0),
+                                    isFeatured: form.isFeatured || false,
+                                    isBestSeller: form.isBestSeller || false,
+                                    recommendedIds: form.recommendedIds || [],
+                                    storeId: storeId
+                                };
 
-      // LINHA 810: ENVIO PARA O BANCO DE DADOS
-      if (editingId) {
-        await updateDoc(doc(db, "products", editingId), data);
-        alert("Produto atualizado com sucesso!");
-      } else {
-        await addDoc(collection(db, "products"), data);
-        alert("Produto cadastrado com sucesso!");
-      }
-                                setIsModalOpen(false); setImageFile(null);
-                            }} className="space-y-6">
-                                <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                                if (editingId) {
+                                    await updateDoc(doc(db, "products", editingId), data);
+                                    alert("Produto atualizado!");
+                                } else {
+                                    await addDoc(collection(db, "products"), data);
+                                    alert("Produto cadastrado!");
+                                }
+                                setIsModalOpen(false);
+                            }} className="space-y-6 text-left">
+                                
+                                {/* NOME */}
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Nome do Produto</p>
+                                    <input type="text" className="w-full p-6 bg-slate-50 rounded-3xl font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                                </div>
+
+                                {/* PREÇO E ESTOQUE */}
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input type="number" step="0.01" placeholder="Preço" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
-                                    <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Preço (R$)</p>
+                                        <input type="number" step="0.01" className="w-full p-6 bg-slate-50 rounded-3xl font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Estoque</p>
+                                        <input type="number" className="w-full p-6 bg-slate-50 rounded-3xl font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                    </div>
                                 </div>
-                                <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl">
-  <label className="flex items-center gap-2 cursor-pointer">
-    <input 
-      type="checkbox" 
-      checked={form.isFeatured}
-      onChange={(e) => setForm({...form, isFeatured: e.target.checked})}
-      className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-600"
-    />
-    <span className="text-xs font-black uppercase text-slate-600">Destaque ★</span>
-  </label>
 
-  <label className="flex items-center gap-2 cursor-pointer">
-    <input 
-      type="checkbox" 
-      checked={form.isBestSeller}
-      onChange={(e) => setForm({...form, isBestSeller: e.target.checked})}
-      className="w-5 h-5 rounded-lg border-slate-300 text-orange-600 focus:ring-orange-600"
-    />
-    <span className="text-xs font-black uppercase text-slate-600">Mais Vendido 🔥</span>
-  </label>
-</div>
-{/* SEÇÃO DE UPSELL INTELIGENTE (PRODUTOS RECOMENDADOS) */}
-<div className="p-6 bg-blue-50/50 rounded-[2rem] mt-6 border-2 border-dashed border-blue-100">
-  <p className="text-[10px] font-black uppercase text-blue-500 mb-3 ml-2 tracking-widest">
-    🚀 Upsell: Recomendar com este item
-  </p>
-  
-  <select 
-    className="w-full p-4 rounded-2xl border-none font-bold text-sm shadow-sm bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-    onChange={(e) => {
-      const selectedId = e.target.value;
-      if(selectedId && !form.recommendedIds?.includes(selectedId)) {
-        setForm({...form, recommendedIds: [...(form.recommendedIds || []), selectedId]});
-      }
-    }}
-  >
-    <option value="">➕ Selecionar Produto Recomendado...</option>
-    {products.map(p => (
-      <option key={p.id} value={p.id}>{p.name}</option>
-    ))}
-  </select>
+                                {/* CATEGORIA */}
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Categoria</p>
+                                    <select className="w-full p-6 bg-slate-50 rounded-3xl font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} required>
+                                        <option value="">Selecione...</option>
+                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                </div>
 
-  {/* Tags dos produtos já selecionados */}
-  <div className="flex flex-wrap gap-2 mt-4">
-    {form.recommendedIds?.map(id => {
-      const p = products.find(prod => prod.id === id);
-      return (
-        <div key={id} className="bg-blue-600 text-white text-[11px] font-black px-4 py-2 rounded-xl flex items-center gap-3 shadow-md">
-          {p?.name} 
-          <button 
-            type="button"
-            onClick={() => setForm({...form, recommendedIds: form.recommendedIds.filter(i => i !== id)})}
-            className="bg-blue-800/50 hover:bg-red-500 rounded-lg w-5 h-5 flex items-center justify-center transition-colors"
-          >
-            ×
-          </button>
-        </div>
-      );
-    })}
-    {(!form.recommendedIds || form.recommendedIds.length === 0) && (
-      <p className="text-[10px] text-slate-400 italic ml-2">Nenhum produto selecionado para este Upsell.</p>
-    )}
-  </div>
-</div>
-                                <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                                    <option value="">Selecione a Categoria</option>
-                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                </select>
-                                {/* ... Restante dos campos do modal (Descontos, Imagem, etc.) mantidos ... */}
-                                {/* Incluir input file e botões de imagem igual ao original */}
-                                <div className="space-y-3 pt-6 border-t border-slate-100">
+                                {/* MARCAÇÕES */}
+                                <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl justify-center">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={form.isFeatured} onChange={(e) => setForm({...form, isFeatured: e.target.checked})} className="w-5 h-5 rounded-lg border-slate-300 text-blue-600" />
+                                        <span className="text-xs font-black uppercase text-slate-600">Destaque ★</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={form.isBestSeller} onChange={(e) => setForm({...form, isBestSeller: e.target.checked})} className="w-5 h-5 rounded-lg border-slate-300 text-orange-600" />
+                                        <span className="text-xs font-black uppercase text-slate-600">Mais Vendido 🔥</span>
+                                    </label>
+                                </div>
+
+                                {/* UPSELL INTELIGENTE */}
+                                <div className="p-6 bg-blue-50/50 rounded-[2rem] border-2 border-dashed border-blue-100">
+                                    <p className="text-[10px] font-black uppercase text-blue-500 mb-3 tracking-widest text-left">🚀 Sugerir com este item (Upsell)</p>
+                                    <select className="w-full p-4 rounded-2xl border-none font-bold text-sm shadow-sm bg-white" onChange={(e) => {
+                                        const selectedId = e.target.value;
+                                        if(selectedId && !form.recommendedIds?.includes(selectedId)) {
+                                            setForm({...form, recommendedIds: [...(form.recommendedIds || []), selectedId]});
+                                        }
+                                    }}>
+                                        <option value="">➕ Selecionar Produto...</option>
+                                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {form.recommendedIds?.map(id => {
+                                            const p = products.find(prod => prod.id === id);
+                                            return (
+                                                <div key={id} className="bg-blue-600 text-white text-[10px] font-black px-4 py-2 rounded-xl flex items-center gap-2">
+                                                    {p?.name} <button type="button" onClick={() => setForm({...form, recommendedIds: form.recommendedIds.filter(i => i !== id)})}>×</button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* IMAGEM */}
+                                <div className="pt-6 border-t border-slate-100">
                                     <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
-                                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">{imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} /></label>
-                                    {imageFile && <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload'}</button>}
+                                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">
+                                        {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                    </label>
+                                    {imageFile && <button type="button" onClick={handleProductImageUpload} disabled={uploading} className="w-full p-4 bg-blue-600 text-white rounded-3xl font-black mt-2">{uploading ? 'Enviando...' : 'Confirmar Foto'}</button>}
                                 </div>
-                                <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
+
+                                <button type="submit" className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest">Salvar Item</button>
                             </form>
                         </motion.div>
                     </motion.div>
