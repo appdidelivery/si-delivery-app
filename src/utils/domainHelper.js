@@ -1,41 +1,48 @@
-// src/utils/domainHelper.js
-
 export const getStoreIdFromHostname = () => {
   const hostname = window.location.hostname;
   const baseDomain = 'velodelivery.com.br'; // Seu domínio principal
 
-  // 1. Caso de desenvolvimento local (localhost)
-  if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
-    // Para testar a loja 'csi' localmente, mude 'default' para 'csi'.
-    // Ex: return 'csi';
-    return 'default'; // Ou 'csi' para testar uma loja específica localmente
+  // 1. Caso de desenvolvimento local ou Codespaces (SaaS Dinâmico)
+  if (hostname.includes('app.github.dev') || hostname.includes('localhost')) {
+    // Busca o parâmetro 'store' na URL (Ex: ...github.dev/?store=bar-do-joao)
+    const urlParams = new URLSearchParams(window.location.search);
+    const debugStore = urlParams.get('store');
+    
+    // Se você passar ?store= na URL, ele assume esse ID. 
+    // Se não passar nada, ele mantém 'loja-teste' como padrão para você trabalhar.
+    return debugStore || 'loja-teste'; 
   }
 
-  // 2. Caso de domínio provisório do Vercel (ex: si-delivery-app-git-main-eyagencia.vercel.app)
+  // 2. Caso de domínio provisório do Vercel
   if (hostname.endsWith('.vercel.app')) {
     const parts = hostname.split('.');
-    // O ID da loja é o primeiro segmento do subdomínio para URLs do Vercel
-    // Ex: "si-delivery-app-git-main-eyagencia" de "si-delivery-app-git-main-eyagencia.vercel.app"
-    if (parts.length >= 3) { // Deve ter pelo menos [id].vercel.app
+    if (parts.length >= 3) {
       return parts[0]; 
     }
-    return 'vercel-fallback'; // Fallback se a URL do Vercel for inesperada
+    return 'vercel-fallback';
   }
 
-  // 3. Caso do seu domínio principal (velodelivery.com.br ou www.velodelivery.com.br)
+  // 3. Caso do seu domínio principal (Landing Page da Velo Delivery)
   if (hostname === baseDomain || hostname === `www.${baseDomain}`) {
-    return 'main-platform'; // Ou o ID da sua "loja principal" se velodelivery.com.br for uma loja
+    // Aqui retornamos 'main-platform' para que a Home saiba exibir a sua página de vendas
+    return 'main-app'; 
   }
 
-  // 4. Caso de subdomínios do seu domínio principal (ex: csi.velodelivery.com.br)
-  // Extrai a parte antes de .velodelivery.com.br
+  // 4. Caso de subdomínios (A mágica do SaaS: cliente.velodelivery.com.br)
   if (hostname.endsWith(`.${baseDomain}`)) {
     const subdomains = hostname.replace(`.${baseDomain}`, '');
     const parts = subdomains.split('.');
-    // O ID da loja é o último componente do subdomínio
-    // Ex: 'csi' de 'csi.velodelivery.com.br'
+    // Pega o slug exato (ex: 'csi', 'mamedes', 'aurea')
     return parts[parts.length - 1]; 
   }
   
-  return 'unknown-store'; // Último fallback para qualquer outro caso não previsto
+  // 5. Caso de Domínios Customizados (Futuro: bar-do-joao.com.br)
+  // Se o hostname não for o seu domínio principal nem localhost, 
+  // assumimos que é um domínio próprio apontando para o seu SaaS.
+  if (hostname !== baseDomain && !hostname.endsWith(`.${baseDomain}`)) {
+     // Aqui você pode retornar o hostname limpo para buscar no banco qual loja é dona desse domínio
+     return hostname.replace('www.', '');
+  }
+
+  return 'unknown-store'; 
 };

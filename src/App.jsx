@@ -5,7 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { useEffect, useState } from 'react';
 
 // Seus componentes de página
-import Home from './pages/Home';
+import Home from './pages/Home_bkp';
 import Admin from './pages/Admin_bkp';
 import Tracking from './pages/Tracking';
 import Login from './pages/Login';

@@ -52,7 +52,7 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 export default function Home() {
   const navigate = useNavigate();
-  const storeId = "csi";
+  const storeId = getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
 
   // --- LÓGICA DO TOUR (ONBOARDING) ---
@@ -211,54 +211,35 @@ export default function Home() {
       setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // 1. Apenas define a referência
     const storeSettingsRef = doc(db, "settings", storeId);
-
-    // 2. Escuta as mudanças (SEM o getDoc/setDoc que estava dando conflito)
+    getDoc(storeSettingsRef).then(s => {
+      if (!s.exists()) {
+        setDoc(storeSettingsRef, {
+          promoActive: false, promoBannerUrls: [],
+          isOpen: true, openTime: '08:00', closeTime: '23:00',
+          message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
+          storeId: storeId
+        }, { merge: true });
+      }
+    });
     const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
       if (d.exists()) {
         const data = d.data();
         setStoreSettings(data);
-        console.log("DADOS VINDOS DO ADMIN:", data); // Verifique no F12 se o isOpen muda aqui
 
-        // PRIORIDADE 1: BOTÃO MANUAL "FECHAR LOJA"
-        // Se no Admin você clicou em fechar, ele mata qualquer horário abaixo.
-        if (data.isOpen === false) {
-          setIsStoreOpenNow(false);
-          setStoreMessage(data.message || 'Loja Fechada no momento');
-          return; // Para a execução aqui
-        }
-
-        // PRIORIDADE 2: HORÁRIOS POR DIA DA SEMANA
-        if (data.openingHours) {
+        let finalStatus = data.isOpen;
+        if (data.openTime && data.closeTime) {
           const now = new Date();
-          const days = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
-          const currentDay = days[now.getDay()];
-          const todayHours = data.openingHours[currentDay];
-
-          // Verifica se o lojista marcou "Fechado" para o dia específico
-          if (!todayHours || todayHours.closed) {
-            setIsStoreOpenNow(false);
-            setStoreMessage('Hoje estamos fechados');
-            return;
-          }
-
-          const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
-          const [openH, openM] = todayHours.open.split(':').map(Number);
-          const [closeH, closeM] = todayHours.close.split(':').map(Number);
-          const openTime = openH * 60 + openM;
-          let closeTime = closeH * 60 + closeM;
-
-          if (closeTime < openTime) closeTime += 1440; // Suporte para madrugada
-
-          const isOpen = currentTimeMinutes >= openTime && currentTimeMinutes < closeTime;
-          setIsStoreOpenNow(isOpen);
-          setStoreMessage(data.message || (isOpen ? 'Aberto agora!' : 'Fechado no momento'));
-        } else {
-          // Fallback para o modo antigo (caso não tenha configurado a semana ainda)
-          setIsStoreOpenNow(data.isOpen);
-          setStoreMessage(data.message || 'Verifique o horário');
+          const currentTime = now.getHours() * 60 + now.getMinutes();
+          const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
+          const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
+          const scheduledOpenTime = openHour * 60 + openMinute;
+          const scheduledCloseTime = closeHour * 60 + closeMinute;
+          const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
+          finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
         }
+        setIsStoreOpenNow(finalStatus);
+        setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
       }
     });
 
@@ -558,7 +539,7 @@ export default function Home() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
           <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-          <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{store?.name}</p></div>
+          <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p></div>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
@@ -569,7 +550,7 @@ export default function Home() {
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
         <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
-          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> {storeSettings?.address?.district || 'Loja Principal'}</div>
+          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> Santa Isabel - Loja principal</div>
           <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.</p>
         </div>
       </div>
@@ -748,7 +729,7 @@ export default function Home() {
       <section className="px-6 py-10 bg-slate-100/50 text-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
-            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">CONVENIÊNCIA {store?.name}</p>
+            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">CONVENIÊNCIA SANTA ISABEL</p>
             <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">R. Neida Maciel, 122 - Santa Isabel Viamão - RS</p>
             <a href="https://share.google/BM8tOiMLqp6yzxibm" target="_blank" className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
                 Ver no Google Maps <ExternalLink size={14}/>

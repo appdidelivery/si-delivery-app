@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { getStoreIdFromHostname } from '../utils/domainHelper'; // Já deve estar aqui
+import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 const StoreContext = createContext();
 
@@ -16,36 +16,42 @@ export const StoreProvider = ({ children }) => {
 
       try {
         let slugFromHostname = getStoreIdFromHostname();
-        console.log("StoreContext: Slug detectado do hostname via domainHelper:", slugFromHostname);
+        console.log("StoreContext: Slug detectado do hostname:", slugFromHostname);
 
         let finalSlug = slugFromHostname;
 
-        // Se o slug do hostname não for útil (null, vazio ou "unknown-store"), usa o fallback
-        if (!slugFromHostname || slugFromHostname === "unknown-store") { // <--- CORREÇÃO CHAVE AQUI
-          console.warn("StoreContext: Slug inválido ou não detectado do hostname. Usando 'loja-teste' como fallback.");
+        // Lógica SaaS: Se estiver em desenvolvimento ou não detectado, usa o ambiente de teste
+        if (!slugFromHostname || slugFromHostname === "unknown-store") {
+          console.warn("StoreContext: Usando fallback 'loja-teste' para o ambiente SaaS Demo.");
           finalSlug = "loja-teste";
         }
-        console.log("StoreContext: Slug final para busca:", finalSlug);
 
+        console.log("StoreContext: Buscando no Firestore por slug:", finalSlug);
+
+        // Busca na coleção 'stores' para validar se o lojista existe
         const q = query(collection(db, 'stores'), where('slug', '==', finalSlug));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
           const doc = querySnapshot.docs[0];
           const data = doc.data();
-          setStore({ id: doc.id, ...data });
-          console.log("StoreContext: Loja carregada com sucesso:", { id: doc.id, name: data.name, slug: data.slug });
+          
+          // Define a loja com o ID e o Slug (essencial para as Settings funcionarem)
+          setStore({ id: data.slug, ...data });
+          
+          console.log("StoreContext: Loja carregada:", { id: data.slug, name: data.name });
+          
+          // Atualiza o título da aba do navegador para o nome da loja do lojista
           document.title = data.name || "Velo Delivery";
         } else {
-          console.warn(`StoreContext: Loja com slug '${finalSlug}' não encontrada no banco de dados. Verifique a coleção 'stores'.`);
+          console.error(`StoreContext: Loja '${finalSlug}' não encontrada. Verifique a coleção 'stores'.`);
           setStore(null);
         }
       } catch (error) {
-        console.error("StoreContext: Erro durante o fetch da loja:", error);
+        console.error("StoreContext: Erro crítico no carregamento da loja:", error);
         setStore(null);
       } finally {
         setLoading(false);
-        console.log("StoreContext: Finalizado o carregamento da loja. Store:", store ? store.id : "null (não carregada ou erro)");
       }
     };
 

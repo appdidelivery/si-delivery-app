@@ -59,8 +59,9 @@ export default function Admin() {
     const [form, setForm] = useState({ 
         name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
         hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false,
-        quantityDiscounts: [] 
-    });
+        quantityDiscounts: [],
+    recommendedIds: []
+  });
     const [editingId, setEditingId] = useState(null);
 
     // Modais Categoria
@@ -524,23 +525,25 @@ export default function Admin() {
                                 
                                 {/* SELEÇÃO DE BAIRRO/FRETE NOVO */}
                                 <select 
-                                    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none"
-                                    value={manualCustomer.neighborhood}
-                                    onChange={(e) => {
-                                        const selectedRate = shippingRates.find(r => r.neighborhood === e.target.value);
-                                        setManualCustomer({ 
-                                            ...manualCustomer, 
-                                            neighborhood: e.target.value, 
-                                            shippingFee: selectedRate ? selectedRate.fee : 0 
-                                        });
-                                    }}
-                                >
-                                    <option value="">Selecione o Bairro (Frete)</option>
-                                    {shippingRates.map(rate => (
-                                        <option key={rate.id} value={rate.neighborhood}>{rate.neighborhood} (+ R$ {Number(rate.fee).toFixed(2)})</option>
-                                    ))}
-                                    <option value="Retirada">Retirada na Loja (Grátis)</option>
-                                </select>
+    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none"
+    value={manualCustomer.neighborhood}
+    onChange={(e) => {
+        const selectedRate = shippingRates.find(r => r.neighborhood === e.target.value);
+        setManualCustomer({ 
+            ...manualCustomer, 
+            neighborhood: e.target.value, 
+            shippingFee: selectedRate ? selectedRate.fee : 0 
+        });
+    }}
+>
+    <option value="">Selecione o Bairro (Cálculo de Frete)</option>
+    {shippingRates.map(rate => (
+        <option key={rate.id} value={rate.neighborhood}>
+            {rate.neighborhood} (+ R$ {Number(rate.fee).toFixed(2)})
+        </option>
+    ))}
+    <option value="Retirada">Retirada na Loja (Grátis)</option>
+</select>
 
                                 <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value })}>
                                     <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
@@ -571,9 +574,20 @@ export default function Admin() {
                         </div>
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
                             <h2 className="text-xl font-black uppercase mb-6 text-slate-300">Adicionar Produtos</h2>
+                            {/* BARRA DE PESQUISA PARA O PEDIDO MANUAL */}
+<div className="relative mb-4">
+  <input 
+    type="text" 
+    placeholder="🔎 Buscar produto..." 
+    className="w-full p-4 pl-12 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-700"
+    onChange={(e) => setProductSearchTerm(e.target.value)}
+  />
+</div>
                             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                {products.map(p => (
-                                    <button key={p.id} onClick={() => {
+                                {products
+  .filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()))
+  .map(p => (
+    <button key={p.id} onClick={() => {
                                         const ex = manualCart.find(it => it.id === p.id);
                                         if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it)); else setManualCart([...manualCart, { ...p, quantity: 1 }]);
                                     }} className="w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200">
@@ -800,12 +814,26 @@ export default function Admin() {
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                const data = { 
-                                    ...form, price: parseFloat(form.price), originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
-                                    discountPercentage: form.discountPercentage ? parseFloat(form.discountPercentage) : null, stock: parseInt(form.stock || 0),
-                                    quantityDiscounts: form.quantityDiscounts.filter(qd => qd.minQuantity > 0 && qd.value >= 0), storeId: storeId 
-                                };
-                                if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
+                                // LINHA 805: PREPARAÇÃO DOS DADOS PARA O FIREBASE
+      const data = {
+        ...form,
+        price: parseFloat(form.price),
+        originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
+        discountPercentage: form.discountPercentage ? parseFloat(form.discountPercentage) : null,
+        stock: parseInt(form.stock || 0),
+        isFeatured: form.isFeatured || false,      // ADICIONADO PARA O UPSELL
+        isBestSeller: form.isBestSeller || false,  // ADICIONADO PARA O UPSELL
+        storeId: storeId
+      };
+
+      // LINHA 810: ENVIO PARA O BANCO DE DADOS
+      if (editingId) {
+        await updateDoc(doc(db, "products", editingId), data);
+        alert("Produto atualizado com sucesso!");
+      } else {
+        await addDoc(collection(db, "products"), data);
+        alert("Produto cadastrado com sucesso!");
+      }
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
                                 <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
@@ -813,6 +841,70 @@ export default function Admin() {
                                     <input type="number" step="0.01" placeholder="Preço" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
                                     <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
                                 </div>
+                                <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl">
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input 
+      type="checkbox" 
+      checked={form.isFeatured}
+      onChange={(e) => setForm({...form, isFeatured: e.target.checked})}
+      className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-600"
+    />
+    <span className="text-xs font-black uppercase text-slate-600">Destaque ★</span>
+  </label>
+
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input 
+      type="checkbox" 
+      checked={form.isBestSeller}
+      onChange={(e) => setForm({...form, isBestSeller: e.target.checked})}
+      className="w-5 h-5 rounded-lg border-slate-300 text-orange-600 focus:ring-orange-600"
+    />
+    <span className="text-xs font-black uppercase text-slate-600">Mais Vendido 🔥</span>
+  </label>
+</div>
+{/* SEÇÃO DE UPSELL INTELIGENTE (PRODUTOS RECOMENDADOS) */}
+<div className="p-6 bg-blue-50/50 rounded-[2rem] mt-6 border-2 border-dashed border-blue-100">
+  <p className="text-[10px] font-black uppercase text-blue-500 mb-3 ml-2 tracking-widest">
+    🚀 Upsell: Recomendar com este item
+  </p>
+  
+  <select 
+    className="w-full p-4 rounded-2xl border-none font-bold text-sm shadow-sm bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+    onChange={(e) => {
+      const selectedId = e.target.value;
+      if(selectedId && !form.recommendedIds?.includes(selectedId)) {
+        setForm({...form, recommendedIds: [...(form.recommendedIds || []), selectedId]});
+      }
+    }}
+  >
+    <option value="">➕ Selecionar Produto Recomendado...</option>
+    {products.map(p => (
+      <option key={p.id} value={p.id}>{p.name}</option>
+    ))}
+  </select>
+
+  {/* Tags dos produtos já selecionados */}
+  <div className="flex flex-wrap gap-2 mt-4">
+    {form.recommendedIds?.map(id => {
+      const p = products.find(prod => prod.id === id);
+      return (
+        <div key={id} className="bg-blue-600 text-white text-[11px] font-black px-4 py-2 rounded-xl flex items-center gap-3 shadow-md">
+          {p?.name} 
+          <button 
+            type="button"
+            onClick={() => setForm({...form, recommendedIds: form.recommendedIds.filter(i => i !== id)})}
+            className="bg-blue-800/50 hover:bg-red-500 rounded-lg w-5 h-5 flex items-center justify-center transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      );
+    })}
+    {(!form.recommendedIds || form.recommendedIds.length === 0) && (
+      <p className="text-[10px] text-slate-400 italic ml-2">Nenhum produto selecionado para este Upsell.</p>
+    )}
+  </div>
+</div>
                                 <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>
                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
