@@ -52,14 +52,16 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 
 export default function Home() {
-  const { store } = useStore();
-  const navigate = useNavigate();
-  const storeId = getStoreIdFromHostname();
+  const { store, loading } = useStore(); // HOOK 1
+  const navigate = useNavigate(); // HOOK 2
+  const storeId = getStoreIdFromHostname(); // Note: getStoreIdFromHostname is a regular function, not a hook.
+  
+  console.log("DADOS DA LOJA:", store); 
   console.log("Home - storeId detectado:", storeId);
 
   // --- LÓGICA DO TOUR (ONBOARDING) ---
-  const [runTour, setRunTour] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
+  const [runTour, setRunTour] = useState(false); // HOOK 3
+  const [tourStepIndex, setTourStepIndex] = useState(0); // HOOK 4
 
   const tourSteps = [
     {
@@ -93,7 +95,7 @@ export default function Home() {
     }
   ];
 
-  useEffect(() => {
+  useEffect(() => { // HOOK 5
     const hasSeenTour = localStorage.getItem('hasSeenTour');
     if (!hasSeenTour) {
       setRunTour(true);
@@ -112,25 +114,25 @@ export default function Home() {
   };
   // --- FIM DA LÓGICA DO TOUR ---
 
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [showCheckout, setShowCheckout] = useState(false);
+  const [products, setProducts] = useState([]); // HOOK 6
+  const [categories, setCategories] = useState([]); // HOOK 7
+  const [cart, setCart] = useState([]); // HOOK 8
+  const [searchTerm, setSearchTerm] = useState(''); // HOOK 9
+  const [activeCategory, setActiveCategory] = useState('all'); // HOOK 10
+  const [showCheckout, setShowCheckout] = useState(false); // HOOK 11
 
-  const [customer, setCustomer] = useState({
+  const [customer, setCustomer] = useState({ // HOOK 12
     name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
-  const [showLastOrders, setShowLastOrders] = useState(false);
-  const [lastOrders, setLastOrders] = useState([]);
+  const [showLastOrders, setShowLastOrders] = useState(false); // HOOK 13
+  const [lastOrders, setLastOrders] = useState([]); // HOOK 14
 
   // Cupons
-  const [availableCoupons, setAvailableCoupons] = useState([]);
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [couponError, setCouponError] = useState('');
-  const [discountAmount, setDiscountAmount] = useState(0);
+  const [availableCoupons, setAvailableCoupons] = useState([]); // HOOK 15
+  const [couponCode, setCouponCode] = useState(''); // HOOK 16
+  const [appliedCoupon, setAppliedCoupon] = useState(null); // HOOK 17
+  const [couponError, setCouponError] = useState(''); // HOOK 18
+  const [discountAmount, setDiscountAmount] = useState(0); // HOOK 19
 
   const handlePhoneChange = (e) => {
     const phone = e.target.value;
@@ -138,14 +140,14 @@ export default function Home() {
     localStorage.setItem('customerPhone', phone);
   };
 
-  useEffect(() => {
+  useEffect(() => { // HOOK 20
     const savedPhone = localStorage.getItem('customerPhone');
     if (savedPhone) {
       setCustomer(prev => ({ ...prev, phone: savedPhone }));
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => { // HOOK 21
     if (showLastOrders) {
       const customerPhone = localStorage.getItem('customerPhone');
       if (customerPhone) {
@@ -168,27 +170,27 @@ export default function Home() {
     });
     setShowLastOrders(false);
   };
-  const [isCepLoading, setIsCepLoading] = useState(false);
-  const [cepError, setCepError] = useState('');
+  const [isCepLoading, setIsCepLoading] = useState(false); // HOOK 22
+  const [cepError, setCepError] = useState(''); // HOOK 23
 
-  const [storeSettings, setStoreSettings] = useState({
+  const [storeSettings, setStoreSettings] = useState({ // HOOK 24
     promoActive: false, promoBannerUrls: [],
     isOpen: true, openTime: '08:00', closeTime: '23:00',
     message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
   });
-  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
-  const [storeMessage, setStoreMessage] = useState('Verificando...');
+  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true); // HOOK 25
+  const [storeMessage, setStoreMessage] = useState('Verificando...'); // HOOK 26
 
-  const [generalBanners, setGeneralBanners] = useState([]);
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [bestsellingProducts, setBestsellingProducts] = useState([]);
+  const [generalBanners, setGeneralBanners] = useState([]); // HOOK 27
+  const [featuredProducts, setFeaturedProducts] = useState([]); // HOOK 28
+  const [bestsellingProducts, setBestsellingProducts] = useState([]); // HOOK 29
 
-  const [shippingRates, setShippingRates] = useState([]);
-  const [shippingFee, setShippingFee] = useState(null);
-  const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
-  const [activeOrderId, setActiveOrderId] = useState(null);
+  const [shippingRates, setShippingRates] = useState([]); // HOOK 30
+  const [shippingFee, setShippingFee] = useState(null); // HOOK 31
+  const [deliveryAreaMessage, setDeliveryAreaMessage] = useState(''); // HOOK 32
+  const [activeOrderId, setActiveOrderId] = useState(null); // HOOK 33
 
-  useEffect(() => {
+  useEffect(() => { // HOOK 34
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
@@ -255,7 +257,7 @@ export default function Home() {
     };
   }, [storeId]);
 
-  useEffect(() => {
+  useEffect(() => { // HOOK 35
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
       const storeName = storeSettings.message || "Velo Delivery";
@@ -297,7 +299,7 @@ export default function Home() {
     }
   }, [storeSettings.storeLogoUrl, storeSettings.message]);
   
-  useEffect(() => {
+  useEffect(() => { // HOOK 36
     const cep = customer.cep.replace(/\D/g, '');
     if (cep.length !== 8) { setCepError(''); return; }
     const fetchCep = async () => {
@@ -319,6 +321,16 @@ export default function Home() {
     const handler = setTimeout(() => fetchCep(), 500);
     return () => clearTimeout(handler);
   }, [customer.cep, shippingRates, storeId]);
+
+  // CORREÇÃO: Colocar a verificação de carregamento da loja AQUI, depois de TODOS os Hooks.
+  if (loading || !store) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <p className="font-bold text-slate-500">Carregando loja...</p>
+      </div>
+    );
+  }
+  // FIM DA CORREÇÃO DE HOOKS
 
   const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
@@ -598,7 +610,10 @@ export default function Home() {
         {/* CATEGORIAS DINÂMICAS */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
           {displayCategories.map(c => (
-            <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
+            <button key={c.id} onClick={() => setActiveCategory(c.id)} 
+              className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? 'text-white' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
+              style={activeCategory === c.id ? { backgroundColor: store?.primaryColor || '#2563eb' } : {}}
+            >
               {c.icon} {c.name}
             </button>
           ))}
@@ -630,7 +645,8 @@ export default function Home() {
 
   <button 
     onClick={() => addToCart(p)}
-    className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none"
+    className="w-full text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none hover:bg-blue-700 active:bg-blue-800"
+    style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
   >
     <span>ADICIONAR</span>
     <ShoppingBag size={16} className="group-hover:scale-110 transition-transform"/> 
@@ -669,7 +685,8 @@ export default function Home() {
 
   <button 
     onClick={() => addToCart(p)}
-    className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none"
+    className="w-full text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none hover:bg-blue-700 active:bg-blue-800"
+    style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
   >
     <span>ADICIONAR</span>
     <ShoppingBag size={16} className="group-hover:scale-110 transition-transform"/> 
@@ -704,7 +721,8 @@ export default function Home() {
 
   <button 
     onClick={() => addToCart(p)}
-    className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none"
+    className="w-full text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 group border-none hover:bg-blue-700 active:bg-blue-800"
+    style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
   >
     <span>ADICIONAR</span>
     <ShoppingBag size={16} className="group-hover:scale-110 transition-transform"/> 
@@ -762,7 +780,14 @@ export default function Home() {
         {/* Botão "Acompanhar Pedidos" */}
         <AnimatePresence>
           {activeOrderId && (
-            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="tour-acompanhar bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
+            <motion.button 
+              onClick={() => navigate(`/track/${activeOrderId}`)} 
+              className="tour-acompanhar text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90 flex items-center gap-2" 
+              initial={{ scale: 0, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0, opacity: 0 }}
+              style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
+            >
               <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
             </motion.button>
           )}
@@ -771,9 +796,10 @@ export default function Home() {
         <div className="relative flex items-center justify-center">
             <motion.button 
                 onClick={() => setShowCheckout(true)} 
-                className="tour-sacola bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
+                className="tour-sacola text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
                 initial={{ scale: 0 }} 
                 animate={{ scale: 1 }}
+                style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
             >
                 <ShoppingCart size={24} />
             </motion.button>
@@ -795,9 +821,10 @@ export default function Home() {
         {/* Botão "Últimos Pedidos" */}
         <motion.button
           onClick={() => setShowLastOrders(true)}
-          className="bg-orange-600 text-white rounded-full p-4 shadow-xl hover:bg-orange-700 active:scale-90 flex items-center gap-2"
+          className="text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90 flex items-center gap-2"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
+          style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
         >
           <Clock size={24} /> <span className="font-bold text-sm pr-2">Últimos Pedidos</span>
         </motion.button>
@@ -863,7 +890,10 @@ export default function Home() {
                       value={couponCode}
                       onChange={e => setCouponCode(e.target.value)}
                     />
-                    <button onClick={applyCoupon} className="bg-blue-600 text-white p-5 rounded-[2rem] font-black uppercase shadow-xl hover:bg-blue-700">Aplicar</button>
+                    <button onClick={applyCoupon} 
+                      className="text-white p-5 rounded-[2rem] font-black uppercase shadow-xl hover:bg-blue-700"
+                      style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
+                    >Aplicar</button>
                   </div>
                   {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
 
@@ -877,7 +907,10 @@ export default function Home() {
                                       <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
                                       <p className="text-blue-600 font-black text-sm">R$ {p.price?.toFixed(2)}</p>
-                                      <button onClick={() => addToCart(p)} className="absolute bottom-3 right-3 p-1.5 bg-blue-600 text-white rounded-full"><Plus size={16}/></button>
+                                      <button onClick={() => addToCart(p)} 
+                                        className="absolute bottom-3 right-3 p-1.5 text-white rounded-full"
+                                        style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
+                                      ><Plus size={16}/></button>
                                   </div>
                               ))}
                           </div>
@@ -904,7 +937,10 @@ export default function Home() {
                         <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
                     </div>
 
-                    <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl hover:bg-blue-700 disabled:opacity-50">
+                    <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} 
+                      className="w-full text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl hover:bg-blue-700 disabled:opacity-50"
+                      style={{ backgroundColor: store?.primaryColor || '#2563eb' }}
+                    >
                       {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
                     </button>
                   </div>
