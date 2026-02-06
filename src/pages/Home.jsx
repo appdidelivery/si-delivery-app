@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share } from 'lucide-react'; // Adicionado 'Share' icon
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -195,6 +195,60 @@ export default function Home() {
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
   const [activeOrderId, setActiveOrderId] = useState(null);
 
+    // --- INÍCIO DA CORREÇÃO (PWA Install Prompt) ---
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+    const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
+
+    useEffect(() => {
+        // Evento para navegadores baseados em Chromium (Android/Desktop)
+        const handler = (e) => {
+            e.preventDefault(); // Impede que o navegador exiba o prompt padrão imediatamente
+            setDeferredPrompt(e);
+            // Mostra nosso botão/banner de instalação personalizado se o app não estiver no modo standalone
+            if (!window.matchMedia('(display-mode: standalone)').matches) {
+                setShowInstallPrompt(true);
+            }
+        };
+
+        window.addEventListener('beforeinstallprompt', handler);
+
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    useEffect(() => {
+        // Detecta iOS e Safari
+        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
+        // Se for iOS no Safari e não estiver em modo standalone (já instalado)
+        if (isIos && isSafari && !isStandalone) {
+            // Verifica se o usuário já viu e fechou a mensagem para não incomodar
+            const hasDismissediOSPrompt = localStorage.getItem('dismissediOSInstallPrompt');
+            if (!hasDismissediOSPrompt) {
+                setShowiOSInstallMessage(true);
+            }
+        }
+    }, []);
+
+    const handleInstallClick = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt(); // Exibe o prompt de instalação nativo do navegador
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the A2HS prompt: ${outcome}`);
+            setDeferredPrompt(null); // Limpa o prompt após o uso
+            setShowInstallPrompt(false); // Esconde o banner customizado
+        }
+    };
+
+    const handleDismissiOSInstallMessage = () => {
+        setShowiOSInstallMessage(false);
+        localStorage.setItem('dismissediOSInstallPrompt', 'true'); // Marca que o usuário dispensou
+    };
+    // --- FIM DA CORREÇÃO (PWA Install Prompt) ---
+
+
   useEffect(() => {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
@@ -302,33 +356,39 @@ export default function Home() {
   }, [storeId]);
 
   useEffect(() => {
+    // --- INÍCIO DA CORREÇÃO (Nome dinâmico do PWA) ---
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
-      const storeName = storeSettings.message || "Velo Delivery";
+      // CORREÇÃO: Usar storeSettings.name diretamente
+      const storeNameForPWA = storeSettings.name || "Velo Delivery"; 
 
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
+      // CORREÇÃO: O favicon e apple-touch-icon também devem ser dinâmicos no <head> do index.html
+      // As IDs 'dynamic-favicon' e 'dynamic-apple-icon' já foram adicionadas corretamente no index.html
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
 
       const manifestTag = document.getElementById('manifest-tag');
       if (manifestTag) {
         const dynamicManifest = {
-          "short_name": storeName,
-          "name": storeName,
-          "start_url": window.location.origin,
+          "short_name": storeNameForPWA, 
+          "name": storeNameForPWA,       
+          "start_url": "/",
           "display": "standalone",
           "theme_color": "#1d4ed8",
           "background_color": "#ffffff",
+          "orientation": "portrait", 
+          "scope": "/",              
           "icons": [
             {
-              "src": logoUrl,
+              "src": logoUrl, // LOGO É DINÂMICA
               "sizes": "192x192",
               "type": "image/png",
               "purpose": "any"
             },
             {
-              "src": logoUrl,
+              "src": logoUrl, // LOGO É DINÂMICA
               "sizes": "512x512",
               "type": "image/png",
               "purpose": "any"
@@ -341,8 +401,10 @@ export default function Home() {
         manifestTag.setAttribute('href', manifestURL);
       }
     }
-  }, [storeSettings.storeLogoUrl, storeSettings.message]);
-  
+    // Dependências atualizadas para incluir storeSettings.name
+  }, [storeSettings.storeLogoUrl, storeSettings.name]); 
+    // --- FIM DA CORREÇÃO (Nome dinâmico do PWA) ---
+
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
     if (cep.length !== 8) { setCepError(''); return; }
@@ -636,10 +698,6 @@ export default function Home() {
       </header>
       {/* --- FIM DA CORREÇÃO (Header com Slogan e Status Integrados) --- */}
 
-      {/* --- INÍCIO DA CORREÇÃO (Remoção do Hero Banner) --- */}
-      {/* O hero banner (que exibia storeSettings.storeBannerUrl) foi removido daqui */}
-      {/* --- FIM DA CORREÇÃO (Remoção do Hero Banner) --- */}
-
       {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO */}
       {/* --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) --- */}
       <AnimatePresence>
@@ -695,9 +753,7 @@ export default function Home() {
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
                   Nossos Destaques
-                  {/* --- INÍCIO DA CORREÇÃO (Remoção "Ver todos") --- */}
                   {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
-                  {/* --- FIM DA CORREÇÃO (Remoção "Ver todos") --- */}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <AnimatePresence mode='popLayout'>
@@ -745,9 +801,7 @@ export default function Home() {
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
                   Mais Vendidos
-                   {/* --- INÍCIO DA CORREÇÃO (Remoção "Ver todos") --- */}
-                  {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
-                   {/* --- FIM DA CORREÇÃO (Remoção "Ver todos") --- */}
+                   {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <AnimatePresence mode='popLayout'>
@@ -1030,6 +1084,66 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- INÍCIO DA CORREÇÃO (PWA Install Prompt UI) --- */}
+      <AnimatePresence>
+        {showInstallPrompt && (
+            <motion.div
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: "100%", opacity: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4"
+            >
+                <div className="flex items-center gap-3">
+                    <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
+                    <div>
+                        <p className="font-bold text-sm leading-tight">{storeSettings.name}</p> {/* CORRIGIDO AQUI */}
+                        <p className="text-xs opacity-80">Adicione à tela inicial para acesso rápido!</p>
+                    </div>
+                </div>
+                <button
+                    onClick={handleInstallClick}
+                    className="flex-shrink-0 bg-white text-blue-600 px-4 py-2 rounded-full font-bold text-xs uppercase shadow-md hover:bg-blue-50 active:scale-95 transition-all"
+                >
+                    Instalar App
+                </button>
+                <button onClick={() => setShowInstallPrompt(false)} className="absolute top-2 right-2 text-white opacity-70 hover:opacity-100">
+                    <X size={16} />
+                </button>
+            </motion.div>
+        )}
+
+        {showiOSInstallMessage && (
+            <motion.div
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: "100%", opacity: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-r from-purple-600 to-pink-700 text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4"
+            >
+                <div className="flex items-center gap-3">
+                    <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
+                    <div>
+                        <p className="font-bold text-sm leading-tight">Instale nosso App!</p>
+                        <p className="text-xs opacity-80">
+                            Toque no ícone <Share size={14} className="inline-block relative -top-0.5" /> e depois em "Adicionar à Tela de Início".
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={handleDismissiOSInstallMessage}
+                    className="flex-shrink-0 bg-white text-purple-600 px-4 py-2 rounded-full font-bold text-xs uppercase shadow-md hover:bg-purple-50 active:scale-95 transition-all"
+                >
+                    Entendi
+                </button>
+                <button onClick={() => setShowiOSInstallMessage(false)} className="absolute top-2 right-2 text-white opacity-70 hover:opacity-100">
+                    <X size={16} />
+                </button>
+            </motion.div>
+        )}
+      </AnimatePresence>
+      {/* --- FIM DA CORREÇÃO (PWA Install Prompt UI) --- */}
     </div>
   );
 }

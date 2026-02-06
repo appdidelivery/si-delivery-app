@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -14,8 +14,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     <title>Conveniência Santa Isabel</title> <!-- Título alterado para a loja específica -->
 
     <link id="dynamic-favicon" rel="icon" href="/logo-loja.png" /> <!-- Ícone padrão alterado para a logo da loja -->
-    <link id="dynamic-apple-icon" rel="apple-touch-icon" href="/logo-loja.png"> <!-- Ícone Apple touch alterado para a logo da loja -->
-    <link rel="manifest" href="/manifest.json">
+    
+    <!-- --- INÍCIO DA CORREÇÃO (index.html PWA) --- -->
+    <!-- PWA Manifest dinâmico -->
+    <link rel="manifest" href="/manifest.json" id="manifest-tag" />
+
+    <!-- iOS / Safari specific meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Velo Delivery" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" id="dynamic-apple-icon" />
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#2563eb">
+    <meta name="msapplication-TileImage" content="/mstile-150x150.png">
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <!-- --- FIM DA CORREÇÃO (index.html PWA) --- -->
+    
     <!-- Você pode ter outros links CSS aqui se usar um CSS global, por exemplo -->
   </head>
   <body>
@@ -25,5 +38,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
     <div id="root"></div> <!-- ESTE É ONDE SEU APP REACT SERÁ MONTADO -->
     <script type="module" src="/src/main.jsx"></script> <!-- ESTE CARREGA SEU CÓDIGO JS PRINCIPAL -->
+
+    <!-- --- INÍCIO DA CORREÇÃO (Service Worker Registration) --- -->
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+              console.log('Service Worker registrado com sucesso:', registration);
+            })
+            .catch(error => {
+              console.error('Falha no registro do Service Worker:', error);
+            });
+        });
+      }
+    </script>
+    <!-- --- FIM DA CORREÇÃO (Service Worker Registration) --- -->
   </body>
 </html>
