@@ -170,10 +170,19 @@ export default function Home() {
   const [cepError, setCepError] = useState('');
 
   const [storeSettings, setStoreSettings] = useState({
-    promoActive: false, promoBannerUrls: [],
     isOpen: true, openTime: '08:00', closeTime: '23:00',
     message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
+    slogan: 'Os melhores produtos entregues na sua casa.',
+    name: 'Minha Loja' // Adicionado para consistência
   });
+    // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+    // Novo estado para as configurações de marketing da coleção 'settings'
+    const [marketingSettings, setMarketingSettings] = useState({
+        promoActive: false,
+        promoBannerUrls: []
+    });
+    // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
@@ -218,11 +227,11 @@ export default function Home() {
       if (!s.exists()) {
         console.log("Home: Criando configuração padrão na coleção 'stores'...");
         setDoc(storeSettingsRef, {
-          promoActive: false, promoBannerUrls: [],
           isOpen: true, openTime: '08:00', closeTime: '23:00',
           message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
           storeId: storeId,
-          name: 'Minha Loja' 
+          name: 'Minha Loja',
+          slogan: 'Os melhores produtos entregues na sua casa.' // Garante que o slogan está aqui
         }, { merge: true });
       }
     });
@@ -237,18 +246,27 @@ export default function Home() {
         let finalStatus = data.isOpen; 
 
         // Só verifica horário se o botão "Abrir Loja" estiver ativado
-        if (data.isOpen && data.openTime && data.closeTime) {
-          const now = new Date();
-          const currentTime = now.getHours() * 60 + now.getMinutes();
-          const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
-          const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
-          
-          const scheduledOpenTime = openHour * 60 + openMinute;
-          const scheduledCloseTime = closeHour * 60 + closeMinute;
-          
-          const isWithinHours = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-          
-          finalStatus = isWithinHours;
+        if (data.isOpen && data.schedule) { // Verifica se 'schedule' existe
+            const now = new Date();
+            const todayDayId = now.getDay(); // 0 para Domingo, 1 para Segunda, etc.
+            const dayConfig = data.schedule[todayDayId];
+
+            if (dayConfig && dayConfig.open) {
+                const currentTime = now.getHours() * 60 + now.getMinutes();
+                const [openHour, openMinute] = (dayConfig.start || '00:00').split(':').map(Number);
+                const [closeHour, closeMinute] = (dayConfig.end || '23:59').split(':').map(Number);
+                
+                const scheduledOpenTime = openHour * 60 + openMinute;
+                const scheduledCloseTime = closeHour * 60 + closeMinute;
+                
+                const isWithinHours = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
+                
+                finalStatus = isWithinHours;
+            } else {
+                finalStatus = false; // Se não tem config para o dia ou o dia está fechado
+            }
+        } else if (data.isOpen === false) { // Se o botão mestre no admin FECHOU a loja
+            finalStatus = false;
         }
 
         setIsStoreOpenNow(finalStatus);
@@ -259,6 +277,17 @@ export default function Home() {
       }
     });
 
+    // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+    // Listener para as configurações de marketing (promoção relâmpago)
+    const marketingSettingsRef = doc(db, "settings", storeId); 
+    const unsubMarketingSettings = onSnapshot(marketingSettingsRef, (d) => {
+        if (d.exists()) {
+            setMarketingSettings(d.data());
+        }
+    });
+    // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+
+
     return () => {
         unsubProducts();
         unsubCategories();
@@ -266,6 +295,9 @@ export default function Home() {
         unsubShippingRates();
         unsubGeneralBanners();
         unsubStoreSettings();
+        // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+        unsubMarketingSettings(); // Limpa o listener de marketing
+        // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
     };
   }, [storeId]);
 
@@ -380,8 +412,8 @@ export default function Home() {
 
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
-  const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const finalTotal = subtotal + (shippingFee || 0) - discountAmount;
+  const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
+  const finalTotal = Number(subtotal) + Number(shippingFee || 0) - Number(discountAmount || 0);
 
   const applyCoupon = async () => {
     setCouponError('');
@@ -406,7 +438,7 @@ export default function Home() {
     }
 
     const now = new Date();
-    if (coupon.expirationDate && coupon.expirationDate.toDate() < now) {
+    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) { // Convertendo o timestamp para Date para comparar
       setCouponError('Este cupom expirou.');
       return;
     }
@@ -589,34 +621,32 @@ export default function Home() {
       />
 
       {/* HEADER */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3">
+      {/* --- INÍCIO DA CORREÇÃO (Header com Slogan e Status Integrados) --- */}
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm">
+        <div className="flex items-center gap-3 mb-2 sm:mb-0">
           <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-          <div>
+          <div className="text-left">
             <h1 className="text-xl font-black text-slate-800 leading-none uppercase">{storeSettings.name || "Sua Loja"}</h1>
-            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Delivery App</p>
+            {storeSettings.slogan && <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mt-0.5">{storeSettings.slogan}</p>}
           </div>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
         </div>
       </header>
+      {/* --- FIM DA CORREÇÃO (Header com Slogan e Status Integrados) --- */}
 
-      {/* BANNER */}
-      <div className="w-full h-48 md:h-64 relative overflow-hidden">
-        <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
-          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> {storeSettings.name || "Loja Principal"}</div>
-          <p className="text-white text-sm opacity-80 font-medium">{storeSettings.slogan || "Os melhores produtos entregues na sua casa."}</p>
-        </div>
-      </div>
+      {/* --- INÍCIO DA CORREÇÃO (Remoção do Hero Banner) --- */}
+      {/* O hero banner (que exibia storeSettings.storeBannerUrl) foi removido daqui */}
+      {/* --- FIM DA CORREÇÃO (Remoção do Hero Banner) --- */}
 
       {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO */}
+      {/* --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) --- */}
       <AnimatePresence>
-        {storeSettings.promoActive && storeSettings.promoBannerUrls && storeSettings.promoBannerUrls.length > 0 && (
+        {marketingSettings.promoActive && marketingSettings.promoBannerUrls && marketingSettings.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
-              {storeSettings.promoBannerUrls.map((url, index) => (
+              {marketingSettings.promoBannerUrls.map((url, index) => (
                 <div key={index}>
                   <img src={url} alt={`Banner ${index + 1}`} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
                 </div>
@@ -625,6 +655,7 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) --- */}
 
       {/* NOVO: CARROSSEL DE BANNERS GERAIS / DE MARCAS */}
       <AnimatePresence>
@@ -663,7 +694,10 @@ export default function Home() {
       {featuredProducts.length > 0 && (
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
-                  Nossos Destaques <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span>
+                  Nossos Destaques
+                  {/* --- INÍCIO DA CORREÇÃO (Remoção "Ver todos") --- */}
+                  {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
+                  {/* --- FIM DA CORREÇÃO (Remoção "Ver todos") --- */}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <AnimatePresence mode='popLayout'>
@@ -710,7 +744,10 @@ export default function Home() {
       {bestsellingProducts.length > 0 && (
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
-                  Mais Vendidos <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span>
+                  Mais Vendidos
+                   {/* --- INÍCIO DA CORREÇÃO (Remoção "Ver todos") --- */}
+                  {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
+                   {/* --- FIM DA CORREÇÃO (Remoção "Ver todos") --- */}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <AnimatePresence mode='popLayout'>
@@ -831,6 +868,7 @@ export default function Home() {
                     className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
                 >
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                    
                 </motion.div>
                 )}
             </AnimatePresence>

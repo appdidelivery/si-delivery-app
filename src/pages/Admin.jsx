@@ -55,7 +55,7 @@ export default function Admin() {
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [form, setForm] = useState({
+    const [form, setForm] = useState({ 
         name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
         hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false,
         quantityDiscounts: [], recommendedIds: [] // <--- ADICIONE ISTO
@@ -63,7 +63,7 @@ export default function Admin() {
     const [editingId, setEditingId] = useState(null);
     // --- Estado para Edição de Pedido ---
     const [isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
-    const [editingOrderData, setEditingOrderData] = useState(null); // Aqui ele estava null, o que é correto
+    const [editingOrderData, setEditingOrderData] = useState(null);
     // Estado para o frete do pedido manual
     const [manualShippingFee, setManualShippingFee] = useState(0);
     // Categorias
@@ -89,17 +89,18 @@ export default function Admin() {
 
     // Loja (Settings)
     const [storeStatus, setStoreStatus] = useState({
-        isOpen: true,
+        isOpen: true, 
         name: 'Carregando...',
         message: '', // Mensagem de aviso
-        storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
-        storeBannerUrl: '/fachada.jpg',
-        schedule: {} // Agenda Semanal
+        storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
+        storeBannerUrl: '/fachada.jpg', // Este URL será mantido, mas o banner em si não será mais exibido no Admin
+        schedule: {}, // Agenda Semanal
+        slogan: '' // Adicionado para consistência
     });
     const [logoFile, setLogoFile] = useState(null);
-    const [bannerFile, setBannerFile] = useState(null);
+    const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
     const [uploadingLogo, setUploadingLogo] = useState(false);
-    const [uploadingBanner, setUploadingBanner] = useState(false);
+    const [uploadingBanner, setUploadingBanner] = useState(false); // Manter este
 
     // Promoção Relâmpago
     const [promoBannerFile1, setPromoBannerFile1] = useState(null);
@@ -153,10 +154,10 @@ export default function Admin() {
 
         // Produtos
         const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
+        
         // Categorias
         const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
+        
         // Banners
         const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), orderBy("order", "asc")), (s) => setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
@@ -170,28 +171,30 @@ export default function Admin() {
 
         // Status da Loja (Nome, Logo, Aberto/Fechado)
         const stRef = doc(db, "stores", storeId);
-        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, {
-            name: "Nova Loja", isOpen: true, schedule: {},
-            message: 'Aberto!', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
-            storeBannerUrl: '/fachada.jpg', storeId: storeId
+        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, { 
+            name: "Nova Loja", isOpen: true, schedule: {}, 
+            message: 'Aberto!', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
+            storeBannerUrl: '/fachada.jpg', storeId: storeId,
+            slogan: '' // Inicializa o slogan aqui também
         }, { merge: true }));
-
+        
         const unsubSt = onSnapshot(stRef, (d) => {
             if (d.exists()) {
                 const data = d.data();
                 setStoreStatus({
                     ...data,
-                    schedule: data.schedule || {} // Garante que schedule existe
+                    schedule: data.schedule || {}, // Garante que schedule existe
+                    slogan: data.slogan || '', // Garante que slogan existe
                 });
             } else {
                 setStoreStatus(prev => ({...prev, name: storeId}));
             }
         });
-
+        
         // Cupons
         const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        return () => {
+        return () => { 
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons();
         };
@@ -215,7 +218,7 @@ export default function Admin() {
             const url = await uploadImageToCloudinary(imageFile);
             setForm(prev => ({ ...prev, imageUrl: url }));
             setImageFile(null);
-        } catch (error) { console.error(error); setUploadError('Erro ao enviar imagem.'); }
+        } catch (error) { console.error(error); setUploadError('Erro ao enviar imagem.'); } 
         finally { setUploading(false); }
     };
 
@@ -223,32 +226,82 @@ export default function Admin() {
         if (!logoFile) return; setUploadingLogo(true);
         try {
             const url = await uploadImageToCloudinary(logoFile);
-            await updateDoc(doc(db, "stores", storeId), { storeLogoUrl: url });
+            await updateDoc(doc(db, "stores", storeId), { storeLogoUrl: url }); 
             setLogoFile(null); alert("Logo atualizada!");
         } catch (e) { alert("Erro upload logo"); } setUploadingLogo(false);
     };
 
+    // A função de upload do banner da loja permanece, caso você queira usá-lo em outro lugar
+    // ou apenas manter a URL no Firebase sem exibi-lo no painel de admin.
     const handleBannerUpload = async () => {
         if (!bannerFile) return; setUploadingBanner(true);
         try {
             const url = await uploadImageToCloudinary(bannerFile);
-            await updateDoc(doc(db, "stores", storeId), { storeBannerUrl: url });
+            await updateDoc(doc(db, "stores", storeId), { storeBannerUrl: url }); 
             setBannerFile(null); alert("Banner atualizado!");
         } catch (e) { alert("Erro upload banner"); } setUploadingBanner(false);
     };
 
+    // --- INÍCIO DA CORREÇÃO (PROMO RELÂMPAGO) ---
     const handlePromoBannerUpload = async () => {
         setUploadingPromoBanner(true);
-        const bannerFiles = [promoBannerFile1, promoBannerFile2, promoBannerFile3].filter(file => file !== null);
-        const uploadPromises = bannerFiles.map(file => uploadImageToCloudinary(file).catch(e => null));
+        // Começa com os banners atuais do Firestore/estado
+        const currentUrls = [...(settings.promoBannerUrls || [])];
+        const newUrls = [...currentUrls]; // Cria uma cópia mutável
+
+        const uploadPromises = [];
+
+        // Função para processar o upload para um slot específico
+        const processSlot = async (file, index) => {
+            if (file) { // Se um novo arquivo foi selecionado para este slot
+                try {
+                    const url = await uploadImageToCloudinary(file);
+                    newUrls[index] = url; // Atualiza o slot específico com a nova URL
+                } catch (e) {
+                    console.error(`Erro ao enviar banner ${index + 1}:`, e);
+                    // Não alertar individualmente para não interromper os outros uploads,
+                    // mas podemos mostrar um erro geral depois.
+                }
+            } else if (newUrls[index] === undefined) {
+                 // Se não há arquivo e a slot estava indefinida, defina-a como null para padronizar
+                newUrls[index] = null; 
+            }
+            // Se o arquivo é null, e já existia uma URL, mantemos a URL existente.
+            // Se a intenção é limpar a slot, o usuário teria que explicitamente limpar o campo
+            // e ter uma lógica para setar `newUrls[index] = null;`
+        };
+
+        // Coleta promessas para cada slot
+        uploadPromises.push(processSlot(promoBannerFile1, 0));
+        uploadPromises.push(processSlot(promoBannerFile2, 1));
+        uploadPromises.push(processSlot(promoBannerFile3, 2));
+
+        await Promise.all(uploadPromises); // Espera que todos os uploads sejam concluídos
+
+        // Filtra nulos se a intenção é um array sem "buracos", ou mantenha-os se a posição importa
+        // Se `promoBannerUrls` precisa ser um array com slots definidos (ex: [url1, null, url3]),
+        // remova o `.filter(url => url !== null)` abaixo.
+        // Pelo comportamento do carrossel no Home.jsx, um array com "buracos" (e.g., [url1, , url3])
+        // pode causar problemas. Melhor um array mais limpo ou com `null`s explícitos.
+        const finalPromoBannerUrls = newUrls.filter(url => url !== null && url !== undefined);
+
+        // Após todo o processamento, atualiza o Firestore com o novo estado de newUrls
         try {
-            const bannerUrls = await Promise.all(uploadPromises);
-            const filteredBannerUrls = bannerUrls.filter(url => url !== null);
-            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: filteredBannerUrls }, { merge: true });
-            setPromoBannerFile1(null); setPromoBannerFile2(null); setPromoBannerFile3(null);
-            alert("Banners salvos!");
-        } catch (e) { alert("Erro ao salvar banners"); } setUploadingPromoBanner(false);
+            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: finalPromoBannerUrls }, { merge: true });
+            // Limpa os arquivos temporários locais após o salvamento bem-sucedido
+            setPromoBannerFile1(null);
+            setPromoBannerFile2(null);
+            setPromoBannerFile3(null);
+            alert("Banners de promoção salvos!");
+        } catch (e) {
+            console.error("Erro ao salvar banners de promoção no Firestore:", e);
+            alert("Erro ao salvar banners de promoção.");
+        } finally {
+            setUploadingPromoBanner(false);
+        }
     };
+    // --- FIM DA CORREÇÃO (PROMO RELÂMPAGO) ---
+
 
     const handleGeneralBannerImageUpload = async () => {
         setUploadingBannerImage(true);
@@ -279,7 +332,7 @@ export default function Admin() {
         const w = window.open('', '_blank');
         const itemsHtml = (o.items || []).map(i => `<li>• ${i.quantity}x ${i.name}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
-
+        
         // Formata a data
         const dataPedido = o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
 
@@ -300,7 +353,7 @@ export default function Admin() {
                 <hr>
                 <ul style="list-style:none; padding:0;">${itemsHtml}</ul>
                 <hr>
-
+                
                 ${/* --- AQUI ESTÁ A CORREÇÃO DA OBSERVAÇÃO --- */ ''}
                 ${o.observation ? `<div style="background:#eee; padding:5px; margin: 10px 0; border:1px solid #000;"><strong>OBS: ${o.observation}</strong></div>` : ''}
 
@@ -351,7 +404,7 @@ export default function Admin() {
             const storeConfig = {
                 name: "Minha Loja Digital", slug: storeId, logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
                 primaryColor: "#2563eb", promoTitle: "Ofertas do App! 📲", promoBannerUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081395.png",
-                whatsapp: "5511999999999"
+                whatsapp: "5511999999999", slogan: "Seu delivery de bebidas rápido!" // Adiciona slogan no setup inicial
             };
             await setDoc(doc(db, "stores", storeId), storeConfig, { merge: true });
             const cats = [{ name: "Cervejas", order: 1, storeId }, { name: "Destilados", order: 2, storeId }, { name: "Gelo e Carvão", order: 3, storeId }];
@@ -397,6 +450,8 @@ export default function Admin() {
                 <div className="flex flex-col items-center mb-10">
                     <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
                     <p className="text-[10px] font-bold text-blue-600 uppercase text-center">{storeStatus.name}</p>
+                    {/* Slogan na Sidebar */}
+                    {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
                 <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
                     {[...navItems, { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} /> }, { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} /> }]
@@ -459,20 +514,16 @@ export default function Admin() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
-                                    <button
+                                    <button 
                                         onClick={() => {
-                                            // --- INÍCIO DA CORREÇÃO (EDITAR PEDIDO) ---
-                                            // Cria uma cópia segura do objeto do pedido, tratando objetos aninhados.
-                                            // Isso é mais seguro para Timestamps do Firestore do que JSON.parse(JSON.stringify()).
                                             const orderCopy = { ...o };
                                             if (orderCopy.address && typeof orderCopy.address === 'object') {
-                                                orderCopy.address = { ...orderCopy.address }; // Copia objeto address
+                                                orderCopy.address = { ...orderCopy.address }; 
                                             }
-                                            orderCopy.items = orderCopy.items ? orderCopy.items.map(item => ({ ...item })) : []; // Copia array de items e cada item
+                                            orderCopy.items = orderCopy.items ? orderCopy.items.map(item => ({ ...item })) : []; 
                                             setEditingOrderData(orderCopy);
                                             setIsOrderEditModalOpen(true);
-                                            // --- FIM DA CORREÇÃO (EDITAR PEDIDO) ---
-                                        }}
+                                        }} 
                                         className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600 mr-2"
                                         title="Editar Pedido"
                                     >
@@ -542,9 +593,9 @@ export default function Admin() {
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
-                            <input
-                                type="text"
-                                placeholder="🔍 Buscar produto por nome..."
+                            <input 
+                                type="text" 
+                                placeholder="🔍 Buscar produto por nome..." 
                                 className="w-full p-4 pl-12 rounded-2xl border-none bg-white shadow-sm font-bold text-slate-600 focus:ring-2 ring-blue-500 outline-none"
                                 value={productSearch}
                                 onChange={(e) => setProductSearch(e.target.value)}
@@ -557,8 +608,8 @@ export default function Admin() {
                             )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-{products.filter(p =>
-                                p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+{products.filter(p => 
+                                p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
                                 p.category.toLowerCase().includes(productSearch.toLowerCase())
                             ).map(p => (                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
                                     <img src={p.imageUrl} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" />
@@ -602,9 +653,9 @@ export default function Admin() {
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm space-y-4 border border-slate-100">
                                 <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
                                 <input type="text" placeholder="Endereço (Rua e Número)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.address} onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} />
-
+                                
                                 {/* SELETOR DE FRETE */}
-                                <select
+                                <select 
                                     className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 cursor-pointer"
                                     onChange={(e) => {
                                         const selectedRate = shippingRates.find(r => r.neighborhood === e.target.value);
@@ -621,13 +672,13 @@ export default function Admin() {
                                 </select>
 
                                 <input type="tel" placeholder="WhatsApp" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
-
+                                
                                 <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
                                     <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
                                 </select>
-
+                                
                                 {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
-
+                                
                                 <div className="pt-6 border-t border-slate-100">
                                     {/* LISTA DE ITENS NO CARRINHO */}
                                     {manualCart.length === 0 ? (
@@ -638,7 +689,7 @@ export default function Admin() {
                                                 <span>{i.quantity}x {i.name}</span>
                                                 <div className="flex items-center gap-2">
                                                     <span>R$ {(i.price * i.quantity).toFixed(2)}</span>
-                                                    <button
+                                                    <button 
                                                         onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))}
                                                         className="text-red-500 hover:bg-red-50 p-1 rounded"
                                                     >
@@ -648,7 +699,7 @@ export default function Admin() {
                                             </div>
                                         ))
                                     )}
-
+                                    
                                     <div className="flex justify-between mb-2 font-bold text-blue-600 text-sm border-t border-dashed pt-4 mt-2">
                                         <span>Taxa de Entrega:</span>
                                         <span>R$ {manualShippingFee.toFixed(2)}</span>
@@ -657,31 +708,31 @@ export default function Admin() {
                                     <div className="text-3xl font-black text-slate-900 mt-4 italic">
                                         Total R$ {(manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee).toFixed(2)}
                                     </div>
-
+                                    
                                     <button onClick={async () => {
                                         if (!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length === 0) return alert("Preencha tudo e adicione produtos!");
-
+                                        
                                         const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
                                         const totalWithShipping = subtotal + manualShippingFee;
                                         const finalAddress = `${manualCustomer.address} - ${manualCustomer.neighborhood || ''}`;
 
-                                        await addDoc(collection(db, "orders"), {
-                                            ...manualCustomer,
-                                            customerName: manualCustomer.name,
-                                            customerAddress: finalAddress,
-                                            customerPhone: manualCustomer.phone,
-                                            items: manualCart,
-                                            shippingFee: manualShippingFee,
-                                            total: totalWithShipping,
-                                            status: 'pending',
-                                            createdAt: serverTimestamp(),
-                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '',
-                                            storeId: storeId
+                                        await addDoc(collection(db, "orders"), { 
+                                            ...manualCustomer, 
+                                            customerName: manualCustomer.name, 
+                                            customerAddress: finalAddress, 
+                                            customerPhone: manualCustomer.phone, 
+                                            items: manualCart, 
+                                            shippingFee: manualShippingFee, 
+                                            total: totalWithShipping, 
+                                            status: 'pending', 
+                                            createdAt: serverTimestamp(), 
+                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
+                                            storeId: storeId 
                                         });
-
-                                        setManualCart([]);
-                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
-                                        setManualShippingFee(0);
+                                        
+                                        setManualCart([]); 
+                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
+                                        setManualShippingFee(0); 
                                         alert("Pedido Lançado com Sucesso!");
                                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-6 shadow-xl hover:bg-blue-700 transition-all">
                                         Confirmar Pedido
@@ -693,12 +744,12 @@ export default function Admin() {
                         {/* --- COLUNA DIREITA: SELEÇÃO DE PRODUTOS --- */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 h-fit sticky top-6">
                             <h2 className="text-xl font-black uppercase mb-6 text-slate-300">Adicionar Produtos</h2>
-
+                            
                             {/* Busca Rápida no Manual (Bônus) */}
                             <div className="mb-4 relative">
-                                <input
-                                    type="text"
-                                    placeholder="Filtrar produtos..."
+                                <input 
+                                    type="text" 
+                                    placeholder="Filtrar produtos..." 
                                     className="w-full p-3 pl-10 bg-slate-50 rounded-xl font-bold text-sm"
                                     onChange={(e) => {
                                         const term = e.target.value.toLowerCase();
@@ -713,15 +764,15 @@ export default function Admin() {
 
                             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                 {products.map(p => (
-                                    <button
-                                        key={p.id}
+                                    <button 
+                                        key={p.id} 
                                         className="manual-product-item w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200 group"
                                         data-name={p.name}
                                         onClick={() => {
                                             const ex = manualCart.find(it => it.id === p.id);
-                                            if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
+                                            if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it)); 
                                             else setManualCart([...manualCart, { ...p, quantity: 1 }]);
-                                        }}
+                                        }} 
                                     >
                                         <div className="flex items-center gap-3 text-left">
                                             {p.imageUrl && <img src={p.imageUrl} className="w-8 h-8 object-contain rounded-md bg-white"/>}
@@ -747,12 +798,39 @@ export default function Admin() {
                                 <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
                                 <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
                                 <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
+                                
+                                {/* --- INÍCIO DA CORREÇÃO (EXIBIÇÃO DE BANNERS ATIVOS) --- */}
+                                {/* Mostra os banners de promoção que ESTÃO ATIVOS no Firebase */}
+                                {settings.promoBannerUrls && settings.promoBannerUrls.length > 0 && (
+                                    <div className="mt-8 pt-6 border-t border-orange-400 space-y-4">
+                                        <h3 className="text-xl font-black text-white mb-4">Banners Atuais (Ativos na Loja)</h3>
+                                        <div className="space-y-4">
+                                            {settings.promoBannerUrls.map((url, index) => (
+                                                url ? <img key={index} src={url} className="w-full max-w-lg h-40 object-cover rounded-2xl shadow-md bg-orange-400" alt={`Promo Banner ${index + 1}`} /> : null
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {/* --- FIM DA CORREÇÃO (EXIBIÇÃO DE BANNERS ATIVOS) --- */}
+
                                 <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
-                                    <h3 className="text-xl font-black uppercase mb-4">Banners</h3>
+                                    <h3 className="text-xl font-black uppercase mb-4">Gerenciar Banners</h3>
                                     <div className="flex flex-col items-center gap-4">
-                                        {(promoBannerFile1 || (settings.promoBannerUrls && settings.promoBannerUrls[0])) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        {/* Banner 1 */}
+                                        {(promoBannerFile1 || settings.promoBannerUrls[0]) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
                                         <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile1(e.target.files[0])} className="hidden" id="promo-banner-upload-1"/>
                                         <label htmlFor="promo-banner-upload-1" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 1 <UploadCloud size={20}/></label>
+                                        
+                                        {/* Banner 2 */}
+                                        {(promoBannerFile2 || settings.promoBannerUrls[1]) && <img src={promoBannerFile2 ? URL.createObjectURL(promoBannerFile2) : settings.promoBannerUrls[1]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50 mt-4"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile2(e.target.files[0])} className="hidden" id="promo-banner-upload-2"/>
+                                        <label htmlFor="promo-banner-upload-2" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 2 <UploadCloud size={20}/></label>
+
+                                        {/* Banner 3 */}
+                                        {(promoBannerFile3 || settings.promoBannerUrls[2]) && <img src={promoBannerFile3 ? URL.createObjectURL(promoBannerFile3) : settings.promoBannerUrls[2]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50 mt-4"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile3(e.target.files[0])} className="hidden" id="promo-banner-upload-3"/>
+                                        <label htmlFor="promo-banner-upload-3" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 3 <UploadCloud size={20}/></label>
+
                                         <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className="w-full max-w-lg p-3 bg-blue-600 text-white rounded-2xl font-black">{uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}</button>
                                     </div>
                                 </div>
@@ -777,7 +855,7 @@ export default function Admin() {
                 {activeTab === 'store_settings' && (
                     <div className="space-y-8">
                         <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
-
+                        
                         {/* 1. Status Geral (Botão Gigante) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 text-center">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Controle Mestre</h2>
@@ -796,30 +874,31 @@ export default function Admin() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2"><MessageSquare size={14}/> Mensagem / Aviso (Aparece no Topo)</label>
                                     <input type="text" placeholder="Ex: Voltamos em 15min / Promoção de Carnaval" value={storeStatus.message || ''} onChange={(e) => updateDoc(doc(db, "stores", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-blue-50 text-blue-700 rounded-2xl font-bold border-none placeholder-blue-300" />
-                                    {/* --- NOVO CAMPO: Slogan / Descrição --- */}
+                                    {/* --- O CAMPO DO SLOGAN PERMANECE AQUI PARA EDIÇÃO --- */}
                             <div className="mt-4">
                                 <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
-                                    <Tags size={14}/> Slogan / Descrição do Banner
+                                    <Tags size={14}/> Slogan / Descrição
                                 </label>
-                                <input
-                                    type="text"
-                                    placeholder="Ex: Bebidas geladas, carvão e entrega rápida."
-                                    value={storeStatus.slogan || ''}
-                                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { slogan: e.target.value }, { merge: true })}
-                                    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600"
+                                <input 
+                                    type="text" 
+                                    placeholder="Ex: Bebidas geladas, carvão e entrega rápida." 
+                                    value={storeStatus.slogan || ''} 
+                                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { slogan: e.target.value }, { merge: true })} 
+                                    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600" 
                                 />
                             </div>
+                            {/* --- FIM DA CORREÇÃO (Slogan na Sidebar) --- */}
                             {/* --- NOVO CAMPO: WhatsApp do Pedido --- */}
                                 <div className="mt-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <MessageCircle size={14}/> WhatsApp para Receber Pedidos
                                     </label>
-                                    <input
-                                        type="tel"
-                                        placeholder="Ex: 5551999999999 (DDD + Número)"
-                                        value={storeStatus.whatsapp || ''}
-                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { whatsapp: e.target.value }, { merge: true })}
-                                        className="w-full p-5 bg-green-50 text-green-700 rounded-2xl font-bold border-none placeholder-green-300"
+                                    <input 
+                                        type="tel" 
+                                        placeholder="Ex: 5551999999999 (DDD + Número)" 
+                                        value={storeStatus.whatsapp || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { whatsapp: e.target.value }, { merge: true })} 
+                                        className="w-full p-5 bg-green-50 text-green-700 rounded-2xl font-bold border-none placeholder-green-300" 
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Digite apenas números com DDD (ex: 55519...). É para esse número que o cliente será enviado.</p>
                                 </div>
@@ -838,27 +917,27 @@ export default function Admin() {
                                     return (
                                         <div key={day.id} className={`flex flex-col md:flex-row items-center gap-4 p-4 rounded-2xl border-2 transition-all ${dayConfig.open ? 'bg-white border-blue-100' : 'bg-slate-50 border-transparent opacity-60'}`}>
                                             <div className="flex items-center gap-4 w-full md:w-32">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={dayConfig.open}
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={dayConfig.open} 
                                                     onChange={(e) => handleScheduleChange(day.id, 'open', e.target.checked)}
                                                     className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
                                                 />
                                                 <span className="font-black text-slate-700 uppercase">{day.label}</span>
                                             </div>
-
+                                            
                                             {dayConfig.open && (
                                                 <div className="flex items-center gap-2 flex-1 w-full">
-                                                    <input
-                                                        type="time"
-                                                        value={dayConfig.start}
+                                                    <input 
+                                                        type="time" 
+                                                        value={dayConfig.start} 
                                                         onChange={(e) => handleScheduleChange(day.id, 'start', e.target.value)}
                                                         className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
                                                     />
                                                     <span className="font-bold text-slate-300">até</span>
-                                                    <input
-                                                        type="time"
-                                                        value={dayConfig.end}
+                                                    <input 
+                                                        type="time" 
+                                                        value={dayConfig.end} 
                                                         onChange={(e) => handleScheduleChange(day.id, 'end', e.target.value)}
                                                         className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
                                                     />
@@ -873,8 +952,15 @@ export default function Admin() {
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Mídia da Loja</h2>
                             <div className="flex flex-col gap-6">
-                                <div className="flex flex-col items-center gap-4 border-b pb-6"><img src={logoFile ? URL.createObjectURL(logoFile) : storeStatus.storeLogoUrl} className="w-24 h-24 object-contain rounded-full border-2 border-blue-50" /><input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files[0])} className="hidden" id="logo-upload" /><label htmlFor="logo-upload" className="p-3 bg-slate-50 rounded-xl font-bold cursor-pointer text-sm">Selecionar Logo</label>{logoFile && <button onClick={handleLogoUpload} disabled={uploadingLogo} className="p-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Enviar Logo</button>}</div>
-                                <div className="flex flex-col items-center gap-4"><img src={bannerFile ? URL.createObjectURL(bannerFile) : storeStatus.storeBannerUrl} className="w-full h-32 object-cover rounded-xl" /><input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files[0])} className="hidden" id="banner-upload" /><label htmlFor="banner-upload" className="p-3 bg-slate-50 rounded-xl font-bold cursor-pointer text-sm">Selecionar Banner</label>{bannerFile && <button onClick={handleBannerUpload} disabled={uploadingBanner} className="p-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Enviar Banner</button>}</div>
+                                <div className="flex flex-col items-center gap-4 border-b pb-6">
+                                    <img src={logoFile ? URL.createObjectURL(logoFile) : storeStatus.storeLogoUrl} className="w-24 h-24 object-contain rounded-full border-2 border-blue-50" />
+                                    <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files[0])} className="hidden" id="logo-upload" />
+                                    <label htmlFor="logo-upload" className="p-3 bg-slate-50 rounded-xl font-bold cursor-pointer text-sm">Selecionar Logo</label>
+                                    {logoFile && <button onClick={handleLogoUpload} disabled={uploadingLogo} className="p-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Enviar Logo</button>}
+                                </div>
+                                {/* --- INÍCIO DA CORREÇÃO (Remover Banner da Loja da Seção) --- */}
+                                {/* O código para o banner da loja foi removido daqui */}
+                                {/* --- FIM DA CORREÇÃO (Remover Banner da Loja da Seção) --- */}
                             </div>
                         </div>
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
@@ -952,26 +1038,26 @@ export default function Admin() {
                                         <Flame size={14} className="text-orange-500"/> Compre Junto (Upsell)
                                     </label>
                                     <p className="text-[10px] text-slate-400 font-bold mb-2">Selecione produtos para sugerir no carrinho:</p>
-
+                                    
                                     <div className="flex gap-2 flex-wrap bg-slate-50 p-4 rounded-2xl max-h-40 overflow-y-auto custom-scrollbar border border-slate-100">
                                         {products.filter(p => p.id !== editingId).map(p => {
                                             const isSelected = (form.recommendedIds || []).includes(p.id);
                                             return (
-                                                <button
+                                                <button 
                                                     key={p.id}
                                                     type="button"
                                                     onClick={() => {
                                                         const current = form.recommendedIds || [];
                                                         setForm({
-                                                            ...form,
-                                                            recommendedIds: isSelected
-                                                                ? current.filter(id => id !== p.id)
+                                                            ...form, 
+                                                            recommendedIds: isSelected 
+                                                                ? current.filter(id => id !== p.id) 
                                                                 : [...current, p.id]
                                                         });
                                                     }}
                                                     className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all border flex items-center gap-2 ${
-                                                        isSelected
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                                        isSelected 
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
                                                         : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
                                                     }`}
                                                 >
@@ -1016,41 +1102,41 @@ export default function Admin() {
                     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
                         <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
-
+                            
                             <h2 className="text-3xl font-black italic mb-6 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
-
+                            
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-
+                                
                                 // LÓGICA DE SALVAMENTO (CONVERSÃO DE TIPOS)
-                                const dataToSave = {
-                                    ...couponForm,
+                                const dataToSave = { 
+                                    ...couponForm, 
                                     code: couponForm.code.toUpperCase(),
                                     storeId: storeId,
                                     // Garante que números são salvos como números
-                                    value: Number(couponForm.value),
+                                    value: Number(couponForm.value), 
                                     minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
                                     // Se estiver vazio, salva como null (ilimitado)
-                                    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null,
+                                    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null, 
                                     userUsageLimit: couponForm.userUsageLimit ? Number(couponForm.userUsageLimit) : null,
                                     // Mantém contagem atual se for edição
-                                    currentUsage: editingCouponId ? (couponForm.currentUsage || 0) : 0,
-                                    expirationDate: couponForm.expirationDate || null,
-                                    firstPurchaseOnly: couponForm.firstPurchaseOnly === true,
+                                    currentUsage: editingCouponId ? (couponForm.currentUsage || 0) : 0, 
+                                    expirationDate: couponForm.expirationDate || null, 
+                                    firstPurchaseOnly: couponForm.firstPurchaseOnly === true, 
                                     active: true,
-                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
+                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(), 
                                 };
 
-                                try {
-                                    if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave);
-                                    else await addDoc(collection(db, "coupons"), dataToSave);
-                                    setIsCouponModalOpen(false);
-                                    alert("Cupom salvo com sucesso!");
-                                } catch (error) {
-                                    alert("Erro: " + error.message);
+                                try { 
+                                    if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave); 
+                                    else await addDoc(collection(db, "coupons"), dataToSave); 
+                                    setIsCouponModalOpen(false); 
+                                    alert("Cupom salvo com sucesso!"); 
+                                } catch (error) { 
+                                    alert("Erro: " + error.message); 
                                 }
                             }} className="space-y-4">
-
+                                
                                 {/* LINHA 1: CÓDIGO E VALOR */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
@@ -1075,11 +1161,11 @@ export default function Admin() {
                                 {/* LINHA 2: PEDIDO MÍNIMO E DATA */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Pedido Mínimo (R$)</label>
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Pedido Mínimo (R$)</label>
                                         <input type="number" placeholder="0.00" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.minimumOrderValue} onChange={e => setCouponForm({...couponForm, minimumOrderValue: e.target.value})} />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Data de Validade</label>
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Data de Validade</label>
                                         <input type="date" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-slate-600" value={couponForm.expirationDate || ''} onChange={e => setCouponForm({...couponForm, expirationDate: e.target.value})} />
                                     </div>
                                 </div>
@@ -1101,10 +1187,10 @@ export default function Admin() {
 
                                 {/* CHECKBOX PRIMEIRA COMPRA */}
                                 <div className="flex items-center gap-3 p-2 ml-2 bg-blue-50/50 rounded-xl border border-blue-100">
-                                    <input
-                                        type="checkbox"
+                                    <input 
+                                        type="checkbox" 
                                         id="firstPurchase"
-                                        checked={couponForm.firstPurchaseOnly || false}
+                                        checked={couponForm.firstPurchaseOnly || false} 
                                         onChange={(e) => setCouponForm({...couponForm, firstPurchaseOnly: e.target.checked})}
                                         className="w-5 h-5 rounded-lg accent-blue-600 cursor-pointer"
                                     />
@@ -1122,8 +1208,7 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
-            {/* --- INÍCIO DA CORREÇÃO (EDITAR PEDIDO) --- */}
-            {/* NOVO MODAL PARA EDIÇÃO DE PEDIDOS */}
+            {/* --- NOVO MODAL PARA EDIÇÃO DE PEDIDOS (Mantido da correção anterior) --- */}
             <AnimatePresence>
                 {isOrderEditModalOpen && editingOrderData && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -1241,7 +1326,6 @@ export default function Admin() {
                     </motion.div>
                 )}
             </AnimatePresence>
-            {/* --- FIM DA CORREÇÃO (EDITAR PEDIDO) --- */}
         </div>
     );
 }
