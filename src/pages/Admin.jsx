@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Calendar, MessageSquare
+    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -30,7 +30,7 @@ const DAYS_OF_WEEK = [
 
 export default function Admin() {
     const navigate = useNavigate();
-    const storeId = getStoreIdFromHostname();
+    const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
     // --- PROTEÇÃO DE ROTA (SEGURANÇA) ---
     useEffect(() => {
         // Verifica se tem usuário logado. Se não tiver, chuta pro Login.
@@ -1010,7 +1010,17 @@ export default function Admin() {
                             <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                const dataToSave = { ...couponForm, code: couponForm.code.toUpperCase(), createdAt: serverTimestamp(), storeId: storeId };
+                                const dataToSave = { 
+    ...couponForm, 
+    code: couponForm.code.toUpperCase(),
+    // CONVERSÃO IMPORTANTE AQUI:
+    value: Number(couponForm.value), 
+    minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
+    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null,
+    userUsageLimit: couponForm.userUsageLimit ? Number(couponForm.userUsageLimit) : null,
+    createdAt: serverTimestamp(), 
+    storeId: storeId 
+};
                                 try { if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave); else await addDoc(collection(db, "coupons"), dataToSave); setIsCouponModalOpen(false); alert("Cupom salvo!"); } catch (error) { alert("Erro: " + error.message); }
                             }} className="space-y-4">
                                 <input type="text" placeholder="Código (ex: VIP10)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />

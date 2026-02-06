@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -52,7 +52,7 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 export default function Home() {
   const navigate = useNavigate();
-  const storeId = getStoreIdFromHostname();
+  const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
 
   // --- LÓGICA DO TOUR (ONBOARDING) ---
@@ -211,35 +211,51 @@ export default function Home() {
       setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    const storeSettingsRef = doc(db, "settings", storeId);
+    const storeSettingsRef = doc(db, "stores", storeId); 
+    
+    // Cria o documento se não existir (Fallback de segurança)
     getDoc(storeSettingsRef).then(s => {
       if (!s.exists()) {
+        console.log("Home: Criando configuração padrão na coleção 'stores'...");
         setDoc(storeSettingsRef, {
           promoActive: false, promoBannerUrls: [],
           isOpen: true, openTime: '08:00', closeTime: '23:00',
           message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
-          storeId: storeId
+          storeId: storeId,
+          name: 'Minha Loja' 
         }, { merge: true });
       }
     });
+
     const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
       if (d.exists()) {
         const data = d.data();
+        console.log("🔥 Home recebeu atualização da Loja:", data); 
         setStoreSettings(data);
 
-        let finalStatus = data.isOpen;
-        if (data.openTime && data.closeTime) {
+        // Lógica de Horário + Botão Manual do Admin
+        let finalStatus = data.isOpen; 
+
+        // Só verifica horário se o botão "Abrir Loja" estiver ativado
+        if (data.isOpen && data.openTime && data.closeTime) {
           const now = new Date();
           const currentTime = now.getHours() * 60 + now.getMinutes();
           const [openHour, openMinute] = (data.openTime || '00:00').split(':').map(Number);
           const [closeHour, closeMinute] = (data.closeTime || '23:59').split(':').map(Number);
+          
           const scheduledOpenTime = openHour * 60 + openMinute;
           const scheduledCloseTime = closeHour * 60 + closeMinute;
-          const isCurrentlyOpenBySchedule = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-          finalStatus = data.isOpen && isCurrentlyOpenBySchedule;
+          
+          const isWithinHours = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
+          
+          finalStatus = isWithinHours;
         }
+
         setIsStoreOpenNow(finalStatus);
-        setStoreMessage(data.message || (finalStatus ? 'Aberto agora!' : 'Fechado no momento.'));
+        
+        const msgAberta = data.message || 'Aberto agora!';
+        const msgFechada = 'Fechado no momento.';
+        setStoreMessage(finalStatus ? msgAberta : msgFechada);
       }
     });
 
@@ -454,12 +470,15 @@ export default function Home() {
 
 
   const finalizeOrder = async () => {
+    // 1. Validações de Segurança
     if (!isStoreOpenNow) return alert(storeMessage);
     if(!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha o endereço completo.");
     if(cart.length === 0) return alert("Carrinho vazio!");
     if (shippingFee === null) return alert("Frete não calculado.");
 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
+    
+    // 2. Salvar no Firebase
     try {
       const orderData = {
         customerName: customer.name, customerAddress: fullAddress, customerPhone: customer.phone,
@@ -481,15 +500,37 @@ export default function Home() {
         });
       }
 
+      // --- AQUI ESTÁ A CORREÇÃO DA MENSAGEM ---
+      // 3. Montar o texto BONITO para o WhatsApp
+      const itemsList = cart.map(i => `• ${i.quantity}x ${i.name}`).join('\n');
+      const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
+      const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
+      const obsMsg = customer.payment === 'dinheiro' && customer.changeFor ? `\n💵 *Troco para:* ${customer.changeFor}` : `\n💳 *Pagamento:* ${customer.payment.toUpperCase()}`;
+      
+      // Usa window.location.host para o link funcionar tanto em localhost quanto na Vercel
+      const linkAcompanhamento = `https://${window.location.host}/track/${docRef.id}`;
+
+      const message = `🔔 *NOVO PEDIDO #${docRef.id.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
+
+      // 4. Pegar o número do Admin (ou usa um fallback se estiver vazio)
+      const targetPhone = storeSettings.whatsapp || "5551999999999"; 
+
+      // 5. Gerar o Link com o texto codificado (encodeURIComponent é essencial!)
+      const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+      
+      // 6. Limpar tudo e Redirecionar
       localStorage.setItem('activeOrderId', docRef.id);
       setActiveOrderId(docRef.id);
-      navigate(`/track/${docRef.id}`);
       setCart([]);
       setShowCheckout(false);
       setAppliedCoupon(null);
       setDiscountAmount(0);
       setCouponCode('');
-      alert("Pedido finalizado com sucesso!");
+      
+      // Abre o WhatsApp e vai para o Tracking
+      window.open(whatsappUrl, '_blank');
+      navigate(`/track/${docRef.id}`);
+
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
         console.error("Erro ao finalizar pedido:", e);
@@ -501,10 +542,22 @@ export default function Home() {
       ...categories.map(c => ({ id: c.name, name: c.name, icon: getCategoryIcon(c.name) }))
   ];
 
-  const upsellProducts = products
-    .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) 
-    .filter(p => p.isBestSeller || p.isFeatured) 
-    .slice(0, 5); 
+  const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds || []);
+
+  // 2. Busca esses produtos (que não estejam no carrinho e tenham estoque)
+  const smartUpsell = products.filter(p => 
+      recommendedIdsInCart.includes(p.id) && 
+      !cart.some(c => c.id === p.id) && 
+      ((p.stock && parseInt(p.stock) > 0) || !p.stock)
+  );
+
+  // 3. Decide: Usa os inteligentes? Se não tiver, usa os Destaques (Fallback)
+  const upsellProducts = smartUpsell.length > 0 
+      ? smartUpsell 
+      : products
+          .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) 
+          .filter(p => p.isBestSeller || p.isFeatured) 
+          .slice(0, 5); 
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
@@ -539,7 +592,10 @@ export default function Home() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
           <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-          <div><h1 className="text-xl font-black text-slate-800 leading-none uppercase">Conveniência</h1><p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Santa Isabel</p></div>
+          <div>
+            <h1 className="text-xl font-black text-slate-800 leading-none uppercase">{storeSettings.name || "Sua Loja"}</h1>
+            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Delivery App</p>
+          </div>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
@@ -550,8 +606,8 @@ export default function Home() {
       <div className="w-full h-48 md:h-64 relative overflow-hidden">
         <img src={storeSettings.storeBannerUrl} className="w-full h-full object-cover brightness-75" onError={(e)=>e.target.src="https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=1000"} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
-          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> Santa Isabel - Loja principal</div>
-          <p className="text-white text-sm opacity-80 font-medium">Bebidas geladas, gelo, carvão e destilados. Entregamos em toda cidade.</p>
+          <div className="flex items-center gap-2 text-white text-xs font-bold mb-1 uppercase tracking-widest"><MapPin size={14} className="text-blue-400"/> {storeSettings.name || "Loja Principal"}</div>
+          <p className="text-white text-sm opacity-80 font-medium">{storeSettings.slogan || "Os melhores produtos entregues na sua casa."}</p>
         </div>
       </div>
 

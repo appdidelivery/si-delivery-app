@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -52,7 +52,7 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 export default function Home() {
   const navigate = useNavigate();
-  const storeId = getStoreIdFromHostname();
+  const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
 
   // --- LÓGICA DO TOUR (ONBOARDING) ---
@@ -380,8 +380,8 @@ export default function Home() {
 
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
-  const subtotal = cart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-  const finalTotal = subtotal + (shippingFee || 0) - discountAmount;
+  const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
+  const finalTotal = Number(subtotal) + Number(shippingFee || 0) - Number(discountAmount || 0);
 
   const applyCoupon = async () => {
     setCouponError('');
@@ -831,6 +831,7 @@ export default function Home() {
                     className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
                 >
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                    
                 </motion.div>
                 )}
             </AnimatePresence>
