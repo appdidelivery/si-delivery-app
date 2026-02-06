@@ -1005,187 +1005,109 @@ export default function Admin() {
             <AnimatePresence>
                 {isCouponModalOpen && (
                     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative">
-                            <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
-                            <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
+                        <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                            <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
+                            
+                            <h2 className="text-3xl font-black italic mb-6 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
+                            
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
+                                
+                                // LÓGICA DE SALVAMENTO (CONVERSÃO DE TIPOS)
                                 const dataToSave = { 
-    ...couponForm, 
-    code: couponForm.code.toUpperCase(),
-    // CONVERSÃO IMPORTANTE AQUI:
-    value: Number(couponForm.value), 
-    minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
-    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null,
-    userUsageLimit: couponForm.userUsageLimit ? Number(couponForm.userUsageLimit) : null,
-    createdAt: serverTimestamp(), 
-    storeId: storeId 
-};
-                                try { if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave); else await addDoc(collection(db, "coupons"), dataToSave); setIsCouponModalOpen(false); alert("Cupom salvo!"); } catch (error) { alert("Erro: " + error.message); }
+                                    ...couponForm, 
+                                    code: couponForm.code.toUpperCase(),
+                                    storeId: storeId,
+                                    // Garante que números são salvos como números
+                                    value: Number(couponForm.value), 
+                                    minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
+                                    // Se estiver vazio, salva como null (ilimitado)
+                                    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null, 
+                                    userUsageLimit: couponForm.userUsageLimit ? Number(couponForm.userUsageLimit) : null,
+                                    // Mantém contagem atual se for edição
+                                    currentUsage: editingCouponId ? (couponForm.currentUsage || 0) : 0, 
+                                    expirationDate: couponForm.expirationDate || null, 
+                                    firstPurchaseOnly: couponForm.firstPurchaseOnly === true, 
+                                    active: true,
+                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(), 
+                                };
+
+                                try { 
+                                    if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave); 
+                                    else await addDoc(collection(db, "coupons"), dataToSave); 
+                                    setIsCouponModalOpen(false); 
+                                    alert("Cupom salvo com sucesso!"); 
+                                } catch (error) { 
+                                    alert("Erro: " + error.message); 
+                                }
                             }} className="space-y-4">
-                                <input type="text" placeholder="Código (ex: VIP10)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
-                                <div className="flex gap-4"><select className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}><option value="percentage">%</option><option value="fixed_amount">R$</option></select><input type="number" placeholder="Valor" className="flex-1 p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required /></div>
-                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar Cupom</button>
-                            </form>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-                {isReportModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-10 relative shadow-2xl">
-                            <button onClick={() => setIsReportModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><X /></button>
-                            <h2 className="text-3xl font-black italic uppercase mb-2 text-slate-900">Fechamento</h2>
-                            {(() => {
-                                const today = new Date().toDateString();
-                                const filteredOrders = orders.filter(o => o.status !== 'canceled' && (reportPeriod === 'today' ? new Date(o.createdAt?.toDate()).toDateString() === today : true));
-                                const total = filteredOrders.reduce((a, b) => a + (Number(b.total) || 0), 0);
-                                return (
-                                    <div className="space-y-6">
-                                        <div className="flex gap-2 mb-4 p-1 bg-slate-100 rounded-xl"><button onClick={() => setReportPeriod('today')} className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all ${reportPeriod === 'today' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Hoje</button><button onClick={() => setReportPeriod('all')} className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all ${reportPeriod === 'all' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Total</button></div>
-                                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200"><p className="text-[10px] font-black uppercase text-slate-400">Total Vendas</p><p className="text-3xl font-black text-slate-900">R$ {total.toFixed(2)}</p></div>
-                                        <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl"><Printer size={18}/> Imprimir</button>
+                                
+                                {/* LINHA 1: CÓDIGO E VALOR */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Código do Cupom</label>
+                                        <input type="text" placeholder="Ex: PROMO10" className="w-full p-5 bg-slate-50 rounded-2xl font-bold uppercase" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
                                     </div>
-                                );
-                            })()}
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            <AnimatePresence>
-                {isOrderEditModalOpen && editingOrderData && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[120] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-10 relative max-h-[90vh] overflow-y-auto shadow-2xl">
-                            <button onClick={() => setIsOrderEditModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-800"><X /></button>
-                            <h2 className="text-3xl font-black italic uppercase mb-2 text-slate-900">Editar Pedido #{editingOrderData.id?.slice(-5).toUpperCase()}</h2>
-                            <p className="text-slate-400 font-bold text-sm mb-6">Cliente: {editingOrderData.customerName}</p>
-
-                            <div className="space-y-6">
-                                {/* Lista de Itens */}
-                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                    <h3 className="font-black text-slate-700 uppercase mb-4 text-sm">Itens do Pedido</h3>
-                                    {editingOrderData.items.map((item, idx) => (
-                                        <div key={idx} className="flex justify-between items-center mb-3 bg-white p-3 rounded-xl shadow-sm">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
-                                                    <button 
-                                                        onClick={() => {
-                                                            const newItems = [...editingOrderData.items];
-                                                            if (newItems[idx].quantity > 1) {
-                                                                newItems[idx].quantity -= 1;
-                                                                setEditingOrderData({...editingOrderData, items: newItems});
-                                                            } else {
-                                                                // Remove se for 0
-                                                                setEditingOrderData({...editingOrderData, items: newItems.filter((_, i) => i !== idx)});
-                                                            }
-                                                        }}
-                                                        className="w-6 h-6 flex items-center justify-center font-bold text-slate-500 hover:bg-white rounded"
-                                                    >-</button>
-                                                    <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
-                                                    <button 
-                                                        onClick={() => {
-                                                            const newItems = [...editingOrderData.items];
-                                                            newItems[idx].quantity += 1;
-                                                            setEditingOrderData({...editingOrderData, items: newItems});
-                                                        }}
-                                                        className="w-6 h-6 flex items-center justify-center font-bold text-blue-600 hover:bg-white rounded"
-                                                    >+</button>
-                                                </div>
-                                                <span className="font-bold text-slate-700 text-sm">{item.name}</span>
-                                            </div>
-                                            <span className="font-bold text-slate-400 text-xs">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                                    <div className="flex gap-2 items-end">
+                                        <div className="space-y-1 w-1/3">
+                                            <label className="text-xs font-bold text-slate-400 ml-2">Tipo</label>
+                                            <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
+                                                <option value="percentage">%</option>
+                                                <option value="fixed_amount">R$</option>
+                                            </select>
                                         </div>
-                                    ))}
-                                    
-                                    {/* Adicionar Novo Item Rápido */}
-                                    <div className="mt-4 pt-4 border-t border-dashed border-slate-200">
-                                        <p className="text-xs font-bold text-slate-400 mb-2">Adicionar Produto:</p>
-                                        <select 
-                                            className="w-full p-3 bg-white rounded-xl font-bold text-sm border border-slate-200"
-                                            onChange={(e) => {
-                                                if(!e.target.value) return;
-                                                const productToAdd = products.find(p => p.id === e.target.value);
-                                                if(productToAdd) {
-                                                    // Verifica se já existe
-                                                    const existingIdx = editingOrderData.items.findIndex(i => i.id === productToAdd.id);
-                                                    let newItems = [...editingOrderData.items];
-                                                    
-                                                    if (existingIdx >= 0) {
-                                                        newItems[existingIdx].quantity += 1;
-                                                    } else {
-                                                        newItems.push({ ...productToAdd, quantity: 1 });
-                                                    }
-                                                    setEditingOrderData({...editingOrderData, items: newItems});
-                                                }
-                                                e.target.value = ""; // Reseta select
-                                            }}
-                                        >
-                                            <option value="">+ Selecione para incluir</option>
-                                            {products.map(p => (
-                                                <option key={p.id} value={p.id}>{p.name} - R$ {Number(p.price).toFixed(2)}</option>
-                                            ))}
-                                        </select>
+                                        <div className="space-y-1 flex-1">
+                                            <label className="text-xs font-bold text-slate-400 ml-2">Valor do Desconto</label>
+                                            <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required />
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Edição de Frete e Dados */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Taxa de Entrega</label>
-                                        <input 
-                                            type="number" 
-                                            className="w-full p-4 bg-slate-50 rounded-2xl font-bold"
-                                            value={editingOrderData.shippingFee || 0}
-                                            onChange={(e) => setEditingOrderData({...editingOrderData, shippingFee: parseFloat(e.target.value)})}
-                                        />
+                                {/* LINHA 2: PEDIDO MÍNIMO E DATA */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Pedido Mínimo (R$)</label>
+                                        <input type="number" placeholder="0.00" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.minimumOrderValue} onChange={e => setCouponForm({...couponForm, minimumOrderValue: e.target.value})} />
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Observações</label>
-                                        <input 
-                                            type="text" 
-                                            className="w-full p-4 bg-slate-50 rounded-2xl font-bold"
-                                            value={editingOrderData.observation || ''}
-                                            onChange={(e) => setEditingOrderData({...editingOrderData, observation: e.target.value})}
-                                            placeholder="Ex: Sem cebola..."
-                                        />
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Data de Validade</label>
+                                        <input type="date" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-slate-600" value={couponForm.expirationDate || ''} onChange={e => setCouponForm({...couponForm, expirationDate: e.target.value})} />
                                     </div>
                                 </div>
 
-                                {/* Resumo Financeiro */}
-                                <div className="bg-slate-900 text-white p-6 rounded-3xl">
-                                    <div className="flex justify-between text-sm opacity-60 font-bold mb-1">
-                                        <span>Subtotal Itens</span>
-                                        <span>R$ {editingOrderData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0).toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm opacity-60 font-bold mb-4">
-                                        <span>Frete</span>
-                                        <span>R$ {Number(editingOrderData.shippingFee || 0).toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-2xl font-black italic border-t border-slate-700 pt-4">
-                                        <span>NOVO TOTAL</span>
-                                        <span>R$ {(editingOrderData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0) + Number(editingOrderData.shippingFee || 0)).toFixed(2)}</span>
+                                {/* LINHA 3: LIMITES (Opcional) */}
+                                <div className="p-4 border border-slate-100 rounded-3xl space-y-4 bg-slate-50/50">
+                                    <p className="text-[10px] font-black uppercase text-slate-400">Limites de Uso (Deixe vazio para ilimitado)</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">Uso Total Global</label>
+                                            <input type="number" placeholder="Ilimitado" className="w-full p-4 bg-white rounded-2xl font-bold text-sm border border-slate-100" value={couponForm.usageLimit || ''} onChange={e => setCouponForm({...couponForm, usageLimit: e.target.value})} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">Uso Por Pessoa</label>
+                                            <input type="number" placeholder="Ilimitado" className="w-full p-4 bg-white rounded-2xl font-bold text-sm border border-slate-100" value={couponForm.userUsageLimit || ''} onChange={e => setCouponForm({...couponForm, userUsageLimit: e.target.value})} />
+                                        </div>
                                     </div>
                                 </div>
 
-                                <button 
-                                    onClick={async () => {
-                                        const newTotal = editingOrderData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0) + Number(editingOrderData.shippingFee || 0);
-                                        await updateDoc(doc(db, "orders", editingOrderData.id), {
-                                            items: editingOrderData.items,
-                                            shippingFee: editingOrderData.shippingFee,
-                                            observation: editingOrderData.observation,
-                                            total: newTotal
-                                        });
-                                        setIsOrderEditModalOpen(false);
-                                        alert("Pedido atualizado com sucesso!");
-                                    }}
-                                    className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all"
-                                >
-                                    Salvar Alterações
+                                {/* CHECKBOX PRIMEIRA COMPRA */}
+                                <div className="flex items-center gap-3 p-2 ml-2 bg-blue-50/50 rounded-xl border border-blue-100">
+                                    <input 
+                                        type="checkbox" 
+                                        id="firstPurchase"
+                                        checked={couponForm.firstPurchaseOnly || false} 
+                                        onChange={(e) => setCouponForm({...couponForm, firstPurchaseOnly: e.target.checked})}
+                                        className="w-5 h-5 rounded-lg accent-blue-600 cursor-pointer"
+                                    />
+                                    <label htmlFor="firstPurchase" className="font-bold text-slate-700 text-sm cursor-pointer select-none">
+                                        Válido apenas para <span className="text-blue-600 font-black">Primeira Compra</span>
+                                    </label>
+                                </div>
+
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-4 uppercase hover:bg-blue-700 transition-all">
+                                    Salvar Configurações
                                 </button>
-                            </div>
+                            </form>
                         </motion.div>
                     </motion.div>
                 )}
