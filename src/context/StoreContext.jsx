@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+// ADICIONEI: onSnapshot na importação abaixo
+import { collection, query, where, onSnapshot } from 'firebase/firestore'; 
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 const StoreContext = createContext();
@@ -10,52 +11,54 @@ export const StoreProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStore = async () => {
-      console.log("StoreContext: Iniciando fetchStore...");
-      setLoading(true);
+    console.log("StoreContext: Iniciando escuta em tempo real...");
+    setLoading(true);
 
-      try {
-        let slugFromHostname = getStoreIdFromHostname();
-        console.log("StoreContext: Slug detectado do hostname:", slugFromHostname);
+    let slugFromHostname = getStoreIdFromHostname();
+    let finalSlug = slugFromHostname;
 
-        let finalSlug = slugFromHostname;
+    // Lógica SaaS: Se estiver em desenvolvimento ou não detectado
+    if (!slugFromHostname || slugFromHostname === "unknown-store") {
+      console.warn("StoreContext: Modo DEV/Teste detectado. Usando 'loja-teste' (ou 'csi' se preferir testar a produção).");
+      // DICA: Se quiser testar a CSI localmente, mude abaixo para 'csi'
+      finalSlug = "csi"; 
+    }
 
-        // Lógica SaaS: Se estiver em desenvolvimento ou não detectado, usa o ambiente de teste
-        if (!slugFromHostname || slugFromHostname === "unknown-store") {
-          console.warn("StoreContext: Usando fallback 'loja-teste' para o ambiente SaaS Demo.");
-          finalSlug = "loja-teste";
-        }
+    console.log("StoreContext: Conectando na coleção 'stores' com slug:", finalSlug);
 
-        console.log("StoreContext: Buscando no Firestore por slug:", finalSlug);
+    // Cria a query
+    const q = query(collection(db, 'stores'), where('slug', '==', finalSlug));
 
-        // Busca na coleção 'stores' para validar se o lojista existe
-        const q = query(collection(db, 'stores'), where('slug', '==', finalSlug));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          const data = doc.data();
-          
-          // Define a loja com o ID e o Slug (essencial para as Settings funcionarem)
-          setStore({ id: data.slug, ...data });
-          
-          console.log("StoreContext: Loja carregada:", { id: data.slug, name: data.name });
-          
-          // Atualiza o título da aba do navegador para o nome da loja do lojista
-          document.title = data.name || "Velo Delivery";
-        } else {
-          console.error(`StoreContext: Loja '${finalSlug}' não encontrada. Verifique a coleção 'stores'.`);
-          setStore(null);
-        }
-      } catch (error) {
-        console.error("StoreContext: Erro crítico no carregamento da loja:", error);
+    // A MÁGICA: onSnapshot (Escuta ao vivo)
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        const data = doc.data();
+        
+        // Atualiza o estado com os dados novos vindos do Admin V5
+        setStore({ id: doc.id, ...data });
+        
+        // Log para você ver no console se o status mudou
+        console.log("🔥 ATUALIZAÇÃO RECEBIDA DO ADMIN:", { 
+          Loja: data.name, 
+          Aberta: data.isOpen, 
+          Aviso: data.message 
+        });
+        
+        document.title = data.name || "Velo Delivery";
+      } else {
+        console.error(`StoreContext: Nenhuma loja encontrada com o slug '${finalSlug}' na coleção 'stores'.`);
         setStore(null);
-      } finally {
-        setLoading(false);
       }
-    };
+      setLoading(false);
+    }, (error) => {
+      console.error("StoreContext: Erro na conexão ao vivo:", error);
+      setLoading(false);
+    });
 
-    fetchStore();
+    // Função de limpeza (fecha a conexão quando sai da página)
+    return () => unsubscribe();
+
   }, []);
 
   return (
