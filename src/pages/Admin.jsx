@@ -55,7 +55,7 @@ export default function Admin() {
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [form, setForm] = useState({ 
+    const [form, setForm] = useState({
         name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
         hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false,
         quantityDiscounts: [], recommendedIds: [] // <--- ADICIONE ISTO
@@ -63,7 +63,7 @@ export default function Admin() {
     const [editingId, setEditingId] = useState(null);
     // --- Estado para Edição de Pedido ---
     const [isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
-    const [editingOrderData, setEditingOrderData] = useState(null);
+    const [editingOrderData, setEditingOrderData] = useState(null); // Aqui ele estava null, o que é correto
     // Estado para o frete do pedido manual
     const [manualShippingFee, setManualShippingFee] = useState(0);
     // Categorias
@@ -89,10 +89,10 @@ export default function Admin() {
 
     // Loja (Settings)
     const [storeStatus, setStoreStatus] = useState({
-        isOpen: true, 
+        isOpen: true,
         name: 'Carregando...',
         message: '', // Mensagem de aviso
-        storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
+        storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
         storeBannerUrl: '/fachada.jpg',
         schedule: {} // Agenda Semanal
     });
@@ -153,10 +153,10 @@ export default function Admin() {
 
         // Produtos
         const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        
+
         // Categorias
         const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        
+
         // Banners
         const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), orderBy("order", "asc")), (s) => setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
@@ -170,12 +170,12 @@ export default function Admin() {
 
         // Status da Loja (Nome, Logo, Aberto/Fechado)
         const stRef = doc(db, "stores", storeId);
-        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, { 
-            name: "Nova Loja", isOpen: true, schedule: {}, 
-            message: 'Aberto!', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
-            storeBannerUrl: '/fachada.jpg', storeId: storeId 
+        getDoc(stRef).then(s => !s.exists() && setDoc(stRef, {
+            name: "Nova Loja", isOpen: true, schedule: {},
+            message: 'Aberto!', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
+            storeBannerUrl: '/fachada.jpg', storeId: storeId
         }, { merge: true }));
-        
+
         const unsubSt = onSnapshot(stRef, (d) => {
             if (d.exists()) {
                 const data = d.data();
@@ -187,11 +187,11 @@ export default function Admin() {
                 setStoreStatus(prev => ({...prev, name: storeId}));
             }
         });
-        
+
         // Cupons
         const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        return () => { 
+        return () => {
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons();
         };
@@ -215,7 +215,7 @@ export default function Admin() {
             const url = await uploadImageToCloudinary(imageFile);
             setForm(prev => ({ ...prev, imageUrl: url }));
             setImageFile(null);
-        } catch (error) { console.error(error); setUploadError('Erro ao enviar imagem.'); } 
+        } catch (error) { console.error(error); setUploadError('Erro ao enviar imagem.'); }
         finally { setUploading(false); }
     };
 
@@ -223,7 +223,7 @@ export default function Admin() {
         if (!logoFile) return; setUploadingLogo(true);
         try {
             const url = await uploadImageToCloudinary(logoFile);
-            await updateDoc(doc(db, "stores", storeId), { storeLogoUrl: url }); 
+            await updateDoc(doc(db, "stores", storeId), { storeLogoUrl: url });
             setLogoFile(null); alert("Logo atualizada!");
         } catch (e) { alert("Erro upload logo"); } setUploadingLogo(false);
     };
@@ -232,7 +232,7 @@ export default function Admin() {
         if (!bannerFile) return; setUploadingBanner(true);
         try {
             const url = await uploadImageToCloudinary(bannerFile);
-            await updateDoc(doc(db, "stores", storeId), { storeBannerUrl: url }); 
+            await updateDoc(doc(db, "stores", storeId), { storeBannerUrl: url });
             setBannerFile(null); alert("Banner atualizado!");
         } catch (e) { alert("Erro upload banner"); } setUploadingBanner(false);
     };
@@ -279,7 +279,7 @@ export default function Admin() {
         const w = window.open('', '_blank');
         const itemsHtml = (o.items || []).map(i => `<li>• ${i.quantity}x ${i.name}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
-        
+
         // Formata a data
         const dataPedido = o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
 
@@ -300,7 +300,7 @@ export default function Admin() {
                 <hr>
                 <ul style="list-style:none; padding:0;">${itemsHtml}</ul>
                 <hr>
-                
+
                 ${/* --- AQUI ESTÁ A CORREÇÃO DA OBSERVAÇÃO --- */ ''}
                 ${o.observation ? `<div style="background:#eee; padding:5px; margin: 10px 0; border:1px solid #000;"><strong>OBS: ${o.observation}</strong></div>` : ''}
 
@@ -459,11 +459,20 @@ export default function Admin() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
-                                    <button 
+                                    <button
                                         onClick={() => {
-                                            setEditingOrderData(JSON.parse(JSON.stringify(o))); // Cria uma cópia segura
+                                            // --- INÍCIO DA CORREÇÃO (EDITAR PEDIDO) ---
+                                            // Cria uma cópia segura do objeto do pedido, tratando objetos aninhados.
+                                            // Isso é mais seguro para Timestamps do Firestore do que JSON.parse(JSON.stringify()).
+                                            const orderCopy = { ...o };
+                                            if (orderCopy.address && typeof orderCopy.address === 'object') {
+                                                orderCopy.address = { ...orderCopy.address }; // Copia objeto address
+                                            }
+                                            orderCopy.items = orderCopy.items ? orderCopy.items.map(item => ({ ...item })) : []; // Copia array de items e cada item
+                                            setEditingOrderData(orderCopy);
                                             setIsOrderEditModalOpen(true);
-                                        }} 
+                                            // --- FIM DA CORREÇÃO (EDITAR PEDIDO) ---
+                                        }}
                                         className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600 mr-2"
                                         title="Editar Pedido"
                                     >
@@ -533,9 +542,9 @@ export default function Admin() {
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
-                            <input 
-                                type="text" 
-                                placeholder="🔍 Buscar produto por nome..." 
+                            <input
+                                type="text"
+                                placeholder="🔍 Buscar produto por nome..."
                                 className="w-full p-4 pl-12 rounded-2xl border-none bg-white shadow-sm font-bold text-slate-600 focus:ring-2 ring-blue-500 outline-none"
                                 value={productSearch}
                                 onChange={(e) => setProductSearch(e.target.value)}
@@ -548,8 +557,8 @@ export default function Admin() {
                             )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-{products.filter(p => 
-                                p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
+{products.filter(p =>
+                                p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
                                 p.category.toLowerCase().includes(productSearch.toLowerCase())
                             ).map(p => (                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
                                     <img src={p.imageUrl} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" />
@@ -593,9 +602,9 @@ export default function Admin() {
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm space-y-4 border border-slate-100">
                                 <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
                                 <input type="text" placeholder="Endereço (Rua e Número)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.address} onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} />
-                                
+
                                 {/* SELETOR DE FRETE */}
-                                <select 
+                                <select
                                     className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 cursor-pointer"
                                     onChange={(e) => {
                                         const selectedRate = shippingRates.find(r => r.neighborhood === e.target.value);
@@ -612,13 +621,13 @@ export default function Admin() {
                                 </select>
 
                                 <input type="tel" placeholder="WhatsApp" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
-                                
+
                                 <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
                                     <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
                                 </select>
-                                
+
                                 {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
-                                
+
                                 <div className="pt-6 border-t border-slate-100">
                                     {/* LISTA DE ITENS NO CARRINHO */}
                                     {manualCart.length === 0 ? (
@@ -629,7 +638,7 @@ export default function Admin() {
                                                 <span>{i.quantity}x {i.name}</span>
                                                 <div className="flex items-center gap-2">
                                                     <span>R$ {(i.price * i.quantity).toFixed(2)}</span>
-                                                    <button 
+                                                    <button
                                                         onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))}
                                                         className="text-red-500 hover:bg-red-50 p-1 rounded"
                                                     >
@@ -639,7 +648,7 @@ export default function Admin() {
                                             </div>
                                         ))
                                     )}
-                                    
+
                                     <div className="flex justify-between mb-2 font-bold text-blue-600 text-sm border-t border-dashed pt-4 mt-2">
                                         <span>Taxa de Entrega:</span>
                                         <span>R$ {manualShippingFee.toFixed(2)}</span>
@@ -648,31 +657,31 @@ export default function Admin() {
                                     <div className="text-3xl font-black text-slate-900 mt-4 italic">
                                         Total R$ {(manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee).toFixed(2)}
                                     </div>
-                                    
+
                                     <button onClick={async () => {
                                         if (!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length === 0) return alert("Preencha tudo e adicione produtos!");
-                                        
+
                                         const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
                                         const totalWithShipping = subtotal + manualShippingFee;
                                         const finalAddress = `${manualCustomer.address} - ${manualCustomer.neighborhood || ''}`;
 
-                                        await addDoc(collection(db, "orders"), { 
-                                            ...manualCustomer, 
-                                            customerName: manualCustomer.name, 
-                                            customerAddress: finalAddress, 
-                                            customerPhone: manualCustomer.phone, 
-                                            items: manualCart, 
-                                            shippingFee: manualShippingFee, 
-                                            total: totalWithShipping, 
-                                            status: 'pending', 
-                                            createdAt: serverTimestamp(), 
-                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
-                                            storeId: storeId 
+                                        await addDoc(collection(db, "orders"), {
+                                            ...manualCustomer,
+                                            customerName: manualCustomer.name,
+                                            customerAddress: finalAddress,
+                                            customerPhone: manualCustomer.phone,
+                                            items: manualCart,
+                                            shippingFee: manualShippingFee,
+                                            total: totalWithShipping,
+                                            status: 'pending',
+                                            createdAt: serverTimestamp(),
+                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '',
+                                            storeId: storeId
                                         });
-                                        
-                                        setManualCart([]); 
-                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
-                                        setManualShippingFee(0); 
+
+                                        setManualCart([]);
+                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
+                                        setManualShippingFee(0);
                                         alert("Pedido Lançado com Sucesso!");
                                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-6 shadow-xl hover:bg-blue-700 transition-all">
                                         Confirmar Pedido
@@ -684,12 +693,12 @@ export default function Admin() {
                         {/* --- COLUNA DIREITA: SELEÇÃO DE PRODUTOS --- */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 h-fit sticky top-6">
                             <h2 className="text-xl font-black uppercase mb-6 text-slate-300">Adicionar Produtos</h2>
-                            
+
                             {/* Busca Rápida no Manual (Bônus) */}
                             <div className="mb-4 relative">
-                                <input 
-                                    type="text" 
-                                    placeholder="Filtrar produtos..." 
+                                <input
+                                    type="text"
+                                    placeholder="Filtrar produtos..."
                                     className="w-full p-3 pl-10 bg-slate-50 rounded-xl font-bold text-sm"
                                     onChange={(e) => {
                                         const term = e.target.value.toLowerCase();
@@ -704,15 +713,15 @@ export default function Admin() {
 
                             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                 {products.map(p => (
-                                    <button 
-                                        key={p.id} 
+                                    <button
+                                        key={p.id}
                                         className="manual-product-item w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200 group"
                                         data-name={p.name}
                                         onClick={() => {
                                             const ex = manualCart.find(it => it.id === p.id);
-                                            if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it)); 
+                                            if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
                                             else setManualCart([...manualCart, { ...p, quantity: 1 }]);
-                                        }} 
+                                        }}
                                     >
                                         <div className="flex items-center gap-3 text-left">
                                             {p.imageUrl && <img src={p.imageUrl} className="w-8 h-8 object-contain rounded-md bg-white"/>}
@@ -768,7 +777,7 @@ export default function Admin() {
                 {activeTab === 'store_settings' && (
                     <div className="space-y-8">
                         <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
-                        
+
                         {/* 1. Status Geral (Botão Gigante) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 text-center">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Controle Mestre</h2>
@@ -792,12 +801,12 @@ export default function Admin() {
                                 <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                     <Tags size={14}/> Slogan / Descrição do Banner
                                 </label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Ex: Bebidas geladas, carvão e entrega rápida." 
-                                    value={storeStatus.slogan || ''} 
-                                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { slogan: e.target.value }, { merge: true })} 
-                                    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600" 
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Bebidas geladas, carvão e entrega rápida."
+                                    value={storeStatus.slogan || ''}
+                                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { slogan: e.target.value }, { merge: true })}
+                                    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600"
                                 />
                             </div>
                             {/* --- NOVO CAMPO: WhatsApp do Pedido --- */}
@@ -805,12 +814,12 @@ export default function Admin() {
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <MessageCircle size={14}/> WhatsApp para Receber Pedidos
                                     </label>
-                                    <input 
-                                        type="tel" 
-                                        placeholder="Ex: 5551999999999 (DDD + Número)" 
-                                        value={storeStatus.whatsapp || ''} 
-                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { whatsapp: e.target.value }, { merge: true })} 
-                                        className="w-full p-5 bg-green-50 text-green-700 rounded-2xl font-bold border-none placeholder-green-300" 
+                                    <input
+                                        type="tel"
+                                        placeholder="Ex: 5551999999999 (DDD + Número)"
+                                        value={storeStatus.whatsapp || ''}
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { whatsapp: e.target.value }, { merge: true })}
+                                        className="w-full p-5 bg-green-50 text-green-700 rounded-2xl font-bold border-none placeholder-green-300"
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Digite apenas números com DDD (ex: 55519...). É para esse número que o cliente será enviado.</p>
                                 </div>
@@ -829,27 +838,27 @@ export default function Admin() {
                                     return (
                                         <div key={day.id} className={`flex flex-col md:flex-row items-center gap-4 p-4 rounded-2xl border-2 transition-all ${dayConfig.open ? 'bg-white border-blue-100' : 'bg-slate-50 border-transparent opacity-60'}`}>
                                             <div className="flex items-center gap-4 w-full md:w-32">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={dayConfig.open} 
+                                                <input
+                                                    type="checkbox"
+                                                    checked={dayConfig.open}
                                                     onChange={(e) => handleScheduleChange(day.id, 'open', e.target.checked)}
                                                     className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
                                                 />
                                                 <span className="font-black text-slate-700 uppercase">{day.label}</span>
                                             </div>
-                                            
+
                                             {dayConfig.open && (
                                                 <div className="flex items-center gap-2 flex-1 w-full">
-                                                    <input 
-                                                        type="time" 
-                                                        value={dayConfig.start} 
+                                                    <input
+                                                        type="time"
+                                                        value={dayConfig.start}
                                                         onChange={(e) => handleScheduleChange(day.id, 'start', e.target.value)}
                                                         className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
                                                     />
                                                     <span className="font-bold text-slate-300">até</span>
-                                                    <input 
-                                                        type="time" 
-                                                        value={dayConfig.end} 
+                                                    <input
+                                                        type="time"
+                                                        value={dayConfig.end}
                                                         onChange={(e) => handleScheduleChange(day.id, 'end', e.target.value)}
                                                         className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
                                                     />
@@ -943,26 +952,26 @@ export default function Admin() {
                                         <Flame size={14} className="text-orange-500"/> Compre Junto (Upsell)
                                     </label>
                                     <p className="text-[10px] text-slate-400 font-bold mb-2">Selecione produtos para sugerir no carrinho:</p>
-                                    
+
                                     <div className="flex gap-2 flex-wrap bg-slate-50 p-4 rounded-2xl max-h-40 overflow-y-auto custom-scrollbar border border-slate-100">
                                         {products.filter(p => p.id !== editingId).map(p => {
                                             const isSelected = (form.recommendedIds || []).includes(p.id);
                                             return (
-                                                <button 
+                                                <button
                                                     key={p.id}
                                                     type="button"
                                                     onClick={() => {
                                                         const current = form.recommendedIds || [];
                                                         setForm({
-                                                            ...form, 
-                                                            recommendedIds: isSelected 
-                                                                ? current.filter(id => id !== p.id) 
+                                                            ...form,
+                                                            recommendedIds: isSelected
+                                                                ? current.filter(id => id !== p.id)
                                                                 : [...current, p.id]
                                                         });
                                                     }}
                                                     className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all border flex items-center gap-2 ${
-                                                        isSelected 
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                                                        isSelected
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md'
                                                         : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
                                                     }`}
                                                 >
@@ -1007,41 +1016,41 @@ export default function Admin() {
                     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
                         <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
-                            
+
                             <h2 className="text-3xl font-black italic mb-6 uppercase text-slate-900">{editingCouponId ? 'Editar' : 'Novo'} Cupom</h2>
-                            
+
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                
+
                                 // LÓGICA DE SALVAMENTO (CONVERSÃO DE TIPOS)
-                                const dataToSave = { 
-                                    ...couponForm, 
+                                const dataToSave = {
+                                    ...couponForm,
                                     code: couponForm.code.toUpperCase(),
                                     storeId: storeId,
                                     // Garante que números são salvos como números
-                                    value: Number(couponForm.value), 
+                                    value: Number(couponForm.value),
                                     minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
                                     // Se estiver vazio, salva como null (ilimitado)
-                                    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null, 
+                                    usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null,
                                     userUsageLimit: couponForm.userUsageLimit ? Number(couponForm.userUsageLimit) : null,
                                     // Mantém contagem atual se for edição
-                                    currentUsage: editingCouponId ? (couponForm.currentUsage || 0) : 0, 
-                                    expirationDate: couponForm.expirationDate || null, 
-                                    firstPurchaseOnly: couponForm.firstPurchaseOnly === true, 
+                                    currentUsage: editingCouponId ? (couponForm.currentUsage || 0) : 0,
+                                    expirationDate: couponForm.expirationDate || null,
+                                    firstPurchaseOnly: couponForm.firstPurchaseOnly === true,
                                     active: true,
-                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(), 
+                                    createdAt: editingCouponId ? couponForm.createdAt : serverTimestamp(),
                                 };
 
-                                try { 
-                                    if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave); 
-                                    else await addDoc(collection(db, "coupons"), dataToSave); 
-                                    setIsCouponModalOpen(false); 
-                                    alert("Cupom salvo com sucesso!"); 
-                                } catch (error) { 
-                                    alert("Erro: " + error.message); 
+                                try {
+                                    if (editingCouponId) await updateDoc(doc(db, "coupons", editingCouponId), dataToSave);
+                                    else await addDoc(collection(db, "coupons"), dataToSave);
+                                    setIsCouponModalOpen(false);
+                                    alert("Cupom salvo com sucesso!");
+                                } catch (error) {
+                                    alert("Erro: " + error.message);
                                 }
                             }} className="space-y-4">
-                                
+
                                 {/* LINHA 1: CÓDIGO E VALOR */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
@@ -1092,10 +1101,10 @@ export default function Admin() {
 
                                 {/* CHECKBOX PRIMEIRA COMPRA */}
                                 <div className="flex items-center gap-3 p-2 ml-2 bg-blue-50/50 rounded-xl border border-blue-100">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         id="firstPurchase"
-                                        checked={couponForm.firstPurchaseOnly || false} 
+                                        checked={couponForm.firstPurchaseOnly || false}
                                         onChange={(e) => setCouponForm({...couponForm, firstPurchaseOnly: e.target.checked})}
                                         className="w-5 h-5 rounded-lg accent-blue-600 cursor-pointer"
                                     />
@@ -1112,6 +1121,127 @@ export default function Admin() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* --- INÍCIO DA CORREÇÃO (EDITAR PEDIDO) --- */}
+            {/* NOVO MODAL PARA EDIÇÃO DE PEDIDOS */}
+            <AnimatePresence>
+                {isOrderEditModalOpen && editingOrderData && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                            <button onClick={() => setIsOrderEditModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
+
+                            <h2 className="text-3xl font-black italic mb-6 uppercase text-slate-900">Editar Pedido #{editingOrderData.id?.slice(-5).toUpperCase()}</h2>
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    // Recalcula o subtotal dos itens para garantir que o total esteja correto
+                                    const currentSubtotal = editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
+                                    const newTotal = currentSubtotal + Number(editingOrderData.shippingFee || 0);
+
+                                    // Prepara os dados para atualização
+                                    const updatedData = {
+                                        customerName: editingOrderData.customerName,
+                                        customerAddress: editingOrderData.customerAddress,
+                                        customerPhone: editingOrderData.customerPhone,
+                                        paymentMethod: editingOrderData.paymentMethod,
+                                        changeFor: editingOrderData.paymentMethod === 'dinheiro' ? editingOrderData.changeFor : '',
+                                        observation: editingOrderData.observation || '', // Garante que observation não é undefined
+                                        status: editingOrderData.status,
+                                        shippingFee: Number(editingOrderData.shippingFee || 0),
+                                        total: newTotal, // Atualiza o total com base nos novos valores
+                                    };
+
+                                    await updateDoc(doc(db, "orders", editingOrderData.id), updatedData);
+                                    setIsOrderEditModalOpen(false);
+                                    alert("Pedido atualizado com sucesso!");
+                                } catch (error) {
+                                    console.error("Erro ao atualizar pedido:", error);
+                                    alert("Erro ao atualizar pedido: " + error.message);
+                                }
+                            }} className="space-y-4">
+                                {/* Informações do Cliente */}
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-slate-400 ml-2">Nome do Cliente</label>
+                                    <input type="text" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerName || ''} onChange={e => setEditingOrderData({...editingOrderData, customerName: e.target.value})} required />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-slate-400 ml-2">Endereço (Rua, Número, Bairro)</label>
+                                    <input type="text" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerAddress || ''} onChange={e => setEditingOrderData({...editingOrderData, customerAddress: e.target.value})} required />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-slate-400 ml-2">WhatsApp</label>
+                                    <input type="tel" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerPhone || ''} onChange={e => setEditingOrderData({...editingOrderData, customerPhone: e.target.value})} required />
+                                </div>
+
+                                {/* Pagamento e Entrega */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Método de Pagamento</label>
+                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={editingOrderData.paymentMethod || 'pix'} onChange={e => setEditingOrderData({...editingOrderData, paymentMethod: e.target.value})}>
+                                            <option value="pix">PIX</option>
+                                            <option value="cartao">Cartão</option>
+                                            <option value="dinheiro">Dinheiro</option>
+                                        </select>
+                                    </div>
+                                    {editingOrderData.paymentMethod === 'dinheiro' && (
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-bold text-slate-400 ml-2">Troco para</label>
+                                            <input type="text" placeholder="Qual valor?" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.changeFor || ''} onChange={e => setEditingOrderData({...editingOrderData, changeFor: e.target.value})} />
+                                        </div>
+                                    )}
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Taxa de Entrega (R$)</label>
+                                        <input type="number" step="0.01" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={Number(editingOrderData.shippingFee || 0).toFixed(2)} onChange={e => setEditingOrderData({...editingOrderData, shippingFee: e.target.value})} />
+                                    </div>
+                                </div>
+
+                                {/* Status e Observação */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Status do Pedido</label>
+                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={editingOrderData.status || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, status: e.target.value})}>
+                                            <option value="pending">⏳ Pendente</option>
+                                            <option value="preparing">👨‍🍳 Preparando</option>
+                                            <option value="delivery">🏍️ Em Rota</option>
+                                            <option value="completed">✅ Entregue</option>
+                                            <option value="canceled">❌ Cancelado</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Observação</label>
+                                        <input type="text" placeholder="Observações do pedido" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.observation || ''} onChange={e => setEditingOrderData({...editingOrderData, observation: e.target.value})} />
+                                    </div>
+                                </div>
+
+                                {/* Exibição dos Itens do Pedido (apenas leitura para simplificar) */}
+                                <div className="pt-4 border-t border-slate-100">
+                                    <h3 className="text-lg font-bold text-slate-700 mb-2">Itens do Pedido:</h3>
+                                    {editingOrderData.items?.length > 0 ? (
+                                        editingOrderData.items.map((item, index) => (
+                                            <div key={index} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl mb-1 text-sm font-medium">
+                                                <span>{item.quantity}x {item.name}</span>
+                                                <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-slate-400">Nenhum item no pedido.</p>
+                                    )}
+                                </div>
+                                <div className="text-xl font-black text-slate-900 mt-4 italic text-right">
+                                    {/* Recalcula o total para exibição em tempo real no modal */}
+                                    Total Pedido: R$ {(editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(editingOrderData.shippingFee || 0)).toFixed(2)}
+                                </div>
+
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-4 uppercase hover:bg-blue-700 transition-all">
+                                    Salvar Alterações
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM DA CORREÇÃO (EDITAR PEDIDO) --- */}
         </div>
     );
 }
