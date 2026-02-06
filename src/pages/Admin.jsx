@@ -732,41 +732,36 @@ export default function Admin() {
                 )}
 
                 {activeTab === 'marketing' && (
-                    <div className="mt-6 px-4">
-        <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 custom-scrollbar">
-            {/* Banner 1 */}
-            {storeSettings.promoBannerUrl && (
-                <div className="snap-center shrink-0 w-full md:w-[400px]">
-                    <img 
-                        src={storeSettings.promoBannerUrl} 
-                        className="w-full h-48 object-cover rounded-3xl shadow-lg border border-slate-100"
-                        alt="Promoção 1"
-                    />
-                </div>
-            )}
-            
-            {/* Banner 2 */}
-            {storeSettings.promoBannerUrl2 && (
-                <div className="snap-center shrink-0 w-full md:w-[400px]">
-                    <img 
-                        src={storeSettings.promoBannerUrl2} 
-                        className="w-full h-48 object-cover rounded-3xl shadow-lg border border-slate-100"
-                        alt="Promoção 2"
-                    />
-                </div>
-            )}
-
-            {/* Banner 3 */}
-            {storeSettings.promoBannerUrl3 && (
-                <div className="snap-center shrink-0 w-full md:w-[400px]">
-                    <img 
-                        src={storeSettings.promoBannerUrl3} 
-                        className="w-full h-48 object-cover rounded-3xl shadow-lg border border-slate-100"
-                        alt="Promoção 3"
-                    />
-                </div>
-            )}
-        </div>
+                    <div className="space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className={`p-12 rounded-[4rem] shadow-2xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-transparent'}`}>
+                                <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
+                                <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
+                                <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
+                                <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
+                                    <h3 className="text-xl font-black uppercase mb-4">Banners</h3>
+                                    <div className="flex flex-col items-center gap-4">
+                                        {(promoBannerFile1 || (settings.promoBannerUrls && settings.promoBannerUrls[0])) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
+                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile1(e.target.files[0])} className="hidden" id="promo-banner-upload-1"/>
+                                        <label htmlFor="promo-banner-upload-1" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 1 <UploadCloud size={20}/></label>
+                                        <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className="w-full max-w-lg p-3 bg-blue-600 text-white rounded-2xl font-black">{uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40"><Trophy size={64} className="text-slate-200 mb-4" /><p className="font-black text-slate-300 uppercase tracking-widest leading-tight text-xl">Fidelidade<br />EM BREVE</p></div>
+                        </div>
+                        <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 space-y-8">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>
+                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO CUPOM</button>
+                            </div>
+                            {coupons.map(c => (
+                                <div key={c.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center">
+                                    <div><p className="font-black text-slate-800 text-xl">{c.code}</p></div>
+                                    <div className="flex gap-2"><button onClick={() => { setEditingCouponId(c.id); setCouponForm(c); setIsCouponModalOpen(true); }} className="p-2 bg-slate-100 rounded-xl text-blue-600"><Edit3 size={18} /></button><button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "coupons", c.id))} className="p-2 bg-slate-100 rounded-xl text-red-600"><Trash2 size={18} /></button></div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 
