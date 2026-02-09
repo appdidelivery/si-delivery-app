@@ -28,6 +28,19 @@ const DAYS_OF_WEEK = [
   { id: 0, label: 'Domingo', short: 'DOM' },
 ];
 
+// --- ITENS DE NAVEGAÇÃO COMPLETA (USADO PARA DESKTOP E MOBILE) ---
+const allNavItems = [
+    { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
+    { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+    { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
+    { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
+    { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
+    { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
+    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
+    { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
+    { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
+];
+
 export default function Admin() {
     const navigate = useNavigate();
     const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
@@ -58,7 +71,7 @@ export default function Admin() {
     const [form, setForm] = useState({ 
         name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
         hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false,
-        quantityDiscounts: [], recommendedIds: [] // <--- ADICIONE ISTO
+        quantityDiscounts: [], recommendedIds: []
     });
     const [editingId, setEditingId] = useState(null);
     // --- Estado para Edição de Pedido ---
@@ -95,7 +108,8 @@ export default function Admin() {
         storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
         storeBannerUrl: '/fachada.jpg', // Este URL será mantido, mas o banner em si não será mais exibido no Admin
         schedule: {}, // Agenda Semanal
-        slogan: '' // Adicionado para consistência
+        slogan: '', // Adicionado para consistência
+        whatsapp: '', // Adicionado para consistência
     });
     const [logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
@@ -123,16 +137,6 @@ export default function Admin() {
         firstPurchaseOnly: false, active: true
     });
     const [editingCouponId, setEditingCouponId] = useState(null);
-
-    const navItems = [
-        { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
-        { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
-        { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
-        { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
-        { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
-        { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
-        { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
-    ];
 
     const handleLogout = async () => {
         try { await signOut(auth); navigate('/login'); } catch (error) { console.error("Erro logout:", error); }
@@ -175,7 +179,8 @@ export default function Admin() {
             name: "Nova Loja", isOpen: true, schedule: {}, 
             message: 'Aberto!', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
             storeBannerUrl: '/fachada.jpg', storeId: storeId,
-            slogan: '' // Inicializa o slogan aqui também
+            slogan: '', // Inicializa o slogan aqui também
+            whatsapp: '', // Inicializa o whatsapp aqui também
         }, { merge: true }));
         
         const unsubSt = onSnapshot(stRef, (d) => {
@@ -185,6 +190,8 @@ export default function Admin() {
                     ...data,
                     schedule: data.schedule || {}, // Garante que schedule existe
                     slogan: data.slogan || '', // Garante que slogan existe
+                    whatsapp: data.whatsapp || '', // Garante que whatsapp existe
+                    message: data.message || '', // Garante que message existe
                 });
             } else {
                 setStoreStatus(prev => ({...prev, name: storeId}));
@@ -231,8 +238,6 @@ export default function Admin() {
         } catch (e) { alert("Erro upload logo"); } setUploadingLogo(false);
     };
 
-    // A função de upload do banner da loja permanece, caso você queira usá-lo em outro lugar
-    // ou apenas manter a URL no Firebase sem exibi-lo no painel de admin.
     const handleBannerUpload = async () => {
         if (!bannerFile) return; setUploadingBanner(true);
         try {
@@ -242,53 +247,38 @@ export default function Admin() {
         } catch (e) { alert("Erro upload banner"); } setUploadingBanner(false);
     };
 
-    // --- INÍCIO DA CORREÇÃO (PROMO RELÂMPAGO) ---
     const handlePromoBannerUpload = async () => {
         setUploadingPromoBanner(true);
-        // Começa com os banners atuais do Firestore/estado
         const currentUrls = [...(settings.promoBannerUrls || [])];
-        const newUrls = [...currentUrls]; // Cria uma cópia mutável
+        const newUrls = [...currentUrls]; 
 
         const uploadPromises = [];
 
-        // Função para processar o upload para um slot específico
         const processSlot = async (file, index) => {
-            if (file) { // Se um novo arquivo foi selecionado para este slot
+            if (file) { 
                 try {
                     const url = await uploadImageToCloudinary(file);
-                    newUrls[index] = url; // Atualiza o slot específico com a nova URL
+                    newUrls[index] = url; 
                 } catch (e) {
                     console.error(`Erro ao enviar banner ${index + 1}:`, e);
-                    // Não alertar individualmente para não interromper os outros uploads,
-                    // mas podemos mostrar um erro geral depois.
                 }
-            } else if (newUrls[index] === undefined) {
-                 // Se não há arquivo e a slot estava indefinida, defina-a como null para padronizar
-                newUrls[index] = null; 
+            } else { 
+                 if (newUrls[index] === undefined) {
+                    newUrls[index] = null; 
+                }
             }
-            // Se o arquivo é null, e já existia uma URL, mantemos a URL existente.
-            // Se a intenção é limpar a slot, o usuário teria que explicitamente limpar o campo
-            // e ter uma lógica para setar `newUrls[index] = null;`
         };
 
-        // Coleta promessas para cada slot
         uploadPromises.push(processSlot(promoBannerFile1, 0));
         uploadPromises.push(processSlot(promoBannerFile2, 1));
         uploadPromises.push(processSlot(promoBannerFile3, 2));
 
-        await Promise.all(uploadPromises); // Espera que todos os uploads sejam concluídos
+        await Promise.all(uploadPromises); 
 
-        // Filtra nulos se a intenção é um array sem "buracos", ou mantenha-os se a posição importa
-        // Se `promoBannerUrls` precisa ser um array com slots definidos (ex: [url1, null, url3]),
-        // remova o `.filter(url => url !== null)` abaixo.
-        // Pelo comportamento do carrossel no Home.jsx, um array com "buracos" (e.g., [url1, , url3])
-        // pode causar problemas. Melhor um array mais limpo ou com `null`s explícitos.
         const finalPromoBannerUrls = newUrls.filter(url => url !== null && url !== undefined);
 
-        // Após todo o processamento, atualiza o Firestore com o novo estado de newUrls
         try {
             await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: finalPromoBannerUrls }, { merge: true });
-            // Limpa os arquivos temporários locais após o salvamento bem-sucedido
             setPromoBannerFile1(null);
             setPromoBannerFile2(null);
             setPromoBannerFile3(null);
@@ -300,8 +290,6 @@ export default function Admin() {
             setUploadingPromoBanner(false);
         }
     };
-    // --- FIM DA CORREÇÃO (PROMO RELÂMPAGO) ---
-
 
     const handleGeneralBannerImageUpload = async () => {
         setUploadingBannerImage(true);
@@ -354,7 +342,6 @@ export default function Admin() {
                 <ul style="list-style:none; padding:0;">${itemsHtml}</ul>
                 <hr>
                 
-                ${/* --- AQUI ESTÁ A CORREÇÃO DA OBSERVAÇÃO --- */ ''}
                 ${o.observation ? `<div style="background:#eee; padding:5px; margin: 10px 0; border:1px solid #000;"><strong>OBS: ${o.observation}</strong></div>` : ''}
 
                 <div style="text-align:right; font-size:18px;">
@@ -378,7 +365,7 @@ export default function Admin() {
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
         if (messages[newStatus]) {
-            const phone = order.customerPhone.replace(/\D/g, '');
+            const phone = String(order.customerPhone).replace(/\D/g, ''); 
             if(phone) window.open(`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
         }
     };
@@ -404,7 +391,7 @@ export default function Admin() {
             const storeConfig = {
                 name: "Minha Loja Digital", slug: storeId, logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
                 primaryColor: "#2563eb", promoTitle: "Ofertas do App! 📲", promoBannerUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081395.png",
-                whatsapp: "5511999999999", slogan: "Seu delivery de bebidas rápido!" // Adiciona slogan no setup inicial
+                whatsapp: "5511999999999", slogan: "Seu delivery de bebidas rápido!" 
             };
             await setDoc(doc(db, "stores", storeId), storeConfig, { merge: true });
             const cats = [{ name: "Cervejas", order: 1, storeId }, { name: "Destilados", order: 2, storeId }, { name: "Gelo e Carvão", order: 3, storeId }];
@@ -450,17 +437,17 @@ export default function Admin() {
                 <div className="flex flex-col items-center mb-10">
                     <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
                     <p className="text-[10px] font-bold text-blue-600 uppercase text-center">{storeStatus.name}</p>
-                    {/* Slogan na Sidebar */}
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
                 <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
-                    {[...navItems, { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} /> }, { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} /> }]
-                        .map(item => (
+                    {allNavItems.map(item => (
                             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
                                 {item.icon} {item.name}
                             </button>
                         ))}
                 </nav>
+                {/* Versão do App na barra lateral do desktop */}
+                <div className="mt-4 text-[9px] font-medium text-slate-400 text-center">Veloapp V7.1</div>
                 <button onClick={handleLogout} className="mt-6 w-full flex items-center gap-3 p-4 text-red-500 hover:bg-red-50 font-bold text-[10px] uppercase"><LogOut size={18} /> Sair</button>
             </aside>
 
@@ -503,8 +490,8 @@ export default function Admin() {
                     <div className="space-y-6">
                         <h1 className="text-4xl font-black italic uppercase mb-8">Pedidos</h1>
                         {orders.map(o => (
-                            <div key={o.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-                                <div className="flex flex-col mb-2">
+                            <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
+                                <div className="flex flex-col flex-1">
                                     <div className="flex items-center gap-3 mb-1">
                                         <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
                                         <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
@@ -512,28 +499,30 @@ export default function Admin() {
                                     <h3 className="font-black text-lg text-slate-800 leading-tight">{o.customerName}</h3>
                                     <p className="text-xs text-slate-500 font-medium">{typeof o.address === 'object' ? `${o.address.street}, ${o.address.number} - ${o.address.neighborhood}` : o.address}</p>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <p className="text-2xl font-black text-green-600 mr-4">R$ {Number(o.total).toFixed(2)}</p>
-                                    <button 
-                                        onClick={() => {
-                                            const orderCopy = { ...o };
-                                            if (orderCopy.address && typeof orderCopy.address === 'object') {
-                                                orderCopy.address = { ...orderCopy.address }; 
-                                            }
-                                            orderCopy.items = orderCopy.items ? orderCopy.items.map(item => ({ ...item })) : []; 
-                                            setEditingOrderData(orderCopy);
-                                            setIsOrderEditModalOpen(true);
-                                        }} 
-                                        className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600 mr-2"
-                                        title="Editar Pedido"
-                                    >
-                                        <Edit3 size={20} />
-                                    </button>
-                                    <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
-                                    <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                    <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className="p-4 rounded-2xl font-black text-[10px] uppercase border-none outline-none cursor-pointer bg-blue-50 text-blue-800">
-                                        <option value="pending">⏳ Pendente</option><option value="preparing">👨‍🍳 Preparando</option><option value="delivery">🏍️ Em Rota</option><option value="completed">✅ Entregue</option><option value="canceled">❌ Cancelado</option>
-                                    </select>
+                                <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
+                                    <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
+                                    <div className="flex flex-wrap justify-end gap-2 md:gap-3">
+                                        <button 
+                                            onClick={() => {
+                                                const orderCopy = { ...o };
+                                                if (orderCopy.address && typeof orderCopy.address === 'object') {
+                                                    orderCopy.address = { ...orderCopy.address }; 
+                                                }
+                                                orderCopy.items = orderCopy.items ? orderCopy.items.map(item => ({ ...item })) : []; 
+                                                setEditingOrderData(orderCopy);
+                                                setIsOrderEditModalOpen(true);
+                                            }} 
+                                            className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
+                                            title="Editar Pedido"
+                                        >
+                                            <Edit3 size={20} />
+                                        </button>
+                                        <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
+                                        <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
+                                        <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className="py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-blue-50 text-blue-800">
+                                            <option value="pending">⏳ Pendente</option><option value="preparing">👨‍🍳 Preparando</option><option value="delivery">🏍️ Em Rota</option><option value="completed">✅ Entregue</option><option value="canceled">❌ Cancelado</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -589,7 +578,7 @@ export default function Admin() {
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -619,7 +608,7 @@ export default function Admin() {
                                         <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
                                     </div>
                                     <div className="flex flex-col gap-2">
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds || [] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -799,8 +788,7 @@ export default function Admin() {
                                 <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
                                 <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
                                 
-                                {/* --- INÍCIO DA CORREÇÃO (EXIBIÇÃO DE BANNERS ATIVOS) --- */}
-                                {/* Mostra os banners de promoção que ESTÃO ATIVOS no Firebase */}
+                                {/* --- EXIBIÇÃO DE BANNERS ATIVOS --- */}
                                 {settings.promoBannerUrls && settings.promoBannerUrls.length > 0 && (
                                     <div className="mt-8 pt-6 border-t border-orange-400 space-y-4">
                                         <h3 className="text-xl font-black text-white mb-4">Banners Atuais (Ativos na Loja)</h3>
@@ -874,7 +862,6 @@ export default function Admin() {
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2"><MessageSquare size={14}/> Mensagem / Aviso (Aparece no Topo)</label>
                                     <input type="text" placeholder="Ex: Voltamos em 15min / Promoção de Carnaval" value={storeStatus.message || ''} onChange={(e) => updateDoc(doc(db, "stores", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-blue-50 text-blue-700 rounded-2xl font-bold border-none placeholder-blue-300" />
-                                    {/* --- O CAMPO DO SLOGAN PERMANECE AQUI PARA EDIÇÃO --- */}
                             <div className="mt-4">
                                 <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                     <Tags size={14}/> Slogan / Descrição
@@ -887,8 +874,6 @@ export default function Admin() {
                                     className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600" 
                                 />
                             </div>
-                            {/* --- FIM DA CORREÇÃO (Slogan na Sidebar) --- */}
-                            {/* --- NOVO CAMPO: WhatsApp do Pedido --- */}
                                 <div className="mt-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <MessageCircle size={14}/> WhatsApp para Receber Pedidos
@@ -958,9 +943,6 @@ export default function Admin() {
                                     <label htmlFor="logo-upload" className="p-3 bg-slate-50 rounded-xl font-bold cursor-pointer text-sm">Selecionar Logo</label>
                                     {logoFile && <button onClick={handleLogoUpload} disabled={uploadingLogo} className="p-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Enviar Logo</button>}
                                 </div>
-                                {/* --- INÍCIO DA CORREÇÃO (Remover Banner da Loja da Seção) --- */}
-                                {/* O código para o banner da loja foi removido daqui */}
-                                {/* --- FIM DA CORREÇÃO (Remover Banner da Loja da Seção) --- */}
                             </div>
                         </div>
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
@@ -971,8 +953,20 @@ export default function Admin() {
                 )}
             </main>
 
-            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
-                {navItems.map(item => (<button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center p-2 rounded-lg ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>{item.mobileIcon} <span className="text-[10px] font-bold">{item.name}</span></button>))}
+            {/* --- RODAPÉ MOBILE: ESTRUTURA REVISADA --- */}
+            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-0 flex flex-col lg:hidden z-50"> 
+                {/* Barra da Versão */}
+                <div className="w-full text-right text-[8px] font-medium text-slate-300 px-2 pt-1 pb-0.5 border-b border-slate-50/10">
+                    Veloapp V7.1
+                </div>
+                {/* Botões de Navegação */}
+                <div className="flex justify-around overflow-x-auto whitespace-nowrap p-2">
+                    {allNavItems.map(item => (
+                        <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center px-2 py-1 rounded-lg flex-shrink-0 ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
+                            {item.mobileIcon} <span className="text-[10px] font-bold">{item.name}</span>
+                        </button>
+                    ))}
+                </div>
             </nav>
 
             {/* MODAIS (CÓDIGO MANTIDO IGUAL AO SEU) */}
@@ -999,7 +993,7 @@ export default function Admin() {
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingBannerId ? 'Editar' : 'Novo'} Banner</h2>
                             <form onSubmit={handleSaveGeneralBanner} className="space-y-6">
                                 <input type="text" placeholder="Link do Banner" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={bannerForm.linkTo} onChange={e => setBannerForm({ ...bannerForm, linkTo: e.target.value })} required />
-                                <input type="number" placeholder="Ordem" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={bannerForm.order} onChange={e => setBannerForm({ ...bannerForm, order: e.target.value })} required />
+                                <input type="number" placeholder="Ordem" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={bannerForm.order} onChange={e => setBannerForm({ ...bannerForm, order: e.target.value })} required /> {/* Corrigido 'setForm' para 'setBannerForm' aqui */}
                                 <div className="space-y-3">
                                     {(bannerImageFile || bannerForm.imageUrl) && <img src={bannerImageFile ? URL.createObjectURL(bannerImageFile) : bannerForm.imageUrl} className="w-full h-40 object-contain rounded-2xl bg-slate-50" />}
                                     <input type="file" accept="image/*" onChange={(e) => setBannerImageFile(e.target.files[0])} className="hidden" id="banner-general-image-upload" />
@@ -1208,7 +1202,7 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
-            {/* --- NOVO MODAL PARA EDIÇÃO DE PEDIDOS (Mantido da correção anterior) --- */}
+            {/* --- NOVO MODAL PARA EDIÇÃO DE PEDIDOS --- */}
             <AnimatePresence>
                 {isOrderEditModalOpen && editingOrderData && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -1220,21 +1214,19 @@ export default function Admin() {
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    // Recalcula o subtotal dos itens para garantir que o total esteja correto
                                     const currentSubtotal = editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
                                     const newTotal = currentSubtotal + Number(editingOrderData.shippingFee || 0);
 
-                                    // Prepara os dados para atualização
                                     const updatedData = {
                                         customerName: editingOrderData.customerName,
                                         customerAddress: editingOrderData.customerAddress,
                                         customerPhone: editingOrderData.customerPhone,
                                         paymentMethod: editingOrderData.paymentMethod,
                                         changeFor: editingOrderData.paymentMethod === 'dinheiro' ? editingOrderData.changeFor : '',
-                                        observation: editingOrderData.observation || '', // Garante que observation não é undefined
+                                        observation: editingOrderData.observation || '', 
                                         status: editingOrderData.status,
                                         shippingFee: Number(editingOrderData.shippingFee || 0),
-                                        total: newTotal, // Atualiza o total com base nos novos valores
+                                        total: newTotal, 
                                     };
 
                                     await updateDoc(doc(db, "orders", editingOrderData.id), updatedData);
@@ -1314,7 +1306,6 @@ export default function Admin() {
                                     )}
                                 </div>
                                 <div className="text-xl font-black text-slate-900 mt-4 italic text-right">
-                                    {/* Recalcula o total para exibição em tempo real no modal */}
                                     Total Pedido: R$ {(editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(editingOrderData.shippingFee || 0)).toFixed(2)}
                                 </div>
 
