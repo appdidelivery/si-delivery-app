@@ -56,9 +56,9 @@ export default function Admin() {
     // VERIFICAÇÃO 2: É A PRODUÇÃO DA CSI? (FALLBACK)
     // Se o usuário NÃO tem loja (ex: funcionário antigo da CSI)
     // MAS está no link oficial ou de teste, libera a CSI.
-    else if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery')) {
+    else if (hostname.includes('csi') || hostname.includes('santa')) {
         storeId = 'csi';
-    } 
+    }
 
     // 3. TELA DE CARREGAMENTO (Só aparece se ainda estamos buscando e não decidimos)
     if (loading && !storeId) {
