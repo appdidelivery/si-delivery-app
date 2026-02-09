@@ -27,12 +27,9 @@ export const StoreProvider = ({ children }) => {
       let currentSlug = getStoreIdFromHostname();
 
       // 2. Se for link com ?store= (ex: vindo da landing page)
-      if (!currentSlug || currentSlug === 'unknown-store') {
-        const urlParams = new URLSearchParams(window.location.search);
-        const storeFromUrl = urlParams.get('store');
-        if (storeFromUrl) {
-            currentSlug = storeFromUrl;
-        }
+      if (window.location.hostname.includes('si-delivery-app')) {
+          console.log("StoreContext: Ambiente Vercel detectado. Ignorando hostname.");
+          currentSlug = null;
       }
 
       // Função auxiliar para carregar a loja
