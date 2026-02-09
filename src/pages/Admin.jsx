@@ -1,4 +1,3 @@
-import { useStore } from '../context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import {
@@ -31,31 +30,18 @@ const DAYS_OF_WEEK = [
 
 export default function Admin() {
     const navigate = useNavigate();
-    
-    // --- INÍCIO DA ALTERAÇÃO ---
-    // Em vez de adivinhar pela URL, pegamos a loja carregada pelo Contexto (que já checou Login e URL)
-    const { store, loading } = useStore();
-
-    // Enquanto o sistema decide qual loja carregar, mostra um loading simples
-    if (loading) {
-        return <div className="min-h-screen flex items-center justify-center font-bold text-blue-600">Carregando sistema...</div>;
-    }
-
-    // Se não achou loja nenhuma (usuário novo sem loja), avisa
-    if (!store) {
-         return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-4">
-                <h1 className="text-2xl font-black text-slate-800">Nenhuma loja detectada.</h1>
-                <p className="text-slate-500">Tente recarregar a página ou fazer login novamente.</p>
-                <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Recarregar</button>
-            </div>
-         );
-    }
-
-    // AQUI ESTÁ O SEGREDO: Mantemos o nome 'storeId'
-    // Assim, todo o código abaixo (CSI) continua funcionando sem precisar mexer em nada!
-    const storeId = store.slug; 
-    // --- FIM DA ALTERAÇÃO ---
+    const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
+    // --- PROTEÇÃO DE ROTA (SEGURANÇA) ---
+    useEffect(() => {
+        // Verifica se tem usuário logado. Se não tiver, chuta pro Login.
+        const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+            if (!user) {
+                console.warn("Acesso negado: Usuário não logado.");
+                navigate('/login');
+            }
+        });
+        return () => unsubscribeAuth();
+    }, [navigate]);
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
