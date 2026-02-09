@@ -452,39 +452,83 @@ export default function Admin() {
             </aside>
 
             <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
-                {activeTab === 'dashboard' && (
-                    <div className="space-y-8">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
-                            <button onClick={() => setIsReportModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95">
-                                <Printer size={20}/> Fechar Caixa / Relatório
-                            </button>
-                        </div>
-                        {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
-                            <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
-                                <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
-                                <div className="flex gap-2 flex-wrap mt-2">
-                                    {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).map(p => <span key={p.id} className="bg-white text-red-600 px-3 py-1 rounded-lg text-xs font-bold border border-red-100">{p.name} ({p.stock} un)</span>)}
+                {activeTab === 'dashboard' && (() => {
+                    // --- ALTERAÇÃO INICIADA: CÁLCULO DAS NOVAS ESTATÍSTICAS ---
+                    const totalProducts = products.length;
+                    const totalOrders = orders.length;
+                    const totalCustomers = customers.length;
+                    const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
+                    // Qualquer pedido que não seja manual é considerado da loja (inclui pedidos antigos sem o campo 'source')
+                    const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
+                    // --- ALTERAÇÃO FINALIZADA: CÁLCULO DAS NOVAS ESTATÍSTICAS ---
+
+                    return (
+                        <div className="space-y-8">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
+                                <button onClick={() => setIsReportModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95">
+                                    <Printer size={20}/> Fechar Caixa / Relatório
+                                </button>
+                            </div>
+                            {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
+                                <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
+                                    <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
+                                    <div className="flex gap-2 flex-wrap mt-2">
+                                        {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).map(p => <span key={p.id} className="bg-white text-red-600 px-3 py-1 rounded-lg text-xs font-bold border border-red-100">{p.name} ({p.stock} un)</span>)}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento Hoje</p>
+                                    <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
+                                    <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
+                                </div>
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
+                                    <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
+                                </div>
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Ticket Médio</p>
+                                    <p className="text-4xl font-black text-purple-500 italic">R$ {(orders.filter(o => o.status !== 'canceled').reduce((a, b) => a + (Number(b.total) || 0), 0) / (orders.filter(o => o.status !== 'canceled').length || 1)).toFixed(2)}</p>
                                 </div>
                             </div>
-                        )}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento Hoje</p>
-                                <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
-                                <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
+
+                            {/* --- ALTERAÇÃO INICIADA: SEÇÃO DE ESTATÍSTICAS GERAIS --- */}
+                            <div className="pt-8 mt-8 border-t border-slate-100">
+                                <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 text-slate-800">Estatísticas Gerais</h2>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
+                                        <div className="flex justify-center mb-2"><Package size={32} className="text-slate-400"/></div>
+                                        <p className="text-3xl font-black text-slate-800 italic">{totalProducts}</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Produtos</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
+                                        <div className="flex justify-center mb-2"><ShoppingBag size={32} className="text-slate-400"/></div>
+                                        <p className="text-3xl font-black text-slate-800 italic">{totalOrders}</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Pedidos Totais</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
+                                        <div className="flex justify-center mb-2"><Users size={32} className="text-slate-400"/></div>
+                                        <p className="text-3xl font-black text-slate-800 italic">{totalCustomers}</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Clientes VIP</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
+                                        <div className="flex justify-center mb-2"><ExternalLink size={32} className="text-green-500"/></div>
+                                        <p className="text-3xl font-black text-green-600 italic">{storefrontOrdersCount}</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Pedidos (Loja)</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
+                                        <div className="flex justify-center mb-2"><PlusCircle size={32} className="text-blue-500"/></div>
+                                        <p className="text-3xl font-black text-blue-600 italic">{manualOrdersCount}</p>
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Pedidos (Manual)</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
-                                <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
-                            </div>
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Ticket Médio</p>
-                                <p className="text-4xl font-black text-purple-500 italic">R$ {(orders.filter(o => o.status !== 'canceled').reduce((a, b) => a + (Number(b.total) || 0), 0) / (orders.filter(o => o.status !== 'canceled').length || 1)).toFixed(2)}</p>
-                            </div>
+                            {/* --- ALTERAÇÃO FINALIZADA: SEÇÃO DE ESTATÍSTICAS GERAIS --- */}
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {activeTab === 'orders' && (
                     <div className="space-y-6">
@@ -705,6 +749,7 @@ export default function Admin() {
                                         const totalWithShipping = subtotal + manualShippingFee;
                                         const finalAddress = `${manualCustomer.address} - ${manualCustomer.neighborhood || ''}`;
 
+                                        // --- ALTERAÇÃO INICIADA: ADICIONANDO 'SOURCE' AO PEDIDO MANUAL ---
                                         await addDoc(collection(db, "orders"), { 
                                             ...manualCustomer, 
                                             customerName: manualCustomer.name, 
@@ -716,8 +761,10 @@ export default function Admin() {
                                             status: 'pending', 
                                             createdAt: serverTimestamp(), 
                                             customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
-                                            storeId: storeId 
+                                            storeId: storeId,
+                                            source: 'manual' // Adiciona a origem do pedido
                                         });
+                                        // --- ALTERAÇÃO FINALIZADA ---
                                         
                                         setManualCart([]); 
                                         setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
