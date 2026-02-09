@@ -43,27 +43,24 @@ export default function Admin() {
         return () => unsubscribeAuth();
     }, [navigate]);
 
-    // 🚨 SEGURANÇA BLINDADA 🚨
+    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (O PULO DO GATO) 🚨
     let storeId = null;
     const hostname = window.location.hostname;
     
-    // VERIFICAÇÃO 1: É A CSI? (Produção ou Teste Forçado)
-    const isCsiProduction = hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery');
-    // Se você estiver testando localmente e quiser ver a CSI, use ?s=csi na URL
-    const forceCsiTest = new URLSearchParams(window.location.search).get('s') === 'csi';
-
-    if (isCsiProduction || forceCsiTest) {
-        // SE FOR CSI, LIBERA GERAL IMEDIATAMENTE!
-        // Não espera carregar usuário, não checa banco, nada. É a CSI e pronto.
-        storeId = 'csi';
-    } 
-    // VERIFICAÇÃO 2: É UMA LOJA NOVA? (SaaS)
-    else if (store && store.slug) {
-        // Se não é CSI, aí sim respeita o dono da loja que logou.
+    // VERIFICAÇÃO 1: O USUÁRIO TEM UMA LOJA? (PRIORIDADE MÁXIMA)
+    // Se o usuário logou e o sistema achou a loja dele (ex: Tata), usa ela.
+    // Isso ignora o nome do link e foca no dono.
+    if (store && store.slug) {
         storeId = store.slug;
     }
+    // VERIFICAÇÃO 2: É A PRODUÇÃO DA CSI? (FALLBACK)
+    // Se o usuário NÃO tem loja (ex: funcionário antigo da CSI)
+    // MAS está no link oficial ou de teste, libera a CSI.
+    else if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery')) {
+        storeId = 'csi';
+    } 
 
-    // 3. TELA DE CARREGAMENTO (Só aparece se não for CSI e ainda estiver buscando a loja nova)
+    // 3. TELA DE CARREGAMENTO (Só aparece se ainda estamos buscando e não decidimos)
     if (loading && !storeId) {
         return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
     }
