@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../services/firebase'; // ADICIONEI 'db' AQUI
-import { useNavigate, useSearchParams } from 'react-router-dom'; // ADICIONEI 'useSearchParams'
+import { auth, db } from '../services/firebase';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowRight, Store } from 'lucide-react';
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
@@ -35,7 +35,7 @@ const STORE_THEMES = {
 };
 
 export default function Login() {
-    const [searchParams] = useSearchParams(); // CAPTURA URL
+    const [searchParams] = useSearchParams(); 
     const navigate = useNavigate();
 
     // --- LÓGICA DE DETECÇÃO DE NOVO CLIENTE ---
@@ -60,16 +60,35 @@ export default function Login() {
 
         try {
             if (isRegistering) {
-                // --- MODO CADASTRO AUTOMÁTICO ---
-                const fakeEmail = `${newOwnerPhone}@velo.com`; // Email gerado automaticamente
+                // --- MODO CADASTRO INTELIGENTE (AUTO-CURA) ---
+                const fakeEmail = `${newOwnerPhone}@velo.com`;
+                let user;
 
-                // 1. Criar Usuário
-                const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-                const user = userCredential.user;
+                try {
+                    // TENTATIVA 1: Criar Usuário Novo
+                    const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
+                    user = userCredential.user;
+                } catch (createError) {
+                    // TENTATIVA 2: Se já existe, tenta LOGAR automaticamente
+                    if (createError.code === 'auth/email-already-in-use') {
+                        console.log("Usuário já existe. Tentando login automático...");
+                        try {
+                            const loginCredential = await signInWithEmailAndPassword(auth, fakeEmail, password);
+                            user = loginCredential.user;
+                        } catch (loginError) {
+                            throw new Error("A loja já existe, mas a senha está incorreta.");
+                        }
+                    } else {
+                        throw createError; // Se for outro erro, repassa
+                    }
+                }
 
-                // 2. Criar Documento da Loja
+                // --- GARANTIA DE DADOS (CRIA OU RECUPERA A LOJA) ---
+                // Se o usuário apagou o banco de dados mas o login ficou, isso aqui CONSERTA TUDO.
+                // O { merge: true } garante que não apagamos dados se eles já existirem.
+                
                 await setDoc(doc(db, "stores", newStoreSlug), {
-                    name: newOwnerName, // Nome que veio da Landing Page
+                    name: newOwnerName, 
                     ownerId: user.uid,
                     phone: newOwnerPhone,
                     slug: newStoreSlug,
@@ -77,14 +96,13 @@ export default function Login() {
                     status: 'active',
                     subscription: 'trial',
                     theme: 'default'
-                });
+                }, { merge: true });
 
-                // 3. Criar Perfil do Dono
                 await setDoc(doc(db, "users", user.uid), {
                     email: fakeEmail,
-                    storeId: newStoreSlug,
+                    storeId: newStoreSlug, // Vincula a loja ao usuário (Crucial para o Admin funcionar)
                     role: 'admin'
-                });
+                }, { merge: true });
 
             } else {
                 // --- MODO LOGIN NORMAL ---
@@ -96,11 +114,11 @@ export default function Login() {
 
         } catch (err) {
             console.error(err);
-            if (err.code === 'auth/email-already-in-use') {
-                setError('Esta loja já foi ativada. Tente fazer login.');
-            } else {
-    setError('ERRO REAL: ' + err.message); 
-}
+            // Tratamento de mensagens amigáveis
+            let msg = err.message;
+            if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') msg = "Senha incorreta.";
+            if (err.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
+            setError(msg);
         } finally {
             setLoading(false);
         }
