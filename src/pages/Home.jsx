@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share } from 'lucide-react'; // Adicionado 'Share' icon
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
-// IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR
-import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride';
+// REMOVIDO: IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR (Joyride)
+// import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride'; 
 
 // Importa o componente Carousel e seus estilos
 import { Carousel } from 'react-responsive-carousel';
@@ -55,60 +55,13 @@ export default function Home() {
   const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
   console.log("Home - storeId detectado:", storeId);
 
-  // --- LÓGICA DO TOUR (ONBOARDING) ---
-  const [runTour, setRunTour] = useState(false);
-  const [tourStepIndex, setTourStepIndex] = useState(0);
+  // REMOVIDO: LÓGICA DO TOUR (ONBOARDING)
+  // const [runTour, setRunTour] = useState(false);
+  // const [tourStepIndex, setTourStepIndex] = useState(0);
 
-  const tourSteps = [
-    {
-      target: '.tour-vitrine', 
-      content: 'Bem-vindo à Conv St Isabel! Explore nossas bebidas geladas.',
-      disableBeacon: true,
-    },
-    {
-      target: '.tour-btn-add', 
-      content: 'Clique no + para adicionar o item ao seu pedido.',
-    },
-    {
-      target: '.tour-sacola', 
-      content: 'Clique na sacola para ver o frete e cupons de desconto.',
-      spotlightClicks: true, // Permite clicar na sacola para abrir o modal
-      disableOverlayClose: true,
-      hideCloseButton: true,
-      hideFooter: false, // Pode manter o footer se quiser, mas o foco é o clique
-    },
-    {
-      target: '.tour-dados', 
-      content: 'Digite seus dados: nome, CEP, número da casa e telefone WhatsApp.',
-    },
-    {
-      target: '.tour-pagamento', 
-      content: 'Defina a forma de pagamento (PIX, dinheiro ou cartão). Se dinheiro, escolha se precisa de troco e clique em finalizar pedido.',
-    },
-    {
-      target: '.tour-acompanhar', 
-      content: 'Clique em acompanhar pedido para ver o status do seu pedido.',
-    }
-  ];
-
-  useEffect(() => {
-    const hasSeenTour = localStorage.getItem('hasSeenTour');
-    if (!hasSeenTour) {
-      setRunTour(true);
-    }
-  }, []);
-
-  const handleJoyrideCallback = (data) => {
-    const { action, index, status, type } = data;
-
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
-      setRunTour(false);
-      localStorage.setItem('hasSeenTour', 'true');
-    } else if (type === EVENTS.STEP_AFTER || type === EVENTS.TARGET_NOT_FOUND) {
-      setTourStepIndex(index + (action === ACTIONS.PREV ? -1 : 1));
-    }
-  };
-  // --- FIM DA LÓGICA DO TOUR ---
+  // const tourSteps = [...]
+  // useEffect para hasSeenTour removido
+  // handleJoyrideCallback removido
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -173,10 +126,9 @@ export default function Home() {
     isOpen: true, openTime: '08:00', closeTime: '23:00',
     message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
     slogan: 'Os melhores produtos entregues na sua casa.',
-    name: 'Minha Loja' // Adicionado para consistência
+    name: 'Minha Loja'
   });
     // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
-    // Novo estado para as configurações de marketing da coleção 'settings'
     const [marketingSettings, setMarketingSettings] = useState({
         promoActive: false,
         promoBannerUrls: []
@@ -201,11 +153,9 @@ export default function Home() {
     const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
 
     useEffect(() => {
-        // Evento para navegadores baseados em Chromium (Android/Desktop)
         const handler = (e) => {
-            e.preventDefault(); // Impede que o navegador exiba o prompt padrão imediatamente
+            e.preventDefault();
             setDeferredPrompt(e);
-            // Mostra nosso botão/banner de instalação personalizado se o app não estiver no modo standalone
             if (!window.matchMedia('(display-mode: standalone)').matches) {
                 setShowInstallPrompt(true);
             }
@@ -217,14 +167,11 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
-        // Detecta iOS e Safari
         const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
 
-        // Se for iOS no Safari e não estiver em modo standalone (já instalado)
         if (isIos && isSafari && !isStandalone) {
-            // Verifica se o usuário já viu e fechou a mensagem para não incomodar
             const hasDismissediOSPrompt = localStorage.getItem('dismissediOSInstallPrompt');
             if (!hasDismissediOSPrompt) {
                 setShowiOSInstallMessage(true);
@@ -234,17 +181,17 @@ export default function Home() {
 
     const handleInstallClick = async () => {
         if (deferredPrompt) {
-            deferredPrompt.prompt(); // Exibe o prompt de instalação nativo do navegador
+            deferredPrompt.prompt();
             const { outcome } = await deferredPrompt.userChoice;
             console.log(`User response to the A2HS prompt: ${outcome}`);
-            setDeferredPrompt(null); // Limpa o prompt após o uso
-            setShowInstallPrompt(false); // Esconde o banner customizado
+            setDeferredPrompt(null);
+            setShowInstallPrompt(false);
         }
     };
 
     const handleDismissiOSInstallMessage = () => {
         setShowiOSInstallMessage(false);
-        localStorage.setItem('dismissediOSInstallPrompt', 'true'); // Marca que o usuário dispensou
+        localStorage.setItem('dismissediOSInstallPrompt', 'true');
     };
     // --- FIM DA CORREÇÃO (PWA Install Prompt) ---
 
@@ -285,7 +232,7 @@ export default function Home() {
           message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
           storeId: storeId,
           name: 'Minha Loja',
-          slogan: 'Os melhores produtos entregues na sua casa.' // Garante que o slogan está aqui
+          slogan: 'Os melhores produtos entregues na sua casa.'
         }, { merge: true });
       }
     });
@@ -300,9 +247,9 @@ export default function Home() {
         let finalStatus = data.isOpen; 
 
         // Só verifica horário se o botão "Abrir Loja" estiver ativado
-        if (data.isOpen && data.schedule) { // Verifica se 'schedule' existe
+        if (data.isOpen && data.schedule) {
             const now = new Date();
-            const todayDayId = now.getDay(); // 0 para Domingo, 1 para Segunda, etc.
+            const todayDayId = now.getDay();
             const dayConfig = data.schedule[todayDayId];
 
             if (dayConfig && dayConfig.open) {
@@ -317,9 +264,9 @@ export default function Home() {
                 
                 finalStatus = isWithinHours;
             } else {
-                finalStatus = false; // Se não tem config para o dia ou o dia está fechado
+                finalStatus = false;
             }
-        } else if (data.isOpen === false) { // Se o botão mestre no admin FECHOU a loja
+        } else if (data.isOpen === false) {
             finalStatus = false;
         }
 
@@ -332,7 +279,6 @@ export default function Home() {
     });
 
     // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
-    // Listener para as configurações de marketing (promoção relâmpago)
     const marketingSettingsRef = doc(db, "settings", storeId); 
     const unsubMarketingSettings = onSnapshot(marketingSettingsRef, (d) => {
         if (d.exists()) {
@@ -350,7 +296,7 @@ export default function Home() {
         unsubGeneralBanners();
         unsubStoreSettings();
         // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
-        unsubMarketingSettings(); // Limpa o listener de marketing
+        unsubMarketingSettings();
         // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
     };
   }, [storeId]);
@@ -359,13 +305,10 @@ export default function Home() {
     // --- INÍCIO DA CORREÇÃO (Nome dinâmico do PWA) ---
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
-      // CORREÇÃO: Usar storeSettings.name diretamente
       const storeNameForPWA = storeSettings.name || "Velo Delivery"; 
 
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
-      // CORREÇÃO: O favicon e apple-touch-icon também devem ser dinâmicos no <head> do index.html
-      // As IDs 'dynamic-favicon' e 'dynamic-apple-icon' já foram adicionadas corretamente no index.html
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
 
@@ -382,13 +325,13 @@ export default function Home() {
           "scope": "/",              
           "icons": [
             {
-              "src": logoUrl, // LOGO É DINÂMICA
+              "src": logoUrl,
               "sizes": "192x192",
               "type": "image/png",
               "purpose": "any"
             },
             {
-              "src": logoUrl, // LOGO É DINÂMICA
+              "src": logoUrl,
               "sizes": "512x512",
               "type": "image/png",
               "purpose": "any"
@@ -401,9 +344,7 @@ export default function Home() {
         manifestTag.setAttribute('href', manifestURL);
       }
     }
-    // Dependências atualizadas para incluir storeSettings.name
   }, [storeSettings.storeLogoUrl, storeSettings.name]); 
-    // --- FIM DA CORREÇÃO (Nome dinâmico do PWA) ---
 
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
@@ -500,7 +441,7 @@ export default function Home() {
     }
 
     const now = new Date();
-    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) { // Convertendo o timestamp para Date para comparar
+    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) {
       setCouponError('Este cupom expirou.');
       return;
     }
@@ -657,33 +598,9 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       <SEO title="Velo Delivery" description="Bebidas geladas." />
       
-      {/* COMPONENTE DO TOUR */}
-      <Joyride
-        steps={tourSteps}
-        run={runTour}
-        stepIndex={tourStepIndex}
-        callback={handleJoyrideCallback}
-        continuous={true}
-        showSkipButton={true}
-        showProgress={true}
-        spotlightClicks={true} 
-        styles={{
-          options: {
-            zIndex: 10000, 
-            primaryColor: '#2563eb', 
-          },
-        }}
-        locale={{
-          back: 'Voltar',
-          close: 'Fechar',
-          last: 'Entendi',
-          next: 'Próximo',
-          skip: 'Pular',
-        }}
-      />
+      {/* REMOVIDO: COMPONENTE DO TOUR (Joyride) */}
 
       {/* HEADER */}
-      {/* --- INÍCIO DA CORREÇÃO (Header com Slogan e Status Integrados) --- */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm">
         <div className="flex items-center gap-3 mb-2 sm:mb-0">
           <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
@@ -696,10 +613,8 @@ export default function Home() {
           {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
         </div>
       </header>
-      {/* --- FIM DA CORREÇÃO (Header com Slogan e Status Integrados) --- */}
 
       {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO */}
-      {/* --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) --- */}
       <AnimatePresence>
         {marketingSettings.promoActive && marketingSettings.promoBannerUrls && marketingSettings.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
@@ -713,7 +628,6 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) --- */}
 
       {/* NOVO: CARROSSEL DE BANNERS GERAIS / DE MARCAS */}
       <AnimatePresence>
@@ -753,7 +667,6 @@ export default function Home() {
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
                   Nossos Destaques
-                  {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <AnimatePresence mode='popLayout'>
@@ -779,14 +692,14 @@ export default function Home() {
                                           )}
                                       </div>
                                       <button 
-    onClick={() => addToCart(p)} 
-    disabled={!isStoreOpenNow || !hasStock}
-    className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95
-        ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
->
-    <span className="font-black text-[10px] uppercase tracking-widest">Adicionar</span>
-    <ShoppingCart size={16} />
-</button>
+                                        onClick={() => addToCart(p)} 
+                                        disabled={!isStoreOpenNow || !hasStock}
+                                        className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95
+                                            ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                    >
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Adicionar</span>
+                                        <ShoppingCart size={16} />
+                                    </button>
                                   </div>
                               </motion.div>
                           );
@@ -801,7 +714,6 @@ export default function Home() {
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
                   Mais Vendidos
-                   {/* <span className="text-[10px] font-bold text-blue-600 uppercase">Ver todos</span> */}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <AnimatePresence mode='popLayout'>
@@ -840,7 +752,7 @@ export default function Home() {
 
 
       {/* PRODUTOS (VITRINE PRINCIPAL) */}
-      <main className="tour-vitrine px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20 mt-8">
+      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20 mt-8"> {/* Removido tour-vitrine */}
         <AnimatePresence mode='popLayout'>
           {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
              const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
@@ -863,7 +775,7 @@ export default function Home() {
                             <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
                         )}
                     </div>
-                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`tour-btn-add p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                     <ShoppingCart size={16} />
                     </button>
                 </div>
@@ -893,11 +805,11 @@ export default function Home() {
       </footer>
 
       {/* Contêiner para os botões fixos (Acompanhar, Carrinho, Últimos Pedidos) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around lg:hidden z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> {/* Removido lg:hidden */}
         {/* Botão "Acompanhar Pedidos" */}
         <AnimatePresence>
           {activeOrderId && (
-            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="tour-acompanhar bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
+            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
               <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
             </motion.button>
           )}
@@ -906,7 +818,7 @@ export default function Home() {
         <div className="relative flex items-center justify-center">
             <motion.button 
                 onClick={() => setShowCheckout(true)} 
-                className="tour-sacola bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
+                className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
                 initial={{ scale: 0 }} 
                 animate={{ scale: 1 }}
             >
@@ -963,8 +875,8 @@ export default function Home() {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
                   
-                  {/* WRAPPER TOUR DADOS */}
-                  <div className="tour-dados">
+                  {/* REMOVIDO: WRAPPER TOUR DADOS */}
+                  <div>
                     <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
                     <input
                       type="tel"
@@ -984,7 +896,7 @@ export default function Home() {
                       </>
                     )}
                   </div>
-                  {/* FIM WRAPPER TOUR DADOS */}
+                  {/* FIM REMOVIDO WRAPPER TOUR DADOS */}
 
                   {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
                   {deliveryAreaMessage && !cepError && <p className="text-blue-500 text-xs font-bold text-center">{deliveryAreaMessage}</p>}
@@ -1022,8 +934,8 @@ export default function Home() {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                   
-                  {/* WRAPPER TOUR PAGAMENTO */}
-                  <div className="tour-pagamento">
+                  {/* REMOVIDO: WRAPPER TOUR PAGAMENTO */}
+                  <div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
                       {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
                           <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?'bg-blue-50 border-blue-600 text-blue-600':'border-transparent bg-slate-50 text-slate-400'}`}>
@@ -1044,7 +956,7 @@ export default function Home() {
                       {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
                     </button>
                   </div>
-                  {/* FIM WRAPPER TOUR PAGAMENTO */}
+                  {/* FIM REMOVIDO WRAPPER TOUR PAGAMENTO */}
 
                 </>
               )}
@@ -1098,7 +1010,7 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                     <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
                     <div>
-                        <p className="font-bold text-sm leading-tight">{storeSettings.name}</p> {/* CORRIGIDO AQUI */}
+                        <p className="font-bold text-sm leading-tight">{storeSettings.name}</p>
                         <p className="text-xs opacity-80">Adicione à tela inicial para acesso rápido!</p>
                     </div>
                 </div>
