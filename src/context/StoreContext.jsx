@@ -92,7 +92,6 @@ export const StoreProvider = ({ children }) => {
       {children}
     </StoreContext.Provider>
   );
-};git add . git commit -m "feat: onboarding automatico finalizado" git push
-
+};
 
 export const useStore = () => useContext(StoreContext);
