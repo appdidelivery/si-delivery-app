@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'; // Removi getDoc, agora é tudo onSnapshot
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'; 
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 const StoreContext = createContext();
@@ -11,22 +11,22 @@ export const StoreProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("StoreContext: Iniciando sistema...");
+    console.log("StoreContext: Iniciando (Modo Estrito)...");
     setLoading(true);
 
     let unsubscribeStore = () => {};
-    let unsubscribeUser = () => {}; // Nova escuta para o usuário
+    let unsubscribeUser = () => {}; 
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       
-      // Limpa escutas anteriores ao mudar status de login
+      // Resetar tudo ao mudar o user
       unsubscribeStore();
       unsubscribeUser();
-
+      
       // 1. Tenta pegar pelo SUBDOMÍNIO (prioridade máxima)
       let currentSlug = getStoreIdFromHostname();
 
-      // 2. Tenta pegar pela URL (Link da Landing Page)
+      // 2. Se for link com ?store= (ex: vindo da landing page)
       if (!currentSlug || currentSlug === 'unknown-store') {
         const urlParams = new URLSearchParams(window.location.search);
         const storeFromUrl = urlParams.get('store');
@@ -35,59 +35,60 @@ export const StoreProvider = ({ children }) => {
         }
       }
 
-      // Função auxiliar para carregar a loja (evita repetir código)
+      // Função auxiliar para carregar a loja
       const loadStore = (slugToLoad) => {
         if (!slugToLoad || slugToLoad === "unknown-store") return;
         
-        console.log("StoreContext: Carregando loja:", slugToLoad);
-        unsubscribeStore(); // Para a anterior se houver
+        console.log("StoreContext: Carregando loja alvo:", slugToLoad);
+        unsubscribeStore(); 
         
         const q = query(collection(db, 'stores'), where('slug', '==', slugToLoad));
         unsubscribeStore = onSnapshot(q, (querySnapshot) => {
           if (!querySnapshot.empty) {
             const storeDoc = querySnapshot.docs[0];
-            setStore({ id: storeDoc.id, ...storeDoc.data() });
+            const storeData = storeDoc.data();
+            console.log("StoreContext: ✅ Loja carregada com sucesso:", storeData.name);
+            setStore({ id: storeDoc.id, ...storeData });
           } else {
-             // Se estamos tentando carregar uma loja específica que não existe, null (criação)
-             // Se for fallback, mantém null também
-             console.log(`StoreContext: Loja '${slugToLoad}' não encontrada.`);
+             console.warn(`StoreContext: ⚠️ Loja '${slugToLoad}' ainda não existe no banco. Aguardando...`);
+             // IMPORTANTE: Mantém null. Não carrega fallback.
              setStore(null);
           }
           setLoading(false);
         });
       };
 
-      // 3. SE TEM SLUG DEFINIDO (URL ou Subdomínio), CARREGA ELE DIRETO
+      // CENÁRIO A: Temos um slug definido na URL (ex: subdomínio)
       if (currentSlug && currentSlug !== 'unknown-store') {
           loadStore(currentSlug);
           return;
       }
 
-      // 4. SE NÃO TEM SLUG, MAS TEM USUÁRIO LOGADO -> MONITORAR PERFIL (A CORREÇÃO!)
+      // CENÁRIO B: Usuário Logado (O CASO CRÍTICO)
       if (user) {
-          console.log("StoreContext: Monitorando perfil do usuário...");
+          console.log("StoreContext: 👤 Usuário logado detectado. Buscando ID no perfil...");
           const userRef = doc(db, "users", user.uid);
           
           unsubscribeUser = onSnapshot(userRef, (docSnap) => {
-              if (docSnap.exists()) {
-                  const userData = docSnap.data();
-                  if (userData.storeId) {
-                      console.log("StoreContext: Loja detectada no perfil:", userData.storeId);
-                      loadStore(userData.storeId);
-                  } else {
-                      // Se o usuário existe mas não tem loja ainda (fallback temporário)
-                      console.warn("StoreContext: Usuário sem loja vinculada. Aguardando...");
-                  }
+              // Se o perfil existe e tem storeId
+              if (docSnap.exists() && docSnap.data().storeId) {
+                  const userStoreId = docSnap.data().storeId;
+                  console.log("StoreContext: 🎯 ID encontrado no perfil:", userStoreId);
+                  loadStore(userStoreId);
+              } else {
+                  // Se ainda não tem storeId (delay da criação), ESPERA.
+                  console.log("StoreContext: ⏳ Aguardando criação do vínculo da loja...");
+                  // NÃO define setLoading(false) aqui. Deixa rodando o loading.
               }
           });
-          return;
+          return; // <--- IMPEDE DE CAIR NO FALLBACK
       }
 
-      // 5. FALLBACK FINAL (Visitante sem login e sem URL) -> MOSTRA DEMO (Sushi/CSI)
+      // CENÁRIO C: Visitante Deslogado (Aí sim mostra a Demo/Lara)
       const isLoginPage = window.location.pathname.includes('/login');
-      if (!isLoginPage) {
-           console.warn("StoreContext: Visitante detectado. Carregando Loja Demo.");
-           loadStore('csi'); // Mude para o slug da sua loja demo oficial se quiser
+      if (!isLoginPage && (!currentSlug || currentSlug === "unknown-store")) {
+           console.log("StoreContext: Visitante anônimo. Carregando Demo.");
+           loadStore('csi'); // Só carrega a Lara se NÃO for login e NÃO tiver usuário
       } else {
            setLoading(false);
       }
