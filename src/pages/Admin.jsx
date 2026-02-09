@@ -1,4 +1,3 @@
-import { useStore } from '../context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import {
@@ -31,66 +30,18 @@ const DAYS_OF_WEEK = [
 
 export default function Admin() {
     const navigate = useNavigate();
-    const { store, loading } = useStore(); 
-
-    // --- PROTEÇÃO DE ROTA ---
+    const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
+    // --- PROTEÇÃO DE ROTA (SEGURANÇA) ---
     useEffect(() => {
+        // Verifica se tem usuário logado. Se não tiver, chuta pro Login.
         const unsubscribeAuth = auth.onAuthStateChanged((user) => {
             if (!user) {
-                setTimeout(() => { if (!auth.currentUser) navigate('/login'); }, 1000);
+                console.warn("Acesso negado: Usuário não logado.");
+                navigate('/login');
             }
         });
         return () => unsubscribeAuth();
     }, [navigate]);
-
-    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (O PULO DO GATO) 🚨
-    let storeId = null;
-    const hostname = window.location.hostname;
-    
-    // VERIFICAÇÃO 1: O USUÁRIO TEM UMA LOJA? (PRIORIDADE MÁXIMA)
-    // Se o usuário logou e o sistema achou a loja dele (ex: Tata), usa ela.
-    // Isso ignora o nome do link e foca no dono.
-    if (store && store.slug) {
-        storeId = store.slug;
-    }
-    // VERIFICAÇÃO 2: É A PRODUÇÃO DA CSI? (FALLBACK)
-    // Se o usuário NÃO tem loja (ex: funcionário antigo da CSI)
-    // MAS está no link oficial ou de teste, libera a CSI.
-    else if (hostname.includes('csi') || hostname.includes('santa')) {
-        storeId = 'csi';
-    }
-
-    // 3. TELA DE CARREGAMENTO (Só aparece se ainda estamos buscando e não decidimos)
-    if (loading && !storeId) {
-        return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
-    }
-
-    // 1. PRIORIDADE MÁXIMA: PRODUÇÃO OFICIAL DA CSI
-    // Se o domínio for o da Santa Isabel, NUNCA carrega outra loja. Segurança total.
-    if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery')) {
-        storeId = 'csi';
-    } 
-    // 2. PRIORIDADE MÉDIA: LOJA DO USUÁRIO (SaaS)
-    // Se o usuário logou e tem uma loja (ex: Tata), usa ela, MESMO estando no Github.
-    else if (store && store.slug) {
-        storeId = store.slug;
-    }
-
-    // 3. Se estiver carregando, mostra tela de espera
-    if (loading && !storeId) {
-        return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
-    }
-
-    // 4. Se falhou tudo (Não é CSI e não achou loja nova), mostra erro
-    if (!storeId) {
-         return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-50">
-                <h1 className="text-2xl font-black text-slate-800">Loja não detectada</h1>
-                <p className="text-slate-500">Faça login novamente para acessar sua loja.</p>
-                <button onClick={async () => { await signOut(auth); navigate('/login'); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Voltar para Login</button>
-            </div>
-         );
-    }
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
@@ -447,57 +398,25 @@ export default function Admin() {
     };
 
     const handleInitialSetup = async () => {
-        if (!window.confirm("Gerar loja completa AGORA? Isso criará produtos de exemplo.")) return;
-        
+        if (!window.confirm("Gerar loja completa AGORA?")) return;
         try {
             const batchPromises = [];
-            
-            // Se for a CSI, apenas alerta e para (Segurança extra)
-            if (storeId === 'csi') {
-                alert("Esta função é apenas para novas lojas.");
-                return;
-            }
-
-            // 1. Configuração Básica da Loja
             const storeConfig = {
-                name: store?.name || "Minha Loja Nova",
-                slug: storeId,
-                logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
-                primaryColor: "#2563eb",
-                promoTitle: "Ofertas do App! 📲",
-                promoBannerUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081395.png",
-                whatsapp: store?.phone || "5511999999999",
-                slogan: "Seu delivery rápido!",
-                isOpen: true
+                name: "Minha Loja Digital", slug: storeId, logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
+                primaryColor: "#2563eb", promoTitle: "Ofertas do App! 📲", promoBannerUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081395.png",
+                whatsapp: "5511999999999", slogan: "Seu delivery de bebidas rápido!" // Adiciona slogan no setup inicial
             };
-            batchPromises.push(setDoc(doc(db, "stores", storeId), storeConfig, { merge: true }));
-
-            // 2. Categorias
-            const cats = [{ name: "Lanches", order: 1 }, { name: "Bebidas", order: 2 }, { name: "Sobremesas", order: 3 }];
-            for (const c of cats) batchPromises.push(addDoc(collection(db, "categories"), { ...c, storeId }));
-
-            // 3. Produtos
+            await setDoc(doc(db, "stores", storeId), storeConfig, { merge: true });
+            const cats = [{ name: "Cervejas", order: 1, storeId }, { name: "Destilados", order: 2, storeId }, { name: "Gelo e Carvão", order: 3, storeId }];
+            for (const c of cats) batchPromises.push(addDoc(collection(db, "categories"), c));
             const prods = [
-                { name: "X-Bacon", price: 25.00, stock: 50, category: "Lanches", imageUrl: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png", storeId, description: "Delicioso hambúrguer." },
-                { name: "Coca-Cola", price: 8.00, stock: 100, category: "Bebidas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Gelada." },
-                { name: "Pudim", price: 10.00, stock: 20, category: "Sobremesas", imageUrl: "https://cdn-icons-png.flaticon.com/512/4542/4542036.png", storeId, description: "Caseiro." }
+                { name: "Heineken Long Neck", price: 9.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja gelada." },
+                { name: "Vodka Premium", price: 89.90, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada." },
+                { name: "Gelo em Cubos", price: 12.00, stock: 50, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Gelo filtrado." }
             ];
             for (const p of prods) batchPromises.push(addDoc(collection(db, "products"), p));
-
-            // 4. Banners
-            const banners = [{ imageUrl: "https://img.freepik.com/free-psd/food-menu-restaurant-web-banner-template_106176-1447.jpg", linkTo: "", order: 1, isActive: true, storeId }];
-            for (const b of banners) batchPromises.push(addDoc(collection(db, "banners"), b));
-
-            // 5. Frete
-            batchPromises.push(addDoc(collection(db, "shipping_rates"), { neighborhood: "Centro", fee: 5.00, storeId }));
-
-            await Promise.all(batchPromises);
-            alert("✨ Loja App Gerada com Sucesso!"); 
-            window.location.reload();
-        } catch (e) { 
-            console.error(e);
-            alert("Erro: " + e.message); 
-        }
+            alert("✨ Loja App Gerada!"); window.location.reload();
+        } catch (e) { alert("Erro: " + e.message); }
     };
 
     const customers = Object.values(orders.reduce((acc, o) => {

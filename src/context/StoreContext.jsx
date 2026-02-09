@@ -11,7 +11,7 @@ export const StoreProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("StoreContext: Iniciando (Modo Estrito)...");
+    console.log("StoreContext: Iniciando...");
     setLoading(true);
 
     let unsubscribeStore = () => {};
@@ -19,22 +19,28 @@ export const StoreProvider = ({ children }) => {
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       
-      // Resetar tudo ao mudar o user
       unsubscribeStore();
       unsubscribeUser();
       
-      // 1. Tenta pegar pelo SUBDOMÍNIO (prioridade máxima)
       let currentSlug = getStoreIdFromHostname();
 
-      // 2. Se for link com ?store= (ex: vindo da landing page)
-      if (window.location.hostname.includes('si-delivery-app')) {
-          console.log("StoreContext: Ambiente Vercel detectado. Ignorando hostname.");
+      // --- CORREÇÃO APLICADA AQUI ---
+      // Agora ele detecta múltiplos ambientes de teste/desenvolvimento.
+      if (
+        window.location.hostname.includes('si-delivery-app') || 
+        window.location.hostname.includes('github.dev') || 
+        window.location.hostname.includes('localhost')
+      ) {
+          console.log("StoreContext: Ambiente de teste/dev detectado. Ignorando hostname.");
           currentSlug = null;
       }
 
-      // Função auxiliar para carregar a loja
       const loadStore = (slugToLoad) => {
-        if (!slugToLoad || slugToLoad === "unknown-store") return;
+        if (!slugToLoad || slugToLoad === "unknown-store") {
+            setStore(null); // Garante que a loja seja nula se o slug for inválido
+            setLoading(false);
+            return;
+        };
         
         console.log("StoreContext: Carregando loja alvo:", slugToLoad);
         unsubscribeStore(); 
@@ -47,49 +53,39 @@ export const StoreProvider = ({ children }) => {
             console.log("StoreContext: ✅ Loja carregada com sucesso:", storeData.name);
             setStore({ id: storeDoc.id, ...storeData });
           } else {
-             console.warn(`StoreContext: ⚠️ Loja '${slugToLoad}' ainda não existe no banco. Aguardando...`);
-             // IMPORTANTE: Mantém null. Não carrega fallback.
+             console.warn(`StoreContext: ⚠️ Loja '${slugToLoad}' ainda não existe no banco.`);
              setStore(null);
           }
           setLoading(false);
         });
       };
 
-      // CENÁRIO A: Temos um slug definido na URL (ex: subdomínio)
       if (currentSlug && currentSlug !== 'unknown-store') {
           loadStore(currentSlug);
           return;
       }
 
-      // CENÁRIO B: Usuário Logado (O CASO CRÍTICO)
       if (user) {
           console.log("StoreContext: 👤 Usuário logado detectado. Buscando ID no perfil...");
           const userRef = doc(db, "users", user.uid);
           
           unsubscribeUser = onSnapshot(userRef, (docSnap) => {
-              // Se o perfil existe e tem storeId
               if (docSnap.exists() && docSnap.data().storeId) {
                   const userStoreId = docSnap.data().storeId;
                   console.log("StoreContext: 🎯 ID encontrado no perfil:", userStoreId);
                   loadStore(userStoreId);
               } else {
-                  // Se ainda não tem storeId (delay da criação), ESPERA.
-                  console.log("StoreContext: ⏳ Aguardando criação do vínculo da loja...");
-                  // NÃO define setLoading(false) aqui. Deixa rodando o loading.
+                  console.log("StoreContext: ⏳ Usuário logado, mas sem loja vinculada ainda.");
+                  setStore(null);
+                  setLoading(false);
               }
           });
-          return; // <--- IMPEDE DE CAIR NO FALLBACK
+          return;
       }
 
-      // CENÁRIO C: Visitante Deslogado (Aí sim mostra a Demo/Lara)
-      const isLoginPage = window.location.pathname.includes('/login');
-      if (!isLoginPage && (!currentSlug || currentSlug === "unknown-store")) {
-           console.log("StoreContext: Visitante anônimo. Carregando Demo.");
-           loadStore('csi'); // Só carrega a Lara se NÃO for login e NÃO tiver usuário
-      } else {
-           setLoading(false);
-      }
-
+      // Se não há slug e não há usuário, para de carregar.
+      setStore(null);
+      setLoading(false);
     });
 
     return () => {
