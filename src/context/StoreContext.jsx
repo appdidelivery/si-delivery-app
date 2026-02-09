@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '../services/firebase';
-// ADICIONEI: onSnapshot na importação abaixo
-import { collection, query, where, onSnapshot } from 'firebase/firestore'; 
+import { db, auth } from '../services/firebase'; // ADICIONEI auth
+import { onAuthStateChanged } from 'firebase/auth'; // ADICIONEI onAuthStateChanged
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'; // ADICIONEI doc, getDoc
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 const StoreContext = createContext();
@@ -11,53 +11,79 @@ export const StoreProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("StoreContext: Iniciando escuta em tempo real...");
+    console.log("StoreContext: Iniciando sistema de detecção...");
     setLoading(true);
 
-    let slugFromHostname = getStoreIdFromHostname();
-    let finalSlug = slugFromHostname;
+    // Variável para guardar a "escuta" do banco e poder desligar depois
+    let unsubscribeStore = () => {};
 
-    // Lógica SaaS: Se estiver em desenvolvimento ou não detectado
-    if (!slugFromHostname || slugFromHostname === "unknown-store") {
-      console.warn("StoreContext: Modo DEV/Teste detectado. Usando 'loja-teste' (ou 'csi' se preferir testar a produção).");
-      // DICA: Se quiser testar a CSI localmente, mude abaixo para 'csi'
-      finalSlug = "csi"; 
-    }
-
-    console.log("StoreContext: Conectando na coleção 'stores' com slug:", finalSlug);
-
-    // Cria a query
-    const q = query(collection(db, 'stores'), where('slug', '==', finalSlug));
-
-    // A MÁGICA: onSnapshot (Escuta ao vivo)
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      if (!querySnapshot.empty) {
-        const doc = querySnapshot.docs[0];
-        const data = doc.data();
+    // 1. Monitorar o estado do Login (Auth)
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      
+      let currentSlug = getStoreIdFromHostname();
+      
+      // LÓGICA SAAS INTELIGENTE:
+      // Se estamos em localhost ou domínio principal (sem subdomínio),
+      // tentamos descobrir a loja pelo USUÁRIO logado.
+      if (!currentSlug || currentSlug === "unknown-store") {
         
-        // Atualiza o estado com os dados novos vindos do Admin V5
-        setStore({ id: doc.id, ...data });
+        if (user) {
+          console.log("StoreContext: Usuário logado detectado! Buscando a loja dele...");
+          try {
+            // Busca o perfil do usuário para saber qual é a loja dele (storeId)
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              if (userData.storeId) {
+                currentSlug = userData.storeId; // ACHEI! Usa a loja do dono.
+                console.log("StoreContext: Loja do usuário encontrada:", currentSlug);
+              }
+            }
+          } catch (error) {
+            console.error("StoreContext: Erro ao buscar perfil do usuário", error);
+          }
+        }
         
-        // Log para você ver no console se o status mudou
-        console.log("🔥 ATUALIZAÇÃO RECEBIDA DO ADMIN:", { 
-          Loja: data.name, 
-          Aberta: data.isOpen, 
-          Aviso: data.message 
-        });
-        
-        document.title = data.name || "Velo Delivery";
-      } else {
-        console.error(`StoreContext: Nenhuma loja encontrada com o slug '${finalSlug}' na coleção 'stores'.`);
-        setStore(null);
+        // Se mesmo logado não achou (ou não tá logado), cai no fallback
+        if (!currentSlug || currentSlug === "unknown-store") {
+           // Mude 'csi' para 'default' ou mantenha 'csi' se quiser ver a loja cheia como fallback
+           currentSlug = 'csi'; 
+           console.warn("StoreContext: Nenhuma loja vinculada. Usando fallback:", currentSlug);
+        }
       }
-      setLoading(false);
-    }, (error) => {
-      console.error("StoreContext: Erro na conexão ao vivo:", error);
-      setLoading(false);
+
+      console.log("StoreContext: Conectando na loja final:", currentSlug);
+
+      // 2. Conectar na Loja (Firestore Realtime)
+      // Se já tinha uma conexão aberta, fecha ela antes de abrir a nova
+      unsubscribeStore();
+
+      const q = query(collection(db, 'stores'), where('slug', '==', currentSlug));
+      
+      unsubscribeStore = onSnapshot(q, (querySnapshot) => {
+        if (!querySnapshot.empty) {
+          const storeDoc = querySnapshot.docs[0];
+          const storeData = storeDoc.data();
+          
+          setStore({ id: storeDoc.id, ...storeData });
+          document.title = storeData.name || "Velo Delivery";
+        } else {
+          console.error(`StoreContext: Loja '${currentSlug}' não encontrada.`);
+          setStore(null);
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error("StoreContext: Erro na conexão:", error);
+        setLoading(false);
+      });
+      
     });
 
-    // Função de limpeza (fecha a conexão quando sai da página)
-    return () => unsubscribe();
+    // Limpeza ao sair da tela
+    return () => {
+      unsubscribeAuth(); // Para de ouvir o Auth
+      unsubscribeStore(); // Para de ouvir o Banco
+    };
 
   }, []);
 
@@ -66,6 +92,7 @@ export const StoreProvider = ({ children }) => {
       {children}
     </StoreContext.Provider>
   );
-};
+};git add . git commit -m "feat: onboarding automatico finalizado" git push
+
 
 export const useStore = () => useContext(StoreContext);
