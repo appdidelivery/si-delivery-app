@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore'; // Adicionei getDoc
 import { auth, db } from '../services/firebase';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowRight, Store } from 'lucide-react';
@@ -76,17 +76,22 @@ export default function Login() {
                             const loginCredential = await signInWithEmailAndPassword(auth, fakeEmail, password);
                             user = loginCredential.user;
                         } catch (loginError) {
-                            throw new Error("A loja já existe, mas a senha está incorreta.");
+                            // Se a senha estiver errada, lança um erro específico
+                            if (loginError.code === 'auth/wrong-password') {
+                                throw new Error("Esta loja já existe. Use a senha criada anteriormente.");
+                            }
+                            throw loginError; // Outros erros de login
                         }
                     } else {
-                        throw createError; // Se for outro erro, repassa
+                        throw createError; // Outros erros de criação
                     }
                 }
 
                 // --- GARANTIA DE DADOS (CRIA OU RECUPERA A LOJA) ---
-                // Se o usuário apagou o banco de dados mas o login ficou, isso aqui CONSERTA TUDO.
-                // O { merge: true } garante que não apagamos dados se eles já existirem.
+                // Verifica se a loja já existe no Firestore para não sobrescrever dados importantes sem querer
+                // Mas garante que o vínculo (user -> store) seja refeito se necessário
                 
+                // 1. Cria/Atualiza Documento da Loja
                 await setDoc(doc(db, "stores", newStoreSlug), {
                     name: newOwnerName, 
                     ownerId: user.uid,
@@ -96,11 +101,12 @@ export default function Login() {
                     status: 'active',
                     subscription: 'trial',
                     theme: 'default'
-                }, { merge: true });
+                }, { merge: true }); // Merge garante que atualiza se existir, cria se não
 
+                // 2. Cria/Atualiza Perfil do Usuário
                 await setDoc(doc(db, "users", user.uid), {
                     email: fakeEmail,
-                    storeId: newStoreSlug, // Vincula a loja ao usuário (Crucial para o Admin funcionar)
+                    storeId: newStoreSlug, // Vincula a loja ao usuário
                     role: 'admin'
                 }, { merge: true });
 
