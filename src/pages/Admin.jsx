@@ -398,32 +398,124 @@ export default function Admin() {
     };
 
     const handleInitialSetup = async () => {
-        if (!window.confirm("Gerar loja completa AGORA?")) return;
+        if (!window.confirm("Isso vai apagar dados antigos (se houver) e criar uma loja nova. Continuar?")) return;
+        
         try {
             const batchPromises = [];
+            
+            // 1. CONFIGURAÇÃO DA LOJA (Visual)
             const storeConfig = {
-                name: "Minha Loja Digital", slug: storeId, logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
-                primaryColor: "#2563eb", promoTitle: "Ofertas do App! 📲", promoBannerUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081395.png",
-                whatsapp: "5511999999999", slogan: "Seu delivery de bebidas rápido!" // Adiciona slogan no setup inicial
+                name: store.name || "Minha Loja Nova", // Usa o nome que veio do contexto
+                slug: storeId,
+                logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
+                storeBannerUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1000",
+                primaryColor: "#2563eb",
+                promoTitle: "Ofertas de Inauguração! 🚀",
+                whatsapp: store.phone || "5511999999999", 
+                slogan: "O melhor delivery da região.",
+                isOpen: true,
+                schedule: {
+                    0: { open: true, start: "10:00", end: "23:00" }, // Dom
+                    1: { open: false, start: "00:00", end: "00:00" }, // Seg
+                    2: { open: true, start: "18:00", end: "23:00" }, // Ter
+                    3: { open: true, start: "18:00", end: "23:00" }, // Qua
+                    4: { open: true, start: "18:00", end: "23:00" }, // Qui
+                    5: { open: true, start: "18:00", end: "00:00" }, // Sex
+                    6: { open: true, start: "12:00", end: "00:00" }  // Sab
+                }
             };
-            await setDoc(doc(db, "stores", storeId), storeConfig, { merge: true });
-            const cats = [{ name: "Cervejas", order: 1, storeId }, { name: "Destilados", order: 2, storeId }, { name: "Gelo e Carvão", order: 3, storeId }];
-            for (const c of cats) batchPromises.push(addDoc(collection(db, "categories"), c));
-            const prods = [
-                { name: "Heineken Long Neck", price: 9.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja gelada." },
-                { name: "Vodka Premium", price: 89.90, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada." },
-                { name: "Gelo em Cubos", price: 12.00, stock: 50, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Gelo filtrado." }
-            ];
-            for (const p of prods) batchPromises.push(addDoc(collection(db, "products"), p));
-            alert("✨ Loja App Gerada!"); window.location.reload();
-        } catch (e) { alert("Erro: " + e.message); }
-    };
+            // Atualiza o documento da loja existente
+            batchPromises.push(setDoc(doc(db, "stores", store.id), storeConfig, { merge: true }));
 
-    const customers = Object.values(orders.reduce((acc, o) => {
-        const p = o.customerPhone || 'N/A';
-        if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
-        acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
-    }, {})).sort((a, b) => b.total - a.total);
+            // 2. CATEGORIAS
+            const catsData = [
+                { name: "Lanches", order: 1 },
+                { name: "Bebidas", order: 2 },
+                { name: "Sobremesas", order: 3 },
+                { name: "Combos", order: 4 }
+            ];
+            
+            // Cria as categorias e salva os IDs para usar nos produtos
+            for (const c of catsData) {
+               batchPromises.push(addDoc(collection(db, "categories"), { ...c, storeId }));
+            }
+
+            // 3. PRODUTOS (Exemplos reais)
+            const prodsData = [
+                { 
+                    name: "X-Bacon Supremo", 
+                    price: 29.90, 
+                    originalPrice: 35.00,
+                    stock: 50, 
+                    category: "Lanches", 
+                    imageUrl: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png", 
+                    description: "Hambúrguer artesanal, bacon crocante, queijo cheddar e molho especial.",
+                    isFeatured: true,
+                    storeId 
+                },
+                { 
+                    name: "Coca-Cola 2L", 
+                    price: 14.00, 
+                    stock: 100, 
+                    category: "Bebidas", 
+                    imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", 
+                    description: "Gelada!",
+                    isBestSeller: true,
+                    storeId 
+                },
+                { 
+                    name: "Combo Casal", 
+                    price: 59.90, 
+                    stock: 20, 
+                    category: "Combos", 
+                    imageUrl: "https://cdn-icons-png.flaticon.com/512/5787/5787016.png", 
+                    description: "2 X-Burgers + 1 Coca 2L + Batata Frita Grande.",
+                    storeId 
+                },
+                { 
+                    name: "Pudim de Leite", 
+                    price: 8.50, 
+                    stock: 15, 
+                    category: "Sobremesas", 
+                    imageUrl: "https://cdn-icons-png.flaticon.com/512/4542/4542036.png", 
+                    description: "Feito na hora, super cremoso.",
+                    storeId 
+                }
+            ];
+            for (const p of prodsData) {
+                batchPromises.push(addDoc(collection(db, "products"), p));
+            }
+
+            // 4. BANNERS (Carrossel)
+            const bannersData = [
+                { imageUrl: "https://img.freepik.com/free-psd/food-menu-restaurant-web-banner-template_106176-1447.jpg", linkTo: "", order: 1, isActive: true, storeId },
+                { imageUrl: "https://img.freepik.com/free-vector/flat-design-food-sale-banner_23-2149122396.jpg", linkTo: "", order: 2, isActive: true, storeId }
+            ];
+            for (const b of bannersData) {
+                batchPromises.push(addDoc(collection(db, "banners"), b));
+            }
+
+            // 5. TAXAS DE ENTREGA (Exemplos)
+            const shippingData = [
+                { neighborhood: "Centro", fee: 5.00, storeId },
+                { neighborhood: "Bairro Norte", fee: 8.00, storeId },
+                { neighborhood: "Bairro Sul", fee: 10.00, storeId }
+            ];
+            for (const s of shippingData) {
+                batchPromises.push(addDoc(collection(db, "shipping_rates"), s));
+            }
+
+            // Executa tudo
+            await Promise.all(batchPromises);
+            
+            alert("✨ Loja Pronta! Todos os dados foram criados com sucesso.");
+            window.location.reload();
+            
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao criar loja: " + e.message);
+        }
+    };
 
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
