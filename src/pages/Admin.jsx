@@ -6,8 +6,8 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare
-} from 'lucide-react';
+    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
+} from 'lucide-react'; // Adicionado PlusSquare e MinusSquare
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -77,6 +77,7 @@ export default function Admin() {
     // --- Estado para Edição de Pedido ---
     const [isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
     const [editingOrderData, setEditingOrderData] = useState(null);
+    const [editOrderProductSearch, setEditOrderProductSearch] = useState(''); // Estado de busca para o modal de edição
     // Estado para o frete do pedido manual
     const [manualShippingFee, setManualShippingFee] = useState(0);
     // Categorias
@@ -412,6 +413,49 @@ export default function Admin() {
         acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
     }, {})).sort((a, b) => b.total - a.total);
 
+    // --- ALTERAÇÃO INICIADA: FUNÇÕES PARA MANIPULAR ITENS NO MODAL DE EDIÇÃO ---
+    const handleAddProductToEditingOrder = (productToAdd) => {
+        setEditingOrderData(prevOrder => {
+            if (!prevOrder) return null;
+            const existingItem = prevOrder.items.find(item => item.id === productToAdd.id);
+            let newItems;
+            if (existingItem) {
+                newItems = prevOrder.items.map(item =>
+                    item.id === productToAdd.id ? { ...item, quantity: item.quantity + 1 } : item
+                );
+            } else {
+                newItems = [...prevOrder.items, { ...productToAdd, quantity: 1 }];
+            }
+            return { ...prevOrder, items: newItems };
+        });
+    };
+
+    const handleUpdateItemQuantityInEditingOrder = (itemId, newQuantity) => {
+        setEditingOrderData(prevOrder => {
+            if (!prevOrder) return null;
+            let newItems;
+            if (newQuantity <= 0) {
+                newItems = prevOrder.items.filter(item => item.id !== itemId);
+            } else {
+                newItems = prevOrder.items.map(item =>
+                    item.id === itemId ? { ...item, quantity: newQuantity } : item
+                );
+            }
+            return { ...prevOrder, items: newItems };
+        });
+    };
+
+    const handleRemoveItemFromEditingOrder = (itemId) => {
+        setEditingOrderData(prevOrder => {
+            if (!prevOrder) return null;
+            return {
+                ...prevOrder,
+                items: prevOrder.items.filter(item => item.id !== itemId)
+            };
+        });
+    };
+    // --- ALTERAÇÃO FINALIZADA ---
+
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
         const leadPhone = new URLSearchParams(window.location.search).get('phone');
@@ -453,14 +497,11 @@ export default function Admin() {
 
             <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
                 {activeTab === 'dashboard' && (() => {
-                    // --- ALTERAÇÃO INICIADA: CÁLCULO DAS NOVAS ESTATÍSTICAS ---
                     const totalProducts = products.length;
                     const totalOrders = orders.length;
                     const totalCustomers = customers.length;
                     const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
-                    // Qualquer pedido que não seja manual é considerado da loja (inclui pedidos antigos sem o campo 'source')
                     const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
-                    // --- ALTERAÇÃO FINALIZADA: CÁLCULO DAS NOVAS ESTATÍSTICAS ---
 
                     return (
                         <div className="space-y-8">
@@ -494,7 +535,6 @@ export default function Admin() {
                                 </div>
                             </div>
 
-                            {/* --- ALTERAÇÃO INICIADA: SEÇÃO DE ESTATÍSTICAS GERAIS --- */}
                             <div className="pt-8 mt-8 border-t border-slate-100">
                                 <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 text-slate-800">Estatísticas Gerais</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
@@ -525,7 +565,6 @@ export default function Admin() {
                                     </div>
                                 </div>
                             </div>
-                            {/* --- ALTERAÇÃO FINALIZADA: SEÇÃO DE ESTATÍSTICAS GERAIS --- */}
                         </div>
                     );
                 })()}
@@ -749,7 +788,6 @@ export default function Admin() {
                                         const totalWithShipping = subtotal + manualShippingFee;
                                         const finalAddress = `${manualCustomer.address} - ${manualCustomer.neighborhood || ''}`;
 
-                                        // --- ALTERAÇÃO INICIADA: ADICIONANDO 'SOURCE' AO PEDIDO MANUAL ---
                                         await addDoc(collection(db, "orders"), { 
                                             ...manualCustomer, 
                                             customerName: manualCustomer.name, 
@@ -762,9 +800,8 @@ export default function Admin() {
                                             createdAt: serverTimestamp(), 
                                             customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
                                             storeId: storeId,
-                                            source: 'manual' // Adiciona a origem do pedido
+                                            source: 'manual'
                                         });
-                                        // --- ALTERAÇÃO FINALIZADA ---
                                         
                                         setManualCart([]); 
                                         setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
@@ -1249,11 +1286,11 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
-            {/* --- NOVO MODAL PARA EDIÇÃO DE PEDIDOS --- */}
+            {/* --- ALTERAÇÃO INICIADA: MODAL DE EDIÇÃO DE PEDIDOS ATUALIZADO --- */}
             <AnimatePresence>
                 {isOrderEditModalOpen && editingOrderData && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-3xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsOrderEditModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
 
                             <h2 className="text-3xl font-black italic mb-6 uppercase text-slate-900">Editar Pedido #{editingOrderData.id?.slice(-5).toUpperCase()}</h2>
@@ -1273,6 +1310,7 @@ export default function Admin() {
                                         observation: editingOrderData.observation || '', 
                                         status: editingOrderData.status,
                                         shippingFee: Number(editingOrderData.shippingFee || 0),
+                                        items: editingOrderData.items, // Salva os itens atualizados
                                         total: newTotal, 
                                     };
 
@@ -1338,21 +1376,58 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                {/* Exibição dos Itens do Pedido (apenas leitura para simplificar) */}
-                                <div className="pt-4 border-t border-slate-100">
+                                {/* Itens do Pedido Interativos */}
+                                <div className="pt-4 mt-4 border-t border-slate-100">
                                     <h3 className="text-lg font-bold text-slate-700 mb-2">Itens do Pedido:</h3>
                                     {editingOrderData.items?.length > 0 ? (
-                                        editingOrderData.items.map((item, index) => (
-                                            <div key={index} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl mb-1 text-sm font-medium">
-                                                <span>{item.quantity}x {item.name}</span>
-                                                <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
-                                            </div>
-                                        ))
+                                        <div className="space-y-2">
+                                            {editingOrderData.items.map((item, index) => (
+                                                <div key={`${item.id}-${index}`} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl text-sm font-medium">
+                                                    <span className="flex-1">{item.name}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <button type="button" onClick={() => handleUpdateItemQuantityInEditingOrder(item.id, item.quantity - 1)} className="text-slate-400 hover:text-red-500"><MinusSquare size={20} /></button>
+                                                        <span className="font-black text-slate-700 w-6 text-center">{item.quantity}</span>
+                                                        <button type="button" onClick={() => handleUpdateItemQuantityInEditingOrder(item.id, item.quantity + 1)} className="text-slate-400 hover:text-green-500"><PlusSquare size={20} /></button>
+                                                    </div>
+                                                    <span className="w-24 text-right font-bold text-blue-600">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                                                    <button type="button" onClick={() => handleRemoveItemFromEditingOrder(item.id)} className="ml-4 text-red-500 hover:bg-red-50 p-1 rounded-full"><Trash2 size={16} /></button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     ) : (
-                                        <p className="text-sm text-slate-400">Nenhum item no pedido.</p>
+                                        <p className="text-sm text-center text-slate-400 p-4 bg-slate-50 rounded-xl">Nenhum item no pedido. Adicione produtos abaixo.</p>
                                     )}
                                 </div>
-                                <div className="text-xl font-black text-slate-900 mt-4 italic text-right">
+
+                                {/* Seção para Adicionar Novos Produtos */}
+                                <div className="pt-4 mt-4 border-t border-slate-100">
+                                    <h3 className="text-lg font-bold text-slate-700 mb-2">Adicionar Produtos ao Pedido:</h3>
+                                    <div className="mb-4 relative">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Buscar produto para adicionar..." 
+                                            className="w-full p-3 pl-10 bg-slate-100 rounded-xl font-bold text-sm border-none outline-none focus:ring-2 ring-blue-300"
+                                            value={editOrderProductSearch}
+                                            onChange={(e) => setEditOrderProductSearch(e.target.value)}
+                                        />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                    </div>
+                                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar border p-2 rounded-xl">
+                                        {products.filter(p => p.name.toLowerCase().includes(editOrderProductSearch.toLowerCase())).map(p => (
+                                            <button 
+                                                key={p.id} 
+                                                type="button"
+                                                onClick={() => handleAddProductToEditingOrder(p)}
+                                                className="w-full p-3 bg-white hover:bg-blue-50 rounded-xl flex justify-between items-center transition-all border"
+                                            >
+                                                <span className="font-bold text-slate-700">{p.name}</span>
+                                                <span className="font-black text-blue-600">R$ {Number(p.price).toFixed(2)}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="text-2xl font-black text-slate-900 mt-6 italic text-right">
                                     Total Pedido: R$ {(editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(editingOrderData.shippingFee || 0)).toFixed(2)}
                                 </div>
 
@@ -1364,6 +1439,7 @@ export default function Admin() {
                     </motion.div>
                 )}
             </AnimatePresence>
+            {/* --- ALTERAÇÃO FINALIZADA --- */}
         </div>
     );
 }
