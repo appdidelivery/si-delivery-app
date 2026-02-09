@@ -99,8 +99,8 @@ export default function Login() {
             if (err.code === 'auth/email-already-in-use') {
                 setError('Esta loja já foi ativada. Tente fazer login.');
             } else {
-                setError('Erro ao acessar. Verifique seus dados.');
-            }
+    setError('ERRO REAL: ' + err.message); 
+}
         } finally {
             setLoading(false);
         }
