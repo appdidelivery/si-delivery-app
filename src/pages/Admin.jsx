@@ -31,30 +31,50 @@ const DAYS_OF_WEEK = [
 
 export default function Admin() {
     const navigate = useNavigate();
-    const { store, loading } = useStore(); // Pega o contexto global
+    const { store, loading } = useStore(); 
 
-    // --- PROTEÇÃO DE ROTA (SEGURANÇA) ---
+    // --- PROTEÇÃO DE ROTA ---
     useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((user) => {
             if (!user) {
-                setTimeout(() => {
-                    if (!auth.currentUser) navigate('/login');
-                }, 1000);
+                setTimeout(() => { if (!auth.currentUser) navigate('/login'); }, 1000);
             }
         });
         return () => unsubscribeAuth();
     }, [navigate]);
 
-    // 🚨 LÓGICA DE SEGURANÇA HÍBRIDA 🚨
+    // 🚨 SEGURANÇA BLINDADA 🚨
     let storeId = null;
     const hostname = window.location.hostname;
+    
+    // VERIFICAÇÃO 1: É A CSI? (Produção ou Teste Forçado)
+    const isCsiProduction = hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery');
+    // Se você estiver testando localmente e quiser ver a CSI, use ?s=csi na URL
+    const forceCsiTest = new URLSearchParams(window.location.search).get('s') === 'csi';
 
-    // 1. Se for ambiente de desenvolvimento ou produção CSI, FORÇA 'csi'
-    // Isso garante que a loja Santa Isabel nunca quebre.
-    if (hostname.includes('github') || hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery')) {
+    if (isCsiProduction || forceCsiTest) {
+        // SE FOR CSI, LIBERA GERAL IMEDIATAMENTE!
+        // Não espera carregar usuário, não checa banco, nada. É a CSI e pronto.
         storeId = 'csi';
     } 
-    // 2. Se for uma loja nova (SaaS), usa o ID que veio do login/contexto
+    // VERIFICAÇÃO 2: É UMA LOJA NOVA? (SaaS)
+    else if (store && store.slug) {
+        // Se não é CSI, aí sim respeita o dono da loja que logou.
+        storeId = store.slug;
+    }
+
+    // 3. TELA DE CARREGAMENTO (Só aparece se não for CSI e ainda estiver buscando a loja nova)
+    if (loading && !storeId) {
+        return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
+    }
+
+    // 1. PRIORIDADE MÁXIMA: PRODUÇÃO OFICIAL DA CSI
+    // Se o domínio for o da Santa Isabel, NUNCA carrega outra loja. Segurança total.
+    if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('si-delivery')) {
+        storeId = 'csi';
+    } 
+    // 2. PRIORIDADE MÉDIA: LOJA DO USUÁRIO (SaaS)
+    // Se o usuário logou e tem uma loja (ex: Tata), usa ela, MESMO estando no Github.
     else if (store && store.slug) {
         storeId = store.slug;
     }
