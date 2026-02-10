@@ -1,26 +1,19 @@
 {
   "rewrites": [
-    // Roteia as requisições para /robots.txt para a Serverless Function dinâmica
     {
       "source": "/robots.txt",
       "destination": "/api/robots"
     },
-    // Roteia as requisições para /sitemap.xml para a Serverless Function dinâmica
     {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap"
     },
-    // Para todas as outras requisições (URLs das lojas, URLs do admin),
-    // serve o index.html do seu SPA React/Vite.
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
-    // Adiciona cabeçalhos de cache para otimizar o acesso dos robôs de busca.
-    // Isso evita que a Serverless Function seja executada a cada requisição do bot,
-    // economizando recursos e servindo mais rápido.
     {
       "source": "/robots.txt",
       "headers": [
