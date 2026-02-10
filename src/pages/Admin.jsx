@@ -1,3 +1,4 @@
+import { useStore } from '../context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import {
@@ -43,18 +44,67 @@ const allNavItems = [
 
 export default function Admin() {
     const navigate = useNavigate();
-    const storeId = window.location.hostname.includes('github') ? 'csi' : getStoreIdFromHostname();
-    // --- PROTEÇÃO DE ROTA (SEGURANÇA) ---
+    // --- (Cole logo abaixo de const navigate = useNavigate();) ---
+    
+    const { store, loading } = useStore(); // Pega a loja do usuário logado
+
+    // --- PROTEÇÃO DE ROTA ---
     useEffect(() => {
-        // Verifica se tem usuário logado. Se não tiver, chuta pro Login.
         const unsubscribeAuth = auth.onAuthStateChanged((user) => {
             if (!user) {
-                console.warn("Acesso negado: Usuário não logado.");
-                navigate('/login');
+                // Pequeno delay para garantir que não é apenas lentidão da internet
+                setTimeout(() => {
+                    if (!auth.currentUser) navigate('/login');
+                }, 1000);
             }
         });
         return () => unsubscribeAuth();
     }, [navigate]);
+
+    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA 🚨
+    let storeId = null;
+    const hostname = window.location.hostname;
+
+    // 1. REGRA DE OURO: O USUÁRIO LOGADO MANDA.
+    // Se o Contexto achou uma loja para este usuário (ex: Loja da Lara), USE ELA.
+    if (store && store.slug) {
+        console.log("Admin: Carregando loja do usuário:", store.slug);
+        storeId = store.slug;
+    }
+    
+    // 2. REGRA DE PRODUÇÃO (CSI):
+    // Só entra aqui se NÃO tiver usuário logado com loja válida.
+    // IMPORTANTE: Removemos 'si-delivery' e 'github' daqui para não travar seus testes.
+    else if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('conv') || hostname.includes('github')) {
+        console.log("Admin: Modo Produção/Teste (CSI) detectado.");
+        storeId = 'csi';
+    }
+
+    // 3. TELA DE CARREGAMENTO
+    if (loading && !storeId) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+                <Loader2 className="animate-spin text-blue-600" size={48} />
+                <p className="text-slate-500 font-bold">Identificando sua loja...</p>
+            </div>
+        );
+    }
+
+    // 4. TELA DE ERRO (Se não achou Lara e não é CSI)
+    if (!storeId) {
+         return (
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-50">
+                <h1 className="text-2xl font-black text-slate-800">Loja não identificada</h1>
+                <p className="text-slate-500 max-w-md">
+                    Não conseguimos carregar sua loja. Isso acontece se o link estiver errado ou se você não tiver uma loja vinculada.
+                </p>
+                <div className="flex gap-2 justify-center mt-4">
+                    <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Tentar de Novo</button>
+                    <button onClick={async () => { await signOut(auth); navigate('/login'); }} className="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold">Sair / Trocar Conta</button>
+                </div>
+            </div>
+         );
+    }
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
