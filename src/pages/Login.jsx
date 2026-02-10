@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore'; 
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'; 
 import { auth, db } from '../services/firebase';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowRight, Store } from 'lucide-react';
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
-// --- CONFIGURAÇÃO DE TEMAS POR LOJA ---
+// --- CONFIGURAÇÃO DE TEMAS ---
 const STORE_THEMES = {
     csi: {
         name: "Conv St Isabel",
@@ -37,21 +37,34 @@ const STORE_THEMES = {
 export default function Login() {
     const [searchParams] = useSearchParams(); 
     const navigate = useNavigate();
-
-    // --- LÓGICA DE DETECÇÃO DE NOVO CLIENTE ---
+    
+    // VARIÁVEIS DE CADASTRO
     const newStoreSlug = searchParams.get('store');
     const newOwnerName = searchParams.get('name');
     const newOwnerPhone = searchParams.get('phone');
-    const isRegistering = !!newStoreSlug; // Se tem slug, é cadastro!
+    const isRegistering = !!newStoreSlug;
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    // Estado para evitar piscada de tela enquanto verifica login
+    const [checkingAuth, setCheckingAuth] = useState(true);
 
-    // Identifica a loja atual (Para login normal) ou usa Default (Para cadastro)
     const storeId = isRegistering ? 'default' : (getStoreIdFromHostname() || 'default');
     const currentTheme = STORE_THEMES[storeId] || STORE_THEMES.default;
+
+    // Se já estiver logado, entra direto no Admin
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                navigate('/admin');
+            } else {
+                setCheckingAuth(false);
+            }
+        });
+        return () => unsubscribe();
+    }, [navigate]);
 
     const handleAuth = async (e) => {
         e.preventDefault();
@@ -60,35 +73,24 @@ export default function Login() {
 
         try {
             if (isRegistering) {
-                // --- MODO CADASTRO INTELIGENTE (AUTO-CURA) ---
+                // --- LÓGICA DE CADASTRO ---
                 const fakeEmail = `${newOwnerPhone}@velo.com`;
                 let user;
 
                 try {
-                    // TENTATIVA 1: Criar Usuário Novo
                     const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
                     user = userCredential.user;
                 } catch (createError) {
-                    // TENTATIVA 2: Se já existe, tenta LOGAR automaticamente
                     if (createError.code === 'auth/email-already-in-use') {
-                        console.log("Usuário já existe. Tentando login automático...");
-                        try {
-                            const loginCredential = await signInWithEmailAndPassword(auth, fakeEmail, password);
-                            user = loginCredential.user;
-                        } catch (loginError) {
-                            // Se a senha estiver errada, lança um erro específico
-                            if (loginError.code === 'auth/wrong-password') {
-                                throw new Error("Esta loja já existe. Use a senha criada anteriormente.");
-                            }
-                            throw loginError; // Outros erros de login
-                        }
+                        // Se já existe, tenta logar
+                        const loginCredential = await signInWithEmailAndPassword(auth, fakeEmail, password);
+                        user = loginCredential.user;
                     } else {
-                        throw createError; // Outros erros de criação
+                        throw createError;
                     }
                 }
 
-                // --- GARANTIA DE DADOS (CRIA OU RECUPERA A LOJA) ---
-                // 1. Cria/Atualiza Documento da Loja
+                // Salva Loja
                 await setDoc(doc(db, "stores", newStoreSlug), {
                     name: newOwnerName, 
                     ownerId: user.uid,
@@ -98,41 +100,27 @@ export default function Login() {
                     status: 'active',
                     subscription: 'trial',
                     theme: 'default'
-                }, { merge: true }); // Merge garante que atualiza se existir, cria se não
+                }, { merge: true });
 
-                // 2. Cria/Atualiza Perfil do Usuário
+                // Salva Usuário
                 await setDoc(doc(db, "users", user.uid), {
                     email: fakeEmail,
-                    storeId: newStoreSlug, // Vincula a loja ao usuário
+                    storeId: newStoreSlug,
                     role: 'admin'
                 }, { merge: true });
 
-                // --- 🚀 REDIRECIONAMENTO PARA SUBDOMÍNIO 🚀 ---
-                // Aqui acontece a mágica do SaaS: Redireciona para loja.velodelivery.com.br
-                
-                if (window.location.hostname.includes('localhost')) {
-                    // Se for localhost, mantém a navegação interna para não quebrar o teste
-                    console.log("Ambiente Local: Navegando internamente.");
-                    navigate('/admin');
-                } else {
-                    // Se for Produção (Vercel), força o subdomínio
-                    const protocol = window.location.protocol;
-                    const baseDomain = "velodelivery.com.br"; // SEU DOMÍNIO PRINCIPAL
-                    const targetUrl = `${protocol}//${newStoreSlug}.${baseDomain}/admin`;
-                    
-                    console.log(`Redirecionando para Subdomínio: ${targetUrl}`);
-                    window.location.href = targetUrl;
-                }
+                // --- 🚀 CORREÇÃO DO LOGIN 🚀 ---
+                alert(`✅ Loja Criada!\n\nLogin: ${fakeEmail}\nSenha: ${password}`);
+                navigate('/admin'); // Entra direto sem mudar de domínio
 
             } else {
-                // --- MODO LOGIN NORMAL ---
+                // --- LÓGICA DE LOGIN NORMAL ---
                 await signInWithEmailAndPassword(auth, email, password);
                 navigate('/admin');
             }
 
         } catch (err) {
             console.error(err);
-            // Tratamento de mensagens amigáveis
             let msg = err.message;
             if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') msg = "Senha incorreta.";
             if (err.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
@@ -142,11 +130,12 @@ export default function Login() {
         }
     };
 
+    if (checkingAuth) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
+
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
             <div className="bg-white w-full max-w-md p-10 rounded-[3rem] shadow-xl border border-slate-100 text-center">
                 
-                {/* CABEÇALHO DINÂMICO */}
                 <div className="mb-8 flex flex-col items-center">
                     <div className={`w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4 shadow-sm border border-slate-100 ${currentTheme.iconColor}`}>
                         {isRegistering ? <Store size={32} /> : <Lock size={32} />}
@@ -162,8 +151,6 @@ export default function Login() {
                 </div>
 
                 <form onSubmit={handleAuth} className="space-y-4">
-                    
-                    {/* ESCONDE O EMAIL SE FOR CADASTRO (POIS USA O TELEFONE) */}
                     {!isRegistering && (
                         <div className="relative">
                             <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
