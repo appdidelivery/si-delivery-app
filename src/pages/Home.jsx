@@ -796,12 +796,19 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="p-12 text-center">
+<footer className="p-12 text-center">
         <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
-        <div className="flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer">
-          <img src="/logo retangular Vero Delivery.png" className="h-6 w-auto mb-2" />
+        {/* CORREÇÃO AQUI: Trocamos <div> por <a> e adicionamos o href */}
+        <a 
+          href="https://velodelivery.com.br" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="inline-flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer"
+        >
+          {/* Certifique-se que o nome da imagem está correto na sua pasta public */}
+          <img src="/logo retangular Velo Delivery.png" className="h-6 w-auto mb-2" alt="Velo Delivery" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
-        </div>
+        </a>
       </footer>
 
       {/* Contêiner para os botões fixos (Acompanhar, Carrinho, Últimos Pedidos) */}
