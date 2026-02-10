@@ -436,25 +436,90 @@ export default function Admin() {
     };
 
     const handleInitialSetup = async () => {
-        if (!window.confirm("Gerar loja completa AGORA?")) return;
+        if (!window.confirm("Isso vai criar todos os dados iniciais da sua loja. Confirmar?")) return;
+        
         try {
             const batchPromises = [];
+            
+            // 1. Configurações da Loja (Base CSI)
             const storeConfig = {
-                name: "Minha Loja Digital", slug: storeId, logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
-                primaryColor: "#2563eb", promoTitle: "Ofertas do App! 📲", promoBannerUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081395.png",
-                whatsapp: "5511999999999", slogan: "Seu delivery de bebidas rápido!" 
+                name: store.name || "Minha Loja Nova",
+                slug: storeId,
+                logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png", // Logo Padrão
+                storeBannerUrl: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1200&q=80", // Banner Bebidas
+                primaryColor: "#2563eb",
+                whatsapp: store.phone || "",
+                slogan: "Sua adega online 24h.",
+                message: "🎉 Loja Aberta! Aproveite as ofertas.",
+                isOpen: true,
+                schedule: {
+                    0: { open: true, start: "10:00", end: "22:00" }, // Domingo
+                    1: { open: false, start: "08:00", end: "23:00" }, // Seg
+                    2: { open: true, start: "08:00", end: "23:00" }, // Ter
+                    3: { open: true, start: "08:00", end: "23:00" }, // Qua
+                    4: { open: true, start: "08:00", end: "23:00" }, // Qui
+                    5: { open: true, start: "08:00", end: "02:00" }, // Sex
+                    6: { open: true, start: "08:00", end: "02:00" }  // Sab
+                }
             };
             await setDoc(doc(db, "stores", storeId), storeConfig, { merge: true });
-            const cats = [{ name: "Cervejas", order: 1, storeId }, { name: "Destilados", order: 2, storeId }, { name: "Gelo e Carvão", order: 3, storeId }];
+
+            // 2. Configurações de Marketing (Promoção Ativa)
+            await setDoc(doc(db, "settings", storeId), {
+                promoActive: true,
+                promoBannerUrls: [
+                    "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80", // Banner Promo 1
+                    "https://images.unsplash.com/photo-1600216496561-122972989e27?auto=format&fit=crop&w=800&q=80"  // Banner Promo 2
+                ]
+            }, { merge: true });
+
+            // 3. Categorias
+            const cats = [
+                { name: "Cervejas", order: 1, storeId },
+                { name: "Destilados", order: 2, storeId },
+                { name: "Gelo e Carvão", order: 3, storeId },
+                { name: "Combos", order: 4, storeId }
+            ];
             for (const c of cats) batchPromises.push(addDoc(collection(db, "categories"), c));
+
+            // 4. Produtos (Catálogo Base)
             const prods = [
-                { name: "Heineken Long Neck", price: 9.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja gelada." },
-                { name: "Vodka Premium", price: 89.90, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada." },
-                { name: "Gelo em Cubos", price: 12.00, stock: 50, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Gelo filtrado." }
+                { name: "Heineken Long Neck 330ml", price: 9.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja Premium gelada." },
+                { name: "Cerveja Corona Extra 330ml", price: 8.50, stock: 60, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Com limão fica melhor." },
+                { name: "Vodka Absolut 1L", price: 119.90, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada original." },
+                { name: "Whisky Red Label 1L", price: 139.90, stock: 10, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "O clássico." },
+                { name: "Gelo em Cubos 5kg", price: 15.00, stock: 50, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Gelo filtrado." },
+                { name: "Carvão Vegetal 4kg", price: 22.00, stock: 30, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Acende fácil." },
+                { name: "Combo Esquenta (Vodka + Energético)", price: 149.90, stock: 20, category: "Combos", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "1 Absolut + 4 Energéticos 2L" }
             ];
             for (const p of prods) batchPromises.push(addDoc(collection(db, "products"), p));
-            alert("✨ Loja App Gerada!"); window.location.reload();
-        } catch (e) { alert("Erro: " + e.message); }
+
+            // 5. Taxas de Entrega (Bairros Exemplo)
+            const rates = [
+                { neighborhood: "Centro", fee: 5.00, storeId },
+                { neighborhood: "Bairro Norte", fee: 8.00, storeId },
+                { neighborhood: "Bairro Sul", fee: 10.00, storeId },
+                { neighborhood: "Zona Rural", fee: 20.00, storeId }
+            ];
+            for (const r of rates) batchPromises.push(addDoc(collection(db, "shipping_rates"), r));
+
+            // 6. Banners Gerais (Carrossel)
+            const banners = [
+                { imageUrl: "https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1000&q=80", linkTo: "#", order: 1, isActive: true, storeId },
+                { imageUrl: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1000&q=80", linkTo: "#", order: 2, isActive: true, storeId }
+            ];
+            for (const b of banners) batchPromises.push(addDoc(collection(db, "banners"), b));
+
+            // Executa tudo
+            await Promise.all(batchPromises);
+            
+            alert("✨ LOJA GERADA COM SUCESSO! \nRecarregando para você ver a mágica...");
+            window.location.reload();
+
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao gerar loja: " + e.message);
+        }
     };
 
     const customers = Object.values(orders.reduce((acc, o) => {
