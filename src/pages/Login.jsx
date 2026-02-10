@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore'; // Adicionei getDoc
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore'; 
 import { auth, db } from '../services/firebase';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowRight, Store } from 'lucide-react';
@@ -88,9 +88,6 @@ export default function Login() {
                 }
 
                 // --- GARANTIA DE DADOS (CRIA OU RECUPERA A LOJA) ---
-                // Verifica se a loja já existe no Firestore para não sobrescrever dados importantes sem querer
-                // Mas garante que o vínculo (user -> store) seja refeito se necessário
-                
                 // 1. Cria/Atualiza Documento da Loja
                 await setDoc(doc(db, "stores", newStoreSlug), {
                     name: newOwnerName, 
@@ -110,13 +107,28 @@ export default function Login() {
                     role: 'admin'
                 }, { merge: true });
 
+                // --- 🚀 REDIRECIONAMENTO PARA SUBDOMÍNIO 🚀 ---
+                // Aqui acontece a mágica do SaaS: Redireciona para loja.velodelivery.com.br
+                
+                if (window.location.hostname.includes('localhost')) {
+                    // Se for localhost, mantém a navegação interna para não quebrar o teste
+                    console.log("Ambiente Local: Navegando internamente.");
+                    navigate('/admin');
+                } else {
+                    // Se for Produção (Vercel), força o subdomínio
+                    const protocol = window.location.protocol;
+                    const baseDomain = "velodelivery.com.br"; // SEU DOMÍNIO PRINCIPAL
+                    const targetUrl = `${protocol}//${newStoreSlug}.${baseDomain}/admin`;
+                    
+                    console.log(`Redirecionando para Subdomínio: ${targetUrl}`);
+                    window.location.href = targetUrl;
+                }
+
             } else {
                 // --- MODO LOGIN NORMAL ---
                 await signInWithEmailAndPassword(auth, email, password);
+                navigate('/admin');
             }
-
-            // Redireciona para o Admin
-            navigate('/admin');
 
         } catch (err) {
             console.error(err);
