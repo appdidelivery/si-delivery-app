@@ -538,7 +538,7 @@ export default function Admin() {
             console.error(e);
             alert("Erro ao gerar loja: " + e.message);
         }
-    };git add . git commit -m "fix: protecao botao gerar loja" git push
+    };
 
     const customers = Object.values(orders.reduce((acc, o) => {
         const p = o.customerPhone || 'N/A';
@@ -648,7 +648,7 @@ export default function Admin() {
                                 }}
                                 className="w-full py-4 bg-indigo-900 text-white font-black rounded-xl hover:bg-indigo-800 transition-all shadow-lg text-lg uppercase tracking-widest"
                             >
-                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "CRIAR LOJA (V2) 🚀"}
+                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "CRIAR LOJA (V3) 🚀"}
                             </button>
                     </div>
                 </div>
