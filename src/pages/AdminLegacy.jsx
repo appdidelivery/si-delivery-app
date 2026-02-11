@@ -648,7 +648,7 @@ export default function Admin() {
                                 }}
                                 className="w-full py-4 bg-indigo-900 text-white font-black rounded-xl hover:bg-indigo-800 transition-all shadow-lg text-lg uppercase tracking-widest"
                             >
-                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "CRIAR LOJA (V3) 🚀"}
+                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "CRIAR LOJA 🚀"}
                             </button>
                     </div>
                 </div>
