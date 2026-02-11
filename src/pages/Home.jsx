@@ -496,8 +496,12 @@ export default function Home() {
 
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
-  const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
-  const finalTotal = Number(subtotal) + Number(shippingFee || 0) - Number(discountAmount || 0);
+  // Lógica de Frete Grátis no Total
+  const subtotalValue = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
+  const isFreeShipping = storeSettings.freeShippingThreshold > 0 && subtotalValue >= Number(storeSettings.freeShippingThreshold);
+  const appliedShipping = isFreeShipping ? 0 : Number(shippingFee || 0);
+  
+  const finalTotal = Number(subtotalValue) + appliedShipping - Number(discountAmount || 0);
 
   const applyCoupon = async () => {
     setCouponError('');
@@ -925,14 +929,29 @@ export default function Home() {
         </AnimatePresence>
       </main>
 
+      {/* --- RODAPÉ DINÂMICO (Lê do Admin) --- */}
       <section className="px-6 py-10 bg-slate-100/50 text-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
-            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">CONVENIÊNCIA SANTA ISABEL</p>
-            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest">R. Neida Maciel, 122 - Santa Isabel Viamão - RS</p>
-            <a href="https://share.google/BM8tOiMLqp6yzxibm" target="_blank" className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
-                Ver no Google Maps <ExternalLink size={14}/>
-            </a>
+            {/* Nome da Loja Dinâmico */}
+            <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">{storeSettings.name || "Nossa Loja"}</p>
+            
+            {/* Endereço Dinâmico (Vem do Admin) */}
+            <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest px-4 leading-relaxed">
+                {storeSettings.address || "Endereço não cadastrado"}
+            </p>
+            
+            {/* Link do Maps Automático */}
+            {storeSettings.address && (
+                <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeSettings.address)}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all"
+                >
+                    Ver no Google Maps <ExternalLink size={14}/>
+                </a>
+            )}
         </div>
       </section>
 
@@ -1005,6 +1024,39 @@ export default function Home() {
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
               <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
               <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
+              {/* --- BARRA DE FRETE GRÁTIS --- */}
+              {storeSettings.freeShippingThreshold > 0 && (
+                  <div className="mb-6 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                      {(() => {
+                          const currentTotal = cart.reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
+                          const goal = Number(storeSettings.freeShippingThreshold);
+                          const missing = goal - currentTotal;
+                          const progress = Math.min((currentTotal / goal) * 100, 100);
+
+                          if (missing <= 0) {
+                              return (
+                                  <div className="flex items-center justify-center gap-2 text-green-600 font-black uppercase text-xs animate-bounce">
+                                      <Crown size={16} /> Parabéns! Frete Grátis Conquistado!
+                                  </div>
+                              );
+                          } else {
+                              return (
+                                  <>
+                                      <p className="text-xs font-bold text-slate-500 mb-2 text-center">
+                                          Faltam <span className="text-slate-900 font-black">R$ {missing.toFixed(2)}</span> para Frete Grátis
+                                      </p>
+                                      <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                                          <div 
+                                              style={{ width: `${progress}%` }}
+                                              className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-500"
+                                          />
+                                      </div>
+                                  </>
+                              );
+                          }
+                      })()}
+                  </div>
+              )}
 
               {cart.length === 0 ? <p className="text-center py-10 font-bold text-slate-500">Carrinho vazio.</p> : (
                 <>
@@ -1094,7 +1146,12 @@ export default function Home() {
 
                     <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
                         <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Frete</span><span>{shippingFee !== null ? `R$ ${shippingFee.toFixed(2)}` : '--'}</span></div>
+                        <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
+    <span>Frete</span>
+    <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
+        {shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'}
+    </span>
+</div>
                         {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
                         <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
                     </div>

@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin , Printer, Bell, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
 } from 'lucide-react'; // Adicionado PlusSquare e MinusSquare
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -1229,6 +1229,46 @@ export default function Admin() {
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Digite apenas números com DDD (ex: 55519...). É para esse número que o cliente será enviado.</p>
                                 </div>
+                                </div>
+                            </div>
+                            {/* --- NOVO BLOCO: LOCALIZAÇÃO E REGRAS --- */}
+                            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
+                                <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
+                                    <MapPin size={24}/> Localização e Regras
+                                </h2>
+                                
+                                {/* 1. Endereço Físico (Para o Rodapé) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Endereço Completo</label>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: Av. Ipiranga, 1200 - Porto Alegre/RS" 
+                                            className="w-full p-5 pl-12 bg-slate-50 rounded-2xl font-bold border-none"
+                                            value={storeStatus.address || ''} 
+                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { address: e.target.value }, { merge: true })}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Dica: Esse endereço vai gerar o link do Google Maps no site.</p>
+                                </div>
+
+                                {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <Trophy size={14} className="text-yellow-500"/> Meta para Frete Grátis (R$)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            placeholder="0.00" 
+                                            className="w-full p-5 pl-12 bg-green-50 text-green-700 rounded-2xl font-black border-none placeholder-green-300"
+                                            value={storeStatus.freeShippingThreshold || ''} 
+                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { freeShippingThreshold: e.target.value }, { merge: true })}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Deixe 0 ou vazio para desativar a barra de progresso no carrinho.</p>
                                 </div>
                             </div>
                         </div>
