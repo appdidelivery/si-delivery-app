@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
+    Save, X, MessageCircle, Crown, Flame, Trophy, Printer, Bell, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
 } from 'lucide-react'; // Adicionado PlusSquare e MinusSquare
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -607,10 +607,34 @@ export default function Admin() {
                 </nav>
                 {/* Versão do App na barra lateral do desktop */}
                 <div className="mt-4 text-[9px] font-medium text-slate-400 text-center">Veloapp V7.1</div>
+                <div className="mt-auto pt-4"> {/* Empurra para o fundo */}
+                    {storeId && (
+                        <a 
+                            href={`https://${storeId}.velodelivery.com.br`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-3 p-4 bg-blue-50 text-blue-600 rounded-2xl font-bold text-[10px] uppercase hover:bg-blue-100 transition-all mb-2"
+                        >
+                            <ExternalLink size={18} /> Ver Loja Online
+                        </a>
+                    )}
+                </div>
                 <button onClick={handleLogout} className="mt-6 w-full flex items-center gap-3 p-4 text-red-500 hover:bg-red-50 font-bold text-[10px] uppercase"><LogOut size={18} /> Sair</button>
             </aside>
 
             <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
+                {storeId && (
+                    <div className="lg:hidden mb-6">
+                        <a 
+                            href={`https://${storeId}.velodelivery.com.br`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase shadow-lg shadow-blue-200 active:scale-95 transition-all"
+                        >
+                            <ExternalLink size={20} /> Acessar Minha Loja
+                        </a>
+                    </div>
+                )}
                 {activeTab === 'dashboard' && (() => {
                     const totalProducts = products.length;
                     const totalOrders = orders.length;
@@ -984,6 +1008,57 @@ export default function Admin() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className={`p-12 rounded-[4rem] shadow-2xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-transparent'}`}>
                                 <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
+                                {/* --- RECUPERAÇÃO DE VENDAS (EXIT INTENT) --- */}
+                        <div className={`p-10 rounded-[3rem] shadow-xl border-4 transition-all mt-8 ${settings.exitIntentActive ? 'bg-rose-600 text-white border-rose-400' : 'bg-white border-slate-100'}`}>
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-white/20 p-4 rounded-full">
+                                        <Ghost size={40} className={settings.exitIntentActive ? 'text-white animate-bounce' : 'text-slate-300'} /> 
+                                        {/* Importe Ghost do lucide-react */}
+                                    </div>
+                                    <div>
+                                        <h2 className={`text-3xl font-black italic uppercase tracking-tighter leading-none ${settings.exitIntentActive ? 'text-white' : 'text-slate-300'}`}>Resgate de Clientes</h2>
+                                        <p className={`text-xs font-bold mt-1 ${settings.exitIntentActive ? 'text-rose-100' : 'text-slate-300'}`}>Ofereça um cupom quando o cliente tentar sair.</p>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={async () => { 
+                                        const newState = !settings.exitIntentActive; 
+                                        await setDoc(doc(db, "settings", storeId), { exitIntentActive: newState }, { merge: true }); 
+                                    }} 
+                                    className={`px-6 py-3 rounded-xl font-black uppercase tracking-widest text-sm shadow-lg transition-all ${settings.exitIntentActive ? 'bg-white text-rose-600 hover:bg-rose-50' : 'bg-rose-600 text-white hover:bg-rose-700'}`}
+                                >
+                                    {settings.exitIntentActive ? 'Desativar' : 'Ativar Resgate'}
+                                </button>
+                            </div>
+
+                            {/* CONFIGURAÇÃO DO CUPOM DE RESGATE */}
+                            {settings.exitIntentActive && (
+                                <div className="mt-6 pt-6 border-t border-rose-500/50 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in">
+                                    <div>
+                                        <label className="text-rose-100 font-bold text-xs uppercase mb-1 block">Cupom a Oferecer (Crie na aba Cupons)</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: VOLTA10"
+                                            value={settings.exitIntentCoupon || ''} 
+                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { exitIntentCoupon: e.target.value.toUpperCase() }, { merge: true })}
+                                            className="w-full p-3 rounded-xl bg-white text-rose-900 font-black text-center uppercase outline-none placeholder-rose-200"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-rose-100 font-bold text-xs uppercase mb-1 block">Frase de Impacto</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: Espere! Ganhe 5% OFF agora."
+                                            value={settings.exitIntentMessage || ''} 
+                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { exitIntentMessage: e.target.value }, { merge: true })}
+                                            className="w-full p-3 rounded-xl bg-white text-rose-900 font-bold outline-none placeholder-rose-200"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                                 <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
                                 <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
                                 
@@ -1022,8 +1097,76 @@ export default function Admin() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="bg-white p-12 rounded-[4rem] border-4 border-dashed border-slate-100 flex flex-col justify-center items-center text-center opacity-40"><Trophy size={64} className="text-slate-200 mb-4" /><p className="font-black text-slate-300 uppercase tracking-widest leading-tight text-xl">Fidelidade<br />EM BREVE</p></div>
-                        </div>
+{/* --- CLUBE DE FIDELIDADE (ATIVO) --- */}
+                        <div className={`p-12 rounded-[4rem] shadow-xl border-4 transition-all ${settings.loyaltyActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-white border-slate-100'}`}>
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div className="flex items-center gap-4">
+                                    <Crown size={64} className={settings.loyaltyActive ? 'text-yellow-300 animate-pulse' : 'text-slate-200'} />
+                                    <div>
+                                        <h2 className={`text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.loyaltyActive ? 'text-white' : 'text-slate-300'}`}>Clube Fidelidade</h2>
+                                        <p className={`text-sm font-bold mt-1 ${settings.loyaltyActive ? 'text-purple-200' : 'text-slate-300'}`}>Fidelize seus clientes com pontos.</p>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={async () => { 
+                                        const newState = !settings.loyaltyActive; 
+                                        await setDoc(doc(db, "settings", storeId), { loyaltyActive: newState }, { merge: true }); 
+                                    }} 
+                                    className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-lg shadow-lg transition-all ${settings.loyaltyActive ? 'bg-white text-purple-600 hover:bg-purple-50' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+                                >
+                                    {settings.loyaltyActive ? 'Desativar Clube' : 'Ativar Clube'}
+                                </button>
+                            </div>
+
+                            {/* CONFIGURAÇÕES DO CLUBE (SÓ APARECE SE ATIVO) */}
+                            {settings.loyaltyActive && (
+                                <div className="mt-8 pt-6 border-t border-purple-500/50 space-y-6 animate-in fade-in slide-in-from-top-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        
+                                        {/* Regra de Pontos */}
+                                        <div className="bg-purple-700/50 p-6 rounded-3xl border border-purple-500">
+                                            <label className="text-purple-200 font-bold text-xs uppercase mb-2 block">A cada R$ 1,00 gasto, o cliente ganha:</label>
+                                            <div className="flex items-center gap-3">
+                                                <input 
+                                                    type="number" 
+                                                    value={settings.pointsPerReal || 1} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { pointsPerReal: Number(e.target.value) }, { merge: true })}
+                                                    className="w-24 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-xl outline-none"
+                                                />
+                                                <span className="text-2xl font-black text-white italic">PONTOS</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Meta de Resgate (Visual) */}
+                                        <div className="bg-purple-700/50 p-6 rounded-3xl border border-purple-500">
+                                            <label className="text-purple-200 font-bold text-xs uppercase mb-2 block">Objetivo (Ex: 100 pontos):</label>
+                                            <div className="flex items-center gap-3">
+                                                <input 
+                                                    type="number" 
+                                                    value={settings.loyaltyGoal || 100} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyGoal: Number(e.target.value) }, { merge: true })}
+                                                    className="w-24 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-xl outline-none"
+                                                />
+                                                <span className="text-white font-bold text-sm leading-tight">Pontos para<br/>ganhar prêmio</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Regras e Prêmios */}
+                                    <div className="bg-purple-700/50 p-6 rounded-3xl border border-purple-500">
+                                        <label className="text-purple-200 font-bold text-xs uppercase mb-2 block flex items-center gap-2"><Edit3 size={14}/> Texto do Prêmio (O que ele ganha?)</label>
+                                        <textarea 
+                                            rows="2"
+                                            placeholder="Ex: Junte 100 pontos e ganhe uma Heineken Long Neck geladíssima!"
+                                            value={settings.loyaltyReward || ''}
+                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyReward: e.target.value }, { merge: true })}
+                                            className="w-full p-4 rounded-xl bg-white text-purple-900 font-bold outline-none placeholder-purple-300"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>                        </div>
                         <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 space-y-8">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>

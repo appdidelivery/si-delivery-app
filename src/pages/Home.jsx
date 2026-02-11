@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -16,6 +16,26 @@ import "react-responsive-carousel/lib/styles/carousel.min.css";
 // Importa o helper para obter o storeId
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
+// --- FUNÇÃO DE COMPARTILHAR ---
+  const handleShare = async () => {
+    const shareData = {
+      title: storeSettings.name,
+      text: `Peça agora na ${storeSettings.name}!`,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.log('Erro ao compartilhar', err);
+      }
+    } else {
+      // Fallback para PC (Copia o Link)
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link copiado para a área de transferência!');
+    }
+  };
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
@@ -88,7 +108,46 @@ export default function Home() {
     setCustomer({...customer, phone: phone});
     localStorage.setItem('customerPhone', phone);
   };
+  const [marketingSettings, setMarketingSettings] = useState({
+        promoActive: false,
+        promoBannerUrls: []
+    });
+// --- LÓGICA DE EXIT INTENT (NÃO VÁ EMBORA) ---
+  const [showExitModal, setShowExitModal] = useState(false);
 
+  useEffect(() => {
+    // Se não estiver ativo no painel, nem roda o script
+    if (!marketingSettings?.exitIntentActive) return;
+
+    // Função para disparar o modal
+    const triggerExitIntent = () => {
+      // Verifica se já mostrou hoje (para não ser chato)
+      const hasShown = localStorage.getItem('exitIntentShown');
+      const today = new Date().toDateString();
+      
+      if (hasShown !== today) {
+        setShowExitModal(true);
+        localStorage.setItem('exitIntentShown', today); // Marca que mostrou hoje
+      }
+    };
+
+    // 1. Desktop: Mouse sai da tela (cima)
+    const handleMouseLeave = (e) => {
+      if (e.clientY <= 0) triggerExitIntent();
+    };
+
+    // 2. Mobile: Timer de 30 segundos
+    const timer = setTimeout(() => {
+       triggerExitIntent();
+    }, 30000); // 30 segundos
+
+    document.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      clearTimeout(timer);
+    };
+  }, [marketingSettings]);
   useEffect(() => {
     const savedPhone = localStorage.getItem('customerPhone');
     if (savedPhone) {
@@ -128,13 +187,35 @@ export default function Home() {
     slogan: 'Os melhores produtos entregues na sua casa.',
     name: 'Minha Loja'
   });
-    // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
-    const [marketingSettings, setMarketingSettings] = useState({
-        promoActive: false,
-        promoBannerUrls: []
-    });
-    // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+    
+// --- LÓGICA DE FIDELIDADE ---
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
 
+  useEffect(() => {
+    // Só calcula se a fidelidade estiver ATIVA e o cliente tiver telefone salvo
+    if (marketingSettings?.loyaltyActive) {
+      const phone = localStorage.getItem('customerPhone');
+      if (phone) {
+        // Busca pedidos CONCLUÍDOS (completed) deste telefone nesta loja
+        const q = query(
+          collection(db, "orders"),
+          where("storeId", "==", storeId),
+          where("customerPhone", "==", phone),
+          where("status", "==", "completed") 
+        );
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          // Soma o total gasto
+          const totalSpent = snapshot.docs.reduce((acc, doc) => acc + Number(doc.data().total || 0), 0);
+          // Calcula pontos (Total * Fator configurado no Admin)
+          const points = Math.floor(totalSpent * (marketingSettings.pointsPerReal || 1));
+          setLoyaltyPoints(points);
+        });
+        return () => unsubscribe();
+      }
+    }
+  }, [marketingSettings, storeId]);
+    
   const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
@@ -609,10 +690,69 @@ export default function Home() {
             {storeSettings.slogan && <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mt-0.5">{storeSettings.slogan}</p>}
           </div>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-          {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
+
+        <div className="flex items-center gap-3">
+          
+          <button 
+            onClick={handleShare} 
+            className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 border border-blue-100 active:scale-95 transition-all"
+          >
+            <Share size={20} />
+          </button>
+
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+            {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
+          </div>
         </div>
       </header>
+      {/* --- TARJA DE FIDELIDADE (SÓ APARECE SE TIVER PONTOS) --- */}
+      <AnimatePresence>
+        {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: 'auto', opacity: 1 }} 
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-slate-900 text-white px-6 py-4 relative overflow-hidden shadow-lg border-b border-slate-800"
+          >
+            {/* Efeito de Fundo (Brilho) */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
+
+            <div className="flex justify-between items-end relative z-10 mb-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-yellow-300 to-yellow-600 text-slate-900 p-2.5 rounded-xl shadow-lg shadow-yellow-900/20">
+                   <Crown size={18} fill="currentColor" /> {/* Importe Crown do lucide-react */}
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Clube VIP</p>
+                  <p className="text-sm font-bold italic text-white leading-none">
+                    Você tem <span className="text-2xl font-black text-yellow-400">{loyaltyPoints}</span> Pontos
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Próxima Recompensa</p>
+                <p className="text-xs font-bold text-purple-200 max-w-[150px] leading-tight truncate">
+                  {marketingSettings.loyaltyReward || 'Prêmio Surpresa'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Barra de Progresso */}
+            <div className="relative h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-purple-500"
+              ></motion.div>
+            </div>
+            
+            <p className="text-[9px] text-center text-slate-500 mt-2 font-medium">
+              Faltam <span className="text-white font-bold">{Math.max(0, (marketingSettings.loyaltyGoal || 100) - loyaltyPoints)}</span> pontos para resgatar!
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO */}
       <AnimatePresence>
@@ -1060,6 +1200,63 @@ export default function Home() {
                     <X size={16} />
                 </button>
             </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showExitModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+            onClick={() => setShowExitModal(false)} // Fecha ao clicar fora
+          >
+            <motion.div 
+              initial={{ scale: 0.8, y: 50 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.8, y: 50 }} 
+              className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center relative shadow-2xl border-4 border-rose-500 overflow-hidden"
+              onClick={(e) => e.stopPropagation()} // Não fecha ao clicar dentro
+            >
+              <button onClick={() => setShowExitModal(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all"><X size={20}/></button>
+              
+              <div className="bg-rose-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                <Gift size={40} className="text-rose-600" /> {/* Importe Gift */}
+              </div>
+
+              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter leading-none mb-2">
+                {marketingSettings.exitIntentMessage || "Espere! Não vá ainda!"}
+              </h2>
+              <p className="text-slate-500 font-medium text-sm mb-6">
+                Preparamos um presente exclusivo para você finalizar seu pedido agora.
+              </p>
+
+              <div className="bg-slate-100 p-4 rounded-2xl border-2 border-dashed border-slate-300 mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all group" onClick={() => {
+                 navigator.clipboard.writeText(marketingSettings.exitIntentCoupon);
+                 setCouponCode(marketingSettings.exitIntentCoupon); // Já preenche no input do carrinho
+                 alert('Cupom COPIADO! Aproveite.');
+                 setShowExitModal(false);
+                 setShowCheckout(true); // Abre o carrinho na hora
+              }}>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Seu Cupom</p>
+                <p className="text-3xl font-black text-blue-600 uppercase tracking-widest group-hover:scale-110 transition-transform">
+                  {marketingSettings.exitIntentCoupon || "VOLTA10"}
+                </p>
+                <p className="text-[9px] text-blue-400 font-bold mt-1">(Clique para Copiar)</p>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setCouponCode(marketingSettings.exitIntentCoupon);
+                  setShowExitModal(false);
+                  setShowCheckout(true);
+                }}
+                className="w-full py-4 bg-rose-600 text-white rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-rose-700 active:scale-95 transition-all"
+              >
+                Usar Cupom Agora
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
       {/* --- FIM DA CORREÇÃO (PWA Install Prompt UI) --- */}
