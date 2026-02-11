@@ -61,26 +61,37 @@ export default function Admin() {
         return () => unsubscribeAuth();
     }, [navigate]);
 
-    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA 🚨
+   // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (AGORA COM SUPORTE A URL) 🚨
     let storeId = null;
     const hostname = window.location.hostname;
 
-    // 1. REGRA DE OURO: O USUÁRIO LOGADO MANDA.
-    // Se o Contexto achou uma loja para este usuário (ex: Loja da Lara), USE ELA.
+    // 1. CAPTURA PARÂMETROS DA URL (Vital para o fluxo de "Criar Loja")
+    // Isso pega o "loja-da-tata-8871" lá do link
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlStoreId = searchParams.get('store');
+
+    // 2. REGRA DE OURO: O USUÁRIO LOGADO MANDA.
+    // Se o Contexto achou uma loja JÁ SALVA para este usuário, USE ELA.
     if (store && store.slug) {
         console.log("Admin: Carregando loja do usuário:", store.slug);
         storeId = store.slug;
     }
     
-    // 2. REGRA DE PRODUÇÃO (CSI):
-    // Só entra aqui se NÃO tiver usuário logado com loja válida.
-    // IMPORTANTE: Removemos 'si-delivery' e 'github' daqui para não travar seus testes.
+    // 3. REGRA DE CRIAÇÃO (NOVO CLIENTE):
+    // Se o usuário NÃO tem loja salva, mas a URL trouxe um ID (ex: ?store=loja-da-tata), usa ele!
+    else if (urlStoreId) {
+        console.log("Admin: Nova loja detectada via URL:", urlStoreId);
+        storeId = urlStoreId;
+    }
+
+    // 4. REGRA DE PRODUÇÃO (CSI):
+    // Só entra aqui se NÃO tiver usuário logado E não tiver URL de criação.
     else if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('conv') || hostname.includes('github')) {
         console.log("Admin: Modo Produção/Teste (CSI) detectado.");
         storeId = 'csi';
     }
 
-    // 3. TELA DE CARREGAMENTO
+    // TELA DE CARREGAMENTO (Só aparece se realmente não achou NADA)
     if (loading && !storeId) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4">
@@ -89,7 +100,6 @@ export default function Admin() {
             </div>
         );
     }
-
     // 4. TELA DE ERRO (Se não achou Lara e não é CSI)
     if (!storeId) {
          return (
