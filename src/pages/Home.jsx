@@ -16,26 +16,6 @@ import "react-responsive-carousel/lib/styles/carousel.min.css";
 // Importa o helper para obter o storeId
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
-// --- FUNÇÃO DE COMPARTILHAR ---
-  const handleShare = async () => {
-    const shareData = {
-      title: storeSettings.name,
-      text: `Peça agora na ${storeSettings.name}!`,
-      url: window.location.href
-    };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        console.log('Erro ao compartilhar', err);
-      }
-    } else {
-      // Fallback para PC (Copia o Link)
-      navigator.clipboard.writeText(window.location.href);
-      alert('Link copiado para a área de transferência!');
-    }
-  };
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
@@ -187,7 +167,26 @@ export default function Home() {
     slogan: 'Os melhores produtos entregues na sua casa.',
     name: 'Minha Loja'
   });
-    
+    // --- FUNÇÃO DE COMPARTILHAR ---
+  const handleShare = async () => {
+    const shareData = {
+      title: storeSettings.name,
+      text: `Peça agora na ${storeSettings.name}!`,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.log('Erro ao compartilhar', err);
+      }
+    } else {
+      // Fallback para PC (Copia o Link)
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link copiado para a área de transferência!');
+    }
+  };
 // --- LÓGICA DE FIDELIDADE ---
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
 
