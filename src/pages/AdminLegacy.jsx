@@ -451,35 +451,43 @@ export default function Admin() {
         try {
             const batchPromises = [];
             
+            // --- CORREÇÃO DE SEGURANÇA (FIX) ---
+            // Se 'store' for null (loja nova), usamos o storeId da URL para gerar o nome
+            const safeName = (store && store.name) ? store.name : (storeId ? storeId.replace(/-/g, ' ').toUpperCase() : "Minha Loja Nova");
+            const safePhone = (store && store.phone) ? store.phone : "";
+            // -----------------------------------
+
             // 1. Configurações da Loja (Base CSI)
             const storeConfig = {
-                name: store.name || "Minha Loja Nova",
+                name: safeName, // Usamos a variável segura aqui
                 slug: storeId,
-                logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png", // Logo Padrão
-                storeBannerUrl: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1200&q=80", // Banner Bebidas
+                logoUrl: "https://cdn-icons-png.flaticon.com/512/3081/3081840.png", 
+                storeBannerUrl: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1200&q=80", 
                 primaryColor: "#2563eb",
-                whatsapp: store.phone || "",
+                whatsapp: safePhone, // Usamos a variável segura aqui
                 slogan: "Sua adega online 24h.",
                 message: "🎉 Loja Aberta! Aproveite as ofertas.",
                 isOpen: true,
                 schedule: {
-                    0: { open: true, start: "10:00", end: "22:00" }, // Domingo
-                    1: { open: false, start: "08:00", end: "23:00" }, // Seg
-                    2: { open: true, start: "08:00", end: "23:00" }, // Ter
-                    3: { open: true, start: "08:00", end: "23:00" }, // Qua
-                    4: { open: true, start: "08:00", end: "23:00" }, // Qui
-                    5: { open: true, start: "08:00", end: "02:00" }, // Sex
-                    6: { open: true, start: "08:00", end: "02:00" }  // Sab
+                    0: { open: true, start: "10:00", end: "22:00" }, 
+                    1: { open: false, start: "08:00", end: "23:00" }, 
+                    2: { open: true, start: "08:00", end: "23:00" }, 
+                    3: { open: true, start: "08:00", end: "23:00" }, 
+                    4: { open: true, start: "08:00", end: "23:00" }, 
+                    5: { open: true, start: "08:00", end: "02:00" }, 
+                    6: { open: true, start: "08:00", end: "02:00" }  
                 }
             };
+            
+            // Salva/Cria a loja no Firestore
             await setDoc(doc(db, "stores", storeId), storeConfig, { merge: true });
 
             // 2. Configurações de Marketing (Promoção Ativa)
             await setDoc(doc(db, "settings", storeId), {
                 promoActive: true,
                 promoBannerUrls: [
-                    "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80", // Banner Promo 1
-                    "https://images.unsplash.com/photo-1600216496561-122972989e27?auto=format&fit=crop&w=800&q=80"  // Banner Promo 2
+                    "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80", 
+                    "https://images.unsplash.com/photo-1600216496561-122972989e27?auto=format&fit=crop&w=800&q=80"  
                 ]
             }, { merge: true });
 
@@ -530,7 +538,7 @@ export default function Admin() {
             console.error(e);
             alert("Erro ao gerar loja: " + e.message);
         }
-    };
+    };git add . git commit -m "fix: protecao botao gerar loja" git push
 
     const customers = Object.values(orders.reduce((acc, o) => {
         const p = o.customerPhone || 'N/A';
