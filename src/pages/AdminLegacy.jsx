@@ -593,7 +593,55 @@ export default function Admin() {
                     <div className="bg-white p-8 rounded-[3rem] shadow-2xl border-4 border-blue-50 transform hover:scale-105 transition-all cursor-pointer" onClick={handleInitialSetup}>
                         <h2 className="text-2xl font-black text-blue-600 mb-2">⚡ Setup Automático</h2>
                         <p className="text-slate-400 mb-6 font-bold text-sm">Clique para gerar produtos e configurações.</p>
-                        <button className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700">Gerar Minha Loja Agora</button>
+                        <button 
+                                onClick={async () => {
+                                    // 1. SEGURANÇA: Se não estiver logado, manda pro login
+                                    if (!user) {
+                                        alert("Por favor, faça login ou crie uma conta para salvar sua loja!");
+                                        // Manda pro login levando o ID da loja junto para não perder
+                                        window.location.href = `/login?store=${storeId || ''}&redirect=admin`;
+                                        return;
+                                    }
+
+                                    // 2. SE ESTIVER LOGADO, CRIA A LOJA (Código Original Protegido)
+                                    try {
+                                        setLoading(true);
+                                        // Garante que temos um nome, mesmo que o user.name falhe
+                                        const ownerName = user.name || user.displayName || user.email || "Empreendedor";
+                                        
+                                        await setDoc(doc(db, "stores", storeId), {
+                                            name: storeId.replace(/-/g, ' ').toUpperCase(), // Gera nome bonito baseado no ID
+                                            ownerId: user.uid,
+                                            ownerEmail: user.email,
+                                            ownerName: ownerName, // Aqui estava dando erro antes!
+                                            createdAt: serverTimestamp(),
+                                            products: [], // Começa sem produtos para não bugar
+                                            // ... configurações padrão ...
+                                            settings: {
+                                                primaryColor: '#60a5fa',
+                                                storeType: 'conveniencia'
+                                            }
+                                        });
+
+                                        // Atualiza o perfil do usuário para dizer que ele é dono dessa loja
+                                        await setDoc(doc(db, "users", user.uid), {
+                                            storeId: storeId,
+                                            isOwner: true
+                                        }, { merge: true });
+
+                                        // Recarrega a página para entrar no Admin
+                                        window.location.reload();
+
+                                    } catch (error) {
+                                        console.error("Erro ao criar:", error);
+                                        alert("Erro ao criar loja: " + error.message);
+                                        setLoading(false);
+                                    }
+                                }}
+                                className="w-full py-4 bg-indigo-900 text-white font-black rounded-xl hover:bg-indigo-800 transition-all shadow-lg text-lg uppercase tracking-widest"
+                            >
+                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "GERAR MINHA LOJA AGORA"}
+                            </button>
                     </div>
                 </div>
             </div>
