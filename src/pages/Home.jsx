@@ -496,12 +496,19 @@ export default function Home() {
 
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
-  // Lógica de Frete Grátis no Total
-  const subtotalValue = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
-  const isFreeShipping = storeSettings.freeShippingThreshold > 0 && subtotalValue >= Number(storeSettings.freeShippingThreshold);
-  const appliedShipping = isFreeShipping ? 0 : Number(shippingFee || 0);
-  
-  const finalTotal = Number(subtotalValue) + appliedShipping - Number(discountAmount || 0);
+  // --- CÁLCULOS TOTAIS (CORREÇÃO) ---
+  // 1. Calcula o Subtotal (Soma dos itens)
+  const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
+
+  // 2. Verifica Meta de Frete Grátis
+  const freeShippingThreshold = Number(storeSettings.freeShippingThreshold || 0);
+  const isFreeShipping = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
+
+  // 3. Define o valor final do frete (0 se ganhou, ou o valor do CEP se não ganhou)
+  const finalShippingFee = isFreeShipping ? 0 : Number(shippingFee || 0);
+
+  // 4. Calcula o Total Final da Conta
+  const finalTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
 
   const applyCoupon = async () => {
     setCouponError('');
