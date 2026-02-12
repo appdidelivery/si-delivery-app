@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'; 
+import { 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    GoogleAuthProvider, 
+    signInWithPopup 
+} from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore'; 
 import { auth, db } from '../services/firebase';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowRight, Store } from 'lucide-react';
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
-// --- CONFIGURAÇÃO DE TEMAS ---
+// --- MANTENDO SEUS TEMAS ORIGINAIS ---
 const STORE_THEMES = {
     csi: {
         name: "Conv St Isabel",
@@ -38,94 +43,112 @@ export default function Login() {
     const [searchParams] = useSearchParams(); 
     const navigate = useNavigate();
     
-    // VARIÁVEIS DE CADASTRO
-    const newStoreSlug = searchParams.get('store');
-    const newOwnerName = searchParams.get('name');
-    const newOwnerPhone = searchParams.get('phone');
-    const isRegistering = !!newStoreSlug;
+    // VARIÁVEIS DE CADASTRO (Vindas da Landing Page)
+    const urlStoreSlug = searchParams.get('store'); // slug (loja-do-ze-1234)
+    const urlOwnerName = searchParams.get('name');
+    const urlOwnerPhone = searchParams.get('phone');
+    const isRegistering = !!urlStoreSlug;
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    // Estado para evitar piscada de tela enquanto verifica login
     const [checkingAuth, setCheckingAuth] = useState(true);
 
+    // Lógica visual original mantida
     const storeId = isRegistering ? 'default' : (getStoreIdFromHostname() || 'default');
     const currentTheme = STORE_THEMES[storeId] || STORE_THEMES.default;
 
-    // Se já estiver logado, entra direto no Admin
+    // --- EFEITO: Verifica Login e Cria Loja se necessário ---
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (user) {
+                // Se o usuário acabou de logar e veio da Landing Page (tem slug), cria a loja
+                if (isRegistering) {
+                    await createStoreInDb(user);
+                }
                 navigate('/admin');
             } else {
                 setCheckingAuth(false);
             }
         });
         return () => unsubscribe();
-    }, [navigate]);
+    }, [navigate, isRegistering, urlStoreSlug]); // Adicionei dependências para segurança
 
-    const handleAuth = async (e) => {
+    // --- FUNÇÃO AUXILIAR: Salva no Firestore (Separada para usar no Google e Email) ---
+    const createStoreInDb = async (user) => {
+        try {
+            const storeRef = doc(db, "stores", urlStoreSlug);
+            const userRef = doc(db, "users", user.uid);
+            
+            // Só cria se não existir (evita sobrescrever se der refresh)
+            const storeSnap = await getDoc(storeRef);
+
+            if (!storeSnap.exists()) {
+                await setDoc(storeRef, {
+                    name: urlOwnerName || user.displayName || "Minha Loja", 
+                    ownerId: user.uid,
+                    phone: urlOwnerPhone || "",
+                    email: user.email,
+                    slug: urlStoreSlug,
+                    createdAt: serverTimestamp(),
+                    status: 'active',
+                    subscription: 'trial',
+                    theme: 'default'
+                });
+            }
+
+            // Garante que o usuário tenha permissão na loja
+            await setDoc(userRef, {
+                email: user.email,
+                name: urlOwnerName || user.displayName,
+                currentStore: urlStoreSlug,
+                role: 'admin'
+            }, { merge: true });
+
+        } catch (err) {
+            console.error("Erro ao configurar loja:", err);
+            // Não bloqueamos o fluxo aqui, deixa entrar no admin
+        }
+    };
+
+    // --- NOVO: LOGIN COM GOOGLE ---
+    const handleGoogleLogin = async () => {
+        setLoading(true);
+        setError('');
+        const provider = new GoogleAuthProvider();
+        try {
+            await signInWithPopup(auth, provider);
+            // O useEffect lá em cima vai pegar o login e fazer o resto
+        } catch (err) {
+            console.error(err);
+            setError("Erro ao conectar com Google. Tente novamente.");
+            setLoading(false);
+        }
+    };
+
+    // --- LOGIN COM EMAIL/SENHA ---
+    const handleEmailAuth = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
 
         try {
             if (isRegistering) {
-                // --- LÓGICA DE CADASTRO ---
-                const fakeEmail = `${newOwnerPhone}@velo.com`;
-                let user;
-
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-                    user = userCredential.user;
-                } catch (createError) {
-                    if (createError.code === 'auth/email-already-in-use') {
-                        // Se já existe, tenta logar
-                        const loginCredential = await signInWithEmailAndPassword(auth, fakeEmail, password);
-                        user = loginCredential.user;
-                    } else {
-                        throw createError;
-                    }
-                }
-
-                // Salva Loja
-                await setDoc(doc(db, "stores", newStoreSlug), {
-                    name: newOwnerName, 
-                    ownerId: user.uid,
-                    phone: newOwnerPhone,
-                    slug: newStoreSlug,
-                    createdAt: serverTimestamp(),
-                    status: 'active',
-                    subscription: 'trial',
-                    theme: 'default'
-                }, { merge: true });
-
-                // Salva Usuário
-                await setDoc(doc(db, "users", user.uid), {
-                    email: fakeEmail,
-                    storeId: newStoreSlug,
-                    role: 'admin'
-                }, { merge: true });
-
-                // --- 🚀 CORREÇÃO DO LOGIN 🚀 ---
-                alert(`✅ Loja Criada!\n\nLogin: ${fakeEmail}\nSenha: ${password}`);
-                navigate('/admin'); // Entra direto sem mudar de domínio
-
+                // CADASTRO: Usa email REAL agora (melhor que o fake phone@velo)
+                await createUserWithEmailAndPassword(auth, email, password);
             } else {
-                // --- LÓGICA DE LOGIN NORMAL ---
+                // LOGIN: Normal
                 await signInWithEmailAndPassword(auth, email, password);
-                navigate('/admin');
             }
-
         } catch (err) {
             console.error(err);
             let msg = err.message;
+            if (err.code === 'auth/email-already-in-use') msg = "Este email já existe. Tente fazer login.";
             if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') msg = "Senha incorreta.";
             if (err.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
+            if (err.code === 'auth/weak-password') msg = "Senha muito fraca (mínimo 6 dígitos).";
             setError(msg);
-        } finally {
             setLoading(false);
         }
     };
@@ -142,35 +165,55 @@ export default function Login() {
                     </div>
                     
                     <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
-                        {isRegistering ? `Olá, ${newOwnerName}!` : 'Painel de Gestão'}
+                        {isRegistering ? `Olá, ${urlOwnerName}!` : 'Painel de Gestão'}
                     </h1>
                     
                     <p className={`text-sm font-bold uppercase tracking-widest mt-1 ${currentTheme.iconColor}`}>
-                        {isRegistering ? 'Crie sua senha para ativar' : currentTheme.name}
+                        {isRegistering ? 'Finalize seu cadastro grátis' : currentTheme.name}
                     </p>
                 </div>
 
-                <form onSubmit={handleAuth} className="space-y-4">
-                    {!isRegistering && (
-                        <div className="relative">
-                            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                            <input 
-                                type="email" 
-                                placeholder="Seu E-mail" 
-                                className="w-full p-5 pl-14 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all border-none"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required={!isRegistering}
-                            />
-                        </div>
-                    )}
+                {/* --- BOTÃO GOOGLE (NOVO) --- */}
+                <button 
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={loading}
+                    className="w-full py-4 mb-6 rounded-2xl border-2 border-slate-100 font-bold text-slate-600 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
+                >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Entrar com Google
+                </button>
+
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Ou continue com email</span>
+                    <div className="h-px bg-slate-200 flex-1"></div>
+                </div>
+
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                    <div className="relative">
+                        <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input 
+                            type="email" 
+                            placeholder="Seu melhor e-mail" 
+                            className="w-full p-5 pl-14 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all border-none text-slate-800"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                    </div>
                     
                     <div className="relative">
                         <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input 
                             type="password" 
-                            placeholder={isRegistering ? "Crie sua Senha Mestra" : "Sua Senha"} 
-                            className="w-full p-5 pl-14 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all border-none"
+                            placeholder={isRegistering ? "Crie uma Senha Forte" : "Sua Senha"} 
+                            className="w-full p-5 pl-14 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all border-none text-slate-800"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
@@ -194,7 +237,7 @@ export default function Login() {
                 </form>
 
                 <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    {isRegistering ? `Login será: ${newOwnerPhone}@velo.com` : 'Powered by Velo Delivery'}
+                    Powered by Velo Delivery SaaS
                 </p>
             </div>
         </div>
