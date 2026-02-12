@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin , Printer, Bell, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
 } from 'lucide-react'; // Adicionado PlusSquare e MinusSquare
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
@@ -40,6 +40,7 @@ const allNavItems = [
     { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
     { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
     { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
+    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> }, 
 ];
 
 export default function Admin() {
@@ -125,6 +126,44 @@ export default function Admin() {
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     // Estado da Busca
     const [productSearch, setProductSearch] = useState('');
+    // --- ESTADOS FINANCEIROS (NOVO) ---
+    const [invoiceData, setInvoiceData] = useState({
+        basePlan: 49.90,
+        extraOrdersCost: 0,
+        storageUsage: 0,
+        dbUsage: 0,
+        total: 49.90,
+        status: 'open'
+    });
+    const [showPixModal, setShowPixModal] = useState(false);
+
+    // Efeito para calcular a fatura em tempo real (Cole isso logo abaixo do useEffect principal dos Pedidos)
+    useEffect(() => {
+        if(orders.length > 0 || products.length > 0) {
+            // Lógica simples de cálculo baseada no manifesto
+            const franchiseLimit = 100; // Franquia de pedidos
+            
+            // Conta pedidos deste mês
+            const currentMonthOrders = orders.filter(o => {
+                if(!o.createdAt) return false;
+                const d = o.createdAt.toDate();
+                const now = new Date();
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            }).length;
+
+            const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
+            const extraCost = extraOrders * 0.25;
+
+            setInvoiceData({
+                basePlan: 49.90,
+                extraOrdersCost: extraCost,
+                storageUsage: (products.length * 0.5) + (generalBanners.length * 2), // Estimativa MB
+                dbUsage: products.length + orders.length + 50, // Estimativa Registros
+                total: 49.90 + extraCost,
+                status: 'open'
+            });
+        }
+    }, [orders, products, generalBanners]);
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -655,7 +694,24 @@ export default function Admin() {
             </div>
         );
     }
-
+    // --- FUNÇÃO DE ACEITE DOS TERMOS (NOVO) ---
+    const handleAcceptTerms = async () => {
+        if (!storeId) return;
+        try {
+            await updateDoc(doc(db, "stores", storeId), {
+                termsAccepted: true,
+                termsAcceptedAt: serverTimestamp(),
+                termsVersion: "v1.0-manifesto"
+            });
+            // Atualiza o estado local para fechar o modal na hora
+            setStoreStatus(prev => ({ ...prev, termsAccepted: true }));
+            alert("Termos aceitos! Bem-vindo à Velo.");
+        } catch (error) {
+            console.error("Erro ao aceitar termos:", error);
+            alert("Erro ao salvar aceite via banco de dados.");
+        }
+    };
+    const isOverdue = false;
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
@@ -1247,7 +1303,147 @@ export default function Admin() {
                         </div>
                     </div>
                 )}
+{/* --- ABA FINANCEIRO (NOVA) --- */}
+                {activeTab === 'finance' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Financeiro & <br/>Infraestrutura</h1>
+                                <p className="text-slate-400 font-bold mt-2">Monitore o consumo de recursos da sua loja.</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black uppercase text-slate-400">Status da Fatura</p>
+                                <span className="bg-green-100 text-green-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">EM ABERTO</span>
+                            </div>
+                        </div>
 
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Card da Fatura */}
+                            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
+                                <div className="absolute top-0 right-0 p-12 opacity-10"><Wallet size={200}/></div>
+                                
+                                <div className="relative z-10">
+                                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Fatura Atual (Venc. 10/Próx)</p>
+                                    <h2 className="text-6xl font-black italic tracking-tighter">R$ {invoiceData.total.toFixed(2)}</h2>
+                                    
+                                    <div className="mt-8 space-y-3">
+                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                            <span className="text-slate-400">Manutenção Base (SaaS)</span>
+                                            <span className="font-bold">R$ {invoiceData.basePlan.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                            <span className="text-slate-400">Excedente de Processamento</span>
+                                            <span className="font-bold text-orange-400">+ R$ {invoiceData.extraOrdersCost.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm pb-2">
+                                            <span className="text-slate-400">Storage & Database</span>
+                                            <span className="font-bold text-green-400">Incluso</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button onClick={() => setShowPixModal(true)} className="relative z-10 w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <QrCode size={20}/> Pagar com Pix
+                                </button>
+                            </div>
+
+                            {/* Monitor de Infraestrutura */}
+                            <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                <div className="flex items-center gap-2 mb-6">
+                                    <Server size={24} className="text-slate-300"/>
+                                    <h3 className="text-2xl font-black uppercase text-slate-800 italic">Velo Data Fuel <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(Consumo de Recursos)</span></h3>
+                                </div>
+
+                                <div className="space-y-8">
+                                    {/* 1. Processamento (Pedidos) */}
+                                    <div>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><Trophy size={14}/> Franquia de Processamento</label>
+                                            <span className="text-xs font-bold text-blue-600">
+                                                {orders.filter(o => {
+                                                    if(!o.createdAt) return false;
+                                                    const d = o.createdAt.toDate();
+                                                    const now = new Date();
+                                                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                                                }).length} / 100 Req.
+                                            </span>
+                                        </div>
+                                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-1000"
+                                                style={{ width: `${Math.min(100, (orders.filter(o => {
+                                                    if(!o.createdAt) return false;
+                                                    const d = o.createdAt.toDate();
+                                                    const now = new Date();
+                                                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                                                }).length / 100) * 100)}%` }}
+                                            ></div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1">Requisições de pedidos, status e integrações. Acima de 100, custo de R$ 0,25/req.</p>
+                                    </div>
+
+                                    {/* 2. Storage (Imagens) */}
+                                    <div>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><HardDrive size={14}/> Storage (Imagens/Mídia)</label>
+                                            <span className="text-xs font-bold text-purple-600">{invoiceData.storageUsage.toFixed(1)} MB / 5 GB</span>
+                                        </div>
+                                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full transition-all duration-1000"
+                                                style={{ width: `${(invoiceData.storageUsage / 5000) * 100}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+
+                                    {/* 3. Database (Clientes/Produtos) */}
+                                    <div>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><Database size={14}/> Banco de Dados (Registros)</label>
+                                            <span className="text-xs font-bold text-green-600">{invoiceData.dbUsage} / Ilimitado</span>
+                                        </div>
+                                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full w-full opacity-20"></div> {/* Ilimitado visualmente preenchido suave */}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1">Clientes e Produtos ilimitados no plano Infinity.</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 pt-6 border-t border-slate-100 flex gap-4">
+                                    <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Economia Gerada</p>
+                                        <p className="text-xl font-black text-slate-800">R$ 0,00 <span className="text-[10px] font-normal text-slate-400">(Zero % Comissão)</span></p>
+                                    </div>
+                                    <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Ciclo Atual</p>
+                                        <p className="text-xl font-black text-slate-800">{new Date().toLocaleString('default', { month: 'long' })}/26</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Histórico de Faturas */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                            <h3 className="text-xl font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><FileText size={20}/> Histórico de Faturas</h3>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl opacity-50">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-green-100 p-2 rounded-lg text-green-600"><FileText size={18}/></div>
+                                        <div>
+                                            <p className="font-bold text-slate-700">Fatura Janeiro/2026</p>
+                                            <p className="text-xs text-slate-400">Paga em 10/02/2026</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-slate-700">R$ 49,90</p>
+                                        <p className="text-[10px] font-bold text-green-600 uppercase">Pago</p>
+                                    </div>
+                                </div>
+                                <p className="text-center text-xs text-slate-400 font-bold py-4">Faturas anteriores arquivadas.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {activeTab === 'store_settings' && (
                     <div className="space-y-8">
                         <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
@@ -1804,6 +2000,110 @@ export default function Admin() {
                 )}
             </AnimatePresence>
             {/* --- ALTERAÇÃO FINALIZADA --- */}
+            {/* MODAL PIX (NOVO) */}
+            <AnimatePresence>
+                {showPixModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center">
+                            <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X /></button>
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2">Pagar Fatura</h2>
+                            <p className="text-slate-500 font-bold mb-8">Valor Total: R$ {invoiceData.total.toFixed(2)}</p>
+                            
+                            <div className="bg-slate-100 p-6 rounded-2xl mb-6 flex items-center justify-center">
+                                <QrCode size={180} className="text-slate-800"/>
+                            </div>
+                            
+                            <p className="text-xs text-slate-400 font-bold uppercase mb-2">Código Copia e Cola</p>
+                            <div className="bg-slate-50 p-4 rounded-xl text-xs text-slate-500 break-all mb-6 font-mono border border-slate-200">
+                                00020126360014BR.GOV.BCB.PIX0114+554899999999520400005303986540549.905802BR5925VELO DELIVERY TECNOLOGIA6009SAO PAULO62070503***6304E2CA
+                            </div>
+
+                            <button onClick={() => alert("Código copiado!")} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">
+                                Copiar Código Pix
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- MODAL DE BLOQUEIO (INATIVO) --- */}
+            {isOverdue && (
+                <div className="fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-6">
+                    <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 text-center shadow-2xl relative overflow-hidden border-4 border-red-500">
+                        <div className="absolute top-0 left-0 w-full h-4 bg-red-500 animate-pulse"></div>
+                        <div className="bg-red-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Server size={48} className="text-red-600" />
+                        </div>
+                        <h2 className="text-3xl font-black uppercase text-slate-800 mb-2">Acesso Suspenso</h2>
+                        <p className="text-slate-500 font-bold mb-8">
+                            Fatura pendente. Regularize sua conta para continuar.
+                        </p>
+                        <div className="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-200">
+                            <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
+                            <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
+                        </div>
+                        <button onClick={() => alert("Em breve: Integração InfinitePay")} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl">
+                            Pagar Agora
+                        </button>
+                        <div className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
+                        
+                        {/* Cabeçalho */}
+                        <div className="bg-slate-900 p-8 text-white">
+                            <h2 className="text-2xl font-black italic uppercase flex items-center gap-3">
+                                <ShieldCheck className="text-velo-orange" size={28} /> 
+                                Termos de Uso e Cobrança
+                            </h2>
+                            <p className="text-slate-400 text-sm mt-2">Para continuar, precisamos que você entenda como nossa infraestrutura funciona.</p>
+                        </div>
+
+                        {/* Corpo do Contrato (Scrollável) */}
+                        <div className="p-8 overflow-y-auto custom-scrollbar text-slate-600 space-y-6 text-sm leading-relaxed">
+                            
+                            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl">
+                                <p className="font-bold text-blue-900">
+                                    Resumo: Não cobramos % sobre suas vendas. Cobramos pelo uso técnico (Hardware/Dados) que sua loja consome.
+                                </p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-black text-slate-800 uppercase mb-2">1. Modelo de Cobrança (Infrastructure as a Service)</h3>
+                                <p>Diferente de marketplaces que cobram comissão (take-rate), a Velo Delivery cobra pelo consumo de recursos computacionais ("Velo Data Fuel"). Sua fatura é composta por:</p>
+                                <ul className="list-disc pl-5 mt-2 space-y-1">
+                                    <li><strong>Assinatura Base (R$ 49,90):</strong> Garante licença de software e atualizações.</li>
+                                    <li><strong>Franquia de Processamento:</strong> Inclui até 100 pedidos/mês grátis.</li>
+                                    <li><strong>Custo Variável:</strong> R$ 0,25 por pedido excedente à franquia.</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h3 className="font-black text-slate-800 uppercase mb-2">2. Inadimplência e Bloqueio</h3>
+                                <p>O não pagamento da fatura de infraestrutura até o dia 10 de cada mês resultará na <strong>suspensão temporária</strong> do acesso ao painel administrativo até a regularização, conforme exibido na tela de "Acesso Suspenso".</p>
+                            </div>
+
+                            <div>
+                                <h3 className="font-black text-slate-800 uppercase mb-2">3. Transparência</h3>
+                                <p>Você terá acesso a um monitor em tempo real (Aba Financeiro) detalhando seu consumo de Storage (imagens), Banco de Dados e Requisições.</p>
+                            </div>
+
+                            <p className="text-xs text-slate-400 mt-4 border-t pt-4">
+                                Ao clicar em "Concordo", você declara ter lido e aceitado as condições comerciais acima descritas para a operação da loja <strong>{storeStatus.name}</strong>.
+                            </p>
+                        </div>
+
+                        {/* Rodapé com Botão */}
+                        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+                            <button 
+                                onClick={handleAcceptTerms}
+                                className="bg-blue-600 hover:bg-blue-700 text-white py-4 px-10 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95"
+                            >
+                                Li, Entendi e Concordo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
