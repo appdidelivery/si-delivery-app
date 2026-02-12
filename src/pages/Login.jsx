@@ -11,7 +11,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Loader2, ArrowRight, Store } from 'lucide-react';
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
-// --- MANTENDO SEUS TEMAS ORIGINAIS ---
+// --- SEUS TEMAS VISUAIS (MANTIDOS) ---
 const STORE_THEMES = {
     csi: {
         name: "Conv St Isabel",
@@ -44,7 +44,7 @@ export default function Login() {
     const navigate = useNavigate();
     
     // VARIÁVEIS DE CADASTRO (Vindas da Landing Page)
-    const urlStoreSlug = searchParams.get('store'); // slug (loja-do-ze-1234)
+    const urlStoreSlug = searchParams.get('store');
     const urlOwnerName = searchParams.get('name');
     const urlOwnerPhone = searchParams.get('phone');
     const isRegistering = !!urlStoreSlug;
@@ -55,35 +55,45 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [checkingAuth, setCheckingAuth] = useState(true);
 
-    // Lógica visual original mantida
     const storeId = isRegistering ? 'default' : (getStoreIdFromHostname() || 'default');
     const currentTheme = STORE_THEMES[storeId] || STORE_THEMES.default;
 
-    // --- EFEITO: Verifica Login e Cria Loja se necessário ---
+    // --- EFEITO: Verifica Login e Redireciona ---
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
             if (user) {
-                // Se o usuário acabou de logar e veio da Landing Page (tem slug), cria a loja
+                // CENÁRIO 1: É UM NOVO CADASTRO
                 if (isRegistering) {
                     await createStoreInDb(user);
+                    
+                    // Se estivermos em produção, joga para o subdomínio
+                    if (!window.location.hostname.includes('localhost')) {
+                        // Monta o link: https://loja-do-ze.velodelivery.com.br/admin
+                        const newUrl = `https://${urlStoreSlug}.velodelivery.com.br/admin`;
+                        window.location.href = newUrl;
+                        return;
+                    }
                 }
+                
+                // CENÁRIO 2: LOGIN NORMAL (Ou Localhost)
+                // Se já estiver no subdomínio certo, só entra
                 navigate('/admin');
             } else {
                 setCheckingAuth(false);
             }
         });
         return () => unsubscribe();
-    }, [navigate, isRegistering, urlStoreSlug]); // Adicionei dependências para segurança
+    }, [navigate, isRegistering, urlStoreSlug]);
 
-    // --- FUNÇÃO AUXILIAR: Salva no Firestore (Separada para usar no Google e Email) ---
+    // --- CRIA A LOJA NO FIRESTORE ---
     const createStoreInDb = async (user) => {
         try {
             const storeRef = doc(db, "stores", urlStoreSlug);
             const userRef = doc(db, "users", user.uid);
             
-            // Só cria se não existir (evita sobrescrever se der refresh)
             const storeSnap = await getDoc(storeRef);
 
+            // Cria a loja se não existir
             if (!storeSnap.exists()) {
                 await setDoc(storeRef, {
                     name: urlOwnerName || user.displayName || "Minha Loja", 
@@ -98,7 +108,7 @@ export default function Login() {
                 });
             }
 
-            // Garante que o usuário tenha permissão na loja
+            // Atualiza usuário
             await setDoc(userRef, {
                 email: user.email,
                 name: urlOwnerName || user.displayName,
@@ -107,27 +117,25 @@ export default function Login() {
             }, { merge: true });
 
         } catch (err) {
-            console.error("Erro ao configurar loja:", err);
-            // Não bloqueamos o fluxo aqui, deixa entrar no admin
+            console.error("Erro ao criar loja:", err);
         }
     };
 
-    // --- NOVO: LOGIN COM GOOGLE ---
+    // --- LOGIN GOOGLE ---
     const handleGoogleLogin = async () => {
         setLoading(true);
         setError('');
         const provider = new GoogleAuthProvider();
         try {
             await signInWithPopup(auth, provider);
-            // O useEffect lá em cima vai pegar o login e fazer o resto
+            // O useEffect lá em cima faz o resto
         } catch (err) {
-            console.error(err);
             setError("Erro ao conectar com Google. Tente novamente.");
             setLoading(false);
         }
     };
 
-    // --- LOGIN COM EMAIL/SENHA ---
+    // --- LOGIN EMAIL ---
     const handleEmailAuth = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -135,19 +143,15 @@ export default function Login() {
 
         try {
             if (isRegistering) {
-                // CADASTRO: Usa email REAL agora (melhor que o fake phone@velo)
                 await createUserWithEmailAndPassword(auth, email, password);
             } else {
-                // LOGIN: Normal
                 await signInWithEmailAndPassword(auth, email, password);
             }
         } catch (err) {
-            console.error(err);
-            let msg = err.message;
-            if (err.code === 'auth/email-already-in-use') msg = "Este email já existe. Tente fazer login.";
-            if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') msg = "Senha incorreta.";
-            if (err.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
-            if (err.code === 'auth/weak-password') msg = "Senha muito fraca (mínimo 6 dígitos).";
+            let msg = "Erro no login.";
+            if (err.code === 'auth/email-already-in-use') msg = "Email já existe. Faça login.";
+            if (err.code === 'auth/invalid-credential') msg = "Credenciais inválidas.";
+            if (err.code === 'auth/weak-password') msg = "Senha fraca (min 6 caracteres).";
             setError(msg);
             setLoading(false);
         }
@@ -165,20 +169,18 @@ export default function Login() {
                     </div>
                     
                     <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
-                        {isRegistering ? `Olá, ${urlOwnerName}!` : 'Painel de Gestão'}
+                        {isRegistering ? `Configurar: ${urlOwnerName}` : 'Painel de Gestão'}
                     </h1>
                     
                     <p className={`text-sm font-bold uppercase tracking-widest mt-1 ${currentTheme.iconColor}`}>
-                        {isRegistering ? 'Finalize seu cadastro grátis' : currentTheme.name}
+                        {isRegistering ? 'Finalize seu cadastro' : currentTheme.name}
                     </p>
                 </div>
 
-                {/* --- BOTÃO GOOGLE (NOVO) --- */}
                 <button 
-                    type="button"
                     onClick={handleGoogleLogin}
                     disabled={loading}
-                    className="w-full py-4 mb-6 rounded-2xl border-2 border-slate-100 font-bold text-slate-600 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
+                    className="w-full py-4 mb-6 rounded-2xl border-2 border-slate-100 font-bold text-slate-600 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all relative group"
                 >
                     <svg className="w-5 h-5" viewBox="0 0 24 24">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -191,7 +193,7 @@ export default function Login() {
 
                 <div className="flex items-center gap-4 mb-6">
                     <div className="h-px bg-slate-200 flex-1"></div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Ou continue com email</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Ou use email</span>
                     <div className="h-px bg-slate-200 flex-1"></div>
                 </div>
 
@@ -200,7 +202,7 @@ export default function Login() {
                         <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input 
                             type="email" 
-                            placeholder="Seu melhor e-mail" 
+                            placeholder="Email" 
                             className="w-full p-5 pl-14 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all border-none text-slate-800"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -212,7 +214,7 @@ export default function Login() {
                         <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input 
                             type="password" 
-                            placeholder={isRegistering ? "Crie uma Senha Forte" : "Sua Senha"} 
+                            placeholder="Senha" 
                             className="w-full p-5 pl-14 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all border-none text-slate-800"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -229,16 +231,12 @@ export default function Login() {
                     >
                         {loading ? <Loader2 className="animate-spin" /> : (
                             <>
-                                {isRegistering ? 'ATIVAR LOJA GRÁTIS' : 'ENTRAR'} 
+                                {isRegistering ? 'CRIAR E ACESSAR' : 'ENTRAR'} 
                                 <ArrowRight size={20}/>
                             </>
                         )}
                     </button>
                 </form>
-
-                <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    Powered by Velo Delivery SaaS
-                </p>
             </div>
         </div>
     );
