@@ -264,9 +264,10 @@ export default function Admin() {
     const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
 
     // Fretes
+    const [manualCep, setManualCep] = useState('');
     const [shippingRates, setShippingRates] = useState([]);
     const [isRateModalOpen, setIsRateModalOpen] = useState(false);
-    const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '' });
+    const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '', cepStart: '', cepEnd: '' });
     const [editingRateId, setEditingRateId] = useState(null);
 
     // Cupons
@@ -669,6 +670,55 @@ export default function Admin() {
     };
     // --- ALTERAÇÃO FINALIZADA ---
 
+    // ✅ FUNÇÃO MOVIDA PARA O ESCOPO CORRETO E GLOBAL
+    const handleManualCepSearch = async () => {
+        const cleanCep = manualCep.replace(/\D/g, '');
+        if (cleanCep.length !== 8) return;
+
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+            const data = await response.json();
+
+            if (!data.erro) {
+                setManualCustomer(prev => ({
+                    ...prev,
+                    address: `${data.logradouro}, `, // Deixa o cursor pronto para o número
+                    neighborhood: data.bairro
+                }));
+
+                const cepNum = parseInt(cleanCep);
+                const rateByRange = shippingRates.find(r => {
+                    const start = parseInt(r.cepStart);
+                    const end = parseInt(r.cepEnd);
+                    return start && end && cepNum >= start && cepNum <= end;
+                });
+
+                if (rateByRange) {
+                    setManualShippingFee(parseFloat(rateByRange.fee));
+                    alert(`✅ Frete de R$ ${parseFloat(rateByRange.fee).toFixed(2)} encontrado por Faixa de CEP!`);
+                    return;
+                }
+
+                const rateByName = shippingRates.find(r => 
+                    r.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim()
+                );
+
+                if (rateByName) {
+                    setManualShippingFee(parseFloat(rateByName.fee));
+                    alert(`✅ Frete de R$ ${parseFloat(rateByName.fee).toFixed(2)} encontrado por Nome do Bairro!`);
+                } else {
+                    setManualShippingFee(0);
+                    alert("⚠️ Endereço carregado, mas nenhuma taxa de entrega foi encontrada para esta região.");
+                }
+            } else {
+                alert("CEP não encontrado!");
+            }
+        } catch (error) {
+            console.error("Erro ao buscar CEP:", error);
+            alert("Ocorreu um erro ao consultar o CEP.");
+        }
+    };
+
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
         const leadPhone = new URLSearchParams(window.location.search).get('phone');
@@ -682,7 +732,9 @@ export default function Admin() {
                         <h2 className="text-2xl font-black text-blue-600 mb-2">⚡ Setup Automático</h2>
                         <p className="text-slate-400 mb-6 font-bold text-sm">Clique para gerar produtos e configurações.</p>
                         <button 
-                                onClick={async () => {
+                                onClick={async (e) => {
+                                    e.stopPropagation(); // Impede que o clique na div externa seja acionado
+                                    const user = auth.currentUser;
                                     // 1. SEGURANÇA: Se não estiver logado, manda pro login
                                     if (!user) {
                                         alert("Por favor, faça login ou crie uma conta para salvar sua loja!");
@@ -693,15 +745,12 @@ export default function Admin() {
 
                                     // 2. SE ESTIVER LOGADO, CRIA A LOJA (Código Original Protegido)
                                     try {
-                                        setLoading(true);
-                                        // Garante que temos um nome, mesmo que o user.name falhe
-                                        const ownerName = user.name || user.displayName || user.email || "Empreendedor";
                                         
                                         await setDoc(doc(db, "stores", storeId), {
                                             name: storeId.replace(/-/g, ' ').toUpperCase(), // Gera nome bonito baseado no ID
                                             ownerId: user.uid,
                                             ownerEmail: user.email,
-                                            ownerName: ownerName, // Aqui estava dando erro antes!
+                                            ownerName: user.displayName || user.email || "Empreendedor",
                                             createdAt: serverTimestamp(),
                                             products: [], // Começa sem produtos para não bugar
                                             // ... configurações padrão ...
@@ -709,7 +758,7 @@ export default function Admin() {
                                                 primaryColor: '#60a5fa',
                                                 storeType: 'conveniencia'
                                             }
-                                        });
+                                        }, { merge: true });
 
                                         // Atualiza o perfil do usuário para dizer que ele é dono dessa loja
                                         await setDoc(doc(db, "users", user.uid), {
@@ -717,18 +766,17 @@ export default function Admin() {
                                             isOwner: true
                                         }, { merge: true });
 
-                                        // Recarrega a página para entrar no Admin
-                                        window.location.reload();
+                                        handleInitialSetup();
 
                                     } catch (error) {
                                         console.error("Erro ao criar:", error);
                                         alert("Erro ao criar loja: " + error.message);
-                                        setLoading(false);
+                                        
                                     }
                                 }}
                                 className="w-full py-4 bg-indigo-900 text-white font-black rounded-xl hover:bg-indigo-800 transition-all shadow-lg text-lg uppercase tracking-widest"
                             >
-                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "CRIAR LOJA 🚀"}
+                                {loading ? <Loader2 className="animate-spin mx-auto"/> : "CRIAR E GERAR CATÁLOGO 🚀"}
                             </button>
                     </div>
                 </div>
@@ -982,7 +1030,7 @@ export default function Admin() {
                             )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-{products.filter(p => 
+                            {products.filter(p => 
                                 p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
                                 p.category.toLowerCase().includes(productSearch.toLowerCase())
                             ).map(p => (                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
@@ -1018,43 +1066,52 @@ export default function Admin() {
                         </div>
                     </div>
                 )}
-
+                
+                {/* ✅ ABA MANUAL CORRIGIDA E REFEITA */}
                 {activeTab === 'manual' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                         {/* --- COLUNA ESQUERDA: DADOS DO CLIENTE --- */}
                         <div className="space-y-6">
-                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Novo Pedido</h1>
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Novo Pedido Manual</h1>
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm space-y-4 border border-slate-100">
-                                <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
-                                <input type="text" placeholder="Endereço (Rua e Número)" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.address} onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Nome do Cliente</label>
+                                        <input type="text" placeholder="Nome Completo" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 ml-2">CEP (Saia do campo para buscar)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="00000-000"
+                                            className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none"
+                                            value={manualCep}
+                                            onChange={e => setManualCep(e.target.value)}
+                                            onBlur={handleManualCepSearch}
+                                            maxLength="9"
+                                        />
+                                    </div>
+                                </div>
                                 
-                                {/* SELETOR DE FRETE */}
-                                <select 
-                                    className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 cursor-pointer"
-                                    onChange={(e) => {
-                                        const selectedRate = shippingRates.find(r => r.neighborhood === e.target.value);
-                                        setManualShippingFee(selectedRate ? parseFloat(selectedRate.fee) : 0);
-                                        setManualCustomer({ ...manualCustomer, neighborhood: e.target.value });
-                                    }}
-                                >
-                                    <option value="">Selecione o Bairro (Calcular Frete)</option>
-                                    {shippingRates.map(rate => (
-                                        <option key={rate.id} value={rate.neighborhood}>
-                                            {rate.neighborhood} (+ R$ {Number(rate.fee).toFixed(2)})
-                                        </option>
-                                    ))}
-                                </select>
+                                <div>
+                                     <label className="text-xs font-bold text-slate-400 ml-2">Endereço (Rua, Número, Bairro)</label>
+                                     <input 
+                                        type="text" 
+                                        placeholder="Preenchido automaticamente pelo CEP" 
+                                        className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" 
+                                        value={manualCustomer.address} 
+                                        onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} />
+                                </div>
 
-                                <input type="tel" placeholder="WhatsApp" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
+                                <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
                                 
-                                <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
+                                <select className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
                                     <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
                                 </select>
                                 
-                                {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
+                                {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
                                 
                                 <div className="pt-6 border-t border-slate-100">
-                                    {/* LISTA DE ITENS NO CARRINHO */}
                                     {manualCart.length === 0 ? (
                                         <p className="text-center text-slate-400 font-bold text-sm py-4">Nenhum produto selecionado.</p>
                                     ) : (
@@ -1063,12 +1120,7 @@ export default function Admin() {
                                                 <span>{i.quantity}x {i.name}</span>
                                                 <div className="flex items-center gap-2">
                                                     <span>R$ {(i.price * i.quantity).toFixed(2)}</span>
-                                                    <button 
-                                                        onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))}
-                                                        className="text-red-500 hover:bg-red-50 p-1 rounded"
-                                                    >
-                                                        <Trash2 size={14}/>
-                                                    </button>
+                                                    <button onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
                                                 </div>
                                             </div>
                                         ))
@@ -1107,6 +1159,7 @@ export default function Admin() {
                                         
                                         setManualCart([]); 
                                         setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
+                                        setManualCep('');
                                         setManualShippingFee(0); 
                                         alert("Pedido Lançado com Sucesso!");
                                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-6 shadow-xl hover:bg-blue-700 transition-all">
@@ -1119,8 +1172,6 @@ export default function Admin() {
                         {/* --- COLUNA DIREITA: SELEÇÃO DE PRODUTOS --- */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 h-fit sticky top-6">
                             <h2 className="text-xl font-black uppercase mb-6 text-slate-300">Adicionar Produtos</h2>
-                            
-                            {/* Busca Rápida no Manual (Bônus) */}
                             <div className="mb-4 relative">
                                 <input 
                                     type="text" 
@@ -1136,13 +1187,12 @@ export default function Admin() {
                                 />
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                             </div>
-
                             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                 {products.map(p => (
                                     <button 
                                         key={p.id} 
-                                        className="manual-product-item w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200 group"
                                         data-name={p.name}
+                                        className="manual-product-item w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200 group"
                                         onClick={() => {
                                             const ex = manualCart.find(it => it.id === p.id);
                                             if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it)); 
@@ -1631,7 +1681,7 @@ export default function Admin() {
                             </div>
                         </div>
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
-                            <div className="flex justify-between items-center"><h2 className="text-2xl font-black text-slate-800 uppercase">Fretes</h2><button onClick={() => { setEditingRateId(null); setRateForm({ neighborhood: '', fee: '' }); setIsRateModalOpen(true); }} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-xs">+ TAXA</button></div>
+                            <div className="flex justify-between items-center"><h2 className="text-2xl font-black text-slate-800 uppercase">Fretes</h2><button onClick={() => { setEditingRateId(null); setRateForm({ neighborhood: '', fee: '', cepStart: '', cepEnd: '' }); setIsRateModalOpen(true); }} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-xs">+ TAXA</button></div>
                             <div className="space-y-2">{shippingRates.map(rate => (<div key={rate.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl"><span className="font-bold text-slate-700">{rate.neighborhood}</span><div className="flex items-center gap-4"><span className="font-black text-blue-600">R$ {Number(rate.fee).toFixed(2)}</span><button onClick={() => { setEditingRateId(rate.id); setRateForm(rate); setIsRateModalOpen(true); }} className="p-2 text-blue-600"><Edit3 size={16} /></button><button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "shipping_rates", rate.id))} className="p-2 text-red-600"><Trash2 size={16} /></button></div></div>))}</div>
                         </div>
                     </div>
@@ -1759,17 +1809,59 @@ export default function Admin() {
                     </motion.div>
                 )}
             </AnimatePresence>
-
+            
+            {/* ✅ MODAL DE TAXAS CORRIGIDO */}
             <AnimatePresence>
                 {isRateModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
                             <button onClick={() => setIsRateModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
                             <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingRateId ? 'Editar' : 'Nova'} Taxa</h2>
-                            <form onSubmit={async (e) => { e.preventDefault(); try { const data = { neighborhood: rateForm.neighborhood, fee: parseFloat(rateForm.fee), storeId: storeId }; if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data); else await addDoc(collection(db, "shipping_rates"), data); setIsRateModalOpen(false); } catch (error) { alert(error.message); } }} className="space-y-4">
-                                <input type="text" placeholder="Nome do Bairro" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.neighborhood} onChange={e => setRateForm({ ...rateForm, neighborhood: e.target.value })} required />
-                                <input type="number" step="0.01" placeholder="Valor do Frete" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.fee} onChange={e => setRateForm({ ...rateForm, fee: e.target.value })} required />
-                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase">Salvar</button>
+                            <form onSubmit={async (e) => { 
+                                e.preventDefault(); 
+                                try { 
+                                    const cleanStart = rateForm.cepStart ? rateForm.cepStart.replace(/\D/g, '') : '';
+                                    const cleanEnd = rateForm.cepEnd ? rateForm.cepEnd.replace(/\D/g, '') : '';
+
+                                    const data = { 
+                                        neighborhood: rateForm.neighborhood, 
+                                        fee: parseFloat(rateForm.fee), 
+                                        cepStart: cleanStart,
+                                        cepEnd: cleanEnd,
+                                        storeId: storeId 
+                                    }; 
+                                    
+                                    if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data); 
+                                    else await addDoc(collection(db, "shipping_rates"), data); 
+                                    
+                                    setIsRateModalOpen(false); 
+                                    alert("Taxa salva com sucesso!");
+                                } catch (error) { alert(error.message); } 
+                            }} className="space-y-4">
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-400 ml-2">Nome de Identificação (Ex: Centro Expandido)</label>
+                                    <input type="text" placeholder="Nome da Região" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.neighborhood} onChange={e => setRateForm({ ...rateForm, neighborhood: e.target.value })} required />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 ml-2">CEP Inicial</label>
+                                        <input type="text" placeholder="00000000" maxLength="9" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.cepStart || ''} onChange={e => setRateForm({ ...rateForm, cepStart: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 ml-2">CEP Final</label>
+                                        <input type="text" placeholder="00000000" maxLength="9" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={rateForm.cepEnd || ''} onChange={e => setRateForm({ ...rateForm, cepEnd: e.target.value })} />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 px-2 font-bold text-center">Deixe os CEPs em branco se quiser cobrar apenas pelo Nome do Bairro.</p>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-400 ml-2">Valor da Entrega (R$)</label>
+                                    <input type="number" step="0.01" placeholder="0.00" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-blue-600 text-xl" value={rateForm.fee} onChange={e => setRateForm({ ...rateForm, fee: e.target.value })} required />
+                                </div>
+
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase hover:bg-blue-700 transition-all">Salvar Regra de Frete</button>
                             </form>
                         </motion.div>
                     </motion.div>
@@ -1787,18 +1879,14 @@ export default function Admin() {
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 
-                                // LÓGICA DE SALVAMENTO (CONVERSÃO DE TIPOS)
                                 const dataToSave = { 
                                     ...couponForm, 
                                     code: couponForm.code.toUpperCase(),
                                     storeId: storeId,
-                                    // Garante que números são salvos como números
                                     value: Number(couponForm.value), 
                                     minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
-                                    // Se estiver vazio, salva como null (ilimitado)
                                     usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null, 
                                     userUsageLimit: couponForm.userUsageLimit ? Number(couponForm.userUsageLimit) : null,
-                                    // Mantém contagem atual se for edição
                                     currentUsage: editingCouponId ? (couponForm.currentUsage || 0) : 0, 
                                     expirationDate: couponForm.expirationDate || null, 
                                     firstPurchaseOnly: couponForm.firstPurchaseOnly === true, 
@@ -1816,7 +1904,6 @@ export default function Admin() {
                                 }
                             }} className="space-y-4">
                                 
-                                {/* LINHA 1: CÓDIGO E VALOR */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-400 ml-2">Código do Cupom</label>
@@ -1837,7 +1924,6 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                {/* LINHA 2: PEDIDO MÍNIMO E DATA */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-xs font-bold text-slate-400 ml-2">Pedido Mínimo (R$)</label>
@@ -1849,7 +1935,6 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                {/* LINHA 3: LIMITES (Opcional) */}
                                 <div className="p-4 border border-slate-100 rounded-3xl space-y-4 bg-slate-50/50">
                                     <p className="text-[10px] font-black uppercase text-slate-400">Limites de Uso (Deixe vazio para ilimitado)</p>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1864,7 +1949,6 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                {/* CHECKBOX PRIMEIRA COMPRA */}
                                 <div className="flex items-center gap-3 p-2 ml-2 bg-blue-50/50 rounded-xl border border-blue-100">
                                     <input 
                                         type="checkbox" 
@@ -1887,7 +1971,6 @@ export default function Admin() {
                 )}
             </AnimatePresence>
 
-            {/* --- ALTERAÇÃO INICIADA: MODAL DE EDIÇÃO DE PEDIDOS ATUALIZADO --- */}
             <AnimatePresence>
                 {isOrderEditModalOpen && editingOrderData && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -1911,7 +1994,7 @@ export default function Admin() {
                                         observation: editingOrderData.observation || '', 
                                         status: editingOrderData.status,
                                         shippingFee: Number(editingOrderData.shippingFee || 0),
-                                        items: editingOrderData.items, // Salva os itens atualizados
+                                        items: editingOrderData.items, 
                                         total: newTotal, 
                                     };
 
@@ -1923,7 +2006,6 @@ export default function Admin() {
                                     alert("Erro ao atualizar pedido: " + error.message);
                                 }
                             }} className="space-y-4">
-                                {/* Informações do Cliente */}
                                 <div className="space-y-1">
                                     <label className="block text-xs font-bold text-slate-400 ml-2">Nome do Cliente</label>
                                     <input type="text" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerName || ''} onChange={e => setEditingOrderData({...editingOrderData, customerName: e.target.value})} required />
@@ -1937,7 +2019,6 @@ export default function Admin() {
                                     <input type="tel" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerPhone || ''} onChange={e => setEditingOrderData({...editingOrderData, customerPhone: e.target.value})} required />
                                 </div>
 
-                                {/* Pagamento e Entrega */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-xs font-bold text-slate-400 ml-2">Método de Pagamento</label>
@@ -1959,7 +2040,6 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                {/* Status e Observação */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-xs font-bold text-slate-400 ml-2">Status do Pedido</label>
@@ -1977,7 +2057,6 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                {/* Itens do Pedido Interativos */}
                                 <div className="pt-4 mt-4 border-t border-slate-100">
                                     <h3 className="text-lg font-bold text-slate-700 mb-2">Itens do Pedido:</h3>
                                     {editingOrderData.items?.length > 0 ? (
@@ -2000,7 +2079,6 @@ export default function Admin() {
                                     )}
                                 </div>
 
-                                {/* Seção para Adicionar Novos Produtos */}
                                 <div className="pt-4 mt-4 border-t border-slate-100">
                                     <h3 className="text-lg font-bold text-slate-700 mb-2">Adicionar Produtos ao Pedido:</h3>
                                     <div className="mb-4 relative">
@@ -2040,8 +2118,6 @@ export default function Admin() {
                     </motion.div>
                 )}
             </AnimatePresence>
-            {/* --- ALTERAÇÃO FINALIZADA --- */}
-            {/* MODAL PIX (NOVO) */}
             <AnimatePresence>
                 {showPixModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -2066,7 +2142,6 @@ export default function Admin() {
                     </motion.div>
                 )}
             </AnimatePresence>
-            {/* --- MODAL DE BLOQUEIO (INATIVO) --- */}
             {isOverdue && (
                 <div className="fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-6">
                     <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 text-center shadow-2xl relative overflow-hidden border-4 border-red-500">
@@ -2088,7 +2163,6 @@ export default function Admin() {
                         <div className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
                         
-                        {/* Cabeçalho */}
                         <div className="bg-slate-900 p-8 text-white">
                             <h2 className="text-2xl font-black italic uppercase flex items-center gap-3">
                                 <ShieldCheck className="text-velo-orange" size={28} /> 
@@ -2097,7 +2171,6 @@ export default function Admin() {
                             <p className="text-slate-400 text-sm mt-2">Para continuar, precisamos que você entenda como nossa infraestrutura funciona.</p>
                         </div>
 
-                        {/* Corpo do Contrato (Scrollável) */}
                         <div className="p-8 overflow-y-auto custom-scrollbar text-slate-600 space-y-6 text-sm leading-relaxed">
                             
                             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl">
@@ -2131,7 +2204,6 @@ export default function Admin() {
                             </p>
                         </div>
 
-                        {/* Rodapé com Botão */}
                         <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
                             <button 
                                 onClick={handleAcceptTerms}
