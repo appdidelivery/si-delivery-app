@@ -137,6 +137,47 @@ export default function Admin() {
     });
     const [showPixModal, setShowPixModal] = useState(false);
 
+    // --- 🚨 CÓDIGO DE RESGATE AUTOMÁTICO (COLE AQUI) 🚨 ---
+    useEffect(() => {
+        const rescueLostUser = async () => {
+            // Se a loja não foi identificada (está null) MAS existe usuário logado
+            if (!storeId && auth.currentUser) {
+                console.log("Admin: Usuário logado em limbo. Tentando resgatar...");
+                try {
+                    // 1. Busca o cadastro do usuário no banco
+                    const userDocRef = doc(db, "users", auth.currentUser.uid);
+                    const userDocSnap = await getDoc(userDocRef);
+
+                    if (userDocSnap.exists()) {
+                        const userData = userDocSnap.data();
+                        
+                        // 2. Descobre qual é a loja dele
+                        const targetStore = userData.storeId || userData.currentStore;
+
+                        if (targetStore) {
+                            console.log("Admin: Loja encontrada! Redirecionando para:", targetStore);
+                            
+                            // 3. Monta o endereço correto
+                            const protocol = window.location.protocol; 
+                            const baseDomain = window.location.hostname.includes('localhost') 
+                                ? 'localhost:5173' 
+                                : 'velodelivery.com.br';
+
+                            // 4. FORÇA O REDIRECIONAMENTO (Sai do erro e vai para a loja certa)
+                            if (!window.location.hostname.includes(targetStore)) {
+                                window.location.href = `${protocol}//${targetStore}.${baseDomain}/admin`;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Erro no resgate automático:", error);
+                }
+            }
+        };
+
+        rescueLostUser();
+    }, [storeId, navigate]); 
+    // --- FIM DO CÓDIGO DE RESGATE ---
     // Efeito para calcular a fatura em tempo real (Cole isso logo abaixo do useEffect principal dos Pedidos)
     useEffect(() => {
         if(orders.length > 0 || products.length > 0) {
