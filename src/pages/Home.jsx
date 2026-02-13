@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -436,7 +436,21 @@ export default function Home() {
         const data = await response.json();
         if (data.erro) throw new Error("CEP não encontrado.");
         setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
-        const foundRate = shippingRates.find(rate => rate.neighborhood.toLowerCase() === data.bairro.toLowerCase() && rate.storeId === storeId);
+        const currentCepNum = parseInt(cep); 
+
+        const foundRate = shippingRates.find(rate => {
+            // 1. TENTATIVA POR FAIXA DE CEP
+            if (rate.cepStart && rate.cepEnd) {
+                const start = parseInt(rate.cepStart.replace(/\D/g, ''));
+                const end = parseInt(rate.cepEnd.replace(/\D/g, ''));
+                if (currentCepNum >= start && currentCepNum <= end) return true; 
+            }
+            // 2. TENTATIVA POR NOME DO BAIRRO
+            if (data.bairro && rate.neighborhood) {
+                 return rate.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim();
+            }
+            return false;
+        });
         if (foundRate) {
           setShippingFee(foundRate.fee);
           setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
