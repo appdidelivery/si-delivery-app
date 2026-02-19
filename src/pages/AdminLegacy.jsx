@@ -1011,7 +1011,7 @@ export default function Admin() {
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds: [], complements: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -1545,6 +1545,27 @@ export default function Admin() {
                             <button onClick={() => updateDoc(doc(db, "stores", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })} className={`w-full py-6 rounded-2xl font-black text-2xl uppercase tracking-widest transition-all ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-xl shadow-green-200' : 'bg-red-500 text-white shadow-xl shadow-red-200'}`}>{storeStatus.isOpen ? 'LOJA ABERTA' : 'LOJA FECHADA'}</button>
                             <p className="mt-4 text-xs font-bold text-slate-400">Isso abre ou fecha a loja manualmente, ignorando o horário.</p>
                         </div>
+                        {/* --- NOVO: ESTILO DA VITRINE --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">🎨 Estilo da Vitrine</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => updateDoc(doc(db, "stores", storeId), { layoutTheme: 'grid' }, { merge: true })}
+                                    className={`p-6 rounded-3xl border-4 font-bold flex flex-col items-center gap-4 transition-all ${storeStatus.layoutTheme === 'grid' || !storeStatus.layoutTheme ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-lg' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                >
+                                    <span className="text-lg">🏪 Grade (Conveniência)</span>
+                                    <span className="text-xs font-normal text-center">Lado a lado, foto pequena, focado em compra rápida (Bebidas/Mercado).</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => updateDoc(doc(db, "stores", storeId), { layoutTheme: 'list' }, { merge: true })}
+                                    className={`p-6 rounded-3xl border-4 font-bold flex flex-col items-center gap-4 transition-all ${storeStatus.layoutTheme === 'list' ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-lg' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                >
+                                    <span className="text-lg">🍔 Lista (Restaurante)</span>
+                                    <span className="text-xs font-normal text-center">Cardápio vertical, abre foto gigante (Lanches/Sushi/Porções).</span>
+                                </button>
+                            </div>
+                        </div>
 
                         {/* 2. Informações e Mensagem */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
@@ -1798,6 +1819,90 @@ export default function Admin() {
                                         {products.length <= 1 && <p className="text-xs text-slate-400 italic">Cadastre mais produtos para fazer recomendações.</p>}
                                     </div>
                                 </div>
+                                {/* --- INÍCIO: CRIADOR DE COMPLEMENTOS --- */}
+                                <div className="space-y-4 pt-6 border-t border-slate-100">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                            <PlusSquare size={14} className="text-purple-500"/> Complementos / Adicionais
+                                        </label>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setForm(prev => ({ ...prev, complements: [...(prev.complements || []), { id: Date.now().toString(), name: '', isRequired: false, maxSelections: 1, options: [] }] }))}
+                                            className="bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-purple-100 transition-all"
+                                        >
+                                            + Novo Grupo
+                                        </button>
+                                    </div>
+                                    
+                                    {(form.complements || []).map((cat, catIndex) => (
+                                        <div key={cat.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 relative animate-in fade-in slide-in-from-top-2">
+                                            {/* Botão de Excluir Grupo */}
+                                            <button type="button" onClick={() => {
+                                                const newComps = [...form.complements];
+                                                newComps.splice(catIndex, 1);
+                                                setForm(prev => ({ ...prev, complements: newComps }));
+                                            }} className="absolute top-4 right-4 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                            
+                                            {/* Nome do Grupo */}
+                                            <input type="text" placeholder="Nome do Grupo (Ex: Escolha o Molho, Ponto da Carne)" className="w-11/12 p-3 bg-white rounded-xl font-bold border border-slate-100 mb-3 text-sm outline-none focus:ring-2 ring-purple-200" value={cat.name} onChange={(e) => {
+                                                const newComps = [...form.complements];
+                                                newComps[catIndex].name = e.target.value;
+                                                setForm(prev => ({ ...prev, complements: newComps }));
+                                            }} />
+                                            
+                                            {/* Regras (Obrigatório e Máximo) */}
+                                            <div className="flex flex-wrap gap-4 mb-4">
+                                                <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer bg-white p-2 rounded-lg border border-slate-100">
+                                                    <input type="checkbox" checked={cat.isRequired} onChange={(e) => {
+                                                        const newComps = [...form.complements];
+                                                        newComps[catIndex].isRequired = e.target.checked;
+                                                        setForm(prev => ({ ...prev, complements: newComps }));
+                                                    }} className="accent-purple-600 w-4 h-4 cursor-pointer" /> É Obrigatório?
+                                                </label>
+                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2 rounded-lg border border-slate-100">
+                                                    Máx. de opções permitidas: 
+                                                    <input type="number" min="1" className="w-16 p-1 rounded-md text-center border outline-none" value={cat.maxSelections} onChange={(e) => {
+                                                        const newComps = [...form.complements];
+                                                        newComps[catIndex].maxSelections = parseInt(e.target.value) || 1;
+                                                        setForm(prev => ({ ...prev, complements: newComps }));
+                                                    }} />
+                                                </div>
+                                            </div>
+
+                                            {/* Opções do Grupo */}
+                                            <div className="space-y-2">
+                                                {cat.options.map((opt, optIndex) => (
+                                                    <div key={optIndex} className="flex gap-2 items-center">
+                                                        <input type="text" placeholder="Ex: Bacon Extra" className="flex-1 p-3 bg-white rounded-lg text-xs font-bold border border-slate-100 outline-none" value={opt.name} onChange={(e) => {
+                                                            const newComps = [...form.complements];
+                                                            newComps[catIndex].options[optIndex].name = e.target.value;
+                                                            setForm(prev => ({ ...prev, complements: newComps }));
+                                                        }} />
+                                                        <input type="number" placeholder="Valor (+ R$)" className="w-24 p-3 bg-white rounded-lg text-xs font-bold border border-slate-100 outline-none text-blue-600" value={opt.price} onChange={(e) => {
+                                                            const newComps = [...form.complements];
+                                                            newComps[catIndex].options[optIndex].price = parseFloat(e.target.value) || 0;
+                                                            setForm(prev => ({ ...prev, complements: newComps }));
+                                                        }} />
+                                                        <button type="button" onClick={() => {
+                                                            const newComps = [...form.complements];
+                                                            newComps[catIndex].options.splice(optIndex, 1);
+                                                            setForm(prev => ({ ...prev, complements: newComps }));
+                                                        }} className="text-red-400 p-2 hover:bg-red-50 rounded-lg transition-all"><X size={16}/></button>
+                                                    </div>
+                                                ))}
+                                                
+                                                <button type="button" onClick={() => {
+                                                    const newComps = [...form.complements];
+                                                    newComps[catIndex].options.push({ name: '', price: '' });
+                                                    setForm(prev => ({ ...prev, complements: newComps }));
+                                                }} className="text-xs font-black text-purple-600 mt-2 px-2 py-1 hover:bg-purple-50 rounded-lg transition-all">
+                                                    + Adicionar Opção
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* --- FIM: CRIADOR DE COMPLEMENTOS --- */}
                                 <div className="space-y-3 pt-6 border-t border-slate-100">
                                     <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
                                     <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">{imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} /></label>

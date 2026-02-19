@@ -58,7 +58,81 @@ export default function Home() {
   // REMOVIDO: LÓGICA DO TOUR (ONBOARDING)
   // const [runTour, setRunTour] = useState(false);
   // const [tourStepIndex, setTourStepIndex] = useState(0);
+  // Temporário: Mude para 'grid' ou 'list' para testar os visuais
+  const [selectedProduct, setSelectedProduct] = useState(null); // Vai controlar o Modal de Complementos
 
+  const [selectedOptions, setSelectedOptions] = useState({}); // Guarda os adicionais marcados
+  const [itemObservation, setItemObservation] = useState(''); // Guarda a observação do cliente
+
+  // Quando o cliente clica no produto, zera as seleções anteriores
+  const handleOpenProduct = (p) => {
+      setSelectedProduct(p);
+      setSelectedOptions({});
+      setItemObservation('');
+  };
+  // --- LÓGICAS DO MODAL DE COMPLEMENTOS ---
+  const handleOptionToggle = (group, option) => {
+      setSelectedOptions(prev => {
+          const currentGroupSelections = prev[group.id] || [];
+          const isSelected = currentGroupSelections.some(o => o.name === option.name);
+
+          if (isSelected) {
+              // Remove se já estava marcado
+              return { ...prev, [group.id]: currentGroupSelections.filter(o => o.name !== option.name) };
+          } else {
+              // Adiciona respeitando o limite (maxSelections)
+              if (group.maxSelections === 1) {
+                  return { ...prev, [group.id]: [option] }; // Se for 1, substitui (Radio)
+              } else if (currentGroupSelections.length < group.maxSelections) {
+                  return { ...prev, [group.id]: [...currentGroupSelections, option] }; // Se couber, adiciona (Checkbox)
+              } else {
+                  return prev; // Ignora se passou do limite
+              }
+          }
+      });
+  };
+
+  const calculateModalTotal = () => {
+      if (!selectedProduct) return 0;
+      let total = Number(selectedProduct.price);
+      Object.values(selectedOptions).forEach(optionArray => {
+          optionArray.forEach(opt => { total += Number(opt.price || 0); });
+      });
+      return total;
+  };
+
+  const handleAddCustomToCart = () => {
+      // 1. Validação: O cliente marcou os itens obrigatórios?
+      if (selectedProduct.complements) {
+          for (const group of selectedProduct.complements) {
+              if (group.isRequired) {
+                  const selectedCount = (selectedOptions[group.id] || []).length;
+                  if (selectedCount === 0) {
+                      alert(`Por favor, selecione uma opção em: ${group.name}`);
+                      return;
+                  }
+              }
+          }
+      }
+
+      // 2. Cria um ID único para esse lanche (para não juntar 2 lanches diferentes num só no carrinho)
+      const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}`;
+
+      // 3. Monta o nome bonitinho para o carrinho (Ex: Hamburguer (+ Bacon, + Ovo))
+      const optionsText = Object.values(selectedOptions).flat().map(o => o.name).join(', ');
+      const cartName = optionsText ? `${selectedProduct.name} (${optionsText})` : selectedProduct.name;
+
+      const itemToAdd = {
+          ...selectedProduct,
+          cartItemId: customId,
+          name: cartName,
+          observation: itemObservation,
+          price: calculateModalTotal() // Preço Base + Adicionais
+      };
+
+      addToCart(itemToAdd, 1);
+      setSelectedProduct(null); // Fecha o modal
+  };
   // const tourSteps = [...]
   // useEffect para hasSeenTour removido
   // handleJoyrideCallback removido
@@ -698,6 +772,7 @@ export default function Home() {
           .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) 
           .filter(p => p.isBestSeller || p.isFeatured) 
           .slice(0, 5); 
+ const layoutTheme = storeSettings?.layoutTheme || 'grid';
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
@@ -915,34 +990,70 @@ export default function Home() {
       )}
 
 
-      {/* PRODUTOS (VITRINE PRINCIPAL) */}
-      <main className="px-6 grid grid-cols-2 md:grid-cols-4 gap-4 mb-20 mt-8"> {/* Removido tour-vitrine */}
+      {/* PRODUTOS (VITRINE PRINCIPAL COM TEMA DINÂMICO) */}
+      <main className={`px-6 mb-20 mt-8 ${layoutTheme === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 gap-4' : 'flex flex-col gap-4'}`}>
         <AnimatePresence mode='popLayout'>
           {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
              const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+             
+             {/* --- TEMA: LISTA (RESTAURANTES / HAMBURGUERIA) --- */}
+             if (layoutTheme === 'list') {
+                 return (
+                    <motion.div layout initial={{opacity:0, x:-20}} animate={{opacity:1, x:0}} key={p.id} 
+                        onClick={() => hasStock ? setSelectedProduct(p) : null} // Abre o futuro modal
+                        className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
+                    >
+                        {/* Textos à esquerda */}
+                        <div className="flex-1 flex flex-col justify-center">
+                            <h3 className="font-black text-slate-800 text-sm leading-tight mb-1">{p.name}</h3>
+                            <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
+                                {p.description || "Clique para ver mais detalhes e opções."}
+                            </p>
+                            <div className="mt-auto">
+                                {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-600 font-black text-base italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                                        <span className="text-xs font-bold text-slate-400 line-through">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-blue-600 font-black text-base italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                                )}
+                            </div>
+                        </div>
+                        {/* Imagem à direita */}
+                        <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
+                            <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
+                            {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl">-{p.discountPercentage}%</span>}
+                            {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
+                        </div>
+                    </motion.div>
+                 );
+             }
+
+             {/* --- TEMA: GRID (CONVENIÊNCIA / BEBIDAS) --- */}
              return (
                 <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
-                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                </div>
-                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
-                <div className="flex justify-between items-center mt-auto">
-                    <div>
-                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                            <>
-                                <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
-                            </>
-                        ) : (
-                            <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                        )}
+                    <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative" onClick={() => hasStock ? setSelectedProduct(p) : null}>
+                        <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 cursor-pointer" />
+                        {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                        {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                     </div>
-                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                    <ShoppingCart size={16} />
-                    </button>
-                </div>
+                    <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
+                    <div className="flex justify-between items-center mt-auto">
+                        <div>
+                            {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                <>
+                                    <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                    <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
+                                </>
+                            ) : (
+                                <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                            )}
+                        </div>
+                        <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                            <ShoppingCart size={16} />
+                        </button>
+                    </div>
                 </motion.div>
              );
           })}
@@ -1337,6 +1448,133 @@ export default function Home() {
         )}
       </AnimatePresence>
       {/* --- FIM DA CORREÇÃO (PWA Install Prompt UI) --- */}
+      {/* --- MODAL DE DETALHES DO PRODUTO (TEMA LISTA) --- */}
+      <AnimatePresence>
+        {selectedProduct && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
+            onClick={() => setSelectedProduct(null)} // Clicar fora fecha o modal
+          >
+            <motion.div 
+              initial={{ y: "100%" }} 
+              animate={{ y: 0 }} 
+              exit={{ y: "100%" }} 
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              onClick={(e) => e.stopPropagation()} // Evita fechar ao clicar no meio da tela branca
+              className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
+            >
+              {/* Botão Fechar no canto da foto */}
+              <button 
+                onClick={() => setSelectedProduct(null)} 
+                className="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full z-10 backdrop-blur-md hover:bg-black/60 transition-all"
+              >
+                <X size={20} />
+              </button>
+
+              {/* Foto Gigante do Produto */}
+              <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
+                <img src={selectedProduct.imageUrl} className="w-full h-full object-cover" alt={selectedProduct.name} />
+                {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
+                  <span className="absolute bottom-4 left-4 bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg">
+                    -{selectedProduct.discountPercentage}% OFF
+                  </span>
+                )}
+              </div>
+
+              {/* Detalhes (Parte Rolável para caber complementos depois) */}
+              <div className="p-6 overflow-y-auto pb-32 custom-scrollbar flex-1">
+                <h2 className="text-2xl font-black text-slate-900 mb-2 leading-tight">{selectedProduct.name}</h2>
+                <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                  {selectedProduct.description || "Sem descrição adicional detalhada."}
+                </p>
+
+                {/* --- RENDERIZADOR DE COMPLEMENTOS --- */}
+                {selectedProduct.complements && selectedProduct.complements.length > 0 && (
+                    <div className="border-t border-slate-100 pt-2 mt-4 space-y-4">
+                        {selectedProduct.complements.map(group => (
+                            <div key={group.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="font-black text-slate-800 text-sm uppercase">{group.name}</h4>
+                                    <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider ${group.isRequired ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                        {group.isRequired ? 'Obrigatório' : 'Opcional'} • Máx: {group.maxSelections}
+                                    </span>
+                                </div>
+                                <div className="space-y-2">
+                                    {group.options.map((opt, i) => {
+                                        const isSelected = (selectedOptions[group.id] || []).some(o => o.name === opt.name);
+                                        return (
+                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-600 bg-blue-50/50' : 'border-transparent bg-white hover:border-slate-200'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <input 
+                                                        type={group.maxSelections === 1 ? 'radio' : 'checkbox'} 
+                                                        checked={isSelected}
+                                                        onChange={() => handleOptionToggle(group, opt)}
+                                                        className="accent-blue-600 w-4 h-4 cursor-pointer"
+                                                    />
+                                                    <span className={`text-sm font-bold ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>{opt.name}</span>
+                                                </div>
+                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? 'text-blue-600' : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
+                                            </label>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Campo de Observações (Sempre visível no layout de Comida) */}
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alguma observação?</label>
+                    <textarea 
+                        rows="2" 
+                        placeholder="Ex: Tirar cebola, maionese à parte..." 
+                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 ring-blue-500 transition-all"
+                        value={itemObservation}
+                        onChange={(e) => setItemObservation(e.target.value)}
+                    ></textarea>
+                </div>
+              </div>
+
+              {/* Rodapé Fixo Atualizado */}
+              <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between gap-4 z-20">
+                 <div className="flex flex-col pl-2">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Total do Item</span>
+                    <span className="text-2xl font-black text-blue-600 italic leading-none">R$ {calculateModalTotal().toFixed(2)}</span>
+                 </div>
+                 
+                 <button 
+                    onClick={handleAddCustomToCart} 
+                    className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                 >
+                    <ShoppingCart size={20} /> Adicionar
+                 </button>
+              </div>
+
+              {/* Rodapé Fixo com Botão de Adicionar */}
+              <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between gap-4">
+                 <div className="flex flex-col pl-2">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Total do Item</span>
+                    <span className="text-2xl font-black text-blue-600 italic leading-none">R$ {Number(selectedProduct.price).toFixed(2)}</span>
+                 </div>
+                 
+                 <button 
+                    onClick={() => {
+                        addToCart(selectedProduct, 1);
+                        setSelectedProduct(null); // Fecha o modal e joga pro carrinho
+                    }} 
+                    className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                 >
+                    <ShoppingCart size={20} /> Adicionar
+                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
