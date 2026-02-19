@@ -460,7 +460,7 @@ export default function Admin() {
 
     const printLabel = (o) => {
         const w = window.open('', '_blank');
-        const itemsHtml = (o.items || []).map(i => `<li>• ${i.quantity}x ${i.name}</li>`).join('');
+        const itemsHtml = (o.items || []).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name}</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
         // Formata a data
@@ -932,6 +932,30 @@ export default function Admin() {
                                     <h3 className="font-black text-lg text-slate-800 leading-tight">{o.customerName}</h3>
                                     <p className="text-xs text-slate-500 font-medium">{typeof o.address === 'object' ? `${o.address.street}, ${o.address.number} - ${o.address.neighborhood}` : o.address}</p>
                                 </div>
+                                {/* LISTAGEM SEGURA DE ITENS NO PEDIDO */}
+                <div className="py-3 my-2 border-y border-slate-50 space-y-2">
+                    {o.items && Array.isArray(o.items) ? o.items.map((i, idx) => (
+                        <div key={idx} className="flex flex-col">
+                            <div className="flex justify-between items-start text-sm">
+                                <span className="font-bold text-slate-700">
+                                    {i.quantity}x {i.name}
+                                </span>
+                                <span className="text-slate-400 font-medium">
+                                    R$ {(Number(i.price || 0) * Number(i.quantity || 1)).toFixed(2)}
+                                </span>
+                            </div>
+                            
+                            {/* MOSTRAR OBSERVAÇÃO COM SEGURANÇA */}
+                            {i.observation && (
+                                <div className="text-[11px] text-orange-600 font-bold bg-orange-50 p-2 rounded-lg mt-1 border border-orange-100 italic leading-tight">
+                                    ↳ Obs: {i.observation}
+                                </div>
+                            )}
+                        </div>
+                    )) : (
+                        <span className="text-xs text-slate-400 italic">Nenhum item encontrado</span>
+                    )}
+                </div>
                                 <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
                                     <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
                                     <div className="flex flex-wrap justify-end gap-2 md:gap-3">
@@ -1122,6 +1146,11 @@ export default function Admin() {
                                                     <span>R$ {(i.price * i.quantity).toFixed(2)}</span>
                                                     <button onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
                                                 </div>
+                                                {i.observation && (
+                <div className="text-xs text-orange-600 font-bold bg-orange-50 p-1.5 rounded-lg mt-1 border border-orange-100">
+                    ⚠️ Obs: {i.observation}
+                </div>
+            )}
                                             </div>
                                         ))
                                     )}
@@ -1566,6 +1595,30 @@ export default function Admin() {
                                 </button>
                             </div>
                         </div>
+                        {/* --- SELETOR DE NICHO (CORES E IDENTIDADE) --- */}
+<div className="mt-8 pt-8 border-t border-slate-100">
+    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-4">🎯 Nicho da Loja (Personaliza Cores)</label>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+            { id: 'default', label: 'Conveniência', color: '#2563eb' },
+            { id: 'pizza', label: 'Pizzaria', color: '#e11d48' },
+            { id: 'oriental', label: 'Oriental', color: '#111827' },
+            { id: 'natural', label: 'Hortifruti', color: '#16a34a' },
+            { id: 'sweet', label: 'Doceria/Açaí', color: '#9333ea' },
+            { id: 'burger', label: 'Hamburgueria', color: '#ea580c' },
+            { id: 'drinks', label: 'Adega', color: '#f59e0b' }
+        ].map(nicho => (
+            <button
+                key={nicho.id}
+                onClick={() => updateDoc(doc(db, "stores", storeId), { storeNiche: nicho.id }, { merge: true })}
+                className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${storeStatus.storeNiche === nicho.id ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-white'}`}
+            >
+                <div className="w-6 h-6 rounded-full" style={{ backgroundColor: nicho.color }}></div>
+                <span className="text-[10px] font-black uppercase">{nicho.label}</span>
+            </button>
+        ))}
+    </div>
+</div>
 
                         {/* 2. Informações e Mensagem */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">

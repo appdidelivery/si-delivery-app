@@ -141,7 +141,7 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('all'); // Renamed from selectedCategory in the prompt's intent
   const [showCheckout, setShowCheckout] = useState(false);
 
   const [customer, setCustomer] = useState({
@@ -241,6 +241,27 @@ export default function Home() {
     slogan: 'Os melhores produtos entregues na sua casa.',
     name: 'Minha Loja'
   });
+  // Função para rolar até a categoria selecionada
+  const scrollToCategory = (categoryId) => {
+    // No modo Lista, nós apenas rolamos a tela
+    if (storeSettings?.layoutTheme === 'list') {
+      const element = document.getElementById(`category-${categoryId}`);
+      if (element) {
+        const offset = 90; // Espaço para não cobrir o título com o menu fixo
+        const bodyRect = document.body.getBoundingClientRect().top;
+        const elementRect = element.getBoundingClientRect().top;
+        const elementPosition = elementRect - bodyRect;
+        const offsetPosition = elementPosition - offset;
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+      }
+    }
+    // Se quiser manter o filtro no modo Grade, pode chamar sua função de setCategory aqui
+    setActiveCategory(categoryId); // Ajustado para usar setActiveCategory
+  };
     // --- FUNÇÃO DE COMPARTILHAR ---
   const handleShare = async () => {
     const shareData = {
@@ -716,7 +737,15 @@ export default function Home() {
 
       // --- AQUI ESTÁ A CORREÇÃO DA MENSAGEM ---
       // 3. Montar o texto BONITO para o WhatsApp
-      const itemsList = cart.map(i => `• ${i.quantity}x ${i.name}`).join('\n');
+      const itemsList = cart.map(i => {
+            let text = `🔸 ${i.quantity}x *${i.name}* - R$ ${(i.price * i.quantity).toFixed(2)}`;
+            
+            // Adiciona a observação em itálico logo abaixo do item
+            if (i.observation) {
+                text += `\n      _Obs: ${i.observation}_`;
+            }
+            return text;
+        }).join('\n');
       const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
       const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
       const obsMsg = customer.payment === 'dinheiro' && customer.changeFor ? `\n💵 *Troco para:* ${customer.changeFor}` : `\n💳 *Pagamento:* ${customer.payment.toUpperCase()}`;
@@ -773,6 +802,67 @@ export default function Home() {
           .filter(p => p.isBestSeller || p.isFeatured) 
           .slice(0, 5); 
  const layoutTheme = storeSettings?.layoutTheme || 'grid';
+ // --- LÓGICA DE TEMAS E CORES ---
+  const themePresets = {
+    default: {
+        primary: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-600',
+        shadow: 'shadow-blue-100', hoverPrimary: 'hover:bg-blue-700',
+        lightBg: 'bg-blue-50', hoverLightBg: 'hover:bg-blue-100',
+        accent: 'accent-blue-600', darkText: 'text-blue-900',
+        gradientFrom: 'from-blue-400', gradientTo: 'to-blue-600',
+        ringColor: 'blue-500' // NOVA PROPRIEDADE
+    },
+    burger: {
+        primary: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-600',
+        shadow: 'shadow-orange-100', hoverPrimary: 'hover:bg-orange-700',
+        lightBg: 'bg-orange-50', hoverLightBg: 'hover:bg-orange-100',
+        accent: 'accent-orange-600', darkText: 'text-orange-900',
+        gradientFrom: 'from-orange-400', gradientTo: 'to-orange-600',
+        ringColor: 'orange-500' // NOVA PROPRIEDADE
+    },
+    pizza: {
+        primary: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-600',
+        shadow: 'shadow-rose-100', hoverPrimary: 'hover:bg-rose-700',
+        lightBg: 'bg-rose-50', hoverLightBg: 'hover:bg-rose-100',
+        accent: 'accent-rose-600', darkText: 'text-rose-900',
+        gradientFrom: 'from-rose-400', gradientTo: 'to-rose-600',
+        ringColor: 'rose-500' // NOVA PROPRIEDADE
+    },
+    oriental: {
+        primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900',
+        shadow: 'shadow-slate-200', hoverPrimary: 'hover:bg-slate-800',
+        lightBg: 'bg-slate-800', hoverLightBg: 'hover:bg-slate-700',
+        accent: 'accent-slate-900', darkText: 'text-slate-900',
+        gradientFrom: 'from-slate-700', gradientTo: 'to-slate-900',
+        ringColor: 'slate-600' // NOVA PROPRIEDADE
+    },
+    natural: {
+        primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600',
+        shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700',
+        lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100',
+        accent: 'accent-green-600', darkText: 'text-green-900',
+        gradientFrom: 'from-green-400', gradientTo: 'to-green-600',
+        ringColor: 'green-500' // NOVA PROPRIEDADE
+    },
+    sweet: {
+        primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600',
+        shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700',
+        lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100',
+        accent: 'accent-purple-600', darkText: 'text-purple-900',
+        gradientFrom: 'from-purple-400', gradientTo: 'to-purple-600',
+        ringColor: 'purple-500' // NOVA PROPRIEDADE
+    },
+    drinks: {
+        primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500',
+        shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600',
+        lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100',
+        accent: 'accent-amber-500', darkText: 'text-amber-900',
+        gradientFrom: 'from-amber-300', gradientTo: 'to-amber-500',
+        ringColor: 'amber-500' // NOVA PROPRIEDADE
+    }
+  };
+
+  const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
@@ -783,7 +873,7 @@ export default function Home() {
       {/* HEADER */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm">
         <div className="flex items-center gap-3 mb-2 sm:mb-0">
-          <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-full object-cover border-2 border-blue-600 shadow-sm" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+          <img src={storeSettings.storeLogoUrl} className={`h-12 w-12 rounded-full object-cover border-2 ${currentTheme.border} shadow-sm`} onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
           <div className="text-left">
             <h1 className="text-xl font-black text-slate-800 leading-none uppercase">{storeSettings.name || "Sua Loja"}</h1>
             {storeSettings.slogan && <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mt-0.5">{storeSettings.slogan}</p>}
@@ -794,7 +884,7 @@ export default function Home() {
           
           <button 
             onClick={handleShare} 
-            className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 border border-blue-100 active:scale-95 transition-all"
+            className={`p-2 ${currentTheme.lightBg} ${currentTheme.text} rounded-full ${currentTheme.hoverLightBg} border ${currentTheme.lightBg.replace('bg-','border-').replace('50','100')} active:scale-95 transition-all`}
           >
             <Share size={20} />
           </button>
@@ -888,13 +978,16 @@ export default function Home() {
       <div className="p-6">
         <div className="relative mb-8">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input type="text" placeholder="O que você procura?" className="w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-blue-600 font-medium" onChange={e => setSearchTerm(e.target.value)} />
+          {/* Ajuste: Usando currentTheme.ringColor */}
+          <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
         {/* CATEGORIAS DINÂMICAS */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
           {displayCategories.map(c => (
-            <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
+            <button key={c.id} 
+              onClick={() => scrollToCategory(c.id)} // Alterado para chamar scrollToCategory
+              className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? `${currentTheme.primary} text-white` : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
               {c.icon} {c.name}
             </button>
           ))}
@@ -924,17 +1017,17 @@ export default function Home() {
                                           {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
                                               <>
                                                   <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                  <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
+                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                               </>
                                           ) : (
-                                              <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                                              <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
                                       <button 
                                         onClick={() => addToCart(p)} 
                                         disabled={!isStoreOpenNow || !hasStock}
                                         className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95
-                                            ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                            ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : `${currentTheme.primary} text-white ${currentTheme.hoverPrimary}`}`}
                                     >
                                         <span className="font-black text-[10px] uppercase tracking-widest">Adicionar</span>
                                         <ShoppingCart size={16} />
@@ -971,13 +1064,13 @@ export default function Home() {
                                           {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
                                               <>
                                                   <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                  <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
+                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                               </>
                                           ) : (
-                                              <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
+                                              <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                                           <ShoppingCart size={16} />
                                       </button>
                                   </div>
@@ -991,73 +1084,105 @@ export default function Home() {
 
 
       {/* PRODUTOS (VITRINE PRINCIPAL COM TEMA DINÂMICO) */}
-      <main className={`px-6 mb-20 mt-8 ${layoutTheme === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 gap-4' : 'flex flex-col gap-4'}`}>
-        <AnimatePresence mode='popLayout'>
-          {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
-             const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-             
-             {/* --- TEMA: LISTA (RESTAURANTES / HAMBURGUERIA) --- */}
-             if (layoutTheme === 'list') {
-                 return (
-                    <motion.div layout initial={{opacity:0, x:-20}} animate={{opacity:1, x:0}} key={p.id} 
-                        onClick={() => hasStock ? setSelectedProduct(p) : null} // Abre o futuro modal
-                        className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
-                    >
-                        {/* Textos à esquerda */}
-                        <div className="flex-1 flex flex-col justify-center">
-                            <h3 className="font-black text-slate-800 text-sm leading-tight mb-1">{p.name}</h3>
-                            <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
-                                {p.description || "Clique para ver mais detalhes e opções."}
-                            </p>
-                            <div className="mt-auto">
-                                {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-blue-600 font-black text-base italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                                        <span className="text-xs font-bold text-slate-400 line-through">R$ {Number(p.originalPrice).toFixed(2)}</span>
+      <main className="px-6 mb-20 mt-8">
+        {layoutTheme === 'grid' ? (
+            <div className={`grid grid-cols-2 md:grid-cols-4 gap-4`}>
+                <AnimatePresence mode='popLayout'>
+                    {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
+                        const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                        return (
+                            <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative" onClick={() => hasStock ? setSelectedProduct(p) : null}>
+                                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 cursor-pointer" />
+                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
+                                </div>
+                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
+                                <div className="flex justify-between items-center mt-auto">
+                                    <div>
+                                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                            <>
+                                                <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                                <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                            </>
+                                        ) : (
+                                            <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                        )}
                                     </div>
-                                ) : (
-                                    <span className="text-blue-600 font-black text-base italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                                )}
-                            </div>
-                        </div>
-                        {/* Imagem à direita */}
-                        <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
-                            <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
-                            {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl">-{p.discountPercentage}%</span>}
-                            {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
-                        </div>
-                    </motion.div>
-                 );
-             }
+                                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                        <ShoppingCart size={16} />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                </AnimatePresence>
+            </div>
+        ) : ( // List layout
+            <div className="flex flex-col gap-8">
+                {displayCategories
+                    .filter(c => c.id !== 'all') // Exclude 'all' from individual category sections, it's handled by rendering all below
+                    .map(cat => {
+                        const categoryProducts = products.filter(p => 
+                            p.category === cat.name && 
+                            p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+                            ((p.stock && parseInt(p.stock) > 0) || !p.stock)
+                        );
 
-             {/* --- TEMA: GRID (CONVENIÊNCIA / BEBIDAS) --- */}
-             return (
-                <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                    <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative" onClick={() => hasStock ? setSelectedProduct(p) : null}>
-                        <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 cursor-pointer" />
-                        {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                        {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                    </div>
-                    <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
-                    <div className="flex justify-between items-center mt-auto">
-                        <div>
-                            {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                                <>
-                                    <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                    <span className="text-blue-600 font-black text-lg italic leading-none block">R$ {Number(p.price)?.toFixed(2)}</span>
-                                </>
-                            ) : (
-                                <span className="text-blue-600 font-black text-sm italic leading-none">R$ {Number(p.price)?.toFixed(2)}</span>
-                            )}
-                        </div>
-                        <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                            <ShoppingCart size={16} />
-                        </button>
-                    </div>
-                </motion.div>
-             );
-          })}
-        </AnimatePresence>
+                        // Only render this category section if 'all' is active OR this specific category is active
+                        if (activeCategory !== 'all' && activeCategory !== cat.id) {
+                            return null;
+                        }
+                        // If no products in this category (after all filters), don't render its section
+                        if (categoryProducts.length === 0) {
+                            return null;
+                        }
+
+                        return (
+                            <section key={cat.id} id={`category-${cat.id}`} className="flex flex-col gap-4">
+                                <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-4 sticky top-20 bg-slate-50 z-40 py-2">
+                                    {cat.name}
+                                </h2>
+                                <AnimatePresence mode='popLayout'>
+                                    {categoryProducts.map(p => {
+                                        const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                                        return (
+                                            <motion.div layout initial={{opacity:0, x:-20}} animate={{opacity:1, x:0}} key={p.id} 
+                                                onClick={() => hasStock ? setSelectedProduct(p) : null}
+                                                className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
+                                            >
+                                                {/* Textos à esquerda */}
+                                                <div className="flex-1 flex flex-col justify-center">
+                                                    <h3 className="font-black text-slate-800 text-sm leading-tight mb-1">{p.name}</h3>
+                                                    <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
+                                                        {p.description || "Clique para ver mais detalhes e opções."}
+                                                    </p>
+                                                    <div className="mt-auto">
+                                                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                                <span className="text-xs font-bold text-slate-400 line-through">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {/* Imagem à direita */}
+                                                <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
+                                                    <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
+                                                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl">-{p.discountPercentage}%</span>}
+                                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </AnimatePresence>
+                            </section>
+                        );
+                    })}
+            </div>
+        )}
       </main>
 
       {/* --- RODAPÉ DINÂMICO (Lê do Admin) --- */}
@@ -1078,7 +1203,7 @@ export default function Home() {
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeSettings.address)}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all"
+                    className={`inline-flex items-center gap-2 ${currentTheme.lightBg} ${currentTheme.text} px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest ${currentTheme.hoverLightBg} transition-all`}
                 >
                     Ver no Google Maps <ExternalLink size={14}/>
                 </a>
@@ -1115,7 +1240,7 @@ export default function Home() {
         <div className="relative flex items-center justify-center">
             <motion.button 
                 onClick={() => setShowCheckout(true)} 
-                className="bg-blue-600 text-white rounded-full p-4 shadow-xl hover:bg-blue-700 active:scale-90" 
+                className={`${currentTheme.primary} text-white rounded-full p-4 shadow-xl ${currentTheme.hoverPrimary} active:scale-90`} 
                 initial={{ scale: 0 }} 
                 animate={{ scale: 1 }}
             >
@@ -1179,7 +1304,7 @@ export default function Home() {
                                       <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
                                           <div 
                                               style={{ width: `${progress}%` }}
-                                              className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-500"
+                                              className={`h-full bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo} transition-all duration-500`}
                                           />
                                       </div>
                                   </>
@@ -1195,6 +1320,11 @@ export default function Home() {
                     {cart.map(item => (
                       <div key={item.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-3"><img src={item.imageUrl} className="w-12 h-12 object-contain rounded-lg bg-white p-1"/><div className="text-sm font-bold">{item.name}</div></div>
+                        {item.observation && (
+    <span className="block text-[10px] text-orange-600 font-bold leading-tight mt-1 bg-orange-50 p-1.5 rounded-md border border-orange-100">
+        Obs: {item.observation}
+    </span>
+)}
                         <div className="flex items-center gap-2">
                           <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus size={16}/></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus size={16}/></button>
                           <button onClick={() => removeFromCart(item.id)} className="p-1 text-red-500"><Trash2 size={16}/></button>
@@ -1217,7 +1347,8 @@ export default function Home() {
                     />
                     <div className="relative">
                       <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
-                      {isCepLoading && <Loader2 className="animate-spin absolute right-5 top-5 text-blue-500"/>}
+                      {/* Ajuste: Usando currentTheme.ringColor */}
+                      {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
                     </div>
                     {customer.street && (
                       <>
@@ -1229,7 +1360,8 @@ export default function Home() {
                   {/* FIM REMOVIDO WRAPPER TOUR DADOS */}
 
                   {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
-                  {deliveryAreaMessage && !cepError && <p className="text-blue-500 text-xs font-bold text-center">{deliveryAreaMessage}</p>}
+                  {/* Ajuste: Usando currentTheme.text */}
+                  {deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center`}>{deliveryAreaMessage}</p>}
 
                   {/* Cupom de Desconto */}
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
@@ -1241,7 +1373,7 @@ export default function Home() {
                       value={couponCode}
                       onChange={e => setCouponCode(e.target.value)}
                     />
-                    <button onClick={applyCoupon} className="bg-blue-600 text-white p-5 rounded-[2rem] font-black uppercase shadow-xl hover:bg-blue-700">Aplicar</button>
+                    <button onClick={applyCoupon} className={`${currentTheme.primary} text-white p-5 rounded-[2rem] font-black uppercase shadow-xl ${currentTheme.hoverPrimary}`}>Aplicar</button>
                   </div>
                   {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
 
@@ -1254,8 +1386,8 @@ export default function Home() {
                                   <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
                                       <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
-                                      <p className="text-blue-600 font-black text-sm">R$ {p.price?.toFixed(2)}</p>
-                                      <button onClick={() => addToCart(p)} className="absolute bottom-3 right-3 p-1.5 bg-blue-600 text-white rounded-full"><Plus size={16}/></button>
+                                      <p className={`${currentTheme.text} font-black text-sm`}>R$ {p.price?.toFixed(2)}</p>
+                                      <button onClick={() => addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
                                   </div>
                               ))}
                           </div>
@@ -1268,7 +1400,7 @@ export default function Home() {
                   <div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
                       {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
-                          <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?'bg-blue-50 border-blue-600 text-blue-600':'border-transparent bg-slate-50 text-slate-400'}`}>
+                          <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?`${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`:'border-transparent bg-slate-50 text-slate-400'}`}>
                               {m.icon} <span className="text-[9px] font-black uppercase mt-1">{m.name}</span>
                           </button>
                       ))}
@@ -1284,10 +1416,10 @@ export default function Home() {
     </span>
 </div>
                         {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
-                        <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span>R$ {finalTotal.toFixed(2)}</span></div>
+                        <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                     </div>
 
-                    <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl hover:bg-blue-700 disabled:opacity-50">
+                    <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}>
                       {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
                     </button>
                   </div>
@@ -1320,7 +1452,7 @@ export default function Home() {
                         ))}
                       </ul>
                       <div className="flex justify-between items-center mt-4">
-                        <p className="font-black text-blue-600 italic">Total: R$ {order.total?.toFixed(2)}</p>
+                        <p className={`${currentTheme.text} italic`}>Total: R$ {order.total?.toFixed(2)}</p>
                         <button onClick={() => repeatOrder(order)} className="bg-orange-600 text-white py-2 px-4 rounded-xl font-bold uppercase text-xs">Repetir Pedido</button>
                       </div>
                     </div>
@@ -1340,7 +1472,7 @@ export default function Home() {
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4"
+                className={`fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo.replace(/\d{2,3}/,'700')} text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4`}
             >
                 <div className="flex items-center gap-3">
                     <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
@@ -1351,7 +1483,7 @@ export default function Home() {
                 </div>
                 <button
                     onClick={handleInstallClick}
-                    className="flex-shrink-0 bg-white text-blue-600 px-4 py-2 rounded-full font-bold text-xs uppercase shadow-md hover:bg-blue-50 active:scale-95 transition-all"
+                    className={`flex-shrink-0 bg-white ${currentTheme.text} px-4 py-2 rounded-full font-bold text-xs uppercase shadow-md ${currentTheme.hoverLightBg.replace('hover:bg-', 'hover:bg-')} active:scale-95 transition-all`}
                 >
                     Instalar App
                 </button>
@@ -1427,10 +1559,11 @@ export default function Home() {
                  setShowCheckout(true); // Abre o carrinho na hora
               }}>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Seu Cupom</p>
-                <p className="text-3xl font-black text-blue-600 uppercase tracking-widest group-hover:scale-110 transition-transform">
+                <p className={`text-3xl font-black ${currentTheme.text} uppercase tracking-widest group-hover:scale-110 transition-transform`}>
                   {marketingSettings.exitIntentCoupon || "VOLTA10"}
                 </p>
-                <p className="text-[9px] text-blue-400 font-bold mt-1">(Clique para Copiar)</p>
+                {/* Ajuste: Usando currentTheme.text */}
+                <p className={`text-[9px] ${currentTheme.text.replace(/\d{2,3}/,'400')} font-bold mt-1`}>(Clique para Copiar)</p>
               </div>
 
               <button 
@@ -1506,17 +1639,17 @@ export default function Home() {
                                     {group.options.map((opt, i) => {
                                         const isSelected = (selectedOptions[group.id] || []).some(o => o.name === opt.name);
                                         return (
-                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-600 bg-blue-50/50' : 'border-transparent bg-white hover:border-slate-200'}`}>
+                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50` : 'border-transparent bg-white hover:border-slate-200'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <input 
                                                         type={group.maxSelections === 1 ? 'radio' : 'checkbox'} 
                                                         checked={isSelected}
                                                         onChange={() => handleOptionToggle(group, opt)}
-                                                        className="accent-blue-600 w-4 h-4 cursor-pointer"
+                                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer`}
                                                     />
-                                                    <span className={`text-sm font-bold ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>{opt.name}</span>
+                                                    <span className={`text-sm font-bold ${isSelected ? `${currentTheme.darkText}` : 'text-slate-600'}`}>{opt.name}</span>
                                                 </div>
-                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? 'text-blue-600' : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
+                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? `${currentTheme.text}` : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
                                             </label>
                                         )
                                     })}
@@ -1532,41 +1665,23 @@ export default function Home() {
                     <textarea 
                         rows="2" 
                         placeholder="Ex: Tirar cebola, maionese à parte..." 
-                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 ring-blue-500 transition-all"
+                        className={`w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 ring-${currentTheme.ringColor} transition-all`}
                         value={itemObservation}
                         onChange={(e) => setItemObservation(e.target.value)}
                     ></textarea>
                 </div>
               </div>
 
-              {/* Rodapé Fixo Atualizado */}
+              {/* Rodapé Fixo Atualizado (Mantido) */}
               <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between gap-4 z-20">
                  <div className="flex flex-col pl-2">
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Total do Item</span>
-                    <span className="text-2xl font-black text-blue-600 italic leading-none">R$ {calculateModalTotal().toFixed(2)}</span>
+                    <span className={`text-2xl font-black ${currentTheme.text} italic leading-none`}>R$ {calculateModalTotal().toFixed(2)}</span>
                  </div>
                  
                  <button 
                     onClick={handleAddCustomToCart} 
-                    className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-                 >
-                    <ShoppingCart size={20} /> Adicionar
-                 </button>
-              </div>
-
-              {/* Rodapé Fixo com Botão de Adicionar */}
-              <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between gap-4">
-                 <div className="flex flex-col pl-2">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Total do Item</span>
-                    <span className="text-2xl font-black text-blue-600 italic leading-none">R$ {Number(selectedProduct.price).toFixed(2)}</span>
-                 </div>
-                 
-                 <button 
-                    onClick={() => {
-                        addToCart(selectedProduct, 1);
-                        setSelectedProduct(null); // Fecha o modal e joga pro carrinho
-                    }} 
-                    className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    className={`flex-1 ${currentTheme.primary} text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl ${currentTheme.shadow.replace('100', '200')} ${currentTheme.hoverPrimary} transition-all flex items-center justify-center gap-2`}
                  >
                     <ShoppingCart size={20} /> Adicionar
                  </button>
