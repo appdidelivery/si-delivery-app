@@ -32,7 +32,7 @@ export const StoreProvider = ({ children }) => {
         window.location.hostname.includes('localhost')
       ) {
           console.log("StoreContext: Ambiente de teste/dev detectado. Ignorando hostname.");
-          currentSlug = null;
+          currentSlug = import.meta.env.VITE_LOJA_LOCAL || 'csi';
       }
 
       const loadStore = (slugToLoad) => {

@@ -1,3 +1,4 @@
+
 import { useStore } from '../context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
@@ -7,8 +8,8 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare
-} from 'lucide-react'; // Adicionado PlusSquare e MinusSquare
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp
+} from 'lucide-react'; // Adicionado PlusSquare, MinusSquare e TrendingUp
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -208,11 +209,25 @@ export default function Admin() {
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const [isModalOpen, setIsModalOpen] = useState(false);
+    // PASSO 1: Atualização do Estado do Formulário (form)
     const [form, setForm] = useState({ 
-        name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0,
-        hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false,
-        quantityDiscounts: [], recommendedIds: []
+        name: '', 
+        price: '', 
+        costPrice: '', // Adicionado
+        promotionalPrice: '', // Adicionado
+        originalPrice: '', 
+        category: '', 
+        imageUrl: '', 
+        tag: '', 
+        stock: 0,
+        hasDiscount: false, 
+        discountPercentage: null, 
+        isFeatured: false, 
+        isBestSeller: false,
+        quantityDiscounts: [], 
+        recommendedIds: []
     });
+
     const [editingId, setEditingId] = useState(null);
     // --- Estado para Edição de Pedido ---
     const [isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
@@ -583,13 +598,13 @@ export default function Admin() {
 
             // 4. Produtos (Catálogo Base)
             const prods = [
-                { name: "Heineken Long Neck 330ml", price: 9.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja Premium gelada." },
-                { name: "Cerveja Corona Extra 330ml", price: 8.50, stock: 60, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Com limão fica melhor." },
-                { name: "Vodka Absolut 1L", price: 119.90, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada original." },
-                { name: "Whisky Red Label 1L", price: 139.90, stock: 10, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "O clássico." },
-                { name: "Gelo em Cubos 5kg", price: 15.00, stock: 50, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Gelo filtrado." },
-                { name: "Carvão Vegetal 4kg", price: 22.00, stock: 30, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Acende fácil." },
-                { name: "Combo Esquenta (Vodka + Energético)", price: 149.90, stock: 20, category: "Combos", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "1 Absolut + 4 Energéticos 2L" }
+                { name: "Heineken Long Neck 330ml", price: 9.90, costPrice: 4.50, promotionalPrice: 8.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja Premium gelada." },
+                { name: "Cerveja Corona Extra 330ml", price: 8.50, costPrice: 4.00, promotionalPrice: 0, stock: 60, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Com limão fica melhor." },
+                { name: "Vodka Absolut 1L", price: 119.90, costPrice: 70.00, promotionalPrice: 0, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada original." },
+                { name: "Whisky Red Label 1L", price: 139.90, costPrice: 85.00, promotionalPrice: 0, stock: 10, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "O clássico." },
+                { name: "Gelo em Cubos 5kg", price: 15.00, costPrice: 8.00, promotionalPrice: 0, stock: 50, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Gelo filtrado." },
+                { name: "Carvão Vegetal 4kg", price: 22.00, costPrice: 12.00, promotionalPrice: 0, stock: 30, category: "Gelo e Carvão", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405479.png", storeId, description: "Acende fácil." },
+                { name: "Combo Esquenta (Vodka + Energético)", price: 149.90, costPrice: 95.00, promotionalPrice: 139.90, stock: 20, category: "Combos", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "1 Absolut + 4 Energéticos 2L" }
             ];
             for (const p of prods) batchPromises.push(addDoc(collection(db, "products"), p));
 
@@ -853,6 +868,20 @@ export default function Admin() {
                     const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
                     const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
 
+                     // PASSO 5: Cálculo do Lucro Real
+                    const todaysProfit = orders
+                        .filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString())
+                        .reduce((totalProfit, order) => {
+                            const orderProfit = (order.items || []).reduce((itemProfit, item) => {
+                                // Usa o preço do item no pedido e o custo (se existir), senão considera custo 0
+                                const salePrice = item.price || 0;
+                                const costPrice = item.costPrice || 0;
+                                const quantity = item.quantity || 0;
+                                return itemProfit + (salePrice - costPrice) * quantity;
+                            }, 0);
+                            return totalProfit + orderProfit;
+                        }, 0);
+
                     return (
                         <div className="space-y-8">
                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -869,11 +898,17 @@ export default function Admin() {
                                     </div>
                                 </div>
                             )}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
                                     <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento Hoje</p>
                                     <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
                                     <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
+                                </div>
+                                 {/* PASSO 5: Card de Lucro Real */}
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Lucro Hoje</p>
+                                    <p className="text-4xl font-black text-cyan-500 italic z-10 relative">R$ {todaysProfit.toFixed(2)}</p>
+                                    <div className="absolute -right-4 -bottom-4 text-cyan-50 opacity-20"><TrendingUp size={120}/></div>
                                 </div>
                                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
                                     <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
@@ -1035,7 +1070,8 @@ export default function Admin() {
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds: [], complements: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
+                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds: [], complements: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -1057,14 +1093,29 @@ export default function Admin() {
                             {products.filter(p => 
                                 p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
                                 p.category.toLowerCase().includes(productSearch.toLowerCase())
-                            ).map(p => (                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
+                            ).map(p => (                                
+                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
                                     <img src={p.imageUrl} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" />
                                     <div className="flex-1">
                                         <p className="font-bold text-slate-800 leading-tight mb-1">{p.name}</p>
-                                        <p className="text-blue-600 font-black">R$ {Number(p.price)?.toFixed(2)}</p>
+                                        {/* PASSO 4: Exibição dos novos preços na listagem */}
+                                        <div className='flex items-end gap-2'>
+                                            <p className={`text-blue-600 font-black text-lg ${p.promotionalPrice > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
+                                                R$ {Number(p.price)?.toFixed(2)}
+                                            </p>
+                                            {p.promotionalPrice > 0 && (
+                                                <p className="text-orange-500 font-black text-lg">
+                                                    R$ {Number(p.promotionalPrice)?.toFixed(2)}
+                                                </p>
+                                            )}
+                                        </div>
+                                        {p.costPrice > 0 && (
+                                             <p className="text-xs font-bold text-slate-400">Custo: R$ {Number(p.costPrice).toFixed(2)}</p>
+                                        )}
                                         <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
                                     </div>
                                     <div className="flex flex-col gap-2">
+                                        {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
                                         <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds || [] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
@@ -1176,7 +1227,7 @@ export default function Admin() {
                                             customerName: manualCustomer.name, 
                                             customerAddress: finalAddress, 
                                             customerPhone: manualCustomer.phone, 
-                                            items: manualCart, 
+                                            items: manualCart, // costPrice já está aqui
                                             shippingFee: manualShippingFee, 
                                             total: totalWithShipping, 
                                             status: 'pending', 
@@ -1224,8 +1275,18 @@ export default function Admin() {
                                         className="manual-product-item w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200 group"
                                         onClick={() => {
                                             const ex = manualCart.find(it => it.id === p.id);
-                                            if (ex) setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it)); 
-                                            else setManualCart([...manualCart, { ...p, quantity: 1 }]);
+                                            if (ex) {
+                                                setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
+                                            } else {
+                                                // PASSO 5 (continuação): Salvar o costPrice no item do carrinho
+                                                const productToAdd = { 
+                                                    ...p, 
+                                                    quantity: 1, 
+                                                    // Usar preço promocional se houver, senão o normal
+                                                    price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
+                                                };
+                                                setManualCart([...manualCart, productToAdd]);
+                                            }
                                         }} 
                                     >
                                         <div className="flex items-center gap-3 text-left">
@@ -1235,8 +1296,8 @@ export default function Admin() {
                                                 <span className="text-[10px] font-bold text-slate-400">Estoque: {p.stock}</span>
                                             </div>
                                         </div>
-                                        <span className="bg-blue-600 text-white px-3 py-1 rounded-xl text-[10px] font-black group-hover:scale-110 transition-transform">
-                                            R$ {Number(p.price).toFixed(2)}
+                                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black group-hover:scale-110 transition-transform ${p.promotionalPrice > 0 ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'}`}>
+                                            R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}
                                         </span>
                                     </button>
                                 ))}
@@ -1824,15 +1885,55 @@ export default function Admin() {
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                const data = { ...form, price: parseFloat(form.price), stock: parseInt(form.stock || 0), storeId: storeId };
+                                // PASSO 3: Parse dos novos campos antes de salvar
+                                const data = { 
+                                    ...form, 
+                                    price: parseFloat(form.price) || 0, 
+                                    costPrice: parseFloat(form.costPrice) || 0,
+                                    promotionalPrice: parseFloat(form.promotionalPrice) || 0,
+                                    stock: parseInt(form.stock || 0), 
+                                    storeId: storeId 
+                                };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
                                 <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input type="number" step="0.01" placeholder="Preço" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
-                                    <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                
+                                {/* PASSO 2: Atualização da UI do Modal de Produto */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Custo (R$)</label>
+                                        <input type="number" step="0.01" placeholder="0.00" className="w-full p-4 bg-slate-50 rounded-xl outline-none font-bold border-none" value={form.costPrice} onChange={e => setForm({ ...form, costPrice: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Venda (R$)</label>
+                                        <input type="number" step="0.01" placeholder="0.00" className="w-full p-4 bg-slate-50 rounded-xl outline-none font-bold border-none" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Promo (R$)</label>
+                                        <input type="number" step="0.01" placeholder="Opcional" className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl outline-none font-bold border-none" value={form.promotionalPrice} onChange={e => setForm({ ...form, promotionalPrice: e.target.value })} />
+                                    </div>
                                 </div>
+                                
+                                {/* PASSO 2 (continuação): Badge de cálculo de lucro */}
+                                {(() => {
+                                    const cost = parseFloat(form.costPrice) || 0;
+                                    const salePrice = parseFloat(form.promotionalPrice) > 0 ? parseFloat(form.promotionalPrice) : parseFloat(form.price) || 0;
+                                    if (cost > 0 && salePrice > 0) {
+                                        const profitValue = salePrice - cost;
+                                        const profitMargin = (profitValue / salePrice) * 100;
+                                        return (
+                                            <div className="text-center bg-slate-50 p-2 rounded-xl text-xs font-bold text-slate-500">
+                                                Lucro: <span className="text-green-600">R$ {profitValue.toFixed(2)}</span> ({profitMargin.toFixed(1)}%)
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+
+
+                                <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+
                                 <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
