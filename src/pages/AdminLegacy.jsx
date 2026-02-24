@@ -1,3 +1,4 @@
+
 import { useStore } from '../context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
@@ -62,6 +63,20 @@ export default function Admin() {
         return () => unsubscribeAuth();
     }, [navigate]);
 
+    const handleAssinarPro = async () => {
+        try {
+            const response = await fetch('/api/checkout-pro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: store.slug })
+            });
+            const data = await response.json();
+            if (data.url) window.location.href = data.url;
+            else alert("Erro: " + data.error);
+        } catch (error) {
+            alert("Erro de conexão.");
+        }
+    };
    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (AGORA COM SUPORTE A URL) 🚨
     let storeId = null;
     const hostname = window.location.hostname;
@@ -136,10 +151,6 @@ export default function Admin() {
         status: 'open'
     });
     const [showPixModal, setShowPixModal] = useState(false);
-    // --- NOVOS ESTADOS PARA O CLUBE DE FIDELIDADE ---
-    const [loyaltyUsers, setLoyaltyUsers] = useState([]);
-    const [showWinnersOnly, setShowWinnersOnly] = useState(false);
-
 
     // --- 🚨 CÓDIGO DE RESGATE AUTOMÁTICO (COLE AQUI) 🚨 ---
     useEffect(() => {
@@ -361,55 +372,11 @@ export default function Admin() {
         // Cupons
         const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        // NOVO: Listener para Clientes/Usuários (para o Clube Fidelidade)
-        const unsubUsers = onSnapshot(query(collection(db, "users"), where("storeId", "==", storeId)), (snapshot) => {
-            setLoyaltyUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
         return () => { 
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons();
-            unsubUsers(); // Adicionado unsubUsers
         };
     }, [storeId]);
-    
-    // --- NOVA FUNÇÃO PARA RESGATAR PRÊMIO ---
-    const handleRedeemReward = async (customer) => {
-        if (!customer.userId) {
-            alert("Erro: Cliente não possui um cadastro vinculado para o resgate de pontos.");
-            return;
-        }
-
-        const pointsToRedeem = settings.loyaltyGoal || 0;
-        if (pointsToRedeem <= 0) {
-             alert("Erro: A meta de pontos do clube de fidelidade não está configurada.");
-             return;
-        }
-
-        if (window.confirm(`Confirmar entrega do prêmio para ${customer.name}? \n\nIsso irá abater ${pointsToRedeem} pontos do saldo atual do cliente.`)) {
-            try {
-                const userRef = doc(db, "users", customer.userId);
-                const userSnap = await getDoc(userRef);
-
-                if (!userSnap.exists()) throw new Error("Documento do usuário não encontrado no banco de dados.");
-
-                const currentRedeemed = userSnap.data().redeemedPoints || 0;
-                const newRedeemedPoints = currentRedeemed + pointsToRedeem;
-
-                await updateDoc(userRef, {
-                    redeemedPoints: newRedeemedPoints,
-                    lastRedemptionAt: serverTimestamp()
-                });
-
-                alert("Prêmio entregue e pontos atualizados com sucesso!");
-
-            } catch (error) {
-                console.error("Erro ao resgatar prêmio:", error);
-                alert("Ocorreu um erro ao processar o resgate: " + error.message);
-            }
-        }
-    };
-
 
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (file) => {
@@ -683,41 +650,11 @@ export default function Admin() {
         }
     };
 
-    // --- LÓGICA ATUALIZADA PARA O RANKING DE CLIENTES COM PONTOS ---
-    const customerRanking = Object.values(orders.reduce((acc, o) => {
-        const p = (o.customerPhone || 'N/A').replace(/\D/g, '');
-        if (p === 'NA' || p.length < 8) return acc; // Ignora pedidos sem telefone válido
-
-        if (!acc[p]) {
-            acc[p] = {
-                name: o.customerName || 'Sem nome',
-                phone: o.customerPhone, // Guarda o original para exibição
-                normalizedPhone: p,
-                total: 0,
-                count: 0
-            };
-        }
-        acc[p].total += Number(o.total || 0);
-        acc[p].count += 1;
-        return acc;
-    }, {}))
-    .map(customer => {
-        // Encontra o usuário correspondente no estado que carregamos
-        const user = loyaltyUsers.find(u => u.phone?.replace(/\D/g, '') === customer.normalizedPhone);
-        
-        const totalPointsEarned = Math.floor(customer.total * (settings.pointsPerReal || 1));
-        const pointsRedeemed = user?.redeemedPoints || 0;
-        const currentPoints = totalPointsEarned - pointsRedeemed;
-        const hasMetGoal = settings.loyaltyGoal > 0 && currentPoints >= settings.loyaltyGoal;
-
-        return {
-            ...customer,
-            userId: user?.id, // Essencial para a função de resgate
-            currentPoints: currentPoints,
-            hasMetGoal: hasMetGoal,
-        };
-    })
-    .sort((a, b) => b.total - a.total);
+    const customers = Object.values(orders.reduce((acc, o) => {
+        const p = o.customerPhone || 'N/A';
+        if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
+        acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
+    }, {})).sort((a, b) => b.total - a.total);
 
     // --- ALTERAÇÃO INICIADA: FUNÇÕES PARA MANIPULAR ITENS NO MODAL DE EDIÇÃO ---
     const handleAddProductToEditingOrder = (productToAdd) => {
@@ -941,7 +878,7 @@ export default function Admin() {
                 {activeTab === 'dashboard' && (() => {
                     const totalProducts = products.length;
                     const totalOrders = orders.length;
-                    const totalCustomers = customerRanking.length;
+                    const totalCustomers = customers.length;
                     const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
                     const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
 
@@ -1201,85 +1138,20 @@ export default function Admin() {
                         </div>
                     </div>
                 )}
-                
-                {/* --- ABA DE CLIENTES VIP ATUALIZADA --- */}
+
                 {activeTab === 'customers' && (
                     <div className="space-y-6">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-                            <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">RANKING VIP</h1>
-                            {settings.loyaltyActive && (
-                                <button 
-                                    onClick={() => setShowWinnersOnly(!showWinnersOnly)}
-                                    className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all border-2 flex items-center gap-2 ${showWinnersOnly ? 'bg-amber-400 text-white border-amber-400 shadow-lg' : 'bg-white text-slate-500 border-slate-200'}`}
-                                >
-                                    <Trophy size={16}/> {showWinnersOnly ? 'Mostrando Ganhadores' : 'Filtrar Ganhadores'}
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Mensagem se o clube estiver desativado */}
-                        {!settings.loyaltyActive && (
-                            <div className="bg-purple-50 text-purple-700 p-6 rounded-3xl text-center font-bold border border-purple-200">
-                                O <span className="font-black">Clube Fidelidade</span> está desativado. Ative na aba <button onClick={() => setActiveTab('marketing')} className="underline font-black">Marketing</button> para ver e gerenciar os pontos.
-                            </div>
-                        )}
-
+                        <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 mb-10 text-center">RANKING VIP</h1>
                         <div className="grid gap-4 max-w-4xl mx-auto">
-                            {customerRanking
-                                .filter(c => !showWinnersOnly || c.hasMetGoal)
-                                .map((c, i) => (
-                                <div key={c.phone} className={`bg-white p-6 md:p-8 rounded-[3.5rem] shadow-sm border transition-all ${c.hasMetGoal ? 'border-amber-400 border-2 shadow-amber-100' : 'border-slate-100'}`}>
-                                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                                        <div className="flex items-center gap-6 w-full md:w-auto">
-                                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl shrink-0 ${i === 0 && !showWinnersOnly ? 'bg-amber-400 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>
-                                                {i === 0 && !showWinnersOnly ? <Crown /> : i + 1}
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">{c.name}</h3>
-                                                <p className="text-slate-400 font-bold text-xs tracking-widest">{c.phone}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right flex items-center gap-4">
-                                            {/* Pontos de Fidelidade */}
-                                            {settings.loyaltyActive && (
-                                                <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-2xl text-center">
-                                                    <p className="text-[9px] font-black uppercase">Pontos</p>
-                                                    <p className="font-black text-2xl leading-none">{c.currentPoints}</p>
-                                                </div>
-                                            )}
-                                            <div>
-                                                <p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">Total Comprado</p>
-                                                <p className="text-2xl md:text-3xl font-black text-blue-600 italic">R$ {c.total.toFixed(2)}</p>
-                                            </div>
-                                        </div>
+                            {customers.map((c, i) => (
+                                <div key={i} className="bg-white p-8 rounded-[3.5rem] shadow-sm border border-slate-100 flex items-center justify-between hover:scale-[1.02] transition-all">
+                                    <div className="flex items-center gap-6">
+                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl ${i === 0 ? 'bg-amber-400 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>{i === 0 ? <Crown /> : i + 1}</div>
+                                        <div><h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">{c.name}</h3><p className="text-slate-400 font-bold text-xs tracking-widest">{c.phone}</p></div>
                                     </div>
-                                    
-                                    {/* Seção do Prêmio */}
-                                    {c.hasMetGoal && settings.loyaltyActive && (
-                                        <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 bg-amber-50 p-4 rounded-3xl animate-in fade-in">
-                                            <div className="font-bold text-amber-600 flex items-center gap-2 text-sm uppercase">
-                                                🎁 PRÊMIO DISPONÍVEL!
-                                                <span className="text-xs normal-case font-medium text-amber-500">
-                                                    (Meta: {settings.loyaltyGoal} pts)
-                                                </span>
-                                            </div>
-                                            <button 
-                                                onClick={() => handleRedeemReward(c)}
-                                                disabled={!c.userId}
-                                                className="w-full md:w-auto bg-slate-800 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all disabled:bg-slate-300 disabled:cursor-not-allowed"
-                                                title={!c.userId ? "Cliente sem cadastro, não é possível resgatar." : "Confirmar entrega do prêmio"}
-                                            >
-                                                Entregar Prêmio e Zerar Pontos
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div className="text-right"><p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">Total Comprado</p><p className="text-3xl font-black text-blue-600 italic">R$ {c.total.toFixed(2)}</p></div>
                                 </div>
                             ))}
-                            {customerRanking.filter(c => !showWinnersOnly || c.hasMetGoal).length === 0 && (
-                                <div className="text-center py-10">
-                                    <p className="font-bold text-slate-500">{showWinnersOnly ? "Nenhum cliente atingiu a meta de prêmios ainda." : "Nenhum cliente VIP encontrado."}</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
@@ -1665,9 +1537,13 @@ export default function Admin() {
                                     </div>
                                 </div>
 
-                                <button onClick={() => setShowPixModal(true)} className="relative z-10 w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                    <QrCode size={20}/> Pagar com Pix
-                                </button>
+                                <button onClick={handleAssinarPro} className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-purple-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+        💳 Assinar com Cartão
+    </button>
+    
+    <button onClick={() => setShowPixModal(true)} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2">
+        <QrCode size={20}/> Pagar com Pix
+    </button>
                             </div>
 
                             {/* Monitor de Infraestrutura */}
