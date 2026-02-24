@@ -1,37 +1,42 @@
 import Stripe from 'stripe';
 
-// Puxa a chave secreta que escondemos no .env
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 export default async function handler(req, res) {
+  // 1. Permite apenas POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
-    const { storeId } = req.body; // Pega o ID da loja (ex: 'ng') que está assinando
+    // 2. Trava de Segurança: Verifica se a Vercel está lendo a senha
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("A chave da Stripe não foi encontrada na Vercel (STRIPE_SECRET_KEY).");
+    }
 
+    // 3. Inicia a Stripe com a senha garantida
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const { storeId } = req.body;
+
+    // 4. Cria a sessão
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          // Cole aqui o ID do Preço que você copiou no Passo 1!
-          price: 'price_1T4Q2k6iD1OCwvLcBw6fUw6a', 
+          price: 'price_1T4Q2k6iD10CwvLcBw6fUw6a', // Seu ID correto!
           quantity: 1,
         },
       ],
-      mode: 'subscription', // Modo Assinatura (Mensalidade)
-      // Para onde o lojista volta depois de pagar:
+      mode: 'subscription',
       success_url: `https://${req.headers.host}/admin?session_id={CHECKOUT_SESSION_ID}&success=true`,
       cancel_url: `https://${req.headers.host}/admin?canceled=true`,
-      client_reference_id: storeId, // Isso é vital: avisa a Stripe qual loja está pagando!
+      client_reference_id: storeId || 'loja_desconhecida',
     });
 
-    // Devolve o link de pagamento seguro para o seu React redirecionar o lojista
+    // 5. Devolve o link
     return res.status(200).json({ url: session.url });
 
   } catch (error) {
-    console.error("Erro na Stripe:", error);
+    // Agora o erro exato vai aparecer no log da Vercel e no navegador!
+    console.error("Erro na API da Stripe:", error);
     return res.status(500).json({ error: error.message });
   }
 }
