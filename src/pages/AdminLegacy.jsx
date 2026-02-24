@@ -1,7 +1,7 @@
 
-import { useStore } from '../context/StoreContext';
+import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../services/firebase';
+import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
     addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
@@ -13,7 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { getStoreIdFromHostname } from '../utils/domainHelper';
+import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;

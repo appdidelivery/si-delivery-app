@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db, auth } from '../services/firebase'; // Importar 'auth' para pegar o usuário logado
+import { db, auth } from '../../src/services/firebase'; // Importar 'auth' para pegar o usuário logado
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore'; // Importar updateDoc
 import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2 } from 'lucide-react'; // Adicionado Star e Loader2
 import { motion } from 'framer-motion';
-import { enviarAvaliacao } from '../services/reviewService';
+import { enviarAvaliacao } from '../../src/services/reviewService';
 
 export default function Tracking() {
   const { orderId } = useParams();

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../services/firebase';
+import { db } from '../../src/services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import SEO from '../components/SEO';
+import SEO from '../../src/components/SEO';
 
 // REMOVIDO: IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR (Joyride)
 // import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride'; 
@@ -14,7 +14,7 @@ import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; 
 
 // Importa o helper para obter o storeId
-import { getStoreIdFromHostname } from '../utils/domainHelper';
+import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
 
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
