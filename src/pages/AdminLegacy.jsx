@@ -103,6 +103,29 @@ export default function Admin() {
             alert("Erro de conexão ao tentar configurar recebimentos.");
         }
     };
+    // --- ABRIR PAINEL FINANCEIRO DO LOJISTA ---
+    const handleOpenStripeDashboard = async () => {
+        try {
+            if (!storeStatus.stripeConnectId) return alert("Conta não conectada.");
+            
+            const response = await fetch('/api/create-login-link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stripeConnectId: storeStatus.stripeConnectId })
+            });
+            
+            const data = await response.json();
+            
+            if (data.url) {
+                window.open(data.url, '_blank');
+            } else {
+                alert("Erro ao abrir o painel financeiro: " + (data.error || "Desconhecido"));
+            }
+        } catch (error) {
+            console.error("Erro:", error);
+            alert("Erro de conexão ao tentar abrir o painel financeiro.");
+        }
+    };
 
    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (AGORA COM SUPORTE A URL) 🚨
     let storeId = null;
@@ -1744,9 +1767,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
                                     <div>
                                         <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Bancária Conectada</p>
-                                        <p className="text-green-600 font-bold text-xs mt-1">ID da Conta: {storeStatus.stripeConnectId}</p>
+                                        <p className="text-green-600 font-bold text-xs mt-1">ID: {storeStatus.stripeConnectId}</p>
                                     </div>
-                                    <span className="bg-green-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase shadow-lg">Recebimentos Ativos</span>
+                                    
+                                    <button 
+                                        onClick={handleOpenStripeDashboard} 
+                                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        Ver Extrato e Saques <ExternalLink size={16} />
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
