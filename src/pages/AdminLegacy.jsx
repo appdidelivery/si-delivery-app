@@ -532,7 +532,7 @@ export default function Admin() {
         const messages = {
             preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
             delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.`,
-            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência na *${lojaNome}*!`,
+            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n*Poderia nos dar uma força?* Avalie nossa loja no Google, leva apenas 30 segundos: \n👉 https://g.page/r/CTEL4f6nFgE_EBE/review`,
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
         if (messages[newStatus]) {
