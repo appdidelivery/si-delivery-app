@@ -2267,20 +2267,30 @@ export default function Admin() {
                                     const currentSubtotal = editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
                                     const newTotal = currentSubtotal + Number(editingOrderData.shippingFee || 0);
 
-                                    const updatedData = {
-                                        customerName: editingOrderData.customerName,
-                                        customerAddress: editingOrderData.customerAddress,
-                                        customerPhone: editingOrderData.customerPhone,
-                                        paymentMethod: editingOrderData.paymentMethod,
-                                        changeFor: editingOrderData.paymentMethod === 'dinheiro' ? editingOrderData.changeFor : '',
-                                        observation: editingOrderData.observation || '', 
-                                        status: editingOrderData.status,
-                                        shippingFee: Number(editingOrderData.shippingFee || 0),
-                                        items: editingOrderData.items, 
-                                        total: newTotal, 
-                                    };
+                                    // --- CORREÇÃO DEFINITIVA (BLINDAGEM DO PAYLOAD) ---
+                                    // Este objeto será enviado para o Firestore, então garantimos
+                                    // que NENHUM campo seja 'undefined'.
 
-                                    await updateDoc(doc(db, "orders", editingOrderData.id), updatedData);
+                                    const dataParaSalvar = {
+                                        customerName: editingOrderData.customerName || '',
+                                        customerAddress: editingOrderData.customerAddress || '',
+                                        customerPhone: editingOrderData.customerPhone || '',
+                                        // **FIX CRÍTICO**: Se paymentMethod for nulo ou undefined, usa 'pix' como um padrão seguro.
+                                        paymentMethod: editingOrderData.paymentMethod ?? 'pix', 
+                                        observation: editingOrderData.observation || '',
+                                        status: editingOrderData.status || 'pending',
+                                        shippingFee: Number(editingOrderData.shippingFee || 0),
+                                        items: editingOrderData.items || [],
+                                        total: newTotal,
+                                    };
+                                    
+                                    // O campo 'troco' depende do método de pagamento já sanitizado
+                                    dataParaSalvar.changeFor = dataParaSalvar.paymentMethod === 'dinheiro' 
+                                        ? (editingOrderData.changeFor || '') 
+                                        : '';
+
+                                    await updateDoc(doc(db, "orders", editingOrderData.id), dataParaSalvar);
+                                    
                                     setIsOrderEditModalOpen(false);
                                     alert("Pedido atualizado com sucesso!");
                                 } catch (error) {
