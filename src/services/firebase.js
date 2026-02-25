@@ -1,16 +1,12 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "AIzaSyD_LdDobMQqltW6ejDwibcyoeUoX_BoHEs",
-    authDomain: "zetesteapp.firebaseapp.com",
-    projectId: "zetesteapp",
-    storageBucket: "zetesteapp.appspot.com",
-    messagingSenderId: "344839359009",
-    appId: "1:344839359009:web:c5e4af43649c5a39d8f160"
+  apiKey: "AIzaSyD_LdDobMQqltW6ejDwibcyoeUoX_BoHEs",
+  authDomain: "zetesteapp.firebaseapp.com",
+  projectId: "zetesteapp",
+  storageBucket: "zetesteapp.firebasestorage.app",
+  messagingSenderId: "344839359009",
+  appId: "1:344839359009:web:b32b55db00fde287d8f160",
+  measurementId: "G-04P0556W47"
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Aqui embaixo continua o resto do seu código (initializeApp, etc...)

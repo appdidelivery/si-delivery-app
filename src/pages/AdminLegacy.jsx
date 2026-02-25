@@ -1010,12 +1010,17 @@ export default function Admin() {
                                     <div className="flex flex-wrap justify-end gap-2 md:gap-3">
                                         <button 
                                             onClick={() => {
-                                                const orderCopy = { ...o };
-                                                if (orderCopy.address && typeof orderCopy.address === 'object') {
-                                                    orderCopy.address = { ...orderCopy.address }; 
-                                                }
-                                                orderCopy.items = orderCopy.items ? orderCopy.items.map(item => ({ ...item })) : []; 
-                                                setEditingOrderData(orderCopy);
+                                                
+                                                const initialDataForModal = {
+                                                    ...o, // Começa com os dados originais do pedido
+                                                    paymentMethod: o.paymentMethod || 'pix', // Define um fallback caso o campo não exista
+                                                    items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) : [], // Garante que 'items' é um array
+                                                    shippingFee: o.shippingFee || 0,
+                                                    customerName: o.customerName || '',
+                                                    customerAddress: o.customerAddress || '',
+                                                    customerPhone: o.customerPhone || ''
+                                                };
+                                                setEditingOrderData(initialDataForModal);
                                                 setIsOrderEditModalOpen(true);
                                             }} 
                                             className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
