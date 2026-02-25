@@ -1,4 +1,3 @@
-
 import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../src/services/firebase';
@@ -8,8 +7,8 @@ import {
 } from 'firebase/firestore';
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp
-} from 'lucide-react'; // Adicionado PlusSquare, MinusSquare e TrendingUp
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark
+} from 'lucide-react'; // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +19,7 @@ const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 // --- DIAS DA SEMANA PARA A AGENDA ---
-const DAYS_OF_WEEK = [
+const DAYS_OF_WEEK =[
   { id: 1, label: 'Segunda', short: 'SEG' },
   { id: 2, label: 'Terça', short: 'TER' },
   { id: 3, label: 'Quarta', short: 'QUA' },
@@ -31,7 +30,7 @@ const DAYS_OF_WEEK = [
 ];
 
 // --- ITENS DE NAVEGAÇÃO COMPLETA (USADO PARA DESKTOP E MOBILE) ---
-const allNavItems = [
+const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
     { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
@@ -64,22 +63,47 @@ export default function Admin() {
     }, [navigate]);
 
     const handleAssinarPro = async () => {
-    try {
-        // Usamos o storeId que já foi identificado na lógica acima
-        if (!storeId) return alert("Erro: Loja não identificada.");
+        try {
+            // Usamos o storeId que já foi identificado na lógica acima
+            if (!storeId) return alert("Erro: Loja não identificada.");
 
-        const response = await fetch('/api/checkout-pro', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ storeId: storeId }) // Mudamos de store.slug para storeId
-        });
-        const data = await response.json();
-        if (data.url) window.location.href = data.url;
-        else alert("Erro: " + data.error);
-    } catch (error) {
-        alert("Erro de conexão.");
-    }
-};
+            const response = await fetch('/api/checkout-pro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: storeId }) // Mudamos de store.slug para storeId
+            });
+            const data = await response.json();
+            if (data.url) window.location.href = data.url;
+            else alert("Erro: " + data.error);
+        } catch (error) {
+            alert("Erro de conexão.");
+        }
+    };
+
+    // --- INTEGRAÇÃO STRIPE CONNECT EXPRESS ---
+    const handleConectarBanco = async () => {
+        try {
+            if (!storeId) return alert("Erro: Loja não identificada.");
+
+            const response = await fetch('/api/create-connect-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: storeId })
+            });
+            
+            const data = await response.json();
+            
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                alert("Erro ao conectar com a Stripe: " + (data.error || "Erro desconhecido"));
+            }
+        } catch (error) {
+            console.error("Erro ao conectar banco:", error);
+            alert("Erro de conexão ao tentar configurar recebimentos.");
+        }
+    };
+
    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (AGORA COM SUPORTE A URL) 🚨
     let storeId = null;
     const hostname = window.location.hostname;
@@ -140,7 +164,7 @@ export default function Admin() {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
-    const [generalBanners, setGeneralBanners] = useState([]);
+    const[generalBanners, setGeneralBanners] = useState([]);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     // Estado da Busca
     const [productSearch, setProductSearch] = useState('');
@@ -195,8 +219,33 @@ export default function Admin() {
         };
 
         rescueLostUser();
-    }, [storeId, navigate]); 
+    },[storeId, navigate]); 
     // --- FIM DO CÓDIGO DE RESGATE ---
+
+    // --- RETORNO DO ONBOARDING STRIPE ---
+    useEffect(() => {
+        const checkStripeOnboarding = async () => {
+            const params = new URLSearchParams(window.location.search);
+            const stripeConnectedId = params.get('stripe_connected');
+
+            if (stripeConnectedId && storeId) {
+                try {
+                    await updateDoc(doc(db, "stores", storeId), {
+                        stripeConnectId: stripeConnectedId,
+                        paymentsEnabled: true
+                    });
+                    alert("✅ Conta bancária conectada com sucesso!");
+                    navigate('/admin', { replace: true });
+                } catch (error) {
+                    console.error("Erro ao salvar conta Stripe:", error);
+                    alert("Erro ao confirmar integração com a Stripe.");
+                }
+            }
+        };
+
+        checkStripeOnboarding();
+    }, [storeId, navigate]);
+
     // Efeito para calcular a fatura em tempo real (Cole isso logo abaixo do useEffect principal dos Pedidos)
     useEffect(() => {
         if(orders.length > 0 || products.length > 0) {
@@ -226,7 +275,7 @@ export default function Admin() {
     }, [orders, products, generalBanners]);
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const[isModalOpen, setIsModalOpen] = useState(false);
     // PASSO 1: Atualização do Estado do Formulário (form)
     const [form, setForm] = useState({ 
         name: '', 
@@ -242,19 +291,19 @@ export default function Admin() {
         discountPercentage: null, 
         isFeatured: false, 
         isBestSeller: false,
-        quantityDiscounts: [], 
+        quantityDiscounts:[], 
         recommendedIds: []
     });
 
     const [editingId, setEditingId] = useState(null);
     // --- Estado para Edição de Pedido ---
-    const [isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
+    const[isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
     const [editingOrderData, setEditingOrderData] = useState(null);
     const [editOrderProductSearch, setEditOrderProductSearch] = useState(''); // Estado de busca para o modal de edição
     // Estado para o frete do pedido manual
-    const [manualShippingFee, setManualShippingFee] = useState(0);
+    const[manualShippingFee, setManualShippingFee] = useState(0);
     // Categorias
-    const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+    const[isCatModalOpen, setIsCatModalOpen] = useState(false);
     const [catForm, setCatForm] = useState({ name: '' });
     const [editingCatId, setEditingCatId] = useState(null);
 
@@ -263,10 +312,10 @@ export default function Admin() {
     const [bannerForm, setBannerForm] = useState({ imageUrl: '', linkTo: '', order: 0, isActive: true });
     const [editingBannerId, setEditingBannerId] = useState(null);
     const [bannerImageFile, setBannerImageFile] = useState(null);
-    const [uploadingBannerImage, setUploadingBannerImage] = useState(false);
+    const[uploadingBannerImage, setUploadingBannerImage] = useState(false);
 
     // Pedido Manual
-    const [manualCart, setManualCart] = useState([]);
+    const[manualCart, setManualCart] = useState([]);
     const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
 
     // Uploads
@@ -293,18 +342,18 @@ export default function Admin() {
     // Promoção Relâmpago
     const [promoBannerFile1, setPromoBannerFile1] = useState(null);
     const [promoBannerFile2, setPromoBannerFile2] = useState(null);
-    const [promoBannerFile3, setPromoBannerFile3] = useState(null);
-    const [uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
+    const[promoBannerFile3, setPromoBannerFile3] = useState(null);
+    const[uploadingPromoBanner, setUploadingPromoBanner] = useState(false);
 
     // Fretes
-    const [manualCep, setManualCep] = useState('');
+    const[manualCep, setManualCep] = useState('');
     const [shippingRates, setShippingRates] = useState([]);
-    const [isRateModalOpen, setIsRateModalOpen] = useState(false);
-    const [rateForm, setRateForm] = useState({ neighborhood: '', fee: '', cepStart: '', cepEnd: '' });
-    const [editingRateId, setEditingRateId] = useState(null);
+    const[isRateModalOpen, setIsRateModalOpen] = useState(false);
+    const[rateForm, setRateForm] = useState({ neighborhood: '', fee: '', cepStart: '', cepEnd: '' });
+    const[editingRateId, setEditingRateId] = useState(null);
 
     // Cupons
-    const [coupons, setCoupons] = useState([]);
+    const[coupons, setCoupons] = useState([]);
     const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
     const [couponForm, setCouponForm] = useState({
         code: '', type: 'percentage', value: 0, minimumOrderValue: 0,
@@ -346,7 +395,7 @@ export default function Admin() {
 
         // Configurações (Promoção)
         const mkRef = doc(db, "settings", storeId);
-        getDoc(mkRef).then(s => !s.exists() && setDoc(mkRef, { promoActive: false, promoBannerUrls: [], storeId: storeId }, { merge: true }));
+        getDoc(mkRef).then(s => !s.exists() && setDoc(mkRef, { promoActive: false, promoBannerUrls:[], storeId: storeId }, { merge: true }));
         const unsubMk = onSnapshot(mkRef, (d) => d.exists() && setSettings(d.data()));
 
         // Status da Loja (Nome, Logo, Aberto/Fechado)
@@ -381,7 +430,7 @@ export default function Admin() {
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); // <-- Adicione o unsubLoyalty aqui
         };
-    }, [storeId]);
+    },[storeId]);
     
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (file) => {
@@ -426,9 +475,9 @@ export default function Admin() {
     const handlePromoBannerUpload = async () => {
         setUploadingPromoBanner(true);
         const currentUrls = [...(settings.promoBannerUrls || [])];
-        const newUrls = [...currentUrls]; 
+        const newUrls =[...currentUrls]; 
 
-        const uploadPromises = [];
+        const uploadPromises =[];
 
         const processSlot = async (file, index) => {
             if (file) { 
@@ -480,8 +529,7 @@ export default function Admin() {
     const handleScheduleChange = (dayId, field, value) => {
         const currentSchedule = storeStatus.schedule || {};
         const newSchedule = {
-            ...currentSchedule,
-            [dayId]: {
+            ...currentSchedule,[dayId]: {
                 ...currentSchedule[dayId],
                 [field]: value
             }
@@ -494,7 +542,7 @@ export default function Admin() {
 
     const printLabel = (o) => {
         const w = window.open('', '_blank');
-        const itemsHtml = (o.items || []).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name}</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
+        const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name}</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
         // Formata a data
@@ -546,7 +594,7 @@ export default function Admin() {
         }
     };
 
-    const handleAddQuantityDiscount = () => setForm(prev => ({ ...prev, quantityDiscounts: [...prev.quantityDiscounts, { minQuantity: 1, type: 'percentage', value: 0, description: '' }] }));
+    const handleAddQuantityDiscount = () => setForm(prev => ({ ...prev, quantityDiscounts:[...prev.quantityDiscounts, { minQuantity: 1, type: 'percentage', value: 0, description: '' }] }));
     const handleUpdateQuantityDiscount = (index, field, value) => { const newDiscounts = [...form.quantityDiscounts]; newDiscounts[index][field] = value; setForm(prev => ({ ...prev, quantityDiscounts: newDiscounts })); };
     const handleRemoveQuantityDiscount = (index) => setForm(prev => ({ ...prev, quantityDiscounts: prev.quantityDiscounts.filter((_, i) => i !== index) }));
 
@@ -564,7 +612,7 @@ export default function Admin() {
         if (!window.confirm("Isso vai criar todos os dados iniciais da sua loja. Confirmar?")) return;
         
         try {
-            const batchPromises = [];
+            const batchPromises =[];
             
             // --- CORREÇÃO DE SEGURANÇA (FIX) ---
             // Se 'store' for null (loja nova), usamos o storeId da URL para gerar o nome
@@ -600,14 +648,14 @@ export default function Admin() {
             // 2. Configurações de Marketing (Promoção Ativa)
             await setDoc(doc(db, "settings", storeId), {
                 promoActive: true,
-                promoBannerUrls: [
+                promoBannerUrls:[
                     "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80", 
                     "https://images.unsplash.com/photo-1600216496561-122972989e27?auto=format&fit=crop&w=800&q=80"  
                 ]
             }, { merge: true });
 
             // 3. Categorias
-            const cats = [
+            const cats =[
                 { name: "Cervejas", order: 1, storeId },
                 { name: "Destilados", order: 2, storeId },
                 { name: "Gelo e Carvão", order: 3, storeId },
@@ -616,7 +664,7 @@ export default function Admin() {
             for (const c of cats) batchPromises.push(addDoc(collection(db, "categories"), c));
 
             // 4. Produtos (Catálogo Base)
-            const prods = [
+            const prods =[
                 { name: "Heineken Long Neck 330ml", price: 9.90, costPrice: 4.50, promotionalPrice: 8.90, stock: 120, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Cerveja Premium gelada." },
                 { name: "Cerveja Corona Extra 330ml", price: 8.50, costPrice: 4.00, promotionalPrice: 0, stock: 60, category: "Cervejas", imageUrl: "https://cdn-icons-png.flaticon.com/512/2405/2405597.png", storeId, description: "Com limão fica melhor." },
                 { name: "Vodka Absolut 1L", price: 119.90, costPrice: 70.00, promotionalPrice: 0, stock: 15, category: "Destilados", imageUrl: "https://cdn-icons-png.flaticon.com/512/920/920582.png", storeId, description: "Vodka importada original." },
@@ -628,7 +676,7 @@ export default function Admin() {
             for (const p of prods) batchPromises.push(addDoc(collection(db, "products"), p));
 
             // 5. Taxas de Entrega (Bairros Exemplo)
-            const rates = [
+            const rates =[
                 { neighborhood: "Centro", fee: 5.00, storeId },
                 { neighborhood: "Bairro Norte", fee: 8.00, storeId },
                 { neighborhood: "Bairro Sul", fee: 10.00, storeId },
@@ -637,7 +685,7 @@ export default function Admin() {
             for (const r of rates) batchPromises.push(addDoc(collection(db, "shipping_rates"), r));
 
             // 6. Banners Gerais (Carrossel)
-            const banners = [
+            const banners =[
                 { imageUrl: "https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1000&q=80", linkTo: "#", order: 1, isActive: true, storeId },
                 { imageUrl: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1000&q=80", linkTo: "#", order: 2, isActive: true, storeId }
             ];
@@ -746,7 +794,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     item.id === productToAdd.id ? { ...item, quantity: item.quantity + 1 } : item
                 );
             } else {
-                newItems = [...prevOrder.items, { ...productToAdd, quantity: 1 }];
+                newItems =[...prevOrder.items, { ...productToAdd, quantity: 1 }];
             }
             return { ...prevOrder, items: newItems };
         });
@@ -870,7 +918,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             ownerEmail: user.email,
                                             ownerName: user.displayName || user.email || "Empreendedor",
                                             createdAt: serverTimestamp(),
-                                            products: [], // Começa sem produtos para não bugar
+                                            products:[], // Começa sem produtos para não bugar
                                             // ... configurações padrão ...
                                             settings: {
                                                 primaryColor: '#60a5fa',
@@ -975,7 +1023,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     const todaysProfit = orders
                         .filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString())
                         .reduce((totalProfit, order) => {
-                            const orderProfit = (order.items || []).reduce((itemProfit, item) => {
+                            const orderProfit = (order.items ||[]).reduce((itemProfit, item) => {
                                 // Usa o preço do item no pedido e o custo (se existir), senão considera custo 0
                                 const salePrice = item.price || 0;
                                 const costPrice = item.costPrice || 0;
@@ -1103,7 +1151,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 const initialDataForModal = {
                                                     ...o, // Começa com os dados originais do pedido
                                                     paymentMethod: o.paymentMethod || 'pix', // Define um fallback caso o campo não exista
-                                                    items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) : [], // Garante que 'items' é um array
+                                                    items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], // Garante que 'items' é um array
                                                     shippingFee: o.shippingFee || 0,
                                                     customerName: o.customerName || '',
                                                     customerAddress: o.customerAddress || '',
@@ -1179,7 +1227,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds: [], complements: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -1224,7 +1272,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds || [] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -1685,6 +1733,34 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 </div>
                         </div>
 
+                        {/* NOVO CARD: STRIPE CONNECT */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
+                            <div className="flex items-center gap-2 mb-6">
+                                <Landmark size={24} className="text-blue-600"/>
+                                <h3 className="text-2xl font-black uppercase text-slate-800 italic">Recebimento de Vendas <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(Stripe Connect)</span></h3>
+                            </div>
+                            
+                            {storeStatus.stripeConnectId ? (
+                                <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div>
+                                        <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Bancária Conectada</p>
+                                        <p className="text-green-600 font-bold text-xs mt-1">ID da Conta: {storeStatus.stripeConnectId}</p>
+                                    </div>
+                                    <span className="bg-green-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase shadow-lg">Recebimentos Ativos</span>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
+                                    <p className="text-slate-500 font-bold text-sm">Você ainda não configurou sua conta bancária para receber os pagamentos das suas vendas online via cartão e Pix.</p>
+                                    <button 
+                                        onClick={handleConectarBanco} 
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        <Landmark size={20}/> 🏦 Configurar Recebimento (Stripe)
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Card da Fatura */}
                             <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
@@ -2136,18 +2212,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     
                                     <div className="flex gap-2 flex-wrap bg-slate-50 p-4 rounded-2xl max-h-40 overflow-y-auto custom-scrollbar border border-slate-100">
                                         {products.filter(p => p.id !== editingId).map(p => {
-                                            const isSelected = (form.recommendedIds || []).includes(p.id);
+                                            const isSelected = (form.recommendedIds ||[]).includes(p.id);
                                             return (
                                                 <button 
                                                     key={p.id}
                                                     type="button"
                                                     onClick={() => {
-                                                        const current = form.recommendedIds || [];
+                                                        const current = form.recommendedIds ||[];
                                                         setForm({
                                                             ...form, 
                                                             recommendedIds: isSelected 
                                                                 ? current.filter(id => id !== p.id) 
-                                                                : [...current, p.id]
+                                                                :[...current, p.id]
                                                         });
                                                     }}
                                                     className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all border flex items-center gap-2 ${
@@ -2172,14 +2248,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </label>
                                         <button 
                                             type="button" 
-                                            onClick={() => setForm(prev => ({ ...prev, complements: [...(prev.complements || []), { id: Date.now().toString(), name: '', isRequired: false, maxSelections: 1, options: [] }] }))}
+                                            onClick={() => setForm(prev => ({ ...prev, complements: [...(prev.complements || []), { id: Date.now().toString(), name: '', isRequired: false, maxSelections: 1, options:[] }] }))}
                                             className="bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-purple-100 transition-all"
                                         >
                                             + Novo Grupo
                                         </button>
                                     </div>
                                     
-                                    {(form.complements || []).map((cat, catIndex) => (
+                                    {(form.complements ||[]).map((cat, catIndex) => (
                                         <div key={cat.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 relative animate-in fade-in slide-in-from-top-2">
                                             {/* Botão de Excluir Grupo */}
                                             <button type="button" onClick={() => {
@@ -2199,7 +2275,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <div className="flex flex-wrap gap-4 mb-4">
                                                 <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer bg-white p-2 rounded-lg border border-slate-100">
                                                     <input type="checkbox" checked={cat.isRequired} onChange={(e) => {
-                                                        const newComps = [...form.complements];
+                                                        const newComps =[...form.complements];
                                                         newComps[catIndex].isRequired = e.target.checked;
                                                         setForm(prev => ({ ...prev, complements: newComps }));
                                                     }} className="accent-purple-600 w-4 h-4 cursor-pointer" /> É Obrigatório?
@@ -2224,7 +2300,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             setForm(prev => ({ ...prev, complements: newComps }));
                                                         }} />
                                                         <input type="number" placeholder="Valor (+ R$)" className="w-24 p-3 bg-white rounded-lg text-xs font-bold border border-slate-100 outline-none text-blue-600" value={opt.price} onChange={(e) => {
-                                                            const newComps = [...form.complements];
+                                                            const newComps =[...form.complements];
                                                             newComps[catIndex].options[optIndex].price = parseFloat(e.target.value) || 0;
                                                             setForm(prev => ({ ...prev, complements: newComps }));
                                                         }} />
@@ -2448,7 +2524,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         observation: editingOrderData.observation || '',
                                         status: editingOrderData.status || 'pending',
                                         shippingFee: Number(editingOrderData.shippingFee || 0),
-                                        items: editingOrderData.items || [],
+                                        items: editingOrderData.items ||[],
                                         total: newTotal,
                                     };
                                     
