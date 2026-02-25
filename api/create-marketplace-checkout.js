@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 
         // 3. Monta a configuração base da sessão
         let sessionConfig = {
-            payment_method_types: ['card', 'pix'],
+            payment_method_types: ['card'],
             line_items: lineItems,
             mode: 'payment',
             client_reference_id: orderId, // Grava o ID do pedido do Firebase na Stripe
