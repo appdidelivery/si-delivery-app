@@ -722,21 +722,19 @@ export default function Home() {
   const finalizeOrder = async () => {
     // 1. Validações de Segurança
     if (!isStoreOpenNow) return alert(storeMessage);
-    if(!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha o endereço completo.");
-    if(cart.length === 0) return alert("Carrinho vazio!");
+    if (!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha o endereço completo.");
+    if (cart.length === 0) return alert("Carrinho vazio!");
     if (shippingFee === null) return alert("Frete não calculado.");
 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     
     // 2. Salvar no Firebase
     try {
-      // 1. Blindar o carrinho (garante que observações vazias não quebrem o Firebase)
       const sanitizedCart = cart.map(item => ({
         ...item,
         observation: item.observation || "" 
       }));
 
-      // 2. Montar o pedido blindado contra undefined
       const orderData = {
         customerName: customer.name || "", 
         customerAddress: fullAddress || "", 
@@ -745,7 +743,7 @@ export default function Home() {
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
         items: sanitizedCart, 
         subtotal: subtotal || 0, 
-        shippingFee: shippingFee || 0, // Zero no lugar de undefined!
+        shippingFee: shippingFee || 0, 
         total: finalTotal || 0, 
         status: 'pending', 
         createdAt: serverTimestamp(),
@@ -757,53 +755,77 @@ export default function Home() {
         orderData.discountAmount = discountAmount || 0;
       }
 
-      // Agora sim, enviamos para o Firebase com segurança!
+      // Salva no Firebase primeiro para termos o ID do pedido
       const docRef = await addDoc(collection(db, "orders"), orderData);
 
-      if (appliedCoupon) {
-        await updateDoc(doc(db, "coupons", appliedCoupon.id), {
-          currentUsage: (appliedCoupon.currentUsage || 0) + 1
-        });
+      // --- CAMINHO 1: PAGAMENTO EM DINHEIRO (Pagar na entrega) ---
+      if (customer.payment === 'dinheiro') {
+          if (appliedCoupon) {
+            await updateDoc(doc(db, "coupons", appliedCoupon.id), {
+              currentUsage: (appliedCoupon.currentUsage || 0) + 1
+            });
+          }
+
+          const itemsList = cart.map(i => {
+                let text = `🔸 ${i.quantity}x *${i.name}* - R$ ${(i.price * i.quantity).toFixed(2)}`;
+                if (i.observation) text += `\n      _Obs: ${i.observation}_`;
+                return text;
+            }).join('\n');
+          const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
+          const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
+          const obsMsg = `\n💵 *Troco para:* ${customer.changeFor}`;
+          const linkAcompanhamento = `https://${window.location.host}/track/${docRef.id}`;
+          const message = `🔔 *NOVO PEDIDO #${docRef.id.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
+
+          const targetPhone = storeSettings.whatsapp || "5551999999999"; 
+          const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+          
+          localStorage.setItem('activeOrderId', docRef.id);
+          setActiveOrderId(docRef.id);
+          setCart([]); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
+          
+          window.open(whatsappUrl, '_blank');
+          navigate(`/track/${docRef.id}`);
+          return; // Para a execução aqui
       }
 
-      // --- AQUI ESTÁ A CORREÇÃO DA MENSAGEM ---
-      // 3. Montar o texto BONITO para o WhatsApp
-      const itemsList = cart.map(i => {
-            let text = `🔸 ${i.quantity}x *${i.name}* - R$ ${(i.price * i.quantity).toFixed(2)}`;
-            
-            // Adiciona a observação em itálico logo abaixo do item
-            if (i.observation) {
-                text += `\n      _Obs: ${i.observation}_`;
-            }
-            return text;
-        }).join('\n');
-      const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
-      const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
-      const obsMsg = customer.payment === 'dinheiro' && customer.changeFor ? `\n💵 *Troco para:* ${customer.changeFor}` : `\n💳 *Pagamento:* ${customer.payment.toUpperCase()}`;
-      
-      // Usa window.location.host para o link funcionar tanto em localhost quanto na Vercel
-      const linkAcompanhamento = `https://${window.location.host}/track/${docRef.id}`;
+      // --- CAMINHO 2: PAGAMENTO ONLINE (Cartão ou Pix via Stripe) ---
+      if (customer.payment === 'cartao' || customer.payment === 'pix') {
+          // Verifica se o lojista conectou o banco
+          if (!storeSettings.stripeConnectId) {
+              alert("⚠️ Esta loja ainda não configurou pagamentos online. Escolha a opção 'Dinheiro'.");
+              return;
+          }
 
-      const message = `🔔 *NOVO PEDIDO #${docRef.id.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
+          // Chama nossa API na Vercel para gerar o link de pagamento
+          const response = await fetch('/api/create-marketplace-checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  items: sanitizedCart,
+                  orderId: docRef.id,
+                  storeConnectId: storeSettings.stripeConnectId,
+                  customerEmail: customer.email || 'cliente@padrao.com',
+                  shippingFee: shippingFee || 0,
+                  discountAmount: discountAmount || 0,
+                  // URLs de retorno para onde o cliente vai após pagar ou cancelar
+                  successUrl: `https://${window.location.host}/track/${docRef.id}?payment=success`,
+                  cancelUrl: `https://${window.location.host}/track/${docRef.id}?payment=cancel`
+              })
+          });
 
-      // 4. Pegar o número do Admin (ou usa um fallback se estiver vazio)
-      const targetPhone = storeSettings.whatsapp || "5551999999999"; 
-
-      // 5. Gerar o Link com o texto codificado (encodeURIComponent é essencial!)
-      const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-      
-      // 6. Limpar tudo e Redirecionar
-      localStorage.setItem('activeOrderId', docRef.id);
-      setActiveOrderId(docRef.id);
-      setCart([]);
-      setShowCheckout(false);
-      setAppliedCoupon(null);
-      setDiscountAmount(0);
-      setCouponCode('');
-      
-      // Abre o WhatsApp e vai para o Tracking
-      window.open(whatsappUrl, '_blank');
-      navigate(`/track/${docRef.id}`);
+          const data = await response.json();
+          
+          if (data.url) {
+              localStorage.setItem('activeOrderId', docRef.id);
+              setActiveOrderId(docRef.id);
+              setCart([]); setShowCheckout(false);
+              // Redireciona o cliente para a página segura da Stripe
+              window.location.href = data.url;
+          } else {
+              alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
+          }
+      }
 
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
