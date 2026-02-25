@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../../src/services/firebase';
+import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import SEO from '../../src/components/SEO';
+import SEO from '../components/SEO';
 
 // REMOVIDO: IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR (Joyride)
 // import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride'; 
@@ -14,7 +14,7 @@ import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; 
 
 // Importa o helper para obter o storeId
-import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
+import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 // Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
@@ -560,7 +560,12 @@ export default function Home() {
 
   const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
-    if (p.stock && p.stock <= 0) { alert("Produto fora de estoque!"); return; }
+    
+    // 1. TRAVA INICIAL: Bloqueia se o estoque original já for zero
+    if (p.stock !== undefined && Number(p.stock) <= 0) { 
+        alert(`O produto ${p.name} está esgotado!`); 
+        return; 
+    }
 
     setCart(prev => {
       const existingItem = prev.find(i => i.id === p.id);
@@ -570,9 +575,10 @@ export default function Home() {
         newQuantity += existingItem.quantity;
       }
 
-      if (p.stock && (newQuantity > p.stock)) {
-          alert("Limite de estoque atingido!");
-          return prev;
+      // 2. TRAVA DE CARRINHO: Impede que a soma ultrapasse o limite
+      if (p.stock !== undefined && (newQuantity > Number(p.stock))) {
+          alert(`⚠️ Desculpe, só temos ${p.stock} unidades de ${p.name} disponíveis no momento.`);
+          return prev; // Retorna o carrinho do jeito que estava, cancelando a adição
       }
       
       const finalPricePerUnit = getPriceWithQuantityDiscount(p, newQuantity);
@@ -593,6 +599,15 @@ export default function Home() {
                 if (newQuantity <= 0) return null;
 
                 const productOriginal = products.find(p => p.id === productId);
+
+                // 3. TRAVA DO BOTÃO +: Bloqueia o incremento se passar do estoque
+                if (amount > 0 && productOriginal && productOriginal.stock !== undefined) {
+                    if (newQuantity > Number(productOriginal.stock)) {
+                        alert(`⚠️ Limite atingido! Temos apenas ${productOriginal.stock} unidades de ${productOriginal.name}.`);
+                        return item; // Retorna sem alterar a quantidade
+                    }
+                }
+
                 const priceWithDiscount = productOriginal ? getPriceWithQuantityDiscount(productOriginal, newQuantity) : item.price;
 
                 return { ...item, quantity: newQuantity, price: priceWithDiscount };
@@ -1086,7 +1101,7 @@ export default function Home() {
                                               <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                      <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                                           <ShoppingCart size={16} />
                                       </button>
                                   </div>
@@ -1125,7 +1140,7 @@ export default function Home() {
                                             <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                         )}
                                     </div>
-                                    <button onClick={() => addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                    <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                                         <ShoppingCart size={16} />
                                     </button>
                                 </div>
