@@ -144,8 +144,8 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('all'); // Renamed from selectedCategory in the prompt's intent
   const [showCheckout, setShowCheckout] = useState(false);
 
-  const [customer, setCustomer] = useState({
-    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
+  cconst [customer, setCustomer] = useState({
+    name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
   const [showLastOrders, setShowLastOrders] = useState(false);
   const [lastOrders, setLastOrders] = useState([]);
@@ -157,10 +157,29 @@ export default function Home() {
   const [couponError, setCouponError] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
 
-  const handlePhoneChange = (e) => {
-    const phone = e.target.value;
-    setCustomer({...customer, phone: phone});
-    localStorage.setItem('customerPhone', phone);
+  // Carrega os dados salvos quando o site abre
+  useEffect(() => {
+    const savedCustomer = localStorage.getItem('veloCustomerData');
+    if (savedCustomer) {
+      setCustomer(JSON.parse(savedCustomer));
+    } else {
+      // Fallback para clientes antigos que só tinham o telefone salvo
+      const savedPhone = localStorage.getItem('customerPhone');
+      if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
+    }
+  }, []);
+
+  // Função mágica que atualiza a tela E salva no celular ao mesmo tempo
+  const handleCustomerChange = (field, value) => {
+    const updatedCustomer = { ...customer, [field]: value };
+    setCustomer(updatedCustomer);
+    
+    // Salva tudo no LocalStorage, exceto a forma de pagamento/troco
+    const { payment, changeFor, ...dataToSave } = updatedCustomer;
+    localStorage.setItem('veloCustomerData', JSON.stringify(dataToSave));
+    
+    // Mantém compatibilidade com a busca de pedidos antigos
+    if (field === 'phone') localStorage.setItem('customerPhone', value);
   };
   const [marketingSettings, setMarketingSettings] = useState({
         promoActive: false,
@@ -722,7 +741,7 @@ export default function Home() {
   const finalizeOrder = async () => {
     // 1. Validações de Segurança
     if (!isStoreOpenNow) return alert(storeMessage);
-    if (!customer.name || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha o endereço completo.");
+    if (!customer.name || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha todos os dados, incluindo seu e-mail.");
     if (cart.length === 0) return alert("Carrinho vazio!");
     if (shippingFee === null) return alert("Frete não calculado.");
 
@@ -1390,23 +1409,26 @@ export default function Home() {
                   
                   {/* REMOVIDO: WRAPPER TOUR DADOS */}
                   <div>
-                    <input type="text" placeholder="Seu Nome" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
+                    <input type="text" placeholder="Seu Nome Completo" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
+                    
+                    {/* NOVO CAMPO: E-MAIL PARA A STRIPE */}
+                    <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
+                    
                     <input
                       type="tel"
-                      placeholder="WhatsApp"
+                      placeholder="WhatsApp (DDD + Número)"
                       className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
                       value={customer.phone}
-                      onChange={handlePhoneChange}
+                      onChange={e => handleCustomerChange('phone', e.target.value)}
                     />
                     <div className="relative">
-                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} />
-                      {/* Ajuste: Usando currentTheme.ringColor */}
+                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
                       {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
                     </div>
                     {customer.street && (
                       <>
                           <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                          <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => setCustomer({...customer, number: e.target.value})}/>
+                          <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
                       </>
                     )}
                   </div>
