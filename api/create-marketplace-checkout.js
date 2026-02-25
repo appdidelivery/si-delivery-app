@@ -32,7 +32,7 @@ export default async function handler(req, res) {
         // --- 💰 AQUI VOCÊ DEFINE A SUA COMISSÃO (VELO) ---
         // A "application_fee_amount" é a taxa que fica para a sua conta principal. 
         // O restante vai direto para a conta conectada do lojista (storeConnectId).
-        const veloTaxaFixaBRL = 2.00; // Exemplo: Você ganha R$ 2,00 limpos por CADA venda online.
+        const veloTaxaFixaBRL = 0.10; // Exemplo: Você ganha R$ 2,00 limpos por CADA venda online.
         const applicationFeeCentavos = Math.round(veloTaxaFixaBRL * 100);
 
         // 3. Monta a configuração base da sessão
