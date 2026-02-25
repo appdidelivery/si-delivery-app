@@ -64,19 +64,22 @@ export default function Admin() {
     }, [navigate]);
 
     const handleAssinarPro = async () => {
-        try {
-            const response = await fetch('/api/checkout-pro', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: store.slug })
-            });
-            const data = await response.json();
-            if (data.url) window.location.href = data.url;
-            else alert("Erro: " + data.error);
-        } catch (error) {
-            alert("Erro de conexão.");
-        }
-    };
+    try {
+        // Usamos o storeId que já foi identificado na lógica acima
+        if (!storeId) return alert("Erro: Loja não identificada.");
+
+        const response = await fetch('/api/checkout-pro', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ storeId: storeId }) // Mudamos de store.slug para storeId
+        });
+        const data = await response.json();
+        if (data.url) window.location.href = data.url;
+        else alert("Erro: " + data.error);
+    } catch (error) {
+        alert("Erro de conexão.");
+    }
+};
    // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (AGORA COM SUPORTE A URL) 🚨
     let storeId = null;
     const hostname = window.location.hostname;
@@ -1669,9 +1672,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <p className="text-slate-400 font-bold mt-2">Monitore o consumo de recursos da sua loja.</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black uppercase text-slate-400">Status da Fatura</p>
-                                <span className="bg-green-100 text-green-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">EM ABERTO</span>
-                            </div>
+    <p className="text-[10px] font-black uppercase text-slate-400">Status da Fatura</p>
+    {storeStatus.paymentStatus === 'paid' ? (
+        <span className="bg-green-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-green-200">
+            ✅ PAGO / PRO
+        </span>
+    ) : (
+        <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">
+            ⚠️ EM ABERTO
+        </span>
+    )}
+</div>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
