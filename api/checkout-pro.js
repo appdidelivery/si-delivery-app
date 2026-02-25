@@ -26,6 +26,7 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'subscription',
+      allow_promotion_codes: true,
       success_url: `https://${req.headers.host}/admin?session_id={CHECKOUT_SESSION_ID}&success=true`,
       cancel_url: `https://${req.headers.host}/admin?canceled=true`,
       client_reference_id: storeId || 'loja_desconhecida',
