@@ -7,10 +7,12 @@ export default async function handler(req, res) {
 
     try {
         const account = await stripe.accounts.create({
-      type: 'express',
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
+            type: 'express',
+            country: 'BR',
+            capabilities: {
+                card_payments: { requested: true },
+                transfers: { requested: true },
+                pix_payments: { requested: true },
 
       },
       metadata: { storeId: storeId }

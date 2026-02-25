@@ -143,6 +143,8 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all'); // Renamed from selectedCategory in the prompt's intent
   const [showCheckout, setShowCheckout] = useState(false);
+  const[isFinalizing, setIsFinalizing] = useState(false);
+
 
   const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
@@ -739,20 +741,27 @@ export default function Home() {
 
 
   const finalizeOrder = async () => {
-    // 1. Validações de Segurança
+    // 1. Validações de Segurança e Trava de Duplo Clique
+    if (isFinalizing) return; // Bloqueia se já estiver processando
     if (!isStoreOpenNow) return alert(storeMessage);
     if (!customer.name || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha todos os dados, incluindo seu e-mail.");
     if (cart.length === 0) return alert("Carrinho vazio!");
     if (shippingFee === null) return alert("Frete não calculado.");
 
+    setIsFinalizing(true); // INICIA O CARREGAMENTO
+
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     
-    // 2. Salvar no Firebase
     try {
       const sanitizedCart = cart.map(item => ({
         ...item,
         observation: item.observation || "" 
       }));
+
+      // GERA O ID DO PEDIDO ANTES DE SALVAR NO BANCO
+      // Assim podemos mandar o ID para a Stripe e só salvar se der sucesso
+      const newOrderRef = doc(collection(db, "orders"));
+      const orderId = newOrderRef.id;
 
       const orderData = {
         customerName: customer.name || "", 
@@ -774,11 +783,11 @@ export default function Home() {
         orderData.discountAmount = discountAmount || 0;
       }
 
-      // Salva no Firebase primeiro para termos o ID do pedido
-      const docRef = await addDoc(collection(db, "orders"), orderData);
-
       // --- CAMINHO 1: PAGAMENTO EM DINHEIRO (Pagar na entrega) ---
       if (customer.payment === 'dinheiro') {
+          // Salva no banco de fato
+          await setDoc(newOrderRef, orderData);
+
           if (appliedCoupon) {
             await updateDoc(doc(db, "coupons", appliedCoupon.id), {
               currentUsage: (appliedCoupon.currentUsage || 0) + 1
@@ -793,62 +802,68 @@ export default function Home() {
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
           const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
           const obsMsg = `\n💵 *Troco para:* ${customer.changeFor}`;
-          const linkAcompanhamento = `https://${window.location.host}/track/${docRef.id}`;
-          const message = `🔔 *NOVO PEDIDO #${docRef.id.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
+          const linkAcompanhamento = `https://${window.location.host}/track/${orderId}`;
+          const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
 
           const targetPhone = storeSettings.whatsapp || "5551999999999"; 
           const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
           
-          localStorage.setItem('activeOrderId', docRef.id);
-          setActiveOrderId(docRef.id);
+          localStorage.setItem('activeOrderId', orderId);
+          setActiveOrderId(orderId);
           setCart([]); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
+          setIsFinalizing(false); // FIM DO CARREGAMENTO
           
           window.open(whatsappUrl, '_blank');
-          navigate(`/track/${docRef.id}`);
-          return; // Para a execução aqui
+          navigate(`/track/${orderId}`);
+          return;
       }
 
       // --- CAMINHO 2: PAGAMENTO ONLINE (Cartão ou Pix via Stripe) ---
       if (customer.payment === 'cartao' || customer.payment === 'pix') {
-          // Verifica se o lojista conectou o banco
           if (!storeSettings.stripeConnectId) {
               alert("⚠️ Esta loja ainda não configurou pagamentos online. Escolha a opção 'Dinheiro'.");
+              setIsFinalizing(false); // Libera o botão
               return;
           }
 
-          // Chama nossa API na Vercel para gerar o link de pagamento
+          // CHAMA A STRIPE PRIMEIRO (Antes de salvar no Firestore)
           const response = await fetch('/api/create-marketplace-checkout', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                   items: sanitizedCart,
-                  orderId: docRef.id,
+                  orderId: orderId, // Passamos o ID gerado previamente
                   storeConnectId: storeSettings.stripeConnectId,
                   customerEmail: customer.email || 'cliente@padrao.com',
                   shippingFee: shippingFee || 0,
                   discountAmount: discountAmount || 0,
-                  // URLs de retorno para onde o cliente vai após pagar ou cancelar
-                  successUrl: `https://${window.location.host}/track/${docRef.id}?payment=success`,
-                  cancelUrl: `https://${window.location.host}/track/${docRef.id}?payment=cancel`
+                  successUrl: `https://${window.location.host}/track/${orderId}?payment=success`,
+                  cancelUrl: `https://${window.location.host}/track/${orderId}?payment=cancel`
               })
           });
 
           const data = await response.json();
           
           if (data.url) {
-              localStorage.setItem('activeOrderId', docRef.id);
-              setActiveOrderId(docRef.id);
+              // RETORNOU COM SUCESSO: Agora sim gravamos o pedido no Firebase!
+              await setDoc(newOrderRef, orderData);
+
+              localStorage.setItem('activeOrderId', orderId);
+              setActiveOrderId(orderId);
               setCart([]); setShowCheckout(false);
-              // Redireciona o cliente para a página segura da Stripe
+              
+              // O navegador vai sair da página, então não precisamos setar false.
               window.location.href = data.url;
           } else {
               alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
+              setIsFinalizing(false); // Falhou, libera o botão para tentar de novo
           }
       }
 
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
         console.error("Erro ao finalizar pedido:", e);
+        setIsFinalizing(false); // Em caso de exceção de rede/firebase, libera o botão
     }
   };
 
@@ -1494,9 +1509,13 @@ export default function Home() {
                         <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                     </div>
 
-                    <button onClick={finalizeOrder} disabled={!isStoreOpenNow || isCepLoading} className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}>
-                      {isCepLoading ? 'Calculando...' : 'Confirmar Pedido'}
-                    </button>
+                   <button 
+  onClick={finalizeOrder} 
+  disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
+  className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
+>
+  {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
+</button>
                   </div>
                   {/* FIM REMOVIDO WRAPPER TOUR PAGAMENTO */}
 
@@ -1547,7 +1566,7 @@ export default function Home() {
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className={`fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo.replace(/\d{2,3}/,'700')} text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4`}
+                className={`fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo.replace(/\d{2,3}/,'700')} text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4`}
             >
                 <div className="flex items-center gap-3">
                     <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
