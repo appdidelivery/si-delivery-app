@@ -151,6 +151,7 @@ export default function Admin() {
         status: 'open'
     });
     const [showPixModal, setShowPixModal] = useState(false);
+    const [loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
 
     // --- 🚨 CÓDIGO DE RESGATE AUTOMÁTICO (COLE AQUI) 🚨 ---
     useEffect(() => {
@@ -335,6 +336,7 @@ export default function Admin() {
         
         // Banners
         const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), orderBy("order", "asc")), (s) => setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        
 
         // Fretes
         const unsubShipping = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.neighborhood.localeCompare(b.neighborhood))));
@@ -371,13 +373,13 @@ export default function Admin() {
         
         // Cupons
         const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
+        const unsubLoyalty = onSnapshot(query(collection(db, "loyalty_redemptions"), where("storeId", "==", storeId)), (s) => setLoyaltyRedemptions(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         return () => { 
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); // <-- Adicione o unsubLoyalty aqui
         };
     }, [storeId]);
-
+    
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (file) => {
         if (!file) throw new Error("Selecione um arquivo primeiro!");
@@ -649,20 +651,94 @@ export default function Admin() {
             alert("Erro ao gerar loja: " + e.message);
         }
     };
+    const handleRedeemPoints = async (customer) => {
+        // Pega a meta de pontos das configurações, com um fallback seguro
+        const loyaltyGoal = settings.loyaltyGoal || 1000; 
 
-    const customers = Object.values(orders.reduce((acc, o) => {
-        const p = o.customerPhone || 'N/A';
-        if (!acc[p]) acc[p] = { name: o.customerName || 'Sem nome', phone: p, total: 0, count: 0 };
-        acc[p].total += Number(o.total || 0); acc[p].count += 1; return acc;
-    }, {})).sort((a, b) => b.total - a.total);
+        const confirmationMessage = `Confirma o resgate de ${loyaltyGoal} pontos para o cliente ${customer.name}? 
+Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
+
+        if (window.confirm(confirmationMessage)) {
+            try {
+                // Adiciona um novo documento na coleção de resgates
+                await addDoc(collection(db, "loyalty_redemptions"), {
+                    storeId: storeId,
+                    customerPhone: customer.phone, // Usamos o telefone como ID único do cliente
+                    customerName: customer.name,
+                    pointsRedeemed: loyaltyGoal,
+                    redeemedAt: serverTimestamp()
+                });
+                alert("Resgate de prêmio registrado com sucesso!");
+            } catch (error) {
+                console.error("Erro ao registrar resgate de fidelidade:", error);
+                alert("Ocorreu uma falha ao registrar o resgate. Tente novamente.");
+            }
+        }
+    };
+    // ✅ LÓGICA DE CLIENTES REFEITA PARA INTEGRAR CLUBE FIDELIDADE
+    const customers = React.useMemo(() => {
+        const loyaltyEnabled = settings.loyaltyActive;
+        const pointsPerReal = settings.pointsPerReal || 1;
+        const loyaltyGoal = settings.loyaltyGoal || 1000;
+
+        const spendingByCustomer = orders.reduce((acc, o) => {
+
+            if (o.status === 'canceled') return acc; // Ignora pedidos cancelados
+            const p = o.customerPhone || 'N/A';
+            if (p === 'N/A') return acc;
+
+            if (!acc[p]) {
+                acc[p] = { name: o.customerName || 'Sem nome', phone: p, totalSpent: 0, orderCount: 0 };
+            }
+            acc[p].totalSpent += Number(o.total || 0);
+            acc[p].orderCount += 1;
+            return acc;
+        }, {});
+
+        // 2. Agrega o total de pontos já resgatados por cliente
+        const redemptionsByCustomer = loyaltyRedemptions.reduce((acc, r) => {
+            const phone = r.customerPhone || 'N/A';
+            acc[phone] = (acc[phone] || 0) + r.pointsRedeemed;
+            return acc;
+        }, {});
+
+        // 3. Combina os dados, calcula os pontos atuais e retorna o array final
+        const customerList = Object.values(spendingByCustomer).map(customer => {
+            const totalEarnedPoints = Math.floor(customer.totalSpent * pointsPerReal);
+            const totalRedeemedPoints = redemptionsByCustomer[customer.phone] || 0;
+            const currentPoints = totalEarnedPoints - totalRedeemedPoints;
+
+            return {
+                ...customer,
+                points: currentPoints,
+                loyaltyGoal: loyaltyGoal, // Adiciona a meta ao objeto para fácil acesso no JSX
+            };
+        });
+
+        // 4. Ordena por pontos se o clube estiver ativo, senão, por total gasto
+        return customerList.sort((a, b) => loyaltyEnabled ? b.points - a.points : b.totalSpent - a.totalSpent);
+        
+    }, [orders, loyaltyRedemptions, settings]);
 
     // --- ALTERAÇÃO INICIADA: FUNÇÕES PARA MANIPULAR ITENS NO MODAL DE EDIÇÃO ---
     const handleAddProductToEditingOrder = (productToAdd) => {
+        // 1. Trava inicial: Verifica se tem estoque
+        if (productToAdd.stock === undefined || Number(productToAdd.stock) <= 0) {
+            return alert(`⚠️ O produto ${productToAdd.name} está esgotado!`);
+        }
+
         setEditingOrderData(prevOrder => {
             if (!prevOrder) return null;
             const existingItem = prevOrder.items.find(item => item.id === productToAdd.id);
+            
             let newItems;
             if (existingItem) {
+                // 2. Trava de incremento: Verifica se já atingiu o limite do estoque
+                if (existingItem.quantity >= Number(productToAdd.stock)) {
+                    alert(`⚠️ Estoque máximo atingido! Restam apenas ${productToAdd.stock} unid. deste item.`);
+                    return prevOrder; 
+                }
+
                 newItems = prevOrder.items.map(item =>
                     item.id === productToAdd.id ? { ...item, quantity: item.quantity + 1 } : item
                 );
@@ -676,6 +752,16 @@ export default function Admin() {
     const handleUpdateItemQuantityInEditingOrder = (itemId, newQuantity) => {
         setEditingOrderData(prevOrder => {
             if (!prevOrder) return null;
+
+            // Busca o produto original na lista de estoque para validar o limite real
+            const originalProduct = products.find(p => p.id === itemId);
+
+            // Trava para o botão de "+"
+            if (originalProduct && newQuantity > Number(originalProduct.stock)) {
+                alert(`⚠️ Estoque máximo atingido! Restam apenas ${originalProduct.stock} unid. de ${originalProduct.name}.`);
+                return prevOrder; 
+            }
+
             let newItems;
             if (newQuantity <= 0) {
                 newItems = prevOrder.items.filter(item => item.id !== itemId);
@@ -1146,17 +1232,63 @@ export default function Admin() {
 
                 {activeTab === 'customers' && (
                     <div className="space-y-6">
-                        <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 mb-10 text-center">RANKING VIP</h1>
+                        <div className="text-center mb-10">
+                            <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">
+                                {settings.loyaltyActive ? 'CLUBE FIDELIDADE' : 'RANKING VIP'}
+                            </h1>
+                            {!settings.loyaltyActive && <p className="text-slate-400 font-bold mt-2">O Clube Fidelidade está desativado. Ative na aba 'Marketing' para ver os pontos.</p>}
+                        </div>
+
                         <div className="grid gap-4 max-w-4xl mx-auto">
-                            {customers.map((c, i) => (
-                                <div key={i} className="bg-white p-8 rounded-[3.5rem] shadow-sm border border-slate-100 flex items-center justify-between hover:scale-[1.02] transition-all">
-                                    <div className="flex items-center gap-6">
-                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl ${i === 0 ? 'bg-amber-400 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>{i === 0 ? <Crown /> : i + 1}</div>
-                                        <div><h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">{c.name}</h3><p className="text-slate-400 font-bold text-xs tracking-widest">{c.phone}</p></div>
+                            {customers.map((c, i) => {
+                                const progressPercentage = Math.min(100, (c.points / (c.loyaltyGoal || 1)) * 100);
+                                const hasReachedGoal = c.points >= c.loyaltyGoal;
+
+                                return (
+                                <div key={i} className="bg-white p-6 md:p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6 hover:shadow-lg transition-all">
+                                    {/* Informações do Cliente */}
+                                    <div className="flex items-center gap-4 md:gap-6 self-start md:self-center">
+                                        <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center font-black text-xl md:text-2xl ${i === 0 ? 'bg-amber-400 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>
+                                            {i === 0 ? <Crown /> : i + 1}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">{c.name}</h3>
+                                            <p className="text-slate-400 font-bold text-xs tracking-widest">{c.phone}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right"><p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">Total Comprado</p><p className="text-3xl font-black text-blue-600 italic">R$ {c.total.toFixed(2)}</p></div>
+
+                                    {/* Lógica de Exibição: Pontos ou Total Gasto */}
+                                    <div className="w-full md:w-auto md:min-w-[250px] text-right">
+                                        {settings.loyaltyActive ? (
+                                            <>
+                                                <div className="flex justify-end items-baseline gap-2 mb-2">
+                                                    <p className="text-3xl font-black text-purple-600 italic">{c.points}</p>
+                                                    <span className="text-[10px] font-black text-slate-300 uppercase leading-none">PONTOS</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 rounded-full h-2.5 relative">
+                                                    <div className="bg-gradient-to-r from-purple-400 to-purple-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-bold mt-1">Meta: {c.points} / {c.loyaltyGoal}</p>
+                                                
+                                                {/* Botão de Resgate Condicional */}
+                                                {hasReachedGoal && (
+                                                    <button 
+                                                        onClick={() => handleRedeemPoints(c)}
+                                                        className="mt-3 w-full bg-green-500 text-white px-4 py-2 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-green-600 transition-all active:scale-95 animate-pulse"
+                                                    >
+                                                        ✅ Resgatar Prêmio
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">Total Comprado</p>
+                                                <p className="text-3xl font-black text-blue-600 italic">R$ {c.totalSpent.toFixed(2)}</p>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     </div>
                 )}
@@ -1287,39 +1419,64 @@ export default function Admin() {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                             </div>
                             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                {products.map(p => (
-                                    <button 
-                                        key={p.id} 
-                                        data-name={p.name}
-                                        className="manual-product-item w-full p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-blue-50 transition-all border border-transparent hover:border-blue-200 group"
-                                        onClick={() => {
-                                            const ex = manualCart.find(it => it.id === p.id);
-                                            if (ex) {
-                                                setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
-                                            } else {
-                                                // PASSO 5 (continuação): Salvar o costPrice no item do carrinho
-                                                const productToAdd = { 
-                                                    ...p, 
-                                                    quantity: 1, 
-                                                    // Usar preço promocional se houver, senão o normal
-                                                    price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
-                                                };
-                                                setManualCart([...manualCart, productToAdd]);
-                                            }
-                                        }} 
-                                    >
-                                        <div className="flex items-center gap-3 text-left">
-                                            {p.imageUrl && <img src={p.imageUrl} className="w-8 h-8 object-contain rounded-md bg-white"/>}
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-slate-700 leading-tight">{p.name}</span>
-                                                <span className="text-[10px] font-bold text-slate-400">Estoque: {p.stock}</span>
+                                {products.map(p => {
+                                    // 1. Verifica se o estoque é zero ou inválido
+                                    const isOutOfStock = p.stock === undefined || Number(p.stock) <= 0;
+
+                                    return (
+                                        <button 
+                                            key={p.id} 
+                                            data-name={p.name}
+                                            disabled={isOutOfStock} // 2. Desativa o botão nativamente
+                                            className={`manual-product-item w-full p-4 rounded-2xl flex justify-between items-center transition-all border group ${
+                                                isOutOfStock 
+                                                ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed' // Visual de esgotado
+                                                : 'bg-slate-50 hover:bg-blue-50 border-transparent hover:border-blue-200' // Visual normal
+                                            }`}
+                                            onClick={() => {
+                                                if (isOutOfStock) return; // Trava extra de segurança
+
+                                                const ex = manualCart.find(it => it.id === p.id);
+                                                if (ex) {
+                                                    // 3. Trava de quantidade máxima baseada no estoque
+                                                    if (ex.quantity >= Number(p.stock)) {
+                                                        return alert(`⚠️ Estoque máximo atingido! Restam apenas ${p.stock} unid. de ${p.name}.`);
+                                                    }
+                                                    setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
+                                                } else {
+                                                    // PASSO 5 (continuação): Salvar o costPrice no item do carrinho
+                                                    const productToAdd = { 
+                                                        ...p, 
+                                                        quantity: 1, 
+                                                        // Usar preço promocional se houver, senão o normal
+                                                        price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
+                                                    };
+                                                    setManualCart([...manualCart, productToAdd]);
+                                                }
+                                            }} 
+                                        >
+                                            <div className="flex items-center gap-3 text-left">
+                                                {p.imageUrl && <img src={p.imageUrl} className={`w-8 h-8 object-contain rounded-md bg-white ${isOutOfStock ? 'grayscale' : ''}`}/>}
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-700 leading-tight">{p.name}</span>
+                                                    {/* 4. Exibição da TAG Esgotado ou da Quantidade */}
+                                                    {isOutOfStock ? (
+                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-0.5">Esgotado</span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-slate-400">Estoque: {p.stock}</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black group-hover:scale-110 transition-transform ${p.promotionalPrice > 0 ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'}`}>
-                                            R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}
-                                        </span>
-                                    </button>
-                                ))}
+                                            <span className={`px-3 py-1 rounded-xl text-[10px] font-black transition-transform ${
+                                                isOutOfStock 
+                                                ? 'bg-slate-300 text-white' // Cor cinza para o preço se esgotado
+                                                : p.promotionalPrice > 0 ? 'bg-orange-500 text-white group-hover:scale-110' : 'bg-blue-600 text-white group-hover:scale-110'
+                                            }`}>
+                                                R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}
+                                            </span>
+                                        </button>
+                                    ); 
+                                })}
                             </div>
                         </div>
                     </div>
