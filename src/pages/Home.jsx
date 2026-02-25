@@ -144,7 +144,7 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('all'); // Renamed from selectedCategory in the prompt's intent
   const [showCheckout, setShowCheckout] = useState(false);
 
-  cconst [customer, setCustomer] = useState({
+  const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
   const [showLastOrders, setShowLastOrders] = useState(false);
