@@ -1300,56 +1300,58 @@ export default function Home() {
       <AnimatePresence>
         {showInstallPrompt && (
             <motion.div
-                initial={{ y: "100%", opacity: 0 }}
+                initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: "100%", opacity: 0 }}
+                exit={{ y: 100, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className={`fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo.replace(/\d{2,3}/,'700')} text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4`}
+                className={`fixed bottom-24 left-4 right-4 p-5 bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo.replace(/\d{2,3}/,'700')} text-white shadow-2xl z-[100] rounded-3xl flex items-center justify-between gap-3 border border-white/20`}
             >
-                <div className="flex items-center gap-3">
-                    <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
+                <div className="flex items-center gap-3 pr-2">
+                    <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-2xl object-cover border-2 border-white/50 shadow-sm" />
                     <div>
-                        <p className="font-bold text-sm leading-tight">{storeSettings.name}</p>
-                        <p className="text-xs opacity-80">Adicione à tela inicial para acesso rápido!</p>
+                        <p className="font-black text-sm leading-tight">{storeSettings.name}</p>
+                        <p className="text-xs opacity-90 font-medium mt-0.5 leading-tight">Adicione à tela inicial para acesso rápido!</p>
                     </div>
                 </div>
                 <button
                     onClick={handleInstallClick}
-                    className={`flex-shrink-0 bg-white ${currentTheme.text} px-4 py-2 rounded-full font-bold text-xs uppercase shadow-md ${currentTheme.hoverLightBg.replace('hover:bg-', 'hover:bg-')} active:scale-95 transition-all`}
+                    className={`flex-shrink-0 bg-white ${currentTheme.text} px-5 py-3 rounded-full font-black text-xs uppercase shadow-xl ${currentTheme.hoverLightBg.replace('hover:bg-', 'hover:bg-')} active:scale-95 transition-all`}
                 >
-                    Instalar App
+                    Instalar
                 </button>
-                <button onClick={() => setShowInstallPrompt(false)} className="absolute top-2 right-2 text-white opacity-70 hover:opacity-100">
-                    <X size={16} />
+                {/* Botão Fechar (Maior e Flutuando fora do card) */}
+                <button onClick={() => setShowInstallPrompt(false)} className="absolute -top-3 -right-2 bg-slate-900 text-white p-2 rounded-full shadow-xl border-2 border-white hover:bg-slate-800 transition-all z-10">
+                    <X size={20} strokeWidth={3} />
                 </button>
             </motion.div>
         )}
 
         {showiOSInstallMessage && (
             <motion.div
-                initial={{ y: "100%", opacity: 0 }}
+                initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: "100%", opacity: 0 }}
+                exit={{ y: 100, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-r from-purple-600 to-pink-700 text-white shadow-xl z-[100] rounded-t-3xl flex items-center justify-between gap-4"
+                className="fixed bottom-24 left-4 right-4 p-5 bg-gradient-to-r from-purple-600 to-pink-700 text-white shadow-2xl z-[100] rounded-3xl flex items-center justify-between gap-3 border border-white/20"
             >
-                <div className="flex items-center gap-3">
-                    <img src={storeSettings.storeLogoUrl} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
+                <div className="flex items-center gap-3 pr-2">
+                    <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-2xl object-cover border-2 border-white/50 shadow-sm" />
                     <div>
-                        <p className="font-bold text-sm leading-tight">Instale nosso App!</p>
-                        <p className="text-xs opacity-80">
-                            Toque no ícone <Share size={14} className="inline-block relative -top-0.5" /> e depois em "Adicionar à Tela de Início".
+                        <p className="font-black text-sm leading-tight">Instale nosso App!</p>
+                        <p className="text-xs opacity-90 font-medium mt-0.5 leading-tight">
+                            Toque em <Share size={14} className="inline-block relative -top-0.5 mx-0.5" /> e depois "Adicionar à Tela de Início".
                         </p>
                     </div>
                 </div>
                 <button
                     onClick={handleDismissiOSInstallMessage}
-                    className="flex-shrink-0 bg-white text-purple-600 px-4 py-2 rounded-full font-bold text-xs uppercase shadow-md hover:bg-purple-50 active:scale-95 transition-all"
+                    className="flex-shrink-0 bg-white text-purple-600 px-5 py-3 rounded-full font-black text-xs uppercase shadow-xl hover:bg-purple-50 active:scale-95 transition-all"
                 >
                     Entendi
                 </button>
-                <button onClick={() => setShowiOSInstallMessage(false)} className="absolute top-2 right-2 text-white opacity-70 hover:opacity-100">
-                    <X size={16} />
+                {/* Botão Fechar (Maior e Flutuando fora do card) */}
+                <button onClick={() => setShowiOSInstallMessage(false)} className="absolute -top-3 -right-2 bg-slate-900 text-white p-2 rounded-full shadow-xl border-2 border-white hover:bg-slate-800 transition-all z-10">
+                    <X size={20} strokeWidth={3} />
                 </button>
             </motion.div>
         )}
