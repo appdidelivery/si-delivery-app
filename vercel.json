@@ -1,5 +1,11 @@
 {
-  "rewrites": [
+  "crons":[
+    {
+      "path": "/api/cron-automations",
+      "schedule": "0,30 * * * *"
+    }
+  ],
+  "rewrites":[
     {
       "source": "/robots.txt",
       "destination": "/api/robots"
@@ -9,14 +15,18 @@
       "destination": "/api/sitemap"
     },
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
-  "headers": [
+  "headers":[
     {
       "source": "/robots.txt",
-      "headers": [
+      "headers":[
         {
           "key": "Cache-Control",
           "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
@@ -25,7 +35,7 @@
     },
     {
       "source": "/sitemap.xml",
-      "headers": [
+      "headers":[
         {
           "key": "Cache-Control",
           "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
