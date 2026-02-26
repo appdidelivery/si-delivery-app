@@ -767,7 +767,7 @@ export default function Home() {
         customerName: customer.name || "", 
         customerAddress: fullAddress || "", 
         customerPhone: customer.phone || "",
-        payment: customer.payment || "", 
+        paymentMethod: customer.payment || "", 
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
         items: sanitizedCart, 
         subtotal: subtotal || 0, 
