@@ -418,20 +418,6 @@ export default function Home() {
     });
 
     const storeSettingsRef = doc(db, "stores", storeId); 
-    
-    // Cria o documento se não existir (Fallback de segurança)
-    getDoc(storeSettingsRef).then(s => {
-      if (!s.exists()) {
-        console.log("Home: Criando configuração padrão na coleção 'stores'...");
-        setDoc(storeSettingsRef, {
-          isOpen: true, openTime: '08:00', closeTime: '23:00',
-          message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
-          storeId: storeId,
-          name: 'Minha Loja',
-          slogan: 'Os melhores produtos entregues na sua casa.'
-        }, { merge: true });
-      }
-    });
 
     const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
       if (d.exists()) {
@@ -442,7 +428,6 @@ export default function Home() {
         // Lógica de Horário + Botão Manual do Admin
         let finalStatus = data.isOpen; 
 
-        // Só verifica horário se o botão "Abrir Loja" estiver ativado
         if (data.isOpen && data.schedule) {
             const now = new Date();
             const todayDayId = now.getDay();
@@ -467,10 +452,15 @@ export default function Home() {
         }
 
         setIsStoreOpenNow(finalStatus);
-        
         const msgAberta = data.message || 'Aberto agora!';
         const msgFechada = 'Fechado no momento.';
         setStoreMessage(finalStatus ? msgAberta : msgFechada);
+        
+      } else {
+        // SE A LOJA NÃO EXISTIR NO BANCO, TRAVA TUDO E NÃO CRIA NADA
+        setStoreSettings({ name: 'Loja Não Encontrada', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/606/606197.png' });
+        setIsStoreOpenNow(false);
+        setStoreMessage('Loja Inativa ou Inexistente');
       }
     });
 
