@@ -6,17 +6,11 @@ import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Nav
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
-// REMOVIDO: IMPORTAÇÃO NOVA: BIBLIOTECA DO TOUR (Joyride)
-// import Joyride, { STATUS, ACTIONS, EVENTS, LIFECYCLE } from 'react-joyride'; 
-
-// Importa o componente Carousel e seus estilos
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; 
 
-// Importa o helper para obter o storeId
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
-// Função auxiliar para ícones de categoria
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
     if (n.includes('cerveja')) return <Beer size={18}/>;
@@ -26,16 +20,13 @@ const getCategoryIcon = (name) => {
     return <List size={18}/>;
 };
 
-// NOVO: Função auxiliar para calcular o preço unitário com desconto de quantidade
 const getPriceWithQuantityDiscount = (product, quantity) => {
     if (!product.quantityDiscounts || product.quantityDiscounts.length === 0) {
         return product.price; 
     }
-
     const applicableDiscount = product.quantityDiscounts
         .filter(qd => quantity >= qd.minQuantity)
         .sort((a, b) => b.minQuantity - a.minQuantity)[0]; 
-
     if (applicableDiscount) {
         let discountedPrice = product.price; 
         if (applicableDiscount.type === 'percentage') {
@@ -45,48 +36,37 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
         }
         return discountedPrice > 0 ? discountedPrice : 0; 
     }
-
     return product.price; 
 };
-
 
 export default function Home() {
   const navigate = useNavigate();
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
-  console.log("Home - storeId detectado:", storeId);
+  
+  const [selectedProduct, setSelectedProduct] = useState(null); 
+  const [selectedOptions, setSelectedOptions] = useState({}); 
+  const [itemObservation, setItemObservation] = useState(''); 
 
-  // REMOVIDO: LÓGICA DO TOUR (ONBOARDING)
-  // const [runTour, setRunTour] = useState(false);
-  // const [tourStepIndex, setTourStepIndex] = useState(0);
-  // Temporário: Mude para 'grid' ou 'list' para testar os visuais
-  const [selectedProduct, setSelectedProduct] = useState(null); // Vai controlar o Modal de Complementos
-
-  const [selectedOptions, setSelectedOptions] = useState({}); // Guarda os adicionais marcados
-  const [itemObservation, setItemObservation] = useState(''); // Guarda a observação do cliente
-
-  // Quando o cliente clica no produto, zera as seleções anteriores
   const handleOpenProduct = (p) => {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
   };
-  // --- LÓGICAS DO MODAL DE COMPLEMENTOS ---
+
   const handleOptionToggle = (group, option) => {
       setSelectedOptions(prev => {
           const currentGroupSelections = prev[group.id] || [];
           const isSelected = currentGroupSelections.some(o => o.name === option.name);
 
           if (isSelected) {
-              // Remove se já estava marcado
               return { ...prev, [group.id]: currentGroupSelections.filter(o => o.name !== option.name) };
           } else {
-              // Adiciona respeitando o limite (maxSelections)
               if (group.maxSelections === 1) {
-                  return { ...prev, [group.id]: [option] }; // Se for 1, substitui (Radio)
+                  return { ...prev, [group.id]: [option] }; 
               } else if (currentGroupSelections.length < group.maxSelections) {
-                  return { ...prev, [group.id]: [...currentGroupSelections, option] }; // Se couber, adiciona (Checkbox)
+                  return { ...prev, [group.id]: [...currentGroupSelections, option] }; 
               } else {
-                  return prev; // Ignora se passou do limite
+                  return prev; 
               }
           }
       });
@@ -102,7 +82,6 @@ export default function Home() {
   };
 
   const handleAddCustomToCart = () => {
-      // 1. Validação: O cliente marcou os itens obrigatórios?
       if (selectedProduct.complements) {
           for (const group of selectedProduct.complements) {
               if (group.isRequired) {
@@ -114,37 +93,27 @@ export default function Home() {
               }
           }
       }
-
-      // 2. Cria um ID único para esse lanche (para não juntar 2 lanches diferentes num só no carrinho)
       const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}`;
-
-      // 3. Monta o nome bonitinho para o carrinho (Ex: Hamburguer (+ Bacon, + Ovo))
       const optionsText = Object.values(selectedOptions).flat().map(o => o.name).join(', ');
       const cartName = optionsText ? `${selectedProduct.name} (${optionsText})` : selectedProduct.name;
-
       const itemToAdd = {
           ...selectedProduct,
           cartItemId: customId,
           name: cartName,
           observation: itemObservation,
-          price: calculateModalTotal() // Preço Base + Adicionais
+          price: calculateModalTotal() 
       };
-
       addToCart(itemToAdd, 1);
-      setSelectedProduct(null); // Fecha o modal
+      setSelectedProduct(null); 
   };
-  // const tourSteps = [...]
-  // useEffect para hasSeenTour removido
-  // handleJoyrideCallback removido
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all'); // Renamed from selectedCategory in the prompt's intent
+  const [activeCategory, setActiveCategory] = useState('all'); 
   const [showCheckout, setShowCheckout] = useState(false);
   const[isFinalizing, setIsFinalizing] = useState(false);
-
 
   const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
@@ -152,83 +121,57 @@ export default function Home() {
   const [showLastOrders, setShowLastOrders] = useState(false);
   const [lastOrders, setLastOrders] = useState([]);
 
-  // Cupons
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
 
-  // Carrega os dados salvos quando o site abre
   useEffect(() => {
     const savedCustomer = localStorage.getItem('veloCustomerData');
     if (savedCustomer) {
       setCustomer(JSON.parse(savedCustomer));
     } else {
-      // Fallback para clientes antigos que só tinham o telefone salvo
       const savedPhone = localStorage.getItem('customerPhone');
       if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
     }
   }, []);
 
-  // Função mágica que atualiza a tela E salva no celular ao mesmo tempo
   const handleCustomerChange = (field, value) => {
     const updatedCustomer = { ...customer, [field]: value };
     setCustomer(updatedCustomer);
-    
-    // Salva tudo no LocalStorage, exceto a forma de pagamento/troco
     const { payment, changeFor, ...dataToSave } = updatedCustomer;
     localStorage.setItem('veloCustomerData', JSON.stringify(dataToSave));
-    
-    // Mantém compatibilidade com a busca de pedidos antigos
     if (field === 'phone') localStorage.setItem('customerPhone', value);
   };
   const [marketingSettings, setMarketingSettings] = useState({
         promoActive: false,
         promoBannerUrls: []
     });
-// --- LÓGICA DE EXIT INTENT (NÃO VÁ EMBORA) ---
   const [showExitModal, setShowExitModal] = useState(false);
 
   useEffect(() => {
-    // Se não estiver ativo no painel, nem roda o script
     if (!marketingSettings?.exitIntentActive) return;
-
-    // Função para disparar o modal
     const triggerExitIntent = () => {
-      // Verifica se já mostrou hoje (para não ser chato)
       const hasShown = localStorage.getItem('exitIntentShown');
       const today = new Date().toDateString();
-      
       if (hasShown !== today) {
         setShowExitModal(true);
-        localStorage.setItem('exitIntentShown', today); // Marca que mostrou hoje
+        localStorage.setItem('exitIntentShown', today); 
       }
     };
-
-    // 1. Desktop: Mouse sai da tela (cima)
     const handleMouseLeave = (e) => {
       if (e.clientY <= 0) triggerExitIntent();
     };
-
-    // 2. Mobile: Timer de 30 segundos
     const timer = setTimeout(() => {
        triggerExitIntent();
-    }, 30000); // 30 segundos
-
+    }, 30000); 
     document.addEventListener('mouseleave', handleMouseLeave);
-
     return () => {
       document.removeEventListener('mouseleave', handleMouseLeave);
       clearTimeout(timer);
     };
   }, [marketingSettings]);
-  useEffect(() => {
-    const savedPhone = localStorage.getItem('customerPhone');
-    if (savedPhone) {
-      setCustomer(prev => ({ ...prev, phone: savedPhone }));
-    }
-  }, []);
 
   useEffect(() => {
     if (showLastOrders) {
@@ -262,67 +205,52 @@ export default function Home() {
     slogan: 'Os melhores produtos entregues na sua casa.',
     name: 'Minha Loja'
   });
-  // Função para rolar até a categoria selecionada
+
   const scrollToCategory = (categoryId) => {
-    // No modo Lista, nós apenas rolamos a tela
     if (storeSettings?.layoutTheme === 'list') {
       const element = document.getElementById(`category-${categoryId}`);
       if (element) {
-        const offset = 90; // Espaço para não cobrir o título com o menu fixo
+        const offset = 90; 
         const bodyRect = document.body.getBoundingClientRect().top;
         const elementRect = element.getBoundingClientRect().top;
         const elementPosition = elementRect - bodyRect;
         const offsetPosition = elementPosition - offset;
-
-        window.scrollTo({
-          top: offsetPosition,
-          behavior: 'smooth'
-        });
+        window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
       }
     }
-    // Se quiser manter o filtro no modo Grade, pode chamar sua função de setCategory aqui
-    setActiveCategory(categoryId); // Ajustado para usar setActiveCategory
+    setActiveCategory(categoryId); 
   };
-    // --- FUNÇÃO DE COMPARTILHAR ---
+  
   const handleShare = async () => {
     const shareData = {
       title: storeSettings.name,
       text: `Peça agora na ${storeSettings.name}!`,
       url: window.location.href
     };
-
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-      } catch (err) {
-        console.log('Erro ao compartilhar', err);
-      }
+      } catch (err) {}
     } else {
-      // Fallback para PC (Copia o Link)
       navigator.clipboard.writeText(window.location.href);
       alert('Link copiado para a área de transferência!');
     }
   };
-// --- LÓGICA DE FIDELIDADE ---
+
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
 
   useEffect(() => {
-    // Só calcula se a fidelidade estiver ATIVA e o cliente tiver telefone salvo
     if (marketingSettings?.loyaltyActive) {
       const phone = localStorage.getItem('customerPhone');
       if (phone) {
-        // Busca pedidos CONCLUÍDOS (completed) deste telefone nesta loja
         const q = query(
           collection(db, "orders"),
           where("storeId", "==", storeId),
           where("customerPhone", "==", phone),
           where("status", "==", "completed") 
         );
-        
         const unsubscribe = onSnapshot(q, (snapshot) => {
-          // Soma o total gasto
           const totalSpent = snapshot.docs.reduce((acc, doc) => acc + Number(doc.data().total || 0), 0);
-          // Calcula pontos (Total * Fator configurado no Admin)
           const points = Math.floor(totalSpent * (marketingSettings.pointsPerReal || 1));
           setLoyaltyPoints(points);
         });
@@ -343,7 +271,6 @@ export default function Home() {
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
   const [activeOrderId, setActiveOrderId] = useState(null);
 
-    // --- INÍCIO DA CORREÇÃO (PWA Install Prompt) ---
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
     const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
@@ -356,9 +283,7 @@ export default function Home() {
                 setShowInstallPrompt(true);
             }
         };
-
         window.addEventListener('beforeinstallprompt', handler);
-
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
@@ -379,7 +304,6 @@ export default function Home() {
         if (deferredPrompt) {
             deferredPrompt.prompt();
             const { outcome } = await deferredPrompt.userChoice;
-            console.log(`User response to the A2HS prompt: ${outcome}`);
             setDeferredPrompt(null);
             setShowInstallPrompt(false);
         }
@@ -389,8 +313,6 @@ export default function Home() {
         setShowiOSInstallMessage(false);
         localStorage.setItem('dismissediOSInstallPrompt', 'true');
     };
-    // --- FIM DA CORREÇÃO (PWA Install Prompt) ---
-
 
   useEffect(() => {
     const savedOrderId = localStorage.getItem('activeOrderId');
@@ -422,10 +344,7 @@ export default function Home() {
     const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
       if (d.exists()) {
         const data = d.data();
-        console.log("🔥 Home recebeu atualização da Loja:", data); 
         setStoreSettings(data);
-
-        // Lógica de Horário + Botão Manual do Admin
         let finalStatus = data.isOpen; 
 
         if (data.isOpen && data.schedule) {
@@ -442,7 +361,6 @@ export default function Home() {
                 const scheduledCloseTime = closeHour * 60 + closeMinute;
                 
                 const isWithinHours = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-                
                 finalStatus = isWithinHours;
             } else {
                 finalStatus = false;
@@ -457,74 +375,44 @@ export default function Home() {
         setStoreMessage(finalStatus ? msgAberta : msgFechada);
         
       } else {
-        // SE A LOJA NÃO EXISTIR NO BANCO, TRAVA TUDO E NÃO CRIA NADA
         setStoreSettings({ name: 'Loja Não Encontrada', storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/606/606197.png' });
         setIsStoreOpenNow(false);
         setStoreMessage('Loja Inativa ou Inexistente');
       }
     });
 
-    // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
     const marketingSettingsRef = doc(db, "settings", storeId); 
     const unsubMarketingSettings = onSnapshot(marketingSettingsRef, (d) => {
         if (d.exists()) {
             setMarketingSettings(d.data());
         }
     });
-    // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
-
 
     return () => {
-        unsubProducts();
-        unsubCategories();
-        unsubCoupons();
-        unsubShippingRates();
-        unsubGeneralBanners();
-        unsubStoreSettings();
-        // --- INÍCIO DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
-        unsubMarketingSettings();
-        // --- FIM DA CORREÇÃO (Promo Relâmpago no Home.jsx) ---
+        unsubProducts(); unsubCategories(); unsubCoupons(); unsubShippingRates();
+        unsubGeneralBanners(); unsubStoreSettings(); unsubMarketingSettings();
     };
   }, [storeId]);
 
   useEffect(() => {
-    // --- INÍCIO DA CORREÇÃO (Nome dinâmico do PWA) ---
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
       const logoUrl = storeSettings.storeLogoUrl;
       const storeNameForPWA = storeSettings.name || "Velo Delivery"; 
-
       const favicon = document.getElementById('dynamic-favicon');
       const appleIcon = document.getElementById('dynamic-apple-icon');
       if (favicon) favicon.href = logoUrl;
       if (appleIcon) appleIcon.href = logoUrl;
-
       const manifestTag = document.getElementById('manifest-tag');
       if (manifestTag) {
         const dynamicManifest = {
-          "short_name": storeNameForPWA, 
-          "name": storeNameForPWA,       
-          "start_url": "/",
-          "display": "standalone",
-          "theme_color": "#1d4ed8",
-          "background_color": "#ffffff",
-          "orientation": "portrait", 
-          "scope": "/",              
+          "short_name": storeNameForPWA, "name": storeNameForPWA, "start_url": "/",
+          "display": "standalone", "theme_color": "#1d4ed8", "background_color": "#ffffff",
+          "orientation": "portrait", "scope": "/",             
           "icons": [
-            {
-              "src": logoUrl,
-              "sizes": "192x192",
-              "type": "image/png",
-              "purpose": "any"
-            },
-            {
-              "src": logoUrl,
-              "sizes": "512x512",
-              "type": "image/png",
-              "purpose": "any"
-            }
+            { "src": logoUrl, "sizes": "192x192", "type": "image/png", "purpose": "any" },
+            { "src": logoUrl, "sizes": "512x512", "type": "image/png", "purpose": "any" }
           ]
         };
-
         const blob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/json' });
         const manifestURL = URL.createObjectURL(blob);
         manifestTag.setAttribute('href', manifestURL);
@@ -545,13 +433,11 @@ export default function Home() {
         const currentCepNum = parseInt(cep); 
 
         const foundRate = shippingRates.find(rate => {
-            // 1. TENTATIVA POR FAIXA DE CEP
             if (rate.cepStart && rate.cepEnd) {
                 const start = parseInt(rate.cepStart.replace(/\D/g, ''));
                 const end = parseInt(rate.cepEnd.replace(/\D/g, ''));
                 if (currentCepNum >= start && currentCepNum <= end) return true; 
             }
-            // 2. TENTATIVA POR NOME DO BAIRRO
             if (data.bairro && rate.neighborhood) {
                  return rate.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim();
             }
@@ -572,7 +458,7 @@ export default function Home() {
   const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
     
-    // 1. TRAVA INICIAL: Bloqueia se o estoque original já for zero
+    // 1. TRAVA INICIAL
     if (p.stock !== undefined && Number(p.stock) <= 0) { 
         alert(`O produto ${p.name} está esgotado!`); 
         return; 
@@ -586,10 +472,10 @@ export default function Home() {
         newQuantity += existingItem.quantity;
       }
 
-      // 2. TRAVA DE CARRINHO: Impede que a soma ultrapasse o limite
+      // 2. TRAVA DE CARRINHO
       if (p.stock !== undefined && (newQuantity > Number(p.stock))) {
           alert(`⚠️ Desculpe, só temos ${p.stock} unidades de ${p.name} disponíveis no momento.`);
-          return prev; // Retorna o carrinho do jeito que estava, cancelando a adição
+          return prev; 
       }
       
       const finalPricePerUnit = getPriceWithQuantityDiscount(p, newQuantity);
@@ -611,16 +497,15 @@ export default function Home() {
 
                 const productOriginal = products.find(p => p.id === productId);
 
-                // 3. TRAVA DO BOTÃO +: Bloqueia o incremento se passar do estoque
+                // 3. TRAVA DO BOTÃO +
                 if (amount > 0 && productOriginal && productOriginal.stock !== undefined) {
                     if (newQuantity > Number(productOriginal.stock)) {
                         alert(`⚠️ Limite atingido! Temos apenas ${productOriginal.stock} unidades de ${productOriginal.name}.`);
-                        return item; // Retorna sem alterar a quantidade
+                        return item; 
                     }
                 }
 
                 const priceWithDiscount = productOriginal ? getPriceWithQuantityDiscount(productOriginal, newQuantity) : item.price;
-
                 return { ...item, quantity: newQuantity, price: priceWithDiscount };
             }
             return item;
@@ -630,126 +515,61 @@ export default function Home() {
 
   const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
 
-  // --- CÁLCULOS TOTAIS (CORREÇÃO) ---
-  // 1. Calcula o Subtotal (Soma dos itens)
   const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
-
-  // 2. Verifica Meta de Frete Grátis
   const freeShippingThreshold = Number(storeSettings.freeShippingThreshold || 0);
   const isFreeShipping = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
-
-  // 3. Define o valor final do frete (0 se ganhou, ou o valor do CEP se não ganhou)
   const finalShippingFee = isFreeShipping ? 0 : Number(shippingFee || 0);
-
-  // 4. Calcula o Total Final da Conta
   const finalTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
 
   const applyCoupon = async () => {
-    setCouponError('');
-    setDiscountAmount(0);
-    setAppliedCoupon(null);
-
-    if (!couponCode) {
-      setCouponError('Por favor, digite um código de cupom.');
-      return;
-    }
-
+    setCouponError(''); setDiscountAmount(0); setAppliedCoupon(null);
+    if (!couponCode) { setCouponError('Por favor, digite um código de cupom.'); return; }
     const coupon = availableCoupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
-
-    if (!coupon) {
-      setCouponError('Cupom inválido ou não encontrado.');
-      return;
-    }
-
-    if (!coupon.active) {
-      setCouponError('Este cupom não está ativo.');
-      return;
-    }
-
+    if (!coupon) { setCouponError('Cupom inválido ou não encontrado.'); return; }
+    if (!coupon.active) { setCouponError('Este cupom não está ativo.'); return; }
     const now = new Date();
-    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) {
-      setCouponError('Este cupom expirou.');
-      return;
-    }
-
-    if (coupon.usageLimit && coupon.currentUsage >= coupon.usageLimit) {
-      setCouponError('Este cupom atingiu o limite máximo de usos.');
-      return;
-    }
+    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) { setCouponError('Este cupom expirou.'); return; }
+    if (coupon.usageLimit && coupon.currentUsage >= coupon.usageLimit) { setCouponError('Este cupom atingiu o limite máximo de usos.'); return; }
 
     if (coupon.userUsageLimit) {
         const customerPhone = localStorage.getItem('customerPhone');
         if (customerPhone) {
-            const customerOrdersWithCouponQuery = query(
-                collection(db, "orders"),
-                where("customerPhone", "==", customerPhone),
-                where("couponCode", "==", coupon.code),
-                where("status", "==", "completed"),
-                where("storeId", "==", storeId)
-            );
+            const customerOrdersWithCouponQuery = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), where("couponCode", "==", coupon.code), where("status", "==", "completed"), where("storeId", "==", storeId));
             const snapshot = await getDocs(customerOrdersWithCouponQuery);
-            if (snapshot.size >= coupon.userUsageLimit) {
-                setCouponError('Você já usou este cupom o número máximo de vezes.');
-                return;
-            }
+            if (snapshot.size >= coupon.userUsageLimit) { setCouponError('Você já usou este cupom o número máximo de vezes.'); return; }
         }
     }
 
     if (coupon.firstPurchaseOnly) {
         const customerPhone = localStorage.getItem('customerPhone');
         if (customerPhone) {
-            const customerTotalOrdersQuery = query(
-                collection(db, "orders"),
-                where("customerPhone", "==", customerPhone),
-                where("status", "==", "completed"),
-                where("storeId", "==", storeId)
-            );
+            const customerTotalOrdersQuery = query(collection(db, "orders"), where("customerPhone", "==", customerPhone), where("status", "==", "completed"), where("storeId", "==", storeId));
             const snapshot = await getDocs(customerTotalOrdersQuery);
-            if (snapshot.size > 0) {
-                setCouponError('Este cupom é válido apenas para a primeira compra.');
-                return;
-            }
+            if (snapshot.size > 0) { setCouponError('Este cupom é válido apenas para a primeira compra.'); return; }
         }
     }
 
-    if (coupon.minimumOrderValue > subtotal) {
-      setCouponError(`Valor mínimo do pedido para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}.`);
-      return;
-    }
+    if (coupon.minimumOrderValue > subtotal) { setCouponError(`Valor mínimo do pedido para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}.`); return; }
 
     let calculatedDiscount = 0;
-    if (coupon.type === 'percentage') {
-      calculatedDiscount = subtotal * (coupon.value / 100);
-    } else if (coupon.type === 'fixed_amount') {
-      calculatedDiscount = coupon.value;
-    }
+    if (coupon.type === 'percentage') { calculatedDiscount = subtotal * (coupon.value / 100);
+    } else if (coupon.type === 'fixed_amount') { calculatedDiscount = coupon.value; }
 
-    setAppliedCoupon(coupon);
-    setDiscountAmount(calculatedDiscount);
-    setCouponError('Cupom aplicado com sucesso!');
+    setAppliedCoupon(coupon); setDiscountAmount(calculatedDiscount); setCouponError('Cupom aplicado com sucesso!');
   };
 
-
   const finalizeOrder = async () => {
-    // 1. Validações de Segurança e Trava de Duplo Clique
-    if (isFinalizing) return; // Bloqueia se já estiver processando
+    if (isFinalizing) return; 
     if (!isStoreOpenNow) return alert(storeMessage);
     if (!customer.name || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha todos os dados, incluindo seu e-mail.");
     if (cart.length === 0) return alert("Carrinho vazio!");
     if (shippingFee === null) return alert("Frete não calculado.");
 
-    setIsFinalizing(true); // INICIA O CARREGAMENTO
-
+    setIsFinalizing(true); 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     
     try {
-      const sanitizedCart = cart.map(item => ({
-        ...item,
-        observation: item.observation || "" 
-      }));
-
-      // GERA O ID DO PEDIDO ANTES DE SALVAR NO BANCO
-      // Assim podemos mandar o ID para a Stripe e só salvar se der sucesso
+      const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
       const newOrderRef = doc(collection(db, "orders"));
       const orderId = newOrderRef.id;
 
@@ -773,15 +593,10 @@ export default function Home() {
         orderData.discountAmount = discountAmount || 0;
       }
 
-      // --- CAMINHO 1: PAGAMENTO EM DINHEIRO (Pagar na entrega) ---
       if (customer.payment === 'dinheiro') {
-          // Salva no banco de fato
           await setDoc(newOrderRef, orderData);
-
           if (appliedCoupon) {
-            await updateDoc(doc(db, "coupons", appliedCoupon.id), {
-              currentUsage: (appliedCoupon.currentUsage || 0) + 1
-            });
+            await updateDoc(doc(db, "coupons", appliedCoupon.id), { currentUsage: (appliedCoupon.currentUsage || 0) + 1 });
           }
 
           const itemsList = cart.map(i => {
@@ -801,28 +616,26 @@ export default function Home() {
           localStorage.setItem('activeOrderId', orderId);
           setActiveOrderId(orderId);
           setCart([]); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
-          setIsFinalizing(false); // FIM DO CARREGAMENTO
+          setIsFinalizing(false); 
           
           window.open(whatsappUrl, '_blank');
           navigate(`/track/${orderId}`);
           return;
       }
 
-      // --- CAMINHO 2: PAGAMENTO ONLINE (Cartão ou Pix via Stripe) ---
       if (customer.payment === 'cartao' || customer.payment === 'pix') {
           if (!storeSettings.stripeConnectId) {
               alert("⚠️ Esta loja ainda não configurou pagamentos online. Escolha a opção 'Dinheiro'.");
-              setIsFinalizing(false); // Libera o botão
+              setIsFinalizing(false); 
               return;
           }
 
-          // CHAMA A STRIPE PRIMEIRO (Antes de salvar no Firestore)
           const response = await fetch('/api/create-marketplace-checkout', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                   items: sanitizedCart,
-                  orderId: orderId, // Passamos o ID gerado previamente
+                  orderId: orderId, 
                   storeConnectId: storeSettings.stripeConnectId,
                   customerEmail: customer.email || 'cliente@padrao.com',
                   shippingFee: shippingFee || 0,
@@ -835,25 +648,21 @@ export default function Home() {
           const data = await response.json();
           
           if (data.url) {
-              // RETORNOU COM SUCESSO: Agora sim gravamos o pedido no Firebase!
               await setDoc(newOrderRef, orderData);
-
               localStorage.setItem('activeOrderId', orderId);
               setActiveOrderId(orderId);
               setCart([]); setShowCheckout(false);
-              
-              // O navegador vai sair da página, então não precisamos setar false.
               window.location.href = data.url;
           } else {
               alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
-              setIsFinalizing(false); // Falhou, libera o botão para tentar de novo
+              setIsFinalizing(false); 
           }
       }
 
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
         console.error("Erro ao finalizar pedido:", e);
-        setIsFinalizing(false); // Em caso de exceção de rede/firebase, libera o botão
+        setIsFinalizing(false); 
     }
   };
 
@@ -863,80 +672,29 @@ export default function Home() {
   ];
 
   const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds || []);
-
-  // 2. Busca esses produtos (que não estejam no carrinho e tenham estoque)
   const smartUpsell = products.filter(p => 
       recommendedIdsInCart.includes(p.id) && 
       !cart.some(c => c.id === p.id) && 
       ((p.stock && parseInt(p.stock) > 0) || !p.stock)
   );
 
-  // 3. Decide: Usa os inteligentes? Se não tiver, usa os Destaques (Fallback)
   const upsellProducts = smartUpsell.length > 0 
       ? smartUpsell 
       : products
           .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) 
           .filter(p => p.isBestSeller || p.isFeatured) 
           .slice(0, 5); 
- const layoutTheme = storeSettings?.layoutTheme || 'grid';
- // --- LÓGICA DE TEMAS E CORES ---
+
+  const layoutTheme = storeSettings?.layoutTheme || 'grid';
+  
   const themePresets = {
-    default: {
-        primary: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-600',
-        shadow: 'shadow-blue-100', hoverPrimary: 'hover:bg-blue-700',
-        lightBg: 'bg-blue-50', hoverLightBg: 'hover:bg-blue-100',
-        accent: 'accent-blue-600', darkText: 'text-blue-900',
-        gradientFrom: 'from-blue-400', gradientTo: 'to-blue-600',
-        ringColor: 'blue-500' // NOVA PROPRIEDADE
-    },
-    burger: {
-        primary: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-600',
-        shadow: 'shadow-orange-100', hoverPrimary: 'hover:bg-orange-700',
-        lightBg: 'bg-orange-50', hoverLightBg: 'hover:bg-orange-100',
-        accent: 'accent-orange-600', darkText: 'text-orange-900',
-        gradientFrom: 'from-orange-400', gradientTo: 'to-orange-600',
-        ringColor: 'orange-500' // NOVA PROPRIEDADE
-    },
-    pizza: {
-        primary: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-600',
-        shadow: 'shadow-rose-100', hoverPrimary: 'hover:bg-rose-700',
-        lightBg: 'bg-rose-50', hoverLightBg: 'hover:bg-rose-100',
-        accent: 'accent-rose-600', darkText: 'text-rose-900',
-        gradientFrom: 'from-rose-400', gradientTo: 'to-rose-600',
-        ringColor: 'rose-500' // NOVA PROPRIEDADE
-    },
-    oriental: {
-        primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900',
-        shadow: 'shadow-slate-200', hoverPrimary: 'hover:bg-slate-800',
-        lightBg: 'bg-slate-800', hoverLightBg: 'hover:bg-slate-700',
-        accent: 'accent-slate-900', darkText: 'text-slate-900',
-        gradientFrom: 'from-slate-700', gradientTo: 'to-slate-900',
-        ringColor: 'slate-600' // NOVA PROPRIEDADE
-    },
-    natural: {
-        primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600',
-        shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700',
-        lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100',
-        accent: 'accent-green-600', darkText: 'text-green-900',
-        gradientFrom: 'from-green-400', gradientTo: 'to-green-600',
-        ringColor: 'green-500' // NOVA PROPRIEDADE
-    },
-    sweet: {
-        primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600',
-        shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700',
-        lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100',
-        accent: 'accent-purple-600', darkText: 'text-purple-900',
-        gradientFrom: 'from-purple-400', gradientTo: 'to-purple-600',
-        ringColor: 'purple-500' // NOVA PROPRIEDADE
-    },
-    drinks: {
-        primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500',
-        shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600',
-        lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100',
-        accent: 'accent-amber-500', darkText: 'text-amber-900',
-        gradientFrom: 'from-amber-300', gradientTo: 'to-amber-500',
-        ringColor: 'amber-500' // NOVA PROPRIEDADE
-    }
+    default: { primary: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-600', shadow: 'shadow-blue-100', hoverPrimary: 'hover:bg-blue-700', lightBg: 'bg-blue-50', hoverLightBg: 'hover:bg-blue-100', accent: 'accent-blue-600', darkText: 'text-blue-900', gradientFrom: 'from-blue-400', gradientTo: 'to-blue-600', ringColor: 'blue-500' },
+    burger: { primary: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-600', shadow: 'shadow-orange-100', hoverPrimary: 'hover:bg-orange-700', lightBg: 'bg-orange-50', hoverLightBg: 'hover:bg-orange-100', accent: 'accent-orange-600', darkText: 'text-orange-900', gradientFrom: 'from-orange-400', gradientTo: 'to-orange-600', ringColor: 'orange-500' },
+    pizza: { primary: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-600', shadow: 'shadow-rose-100', hoverPrimary: 'hover:bg-rose-700', lightBg: 'bg-rose-50', hoverLightBg: 'hover:bg-rose-100', accent: 'accent-rose-600', darkText: 'text-rose-900', gradientFrom: 'from-rose-400', gradientTo: 'to-rose-600', ringColor: 'rose-500' },
+    oriental: { primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900', shadow: 'shadow-slate-200', hoverPrimary: 'hover:bg-slate-800', lightBg: 'bg-slate-800', hoverLightBg: 'hover:bg-slate-700', accent: 'accent-slate-900', darkText: 'text-slate-900', gradientFrom: 'from-slate-700', gradientTo: 'to-slate-900', ringColor: 'slate-600' },
+    natural: { primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600', shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700', lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100', accent: 'accent-green-600', darkText: 'text-green-900', gradientFrom: 'from-green-400', gradientTo: 'to-green-600', ringColor: 'green-500' },
+    sweet: { primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700', lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100', accent: 'accent-purple-600', darkText: 'text-purple-900', gradientFrom: 'from-purple-400', gradientTo: 'to-purple-600', ringColor: 'purple-500' },
+    drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-300', gradientTo: 'to-amber-500', ringColor: 'amber-500' }
   };
 
   const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
@@ -945,9 +703,6 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       <SEO title="Velo Delivery" description="Bebidas geladas." />
       
-      {/* REMOVIDO: COMPONENTE DO TOUR (Joyride) */}
-
-      {/* HEADER */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm">
         <div className="flex items-center gap-3 mb-2 sm:mb-0">
           <img src={storeSettings.storeLogoUrl} className={`h-12 w-12 rounded-full object-cover border-2 ${currentTheme.border} shadow-sm`} onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
@@ -958,35 +713,23 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          
-          <button 
-            onClick={handleShare} 
-            className={`p-2 ${currentTheme.lightBg} ${currentTheme.text} rounded-full ${currentTheme.hoverLightBg} border ${currentTheme.lightBg.replace('bg-','border-').replace('50','100')} active:scale-95 transition-all`}
-          >
+          <button onClick={handleShare} className={`p-2 ${currentTheme.lightBg} ${currentTheme.text} rounded-full ${currentTheme.hoverLightBg} border ${currentTheme.lightBg.replace('bg-','border-').replace('50','100')} active:scale-95 transition-all`}>
             <Share size={20} />
           </button>
-
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
             {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
           </div>
         </div>
       </header>
-      {/* --- TARJA DE FIDELIDADE (SÓ APARECE SE TIVER PONTOS) --- */}
+
       <AnimatePresence>
         {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }} 
-            animate={{ height: 'auto', opacity: 1 }} 
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-slate-900 text-white px-6 py-4 relative overflow-hidden shadow-lg border-b border-slate-800"
-          >
-            {/* Efeito de Fundo (Brilho) */}
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-slate-900 text-white px-6 py-4 relative overflow-hidden shadow-lg border-b border-slate-800">
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
-
             <div className="flex justify-between items-end relative z-10 mb-2">
               <div className="flex items-center gap-3">
                 <div className="bg-gradient-to-br from-yellow-300 to-yellow-600 text-slate-900 p-2.5 rounded-xl shadow-lg shadow-yellow-900/20">
-                   <Crown size={18} fill="currentColor" /> {/* Importe Crown do lucide-react */}
+                   <Crown size={18} fill="currentColor" /> 
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Clube VIP</p>
@@ -1002,17 +745,9 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            
-            {/* Barra de Progresso */}
             <div className="relative h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-purple-500"
-              ></motion.div>
+              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-purple-500"></motion.div>
             </div>
-            
             <p className="text-[9px] text-center text-slate-500 mt-2 font-medium">
               Faltam <span className="text-white font-bold">{Math.max(0, (marketingSettings.loyaltyGoal || 100) - loyaltyPoints)}</span> pontos para resgatar!
             </p>
@@ -1020,7 +755,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* CÓDIGO DO CARROSSEL DE PROMOÇÃO RELÂMPAGO */}
       <AnimatePresence>
         {marketingSettings.promoActive && marketingSettings.promoBannerUrls && marketingSettings.promoBannerUrls.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
@@ -1035,7 +769,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* NOVO: CARROSSEL DE BANNERS GERAIS / DE MARCAS */}
       <AnimatePresence>
         {generalBanners.length > 0 && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 pt-0">
@@ -1055,23 +788,18 @@ export default function Home() {
       <div className="p-6">
         <div className="relative mb-8">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          {/* Ajuste: Usando currentTheme.ringColor */}
           <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
-        {/* CATEGORIAS DINÂMICAS */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
           {displayCategories.map(c => (
-            <button key={c.id} 
-              onClick={() => scrollToCategory(c.id)} // Alterado para chamar scrollToCategory
-              className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? `${currentTheme.primary} text-white` : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
+            <button key={c.id} onClick={() => scrollToCategory(c.id)} className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? `${currentTheme.primary} text-white` : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
               {c.icon} {c.name}
             </button>
           ))}
         </div>
       </div>
 
-      {/* NOVO: SEÇÃO DE PRODUTOS EM DESTAQUE */}
       {featuredProducts.length > 0 && (
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
@@ -1100,15 +828,9 @@ export default function Home() {
                                               <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button 
-                                        onClick={() => addToCart(p)} 
-                                        disabled={!isStoreOpenNow || !hasStock}
-                                        className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95
-                                            ${!isStoreOpenNow || !hasStock ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : `${currentTheme.primary} text-white ${currentTheme.hoverPrimary}`}`}
-                                    >
-                                        <span className="font-black text-[10px] uppercase tracking-widest">Adicionar</span>
-                                        <ShoppingCart size={16} />
-                                    </button>
+                                      <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} />
+                                      </button>
                                   </div>
                               </motion.div>
                           );
@@ -1118,7 +840,6 @@ export default function Home() {
           </div>
       )}
 
-      {/* NOVO: SEÇÃO DE PRODUTOS MAIS VENDIDOS */}
       {bestsellingProducts.length > 0 && (
           <div className="px-6 mt-8">
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
@@ -1159,8 +880,6 @@ export default function Home() {
           </div>
       )}
 
-
-      {/* PRODUTOS (VITRINE PRINCIPAL COM TEMA DINÂMICO) */}
       <main className="px-6 mb-20 mt-8">
         {layoutTheme === 'grid' ? (
             <div className={`grid grid-cols-2 md:grid-cols-4 gap-4`}>
@@ -1195,22 +914,19 @@ export default function Home() {
                     })}
                 </AnimatePresence>
             </div>
-        ) : ( // List layout
+        ) : ( 
             <div className="flex flex-col gap-8">
                 {displayCategories
-                    .filter(c => c.id !== 'all') // Exclude 'all' from individual category sections, it's handled by rendering all below
+                    .filter(c => c.id !== 'all') 
                     .map(cat => {
                         const categoryProducts = products.filter(p => 
                             p.category === cat.name && 
                             p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
                             ((p.stock && parseInt(p.stock) > 0) || !p.stock)
                         );
-
-                        // Only render this category section if 'all' is active OR this specific category is active
                         if (activeCategory !== 'all' && activeCategory !== cat.id) {
                             return null;
                         }
-                        // If no products in this category (after all filters), don't render its section
                         if (categoryProducts.length === 0) {
                             return null;
                         }
@@ -1228,7 +944,6 @@ export default function Home() {
                                                 onClick={() => hasStock ? setSelectedProduct(p) : null}
                                                 className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
                                             >
-                                                {/* Textos à esquerda */}
                                                 <div className="flex-1 flex flex-col justify-center">
                                                     <h3 className="font-black text-slate-800 text-sm leading-tight mb-1">{p.name}</h3>
                                                     <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
@@ -1245,7 +960,6 @@ export default function Home() {
                                                         )}
                                                     </div>
                                                 </div>
-                                                {/* Imagem à direita */}
                                                 <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
                                                     <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
                                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl">-{p.discountPercentage}%</span>}
@@ -1262,19 +976,13 @@ export default function Home() {
         )}
       </main>
 
-      {/* --- RODAPÉ DINÂMICO (Lê do Admin) --- */}
       <section className="px-6 py-10 bg-slate-100/50 text-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
-            {/* Nome da Loja Dinâmico */}
             <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">{storeSettings.name || "Nossa Loja"}</p>
-            
-            {/* Endereço Dinâmico (Vem do Admin) */}
             <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest px-4 leading-relaxed">
                 {storeSettings.address || "Endereço não cadastrado"}
             </p>
-            
-            {/* Link do Maps Automático */}
             {storeSettings.address && (
                 <a 
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeSettings.address)}`} 
@@ -1288,24 +996,20 @@ export default function Home() {
         </div>
       </section>
 
-<footer className="p-12 text-center">
+      <footer className="p-12 text-center">
         <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
-        {/* CORREÇÃO AQUI: Trocamos <div> por <a> e adicionamos o href */}
         <a 
           href="https://velodelivery.com.br" 
           target="_blank" 
           rel="noopener noreferrer" 
           className="inline-flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer"
         >
-          {/* Certifique-se que o nome da imagem está correto na sua pasta public */}
           <img src="/logo retangular Velo Delivery.png" className="h-6 w-auto mb-2" alt="Velo Delivery" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
         </a>
       </footer>
 
-      {/* Contêiner para os botões fixos (Acompanhar, Carrinho, Últimos Pedidos) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> {/* Removido lg:hidden */}
-        {/* Botão "Acompanhar Pedidos" */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> 
         <AnimatePresence>
           {activeOrderId && (
             <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
@@ -1323,7 +1027,6 @@ export default function Home() {
             >
                 <ShoppingCart size={24} />
             </motion.button>
-            
             <AnimatePresence>
                 {cart.length > 0 && (
                 <motion.div 
@@ -1333,13 +1036,11 @@ export default function Home() {
                     className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
                 >
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
-                    
                 </motion.div>
                 )}
             </AnimatePresence>
         </div>
 
-        {/* Botão "Últimos Pedidos" */}
         <motion.button
           onClick={() => setShowLastOrders(true)}
           className="bg-orange-600 text-white rounded-full p-4 shadow-xl hover:bg-orange-700 active:scale-90 flex items-center gap-2"
@@ -1350,14 +1051,12 @@ export default function Home() {
         </motion.button>
       </div>
 
-      {/* CHECKOUT COMPLETO */}
       <AnimatePresence>
         {showCheckout && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
               <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
               <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
-              {/* --- BARRA DE FRETE GRÁTIS --- */}
               {storeSettings.freeShippingThreshold > 0 && (
                   <div className="mb-6 bg-slate-50 p-4 rounded-3xl border border-slate-100">
                       {(() => {
@@ -1411,21 +1110,10 @@ export default function Home() {
                   </div>
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
-                  
-                  {/* REMOVIDO: WRAPPER TOUR DADOS */}
                   <div>
                     <input type="text" placeholder="Seu Nome Completo" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
-                    
-                    {/* NOVO CAMPO: E-MAIL PARA A STRIPE */}
                     <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
-                    
-                    <input
-                      type="tel"
-                      placeholder="WhatsApp (DDD + Número)"
-                      className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none"
-                      value={customer.phone}
-                      onChange={e => handleCustomerChange('phone', e.target.value)}
-                    />
+                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                     <div className="relative">
                       <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
                       {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
@@ -1437,27 +1125,17 @@ export default function Home() {
                       </>
                     )}
                   </div>
-                  {/* FIM REMOVIDO WRAPPER TOUR DADOS */}
 
                   {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
-                  {/* Ajuste: Usando currentTheme.text */}
                   {deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center`}>{deliveryAreaMessage}</p>}
 
-                  {/* Cupom de Desconto */}
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
-                    <input
-                      type="text"
-                      placeholder="Insira o código do cupom"
-                      className="flex-1 p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none"
-                      value={couponCode}
-                      onChange={e => setCouponCode(e.target.value)}
-                    />
+                    <input type="text" placeholder="Insira o código do cupom" className="flex-1 p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none" value={couponCode} onChange={e => setCouponCode(e.target.value)} />
                     <button onClick={applyCoupon} className={`${currentTheme.primary} text-white p-5 rounded-[2rem] font-black uppercase shadow-xl ${currentTheme.hoverPrimary}`}>Aplicar</button>
                   </div>
                   {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
 
-                  {/* NOVO: SEÇÃO "QUE TAL PEDIR TAMBÉM?" (UPSELL) */}
                   {upsellProducts.length > 0 && (
                       <div className="mt-8 pt-6 border-t border-slate-100">
                           <p className="font-black text-xs text-slate-400 uppercase ml-4 tracking-widest mb-4">Que tal pedir também?</p>
@@ -1467,7 +1145,7 @@ export default function Home() {
                                       <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
                                       <p className={`${currentTheme.text} font-black text-sm`}>R$ {p.price?.toFixed(2)}</p>
-                                      <button onClick={() => addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
+                                      <button onClick={() => hasStock && addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
                                   </div>
                               ))}
                           </div>
@@ -1475,8 +1153,6 @@ export default function Home() {
                   )}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
-                  
-                  {/* REMOVIDO: WRAPPER TOUR PAGAMENTO */}
                   <div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
                       {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
@@ -1490,24 +1166,23 @@ export default function Home() {
                     <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
                         <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
                         <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
-    <span>Frete</span>
-    <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
-        {shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'}
-    </span>
-</div>
+                            <span>Frete</span>
+                            <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
+                                {shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'}
+                            </span>
+                        </div>
                         {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
                         <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                     </div>
 
                    <button 
-  onClick={finalizeOrder} 
-  disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
-  className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
->
-  {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
-</button>
+                        onClick={finalizeOrder} 
+                        disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
+                        className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
+                    >
+                        {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
+                    </button>
                   </div>
-                  {/* FIM REMOVIDO WRAPPER TOUR PAGAMENTO */}
 
                 </>
               )}
@@ -1516,7 +1191,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* MODAL ÚLTIMOS PEDIDOS */}
       <AnimatePresence>
         {showLastOrders && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[101] p-6">
@@ -1548,7 +1222,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* --- INÍCIO DA CORREÇÃO (PWA Install Prompt UI) --- */}
       <AnimatePresence>
         {showInstallPrompt && (
             <motion.div
@@ -1613,19 +1286,19 @@ export default function Home() {
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
-            onClick={() => setShowExitModal(false)} // Fecha ao clicar fora
+            onClick={() => setShowExitModal(false)} 
           >
             <motion.div 
               initial={{ scale: 0.8, y: 50 }} 
               animate={{ scale: 1, y: 0 }} 
               exit={{ scale: 0.8, y: 50 }} 
               className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center relative shadow-2xl border-4 border-rose-500 overflow-hidden"
-              onClick={(e) => e.stopPropagation()} // Não fecha ao clicar dentro
+              onClick={(e) => e.stopPropagation()} 
             >
               <button onClick={() => setShowExitModal(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all"><X size={20}/></button>
               
               <div className="bg-rose-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                <Gift size={40} className="text-rose-600" /> {/* Importe Gift */}
+                <Gift size={40} className="text-rose-600" /> 
               </div>
 
               <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter leading-none mb-2">
@@ -1637,16 +1310,15 @@ export default function Home() {
 
               <div className="bg-slate-100 p-4 rounded-2xl border-2 border-dashed border-slate-300 mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all group" onClick={() => {
                  navigator.clipboard.writeText(marketingSettings.exitIntentCoupon);
-                 setCouponCode(marketingSettings.exitIntentCoupon); // Já preenche no input do carrinho
+                 setCouponCode(marketingSettings.exitIntentCoupon); 
                  alert('Cupom COPIADO! Aproveite.');
                  setShowExitModal(false);
-                 setShowCheckout(true); // Abre o carrinho na hora
+                 setShowCheckout(true); 
               }}>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Seu Cupom</p>
                 <p className={`text-3xl font-black ${currentTheme.text} uppercase tracking-widest group-hover:scale-110 transition-transform`}>
                   {marketingSettings.exitIntentCoupon || "VOLTA10"}
                 </p>
-                {/* Ajuste: Usando currentTheme.text */}
                 <p className={`text-[9px] ${currentTheme.text.replace(/\d{2,3}/,'400')} font-bold mt-1`}>(Clique para Copiar)</p>
               </div>
 
@@ -1664,8 +1336,6 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* --- FIM DA CORREÇÃO (PWA Install Prompt UI) --- */}
-      {/* --- MODAL DE DETALHES DO PRODUTO (TEMA LISTA) --- */}
       <AnimatePresence>
         {selectedProduct && (
           <motion.div 
@@ -1673,17 +1343,16 @@ export default function Home() {
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
-            onClick={() => setSelectedProduct(null)} // Clicar fora fecha o modal
+            onClick={() => setSelectedProduct(null)} 
           >
             <motion.div 
               initial={{ y: "100%" }} 
               animate={{ y: 0 }} 
               exit={{ y: "100%" }} 
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              onClick={(e) => e.stopPropagation()} // Evita fechar ao clicar no meio da tela branca
+              onClick={(e) => e.stopPropagation()} 
               className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
             >
-              {/* Botão Fechar no canto da foto */}
               <button 
                 onClick={() => setSelectedProduct(null)} 
                 className="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full z-10 backdrop-blur-md hover:bg-black/60 transition-all"
@@ -1691,7 +1360,6 @@ export default function Home() {
                 <X size={20} />
               </button>
 
-              {/* Foto Gigante do Produto */}
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
                 <img src={selectedProduct.imageUrl} className="w-full h-full object-cover" alt={selectedProduct.name} />
                 {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
@@ -1701,14 +1369,12 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Detalhes (Parte Rolável para caber complementos depois) */}
               <div className="p-6 overflow-y-auto pb-32 custom-scrollbar flex-1">
                 <h2 className="text-2xl font-black text-slate-900 mb-2 leading-tight">{selectedProduct.name}</h2>
                 <p className="text-slate-500 text-sm mb-6 leading-relaxed">
                   {selectedProduct.description || "Sem descrição adicional detalhada."}
                 </p>
 
-                {/* --- RENDERIZADOR DE COMPLEMENTOS --- */}
                 {selectedProduct.complements && selectedProduct.complements.length > 0 && (
                     <div className="border-t border-slate-100 pt-2 mt-4 space-y-4">
                         {selectedProduct.complements.map(group => (
@@ -1743,7 +1409,6 @@ export default function Home() {
                     </div>
                 )}
 
-                {/* Campo de Observações (Sempre visível no layout de Comida) */}
                 <div className="mt-4 pt-4 border-t border-slate-100">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alguma observação?</label>
                     <textarea 
@@ -1756,7 +1421,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Rodapé Fixo Atualizado (Mantido) */}
               <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 flex items-center justify-between gap-4 z-20">
                  <div className="flex flex-col pl-2">
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Total do Item</span>
