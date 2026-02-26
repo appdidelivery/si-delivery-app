@@ -12,7 +12,7 @@ export default async function handler(req, res) {
             price_data: {
                 currency: 'brl',
                 product_data: { name: item.name },
-                unit_amount: Math.round(item.price * 100), // Stripe usa centavos (Ex: R$ 10,50 vira 1050)
+                unit_amount: Math.round(item.price * 100), // Stripe usa centavos
             },
             quantity: item.quantity,
         }));
@@ -29,31 +29,24 @@ export default async function handler(req, res) {
             });
         }
 
-        // --- 💰 AQUI VOCÊ DEFINE A SUA COMISSÃO (VELO) ---
-        // A "application_fee_amount" é a taxa que fica para a sua conta principal. 
-        // O restante vai direto para a conta conectada do lojista (storeConnectId).
-        const veloTaxaFixaBRL = 0.10; // Exemplo: Você ganha R$ 2,00 limpos por CADA venda online.
-        const applicationFeeCentavos = Math.round(veloTaxaFixaBRL * 100);
-
         // 3. Monta a configuração base da sessão
+        // ⚠️ O CÁLCULO MANUAL FOI REMOVIDO. O PAINEL DA STRIPE APLICARÁ OS 2% AUTOMATICAMENTE.
         let sessionConfig = {
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: 'payment',
             client_reference_id: orderId, // Grava o ID do pedido do Firebase na Stripe
             payment_intent_data: {
-                application_fee_amount: applicationFeeCentavos,
                 transfer_data: {
-                    destination: storeConnectId, // Dinheiro vai pra conta conectada do lojista
+                    destination: storeConnectId, // Dinheiro vai pra conta conectada da loja (ex: Conveniência Santa Isabel)
                 },
             },
             success_url: successUrl,
             cancel_url: cancelUrl,
         };
 
-        // 4. Trata o Cupom de Desconto (Se o cliente usou algum no seu painel)
+        // 4. Trata o Cupom de Desconto
         if (discountAmount > 0) {
-            // Cria um cupom temporário na Stripe só para essa transação
             const tempCoupon = await stripe.coupons.create({
                 amount_off: Math.round(discountAmount * 100),
                 currency: 'brl',
