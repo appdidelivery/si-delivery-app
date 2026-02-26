@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 
@@ -13,10 +13,38 @@ import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
-    if (n.includes('cerveja')) return <Beer size={18}/>;
-    if (n.includes('destilado') || n.includes('vinho') || n.includes('whisky')) return <Wine size={18}/>;
-    if (n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('não-alcóolicos')) return <Refrigerator size={18}/>;
-    if (n.includes('salgadinho')) return <Package size={18}/>; 
+    
+    // Cervejas
+    if (n.includes('cerveja') || n.includes('chopp')) return <Beer size={18}/>;
+    
+    // Vinhos e Espumantes
+    if (n.includes('vinho') || n.includes('espumante')) return <Wine size={18}/>;
+    
+    // Destilados e Licores
+    if (n.includes('licor') || n.includes('destilado') || n.includes('whisky') || n.includes('vodka') || n.includes('gin') || n.includes('tequila') || n.includes('cachaça') || n.includes('cachaca')) return <Martini size={18}/>;
+    
+    // Energéticos
+    if (n.includes('energético') || n.includes('energetico')) return <Zap size={18}/>;
+    
+    // Não Alcoólicos
+    if (n.includes('sem álcool') || n.includes('sem alcool') || n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('agua')) return <CupSoda size={18}/>;
+    
+    // Tabacaria
+    if (n.includes('tabacaria') || n.includes('cigarro') || n.includes('pod') || n.includes('essência') || n.includes('essencia')) return <Flame size={18}/>;
+    
+    // Gelo
+    if (n.includes('gelo')) return <Snowflake size={18}/>;
+    
+    // Guloseimas e Doces
+    if (n.includes('guloseima') || n.includes('doce') || n.includes('chocolate') || n.includes('chiclete') || n.includes('bala')) return <Candy size={18}/>;
+    
+    // Salgadinhos e Petiscos
+    if (n.includes('salgadinho') || n.includes('petisco') || n.includes('amendoim')) return <Utensils size={18}/>;
+    
+    // Combos
+    if (n.includes('combo')) return <Package size={18}/>;
+    
+    // Padrão (Se não achar nenhuma palavra acima, usa os 3 tracinhos)
     return <List size={18}/>;
 };
 
@@ -709,13 +737,16 @@ export default function Home() {
       <SEO title="Velo Delivery" description="Bebidas geladas." />
       
       <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
-        {/* Fundo Personalizado com Imagem e Degradê */}
-        <div className="absolute inset-0 z-0 bg-slate-900">
+        {/* Fundo Moderno com Padrão de Bebidas (Estilo Line-Art) */}
+        <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>
             <div 
-              className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-overlay" 
-              style={{ backgroundImage: currentTheme.headerBg }}
+              className="absolute inset-0 opacity-[0.15]" 
+              style={{ 
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3C!-- Martini --%3E%3Cpath d='M15 20l10 0l-5 8zM20 28l0 8M16 36l8 0'/%3E%3C!-- Cerveja --%3E%3Crect x='50' y='50' width='10' height='14' rx='2'/%3E%3Cpath d='M60 54a3 3 0 0 1 0 6'/%3E%3C!-- Vinho --%3E%3Cpath d='M50 15a6 6 0 0 1 12 0c0 4-3 8-6 8s-6-4-6-8zM56 23l0 7M52 30l8 0'/%3E%3C!-- Copo Whisky com Gelo --%3E%3Cpath d='M10 60l2 10l12 0l2 -10z'/%3E%3Crect x='13' y='64' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E\")",
+                backgroundSize: '90px',
+                transform: 'rotate(-15deg) scale(1.5)',
+              }}
             ></div>
-            <div className={`absolute inset-0 bg-gradient-to-t ${currentTheme.gradientFrom} ${currentTheme.gradientTo} opacity-90`}></div>
         </div>
 
         {/* Conteúdo do Topo */}
