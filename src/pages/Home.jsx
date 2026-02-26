@@ -693,13 +693,13 @@ export default function Home() {
   const layoutTheme = storeSettings?.layoutTheme || 'grid';
   
   const themePresets = {
-    default: { primary: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-600', shadow: 'shadow-blue-100', hoverPrimary: 'hover:bg-blue-700', lightBg: 'bg-blue-50', hoverLightBg: 'hover:bg-blue-100', accent: 'accent-blue-600', darkText: 'text-blue-900', gradientFrom: 'from-blue-400', gradientTo: 'to-blue-600', ringColor: 'blue-500' },
-    burger: { primary: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-600', shadow: 'shadow-orange-100', hoverPrimary: 'hover:bg-orange-700', lightBg: 'bg-orange-50', hoverLightBg: 'hover:bg-orange-100', accent: 'accent-orange-600', darkText: 'text-orange-900', gradientFrom: 'from-orange-400', gradientTo: 'to-orange-600', ringColor: 'orange-500' },
-    pizza: { primary: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-600', shadow: 'shadow-rose-100', hoverPrimary: 'hover:bg-rose-700', lightBg: 'bg-rose-50', hoverLightBg: 'hover:bg-rose-100', accent: 'accent-rose-600', darkText: 'text-rose-900', gradientFrom: 'from-rose-400', gradientTo: 'to-rose-600', ringColor: 'rose-500' },
-    oriental: { primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900', shadow: 'shadow-slate-200', hoverPrimary: 'hover:bg-slate-800', lightBg: 'bg-slate-800', hoverLightBg: 'hover:bg-slate-700', accent: 'accent-slate-900', darkText: 'text-slate-900', gradientFrom: 'from-slate-700', gradientTo: 'to-slate-900', ringColor: 'slate-600' },
-    natural: { primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600', shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700', lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100', accent: 'accent-green-600', darkText: 'text-green-900', gradientFrom: 'from-green-400', gradientTo: 'to-green-600', ringColor: 'green-500' },
-    sweet: { primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700', lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100', accent: 'accent-purple-600', darkText: 'text-purple-900', gradientFrom: 'from-purple-400', gradientTo: 'to-purple-600', ringColor: 'purple-500' },
-    drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-300', gradientTo: 'to-amber-500', ringColor: 'amber-500' }
+    default: { primary: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-600', shadow: 'shadow-blue-100', hoverPrimary: 'hover:bg-blue-700', lightBg: 'bg-blue-50', hoverLightBg: 'hover:bg-blue-100', accent: 'accent-blue-600', darkText: 'text-blue-900', gradientFrom: 'from-blue-500', gradientTo: 'to-blue-800', ringColor: 'blue-500', headerBg: 'url(https://images.unsplash.com/photo-1601506521937-0121a7fc2a6b?q=80&w=1000&auto=format&fit=crop)' },
+    burger: { primary: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-600', shadow: 'shadow-orange-100', hoverPrimary: 'hover:bg-orange-700', lightBg: 'bg-orange-50', hoverLightBg: 'hover:bg-orange-100', accent: 'accent-orange-600', darkText: 'text-orange-900', gradientFrom: 'from-orange-500', gradientTo: 'to-orange-800', ringColor: 'orange-500', headerBg: 'url(https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=1000&auto=format&fit=crop)' },
+    pizza: { primary: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-600', shadow: 'shadow-rose-100', hoverPrimary: 'hover:bg-rose-700', lightBg: 'bg-rose-50', hoverLightBg: 'hover:bg-rose-100', accent: 'accent-rose-600', darkText: 'text-rose-900', gradientFrom: 'from-rose-500', gradientTo: 'to-rose-800', ringColor: 'rose-500', headerBg: 'url(https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=1000&auto=format&fit=crop)' },
+    oriental: { primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900', shadow: 'shadow-slate-200', hoverPrimary: 'hover:bg-slate-800', lightBg: 'bg-slate-800', hoverLightBg: 'hover:bg-slate-700', accent: 'accent-slate-900', darkText: 'text-slate-900', gradientFrom: 'from-slate-700', gradientTo: 'to-slate-900', ringColor: 'slate-600', headerBg: 'url(https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=1000&auto=format&fit=crop)' },
+    natural: { primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600', shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700', lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100', accent: 'accent-green-600', darkText: 'text-green-900', gradientFrom: 'from-green-500', gradientTo: 'to-green-800', ringColor: 'green-500', headerBg: 'url(https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=1000&auto=format&fit=crop)' },
+    sweet: { primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700', lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100', accent: 'accent-purple-600', darkText: 'text-purple-900', gradientFrom: 'from-purple-500', gradientTo: 'to-purple-800', ringColor: 'purple-500', headerBg: 'url(https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=1000&auto=format&fit=crop)' },
+    drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-600', ringColor: 'amber-500', headerBg: 'url(https://images.unsplash.com/photo-1563223771-383790515286?q=80&w=1000&auto=format&fit=crop)' }
   };
 
   const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
@@ -708,22 +708,39 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       <SEO title="Velo Delivery" description="Bebidas geladas." />
       
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3 mb-2 sm:mb-0">
-          <img src={storeSettings.storeLogoUrl} className={`h-12 w-12 rounded-full object-cover border-2 ${currentTheme.border} shadow-sm`} onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-          <div className="text-left">
-            <h1 className="text-xl font-black text-slate-800 leading-none uppercase">{storeSettings.name || "Sua Loja"}</h1>
-            {storeSettings.slogan && <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mt-0.5">{storeSettings.slogan}</p>}
-          </div>
+      <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
+        {/* Fundo Personalizado com Imagem e Degradê */}
+        <div className="absolute inset-0 z-0 bg-slate-900">
+            <div 
+              className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-overlay" 
+              style={{ backgroundImage: currentTheme.headerBg }}
+            ></div>
+            <div className={`absolute inset-0 bg-gradient-to-t ${currentTheme.gradientFrom} ${currentTheme.gradientTo} opacity-90`}></div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button onClick={handleShare} className={`p-2 ${currentTheme.lightBg} ${currentTheme.text} rounded-full ${currentTheme.hoverLightBg} border ${currentTheme.lightBg.replace('bg-','border-').replace('50','100')} active:scale-95 transition-all`}>
-            <Share size={20} />
-          </button>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isStoreOpenNow ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-            {isStoreOpenNow ? <Clock size={14}/> : <XCircle size={14}/>} <span className="text-[10px] font-black uppercase">{storeMessage}</span>
-          </div>
+        {/* Conteúdo do Topo */}
+        <div className="relative z-10 flex flex-col gap-5">
+            <div className="flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                    <img src={storeSettings.storeLogoUrl} className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+                    <div className="text-left">
+                        <h1 className="text-2xl font-black text-white leading-none uppercase drop-shadow-md">{storeSettings.name || "Sua Loja"}</h1>
+                        {storeSettings.slogan && <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1 drop-shadow-sm">{storeSettings.slogan}</p>}
+                    </div>
+                </div>
+
+                <div className="flex flex-col items-end gap-2">
+                    <button onClick={handleShare} className="p-2.5 bg-white/20 text-white rounded-full backdrop-blur-sm border border-white/30 hover:bg-white/30 active:scale-95 transition-all shadow-sm">
+                        <Share size={18} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Status da Loja (Aberto/Fechado) */}
+            <div className={`inline-flex self-start items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-md border ${isStoreOpenNow ? 'bg-green-500/20 text-green-100 border-green-400/50' : 'bg-red-500/20 text-red-100 border-red-400/50'} shadow-inner`}>
+                {isStoreOpenNow ? <Clock size={16}/> : <XCircle size={16}/>} 
+                <span className="text-xs font-black uppercase tracking-wider">{storeMessage}</span>
+            </div>
         </div>
       </header>
 
@@ -796,10 +813,20 @@ export default function Home() {
           <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 pt-2 snap-x px-2">
           {displayCategories.map(c => (
-            <button key={c.id} onClick={() => scrollToCategory(c.id)} className={`px-6 py-3 rounded-full font-bold text-xs whitespace-nowrap transition-all shadow-sm flex items-center gap-2 ${activeCategory === c.id ? `${currentTheme.primary} text-white` : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
-              {c.icon} {c.name}
+            <button 
+                key={c.id} 
+                onClick={() => scrollToCategory(c.id)} 
+                className="flex flex-col items-center gap-2 min-w-[85px] snap-center group"
+            >
+              <div className={`w-[72px] h-[72px] rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ${activeCategory === c.id ? `${currentTheme.primary} text-white scale-105 shadow-md` : 'bg-white text-slate-500 border border-slate-100 group-hover:border-slate-300 group-hover:bg-slate-50'}`}>
+                {/* O React.cloneElement permite alterar o tamanho do ícone original renderizado pela função */}
+                {React.cloneElement(c.icon, { size: activeCategory === c.id ? 32 : 28 })}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-tight text-center leading-none px-1 ${activeCategory === c.id ? currentTheme.text : 'text-slate-500'}`}>
+                {c.name}
+              </span>
             </button>
           ))}
         </div>
