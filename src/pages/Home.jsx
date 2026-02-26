@@ -593,7 +593,7 @@ export default function Home() {
         orderData.discountAmount = discountAmount || 0;
       }
 
-      if (customer.payment === 'dinheiro') {
+      if (customer.payment === 'dinheiro' || customer.payment === 'motoboy_card') {
           await setDoc(newOrderRef, orderData);
           if (appliedCoupon) {
             await updateDoc(doc(db, "coupons", appliedCoupon.id), { currentUsage: (appliedCoupon.currentUsage || 0) + 1 });
@@ -606,11 +606,16 @@ export default function Home() {
             }).join('\n');
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
           const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
-          const obsMsg = `\n💵 *Troco para:* ${customer.changeFor}`;
+          
+          // Define a mensagem do WhatsApp dependendo se é dinheiro ou cartão com motoboy
+          const obsMsg = customer.payment === 'dinheiro' 
+              ? `\n💵 *Pagamento:* Dinheiro\n🪙 *Troco para:* ${customer.changeFor || 'Não precisa'}`
+              : `\n💳 *Pagamento:* Cartão na Entrega (Levar maquininha)`;
+
           const linkAcompanhamento = `https://${window.location.host}/track/${orderId}`;
           const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
 
-          const targetPhone = storeSettings.whatsapp || "5551999999999"; 
+          const targetPhone = storeSettings.whatsapp || "5551999999999";
           const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
           
           localStorage.setItem('activeOrderId', orderId);
@@ -815,6 +820,8 @@ export default function Home() {
                                       <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
+                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
+                                      {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
                                   </div>
                                   <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
                                   <div className="flex justify-between items-center mt-auto">
@@ -855,6 +862,8 @@ export default function Home() {
                                       <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
+                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
+                                      {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
                                   </div>
                                   <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
                                   <div className="flex justify-between items-center mt-auto">
@@ -892,6 +901,8 @@ export default function Home() {
                                     <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 cursor-pointer" />
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
+                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
+                                    {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
                                 </div>
                                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
                                 <div className="flex justify-between items-center mt-auto">
@@ -964,6 +975,7 @@ export default function Home() {
                                                     <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
                                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl">-{p.discountPercentage}%</span>}
                                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
+                                                    {p.isChilled && <span className="absolute bottom-1 right-1 bg-cyan-100 text-cyan-800 text-[10px] p-1 rounded-full leading-none shadow-sm z-10">❄️</span>}
                                                 </div>
                                             </motion.div>
                                         );
@@ -1154,10 +1166,15 @@ export default function Home() {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                   <div>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      {[ {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>} ].map(m => (
-                          <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?`${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`:'border-transparent bg-slate-50 text-slate-400'}`}>
-                              {m.icon} <span className="text-[9px] font-black uppercase mt-1">{m.name}</span>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {[ 
+                        {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, 
+                        {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, 
+                        {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}, 
+                        {id:'motoboy_card', name:'COM MOTOBOY', icon: <Truck size={20}/>} 
+                      ].map(m => (
+                          <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?`${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`:'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                              {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center">{m.name}</span>
                           </button>
                       ))}
                     </div>
@@ -1363,8 +1380,13 @@ export default function Home() {
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
                 <img src={selectedProduct.imageUrl} className="w-full h-full object-cover" alt={selectedProduct.name} />
                 {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
-                  <span className="absolute bottom-4 left-4 bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg">
+                  <span className="absolute bottom-4 left-4 bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg z-10">
                     -{selectedProduct.discountPercentage}% OFF
+                  </span>
+                )}
+                {selectedProduct.isChilled && (
+                  <span className="absolute bottom-4 right-4 bg-cyan-100 text-cyan-800 text-xs font-black px-3 py-1 rounded-xl shadow-lg border border-cyan-200 z-10">
+                    ❄️ Entregue Gelada
                   </span>
                 )}
               </div>

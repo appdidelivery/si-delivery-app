@@ -300,11 +300,11 @@ export default function Admin() {
     // Produtos
     const[isModalOpen, setIsModalOpen] = useState(false);
     // PASSO 1: Atualização do Estado do Formulário (form)
-    const [form, setForm] = useState({ 
+    const[form, setForm] = useState({ 
         name: '', 
         price: '', 
-        costPrice: '', // Adicionado
-        promotionalPrice: '', // Adicionado
+        costPrice: '', 
+        promotionalPrice: '', 
         originalPrice: '', 
         category: '', 
         imageUrl: '', 
@@ -315,7 +315,8 @@ export default function Admin() {
         isFeatured: false, 
         isBestSeller: false,
         quantityDiscounts:[], 
-        recommendedIds: []
+        recommendedIds:[],
+        isChilled: false
     });
 
     const [editingId, setEditingId] = useState(null);
@@ -1136,7 +1137,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="flex flex-col flex-1">
                                     <div className="flex items-center gap-3 mb-1">
                                         <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
-                                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+{(() => {
+    const isOnline = ['stripe', 'cartao', 'pix'].includes(o.paymentMethod);
+    if (isOnline) {
+        if (o.paymentStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO</span>;
+        if (o.paymentStatus === 'failed') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
+        return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">⏳ PENDENTE</span>;
+    }
+    return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGTO NA ENTREGA</span>;
+})()}
+<span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                     </div>
                                     <h3 className="font-black text-lg text-slate-800 leading-tight">{o.customerName}</h3>
                                     <p className="text-xs text-slate-500 font-medium">{typeof o.address === 'object' ? `${o.address.street}, ${o.address.number} - ${o.address.neighborhood}` : o.address}</p>
@@ -1250,7 +1260,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                            <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                           <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[], isChilled: false }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -2228,7 +2238,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 })()}
 
 
-                                <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                    <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all">
+                                        <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
+                                        <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
+                                    </label>
+                                </div>
 
                                 <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
