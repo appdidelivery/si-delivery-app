@@ -5,6 +5,7 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
+
 // Cloud Function que escuta a criação de novas avaliações
 exports.awardVipPointsOnReview = functions
   .region("southamerica-east1") // Opcional: Especifique a região mais próxima
@@ -63,4 +64,47 @@ exports.awardVipPointsOnReview = functions
     }
     
     return null;
+    exports.aggregateStoreRatings = functions
+  .region("southamerica-east1") // Mantendo a mesma região da sua outra função
+  .firestore.document("reviews/{reviewId}")
+  .onWrite(async (change, context) => {
+    // Pega os dados do review (novo ou antigo, caso tenha sido deletado)
+    const reviewData = change.after.exists ? change.after.data() : change.before.data();
+    
+    if (!reviewData || !reviewData.storeId) return null;
+    
+    const storeId = reviewData.storeId;
+    
+    try {
+        // Busca todas as avaliações dessa loja
+        const reviewsSnapshot = await db.collection("reviews").where("storeId", "==", storeId).get();
+        
+        let totalRating = 0;
+        let ratingCount = 0;
+
+        reviewsSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.rating) {
+                totalRating += data.rating;
+                ratingCount++;
+            }
+        });
+
+        // Calcula a média exata (Ex: 4.8)
+        const ratingAggregate = ratingCount > 0 ? (totalRating / ratingCount) : 0;
+
+        // Atualiza o documento da loja com os totais
+        await db.collection("stores").doc(storeId).update({
+            rating_aggregate: ratingAggregate,
+            rating_count: ratingCount
+        });
+
+        functions.logger.log(`Nota da loja ${storeId} atualizada para ${ratingAggregate} (${ratingCount} avaliações).`);
+    } catch (error) {
+        functions.logger.error(`Erro ao recalcular nota da loja ${storeId}:`, error);
+    }
+    
+    return null;
   });
+  });
+  

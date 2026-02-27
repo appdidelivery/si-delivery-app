@@ -1,3 +1,4 @@
+import Reviews from '../components/Reviews';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -734,7 +735,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-      <SEO title="Velo Delivery" description="Bebidas geladas." />
+      <SEO title={`${storeSettings.name || 'Velo Delivery'}`} description={storeSettings.slogan} storeSettings={storeSettings} />
       
       <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
         {/* Fundo Moderno com Padrão de Bebidas (Estilo Line-Art) */}
@@ -1065,7 +1066,9 @@ export default function Home() {
             )}
         </div>
       </section>
-
+<section className="px-6 pb-10 max-w-2xl mx-auto">
+    <Reviews storeId={storeId} customerPhone={customer.phone} />
+</section>
       <footer className="p-12 text-center">
         <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
         <a 

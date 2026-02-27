@@ -35,7 +35,17 @@ export default function SEO({ title, description }) {
             "addressRegion": store.address.state,
             "postalCode": store.address.zip,
             "addressCountry": "BR"
-        } : undefined
+        } : undefined,
+        
+        // --- INJEÇÃO DE SEO PARA AVALIAÇÕES (Estrelas no Google) ---
+        // Só injeta se a loja tiver mais de 0 avaliações para evitar erros no Google Search Console
+        ...(store?.rating_count > 0 && {
+            "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": Number(store.rating_aggregate).toFixed(1), // Ex: "4.8"
+                "reviewCount": store.rating_count // Ex: 120
+            }
+        })
     };
 
     return (
