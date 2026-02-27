@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
+import { sendWhatsAppNotification } from '../lib/evolution.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -9,7 +10,7 @@ export const config = {
 
 async function getRawBody(req) {
     return new Promise((resolve, reject) => {
-        const chunks = [];
+        const chunks =[];
         req.on('data', (chunk) => chunks.push(chunk));
         req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
         req.on('error', reject);
@@ -41,11 +42,17 @@ export default async function handler(req, res) {
             const session = event.data.object;
             const orderId = session.client_reference_id;
             const valorTotal = session.amount_total / 100;
+            const storeId = session.metadata?.storeId || 'csi'; 
 
             if (orderId) {
+                const orderSnapshot = await db.collection("orders").doc(orderId).get();
+                const orderData = orderSnapshot.exists ? orderSnapshot.data() : {};
+                const customerPhone = orderData.customerPhone || session.metadata?.customerPhone;
+                const customerName = orderData.customerName || 'Cliente';
+
                 const batch = db.batch();
 
-                // 1. Atualiza o Pedido
+                // 1. Atualiza o Pedido no Firebase
                 const orderRef = db.collection("orders").doc(orderId);
                 batch.set(orderRef, {
                     status: 'preparing', 
@@ -53,28 +60,42 @@ export default async function handler(req, res) {
                     paidAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
 
-                // 2. Atualiza os KPIs no documento de Estatísticas (Útil para o seu Painel)
-                const statsRef = db.collection("stats").doc("geral"); // Você pode trocar "geral" pelo ID da loja depois
+                // 2. Atualiza Estatísticas e Comissões
+                const statsRef = db.collection("stats").doc(storeId);
                 batch.set(statsRef, {
                     faturamentoTotal: admin.firestore.FieldValue.increment(valorTotal),
                     pedidosPagos: admin.firestore.FieldValue.increment(1),
                     comissaoVeloAcumulada: admin.firestore.FieldValue.increment(valorTotal * 0.02)
                 }, { merge: true });
 
-                await batch.commit();
-                console.log(`✅ Fluxo Completo: Pedido ${orderId} pago e KPIs atualizados.`);
+                // 3. Pontos Clube VIP
+                let earnedPoints = Math.floor(valorTotal); 
+                if (customerPhone) {
+                    const phoneId = String(customerPhone).replace(/\D/g, ''); 
+                    const loyaltyRef = db.collection("users").doc(phoneId).collection("loyalty").doc(storeId);
+                    batch.set(loyaltyRef, {
+                        points: admin.firestore.FieldValue.increment(earnedPoints),
+                        customerName: customerName,
+                        lastPurchaseDate: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                }
 
-                // 3. Envio de WhatsApp (Logica de disparo)
-                const msg = `🚀 *Velo Delivery: Novo Pedido!*\n\n*ID:* ${orderId}\n*Valor:* R$ ${valorTotal.toFixed(2)}\n*Loja:* CSI Santa Isabel\n*Status:* Pago e em Preparo.`;
-                
-                // Aqui você chamará sua API de WhatsApp. Exemplo genérico:
-                console.log(`📱 Notificação enviada para 48991311442: ${msg}`);
+                await batch.commit();
+
+                // 4. DISPARO REAL WHATSAPP (Z-API)
+                const storeOwnerPhone = process.env.STORE_OWNER_PHONE || '5548991311442';
+                const msgLojista = `🚀 *NOVO PEDIDO PAGO!*\n\n*ID:* ${orderId.slice(-5).toUpperCase()}\n*Valor:* R$ ${valorTotal.toFixed(2)}\n*Cliente:* ${customerName}\n\nO pedido já consta como "Em Preparo" no seu painel.`;
+                await sendWhatsAppNotification(storeOwnerPhone, msgLojista);
+
+                if (customerPhone) {
+                    const msgCliente = `✅ *Pagamento Aprovado!*\n\nOlá ${customerName}, recebemos seu pagamento do pedido *#${orderId.slice(-5).toUpperCase()}*.\n\n👨‍🍳 Já estamos preparando tudo!\n\n🎁 *Clube VIP:* Você ganhou +${earnedPoints} pontos!`;
+                    await sendWhatsAppNotification(customerPhone, msgCliente);
+                }
             }
         }
-
         res.status(200).json({ received: true });
     } catch (err) {
-        console.error('⚠️ Erro no Webhook:', err.message);
+        console.error('⚠️ Erro Crítico Webhook:', err.message);
         res.status(400).send(`Webhook Error: ${err.message}`);
     }
 }
