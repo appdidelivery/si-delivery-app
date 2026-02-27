@@ -86,7 +86,8 @@ export default async function handler(req, res) {
 
                 await batch.commit();
                 console.log(`✅ Fluxo Completo: Pedido ${orderId} atualizado no Firestore.`);
-
+const msg = `🚀 *Velo Delivery: Novo Pedido!*\n\n*ID:* ${orderId}\n*Valor:* R$ ${(session.amount_total / 100).toFixed(2)}\n*Loja:* CSI Santa Isabel\n*Status:* Pago e em Preparo.`;
+await sendWhatsAppNotification("5548991311442", msg);
                 // 4. Disparos Evolution API (Lojista + Cliente)
                 if (customerPhone) {
                     const msgCliente = `✅ *Pagamento Aprovado!*\n\nOlá ${customerName}, recebemos seu pagamento do pedido *#${orderId.slice(-5).toUpperCase()}*.\n\n👨‍🍳 Já estamos preparando tudo e logo sai para entrega!\n\n🎁 *Clube VIP:* Você ganhou +${earnedPoints} pontos nesta compra!`;
