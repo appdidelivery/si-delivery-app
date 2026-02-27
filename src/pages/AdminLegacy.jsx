@@ -127,14 +127,23 @@ export default function Admin() {
         }
     };
 
-   // 🚨 NOVA LÓGICA DE PRIORIDADE (BLINDADA PELO CONTEXTO) 🚨
+   // 🚨 NOVA LÓGICA DE PRIORIDADE (ONBOARDING MULTI-TENANT) 🚨
+    // 1. Tenta pegar a loja validada e segura que vem do banco de dados
     let storeId = store ? store.slug : null;
 
+    // 2. Tenta descobrir o nome que o usuário digitou na URL
+    const hostname = window.location.hostname;
+    const currentSubdomain = (hostname !== 'localhost' && hostname.includes('.')) 
+        ? hostname.split('.')[0] 
+        : null;
+    
     const searchParams = new URLSearchParams(window.location.search);
     const urlStoreId = searchParams.get('store');
     
-    if (!storeId && urlStoreId) {
-        storeId = urlStoreId;
+    // 3. SE A LOJA NÃO EXISTE: Assumimos o nome da URL temporariamente 
+    // APENAS para permitir que a tela de "Setup Automático" (Criação) apareça.
+    if (!storeId) {
+        storeId = urlStoreId || currentSubdomain;
     }
 
     // TELA DE CARREGAMENTO
@@ -147,13 +156,13 @@ export default function Admin() {
         );
     }
 
-    // TELA DE ERRO (BLINDAGEM CONTRA VAZAMENTO)
-    if (!storeId) {
+    // TELA DE ERRO REAL (Se não conseguiu ler NENHUM subdomínio)
+    if (!storeId || storeId === 'app' || storeId === 'www') {
          return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-50">
                 <h1 className="text-2xl font-black text-slate-800">Loja não encontrada</h1>
                 <p className="text-slate-500 max-w-md">
-                    O subdomínio acessado não possui uma loja vinculada no banco de dados.
+                    Verifique se o link da loja está digitado corretamente.
                 </p>
                 <div className="flex gap-2 justify-center mt-4">
                     <button onClick={() => window.location.href = '/'} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Voltar ao Início</button>
@@ -162,8 +171,6 @@ export default function Admin() {
             </div>
          );
     }
-
-    // --- ESTADOS GERAIS ---
 
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
