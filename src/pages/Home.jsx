@@ -734,10 +734,15 @@ export default function Home() {
   const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-      <SEO title={`${storeSettings.name || 'Velo Delivery'}`} description={storeSettings.slogan} storeSettings={storeSettings} />
-      
-      <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
+  <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
+    {/* SEO DINÂMICO IA: Reage ao modal de produto aberto */}
+    <SEO 
+        title={selectedProduct ? `${selectedProduct.name} | ${storeSettings.name || 'Velo Delivery'}` : `${storeSettings.name || 'Velo Delivery'}`} 
+        description={selectedProduct ? (selectedProduct.description || `Compre ${selectedProduct.name} com entrega rápida na ${storeSettings.name}.`) : storeSettings.slogan} 
+        productData={selectedProduct} 
+    />
+    
+    <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
         {/* Fundo Moderno com Padrão de Bebidas (Estilo Line-Art) */}
         <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>
             <div 

@@ -2,32 +2,36 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
 
-export default function SEO({ title, description }) {
+export default function SEO({ title, description, productData }) { // 1. Adicionado prop 'productData'
     // 1. Pega os dados do Banco de Dados (SaaS)
     const { store } = useStore();
 
-    // 2. Define valores padrão (caso o banco ainda esteja carregando ou falhe)
+    // 2. Define valores padrão
     const defaultName = "Velo Delivery";
     const defaultDesc = "O seu aplicativo de delivery.";
     const defaultImage = "/logo-square.png";
 
-    // 3. Decide quem manda: O Banco (store) tem prioridade sobre o padrão
+    // 3. Decide quem manda
     const siteName = store?.name || defaultName;
     const finalTitle = title ? `${title} | ${siteName}` : `${siteName} - App`;
     const finalDesc = description || store?.description || defaultDesc;
     const finalImage = store?.logoUrl || defaultImage;
-    const currentUrl = window.location.href;
+    
+    // Tratamento de segurança para SSR (Evita erro 'window is not defined')
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velo.com.br";
+    const baseUrl = currentUrl.split('?')[0]; // Remove parâmetros de URL para os IDs do Schema
 
-    // 4. Monta o JSON-LD (Google) com segurança
-    // O ?. previne a Tela Branca se a loja não tiver endereço cadastrado ainda
-    const structuredData = {
-        "@context": "https://schema.org",
-        "@type": "Store",
+    // 4. Base da Entidade da Loja (Evoluído para LiquorStore/AEO)
+    const baseStoreSchema = {
+        "@id": `${baseUrl}#store`,
+        "@type": "LiquorStore", // Mais forte para ranqueamento geo de bebidas do que apenas 'Store'
         "name": siteName,
         "image": finalImage,
         "description": finalDesc,
         "url": currentUrl,
         "telephone": store?.whatsapp ? `+${store.whatsapp}` : "",
+        "priceRange": "$$",
+        "paymentAccepted": ["Cash", "Credit Card", "Pix"],
         "address": store?.address ? {
             "@type": "PostalAddress",
             "streetAddress": `${store.address.street}, ${store.address.number}`,
@@ -37,27 +41,81 @@ export default function SEO({ title, description }) {
             "addressCountry": "BR"
         } : undefined,
         
-        // --- INJEÇÃO DE SEO PARA AVALIAÇÕES (Estrelas no Google) ---
-        // Só injeta se a loja tiver mais de 0 avaliações para evitar erros no Google Search Console
+        // Mantido seu excelente bloco de avaliações
         ...(store?.rating_count > 0 && {
             "aggregateRating": {
                 "@type": "AggregateRating",
-                "ratingValue": Number(store.rating_aggregate).toFixed(1), // Ex: "4.8"
-                "reviewCount": store.rating_count // Ex: 120
+                "ratingValue": Number(store.rating_aggregate).toFixed(1),
+                "reviewCount": store.rating_count
             }
         })
     };
 
+    // 5. Montagem Dinâmica do JSON-LD
+    let structuredData;
+
+    if (productData) {
+        // Se a página (ex: Detalhes do Produto) passar 'productData', gera o ecossistema @graph
+        structuredData = {
+            "@context": "https://schema.org",
+            "@graph": [
+                baseStoreSchema,
+                {
+                    "@type": "Product",
+                    "@id": `${baseUrl}#product`,
+                    "name": productData.name,
+                    "image": productData.imageUrl || finalImage,
+                    "description": productData.description || finalDesc,
+                    "sku": productData.sku || productData.id,
+                    "offers": {
+                        "@type": "Offer",
+                        "url": currentUrl,
+                        "priceCurrency": "BRL",
+                        "price": productData.price,
+                        "availability": productData.isInStock !== false ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                        "seller": { "@id": `${baseUrl}#store` },
+                        "shippingDetails": {
+                            "@type": "OfferShippingDetails",
+                            "shippingRate": {
+                                "@type": "MonetaryAmount",
+                                "value": store?.delivery_fee || 0,
+                                "currency": "BRL"
+                            },
+                            "shippingDestination": {
+                                "@type": "DefinedRegion",
+                                "addressCountry": "BR",
+                                "addressRegion": store?.address?.state || "SC",
+                                "addressLocality": store?.address?.city ? [store.address.city] : ["São José"]
+                            }
+                        }
+                    }
+                },
+                {
+                    "@type": "OrderAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": `${window.location.origin}/loja/${store?.id}/checkout?productId=${productData.id}`,
+                        "inLanguage": "pt-BR",
+                        "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]
+                    },
+                    "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModeDirectDownload"
+                }
+            ]
+        };
+    } else {
+        // Comportamento padrão (Home da loja, Contato, etc)
+        structuredData = {
+            "@context": "https://schema.org",
+            ...baseStoreSchema
+        };
+    }
+
     return (
         <Helmet>
-            {/* Título e Descrição */}
             <title>{finalTitle}</title>
             <meta name="description" content={finalDesc} />
-            
-            {/* Configurações Visuais (Cor do navegador mobile) */}
             {store?.themeColor && <meta name="theme-color" content={store.themeColor} />}
 
-            {/* Open Graph (WhatsApp / Facebook) */}
             <meta property="og:type" content="website" />
             <meta property="og:title" content={finalTitle} />
             <meta property="og:description" content={finalDesc} />
@@ -65,7 +123,6 @@ export default function SEO({ title, description }) {
             <meta property="og:url" content={currentUrl} />
             <meta property="og:site_name" content={siteName} />
             
-            {/* JSON-LD Seguro */}
             <script type="application/ld+json">
                 {JSON.stringify(structuredData)}
             </script>
