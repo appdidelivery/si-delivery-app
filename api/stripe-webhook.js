@@ -4,9 +4,7 @@ import { sendWhatsAppNotification } from '../lib/evolution.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-export const config = {
-    api: { bodyParser: false },
-};
+export const config = { api: { bodyParser: false } };
 
 async function getRawBody(req) {
     return new Promise((resolve, reject) => {
@@ -52,50 +50,35 @@ export default async function handler(req, res) {
 
                 const batch = db.batch();
 
-                // 1. Atualiza o Pedido no Firebase
                 const orderRef = db.collection("orders").doc(orderId);
-                batch.set(orderRef, {
-                    status: 'preparing', 
-                    paymentStatus: 'paid',
-                    paidAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
+                batch.set(orderRef, { status: 'preparing', paymentStatus: 'paid', paidAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 
-                // 2. Atualiza Estatísticas e Comissões
                 const statsRef = db.collection("stats").doc(storeId);
-                batch.set(statsRef, {
-                    faturamentoTotal: admin.firestore.FieldValue.increment(valorTotal),
-                    pedidosPagos: admin.firestore.FieldValue.increment(1),
-                    comissaoVeloAcumulada: admin.firestore.FieldValue.increment(valorTotal * 0.02)
-                }, { merge: true });
+                batch.set(statsRef, { faturamentoTotal: admin.firestore.FieldValue.increment(valorTotal), pedidosPagos: admin.firestore.FieldValue.increment(1), comissaoVeloAcumulada: admin.firestore.FieldValue.increment(valorTotal * 0.02) }, { merge: true });
 
-                // 3. Pontos Clube VIP
                 let earnedPoints = Math.floor(valorTotal); 
                 if (customerPhone) {
                     const phoneId = String(customerPhone).replace(/\D/g, ''); 
                     const loyaltyRef = db.collection("users").doc(phoneId).collection("loyalty").doc(storeId);
-                    batch.set(loyaltyRef, {
-                        points: admin.firestore.FieldValue.increment(earnedPoints),
-                        customerName: customerName,
-                        lastPurchaseDate: admin.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true });
+                    batch.set(loyaltyRef, { points: admin.firestore.FieldValue.increment(earnedPoints), customerName: customerName, lastPurchaseDate: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                 }
 
                 await batch.commit();
 
-                // 4. DISPARO REAL WHATSAPP (Z-API)
+                // DISPARO REAL WHATSAPP
                 const storeOwnerPhone = process.env.STORE_OWNER_PHONE || '5548991311442';
-                const msgLojista = `🚀 *NOVO PEDIDO PAGO!*\n\n*ID:* ${orderId.slice(-5).toUpperCase()}\n*Valor:* R$ ${valorTotal.toFixed(2)}\n*Cliente:* ${customerName}\n\nO pedido já consta como "Em Preparo" no seu painel.`;
+                const msgLojista = `🚀 *NOVO PEDIDO PAGO!*\n\n*ID:* ${orderId.slice(-5).toUpperCase()}\n*Valor:* R$ ${valorTotal.toFixed(2)}\n*Cliente:* ${customerName}\n\nO pedido já consta como "Em Preparo".`;
                 await sendWhatsAppNotification(storeOwnerPhone, msgLojista);
 
                 if (customerPhone) {
-                    const msgCliente = `✅ *Pagamento Aprovado!*\n\nOlá ${customerName}, recebemos seu pagamento do pedido *#${orderId.slice(-5).toUpperCase()}*.\n\n👨‍🍳 Já estamos preparando tudo!\n\n🎁 *Clube VIP:* Você ganhou +${earnedPoints} pontos!`;
+                    const msgCliente = `✅ *Pagamento Aprovado!*\n\nOlá ${customerName}, recebemos seu pagamento do pedido *#${orderId.slice(-5).toUpperCase()}*.\n\n🎁 *Clube VIP:* Você ganhou +${earnedPoints} pontos!`;
                     await sendWhatsAppNotification(customerPhone, msgCliente);
                 }
             }
         }
         res.status(200).json({ received: true });
     } catch (err) {
-        console.error('⚠️ Erro Crítico Webhook:', err.message);
+        console.error('⚠️ Erro Webhook:', err.message);
         res.status(400).send(`Webhook Error: ${err.message}`);
     }
 }
