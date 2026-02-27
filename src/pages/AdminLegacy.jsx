@@ -164,6 +164,8 @@ export default function Admin() {
     }
 
     // --- ESTADOS GERAIS ---
+
+    // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
