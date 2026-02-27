@@ -127,38 +127,18 @@ export default function Admin() {
         }
     };
 
-   // 🚨 LÓGICA DE PRIORIDADE CORRIGIDA (AGORA COM SUPORTE A URL) 🚨
-    let storeId = null;
-    const hostname = window.location.hostname;
+   // 🚨 NOVA LÓGICA DE PRIORIDADE (BLINDADA PELO CONTEXTO) 🚨
+    let storeId = store ? store.slug : null;
 
-    // 1. CAPTURA PARÂMETROS DA URL (Vital para o fluxo de "Criar Loja")
-    // Isso pega o "loja-da-tata-8871" lá do link
     const searchParams = new URLSearchParams(window.location.search);
     const urlStoreId = searchParams.get('store');
-
-    // 2. REGRA DE OURO: O USUÁRIO LOGADO MANDA.
-    // Se o Contexto achou uma loja JÁ SALVA para este usuário, USE ELA.
-    if (store && store.slug) {
-        console.log("Admin: Carregando loja do usuário:", store.slug);
-        storeId = store.slug;
-    }
     
-    // 3. REGRA DE CRIAÇÃO (NOVO CLIENTE):
-    // Se o usuário NÃO tem loja salva, mas a URL trouxe um ID (ex: ?store=loja-da-tata), usa ele!
-    else if (urlStoreId) {
-        console.log("Admin: Nova loja detectada via URL:", urlStoreId);
+    if (!storeId && urlStoreId) {
         storeId = urlStoreId;
     }
 
-    // 4. REGRA DE PRODUÇÃO (CSI):
-    // Só entra aqui se NÃO tiver usuário logado E não tiver URL de criação.
-    else if (hostname.includes('csi') || hostname.includes('santa') || hostname.includes('conv') || hostname.includes('github')) {
-        console.log("Admin: Modo Produção/Teste (CSI) detectado.");
-        storeId = 'csi';
-    }
-
-    // TELA DE CARREGAMENTO (Só aparece se realmente não achou NADA)
-    if (loading && !storeId) {
+    // TELA DE CARREGAMENTO
+    if (loading) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4">
                 <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -166,21 +146,23 @@ export default function Admin() {
             </div>
         );
     }
-    // 4. TELA DE ERRO (Se não achou Lara e não é CSI)
+
+    // TELA DE ERRO (BLINDAGEM CONTRA VAZAMENTO)
     if (!storeId) {
          return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-50">
-                <h1 className="text-2xl font-black text-slate-800">Loja não identificada</h1>
+                <h1 className="text-2xl font-black text-slate-800">Loja não encontrada</h1>
                 <p className="text-slate-500 max-w-md">
-                    Não conseguimos carregar sua loja. Isso acontece se o link estiver errado ou se você não tiver uma loja vinculada.
+                    O subdomínio acessado não possui uma loja vinculada no banco de dados.
                 </p>
                 <div className="flex gap-2 justify-center mt-4">
-                    <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Tentar de Novo</button>
+                    <button onClick={() => window.location.href = '/'} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Voltar ao Início</button>
                     <button onClick={async () => { await signOut(auth); navigate('/login'); }} className="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold">Sair / Trocar Conta</button>
                 </div>
             </div>
          );
     }
+
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orders, setOrders] = useState([]);
@@ -201,7 +183,9 @@ export default function Admin() {
         status: 'open'
     });
     const [showPixModal, setShowPixModal] = useState(false);
-    const [loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
+    const[loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
+    const [reviewsList, setReviewsList] = useState([]);
+    const [replyText, setReplyText] = useState({});
 
     // --- 🚨 CÓDIGO DE RESGATE AUTOMÁTICO (COLE AQUI) 🚨 ---
     useEffect(() => {
@@ -448,11 +432,18 @@ export default function Admin() {
         });
         
         // Cupons
-        const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+       const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         const unsubLoyalty = onSnapshot(query(collection(db, "loyalty_redemptions"), where("storeId", "==", storeId)), (s) => setLoyaltyRedemptions(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        
+        const unsubReviews = onSnapshot(query(collection(db, "reviews"), where("storeId", "==", storeId)), (s) => {
+            const fetched = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            fetched.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+            setReviewsList(fetched);
+        });
+
         return () => { 
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); // <-- Adicione o unsubLoyalty aqui
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews();
         };
     },[storeId]);
     
@@ -1373,6 +1364,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
                             )})}
+                        </div>
+
+                        {/* --- NOVA GESTÃO DE AVALIAÇÕES AQUI --- */}
+                        <div className="mt-16 pt-12 border-t border-slate-200">
+                            <h2 className="text-3xl font-black italic tracking-tighter uppercase text-slate-900 mb-2">Gestão de Avaliações</h2>
+                            <p className="text-slate-400 font-bold mb-8 text-sm">Responda seus clientes. Suas respostas ficarão visíveis no App.</p>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {reviewsList.length === 0 ? (
+                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 text-center col-span-full">
+                                        <p className="text-slate-400 font-bold">Nenhuma avaliação recebida ainda.</p>
+                                    </div>
+                                ) : reviewsList.map(r => (
+                                    <div key={r.id} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="font-black text-slate-800 uppercase text-lg">{r.customerName}</span>
+                                                <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase">Pedido: #{r.orderId}</p>
+                                            </div>
+                                            <div className="flex text-yellow-400">
+                                                {[...Array(5)].map((_, i) => <Star key={i} size={18} fill={i < r.rating ? "currentColor" : "none"} />)}
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-slate-600 font-medium italic bg-slate-50 p-4 rounded-2xl border border-slate-100">"{r.comment}"</p>
+                                        
+                                        {r.reply ? (
+                                            <div className="bg-blue-50 p-4 rounded-2xl mt-2 border border-blue-100 relative">
+                                                <button onClick={() => updateDoc(doc(db, "reviews", r.id), { reply: null })} className="absolute top-4 right-4 text-blue-400 hover:text-red-500"><Trash2 size={16}/></button>
+                                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Você respondeu:</p>
+                                                <p className="text-sm text-blue-800 font-bold">{r.reply}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-2 flex flex-col md:flex-row gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Escreva uma resposta pública..." 
+                                                    className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none text-sm font-bold focus:ring-2 ring-blue-500"
+                                                    value={replyText[r.id] || ''}
+                                                    onChange={(e) => setReplyText({...replyText,[r.id]: e.target.value})}
+                                                />
+                                                <button 
+                                                    onClick={async () => {
+                                                        if(!replyText[r.id]) return;
+                                                        await updateDoc(doc(db, "reviews", r.id), { reply: replyText[r.id] });
+                                                        alert("Resposta enviada e visível no app!");
+                                                    }}
+                                                    className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all"
+                                                >
+                                                    Responder
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="border-t border-slate-50 pt-3 mt-1">
+                                            <button onClick={() => window.confirm("Deseja mesmo apagar esta avaliação?") && deleteDoc(doc(db, "reviews", r.id))} className="text-[10px] text-red-500 font-black uppercase tracking-widest flex items-center gap-1 hover:text-red-700"><X size={14}/> Excluir Avaliação do App</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}

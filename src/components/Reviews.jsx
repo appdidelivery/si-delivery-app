@@ -94,6 +94,14 @@ export default function Reviews({ storeId }) {
                             </div>
                         </div>
                         <p className="text-sm text-slate-600 font-medium leading-relaxed">{r.comment}</p>
+                        
+                        {/* Resposta do Lojista */}
+                        {r.reply && (
+                            <div className="mt-4 bg-blue-50/60 p-3 rounded-xl border border-blue-100/50 relative ml-4">
+                                <div className="absolute -top-2 left-4 bg-white px-2 text-[8px] font-black text-blue-500 uppercase tracking-widest border border-blue-100 rounded-full shadow-sm">Resposta da Loja</div>
+                                <p className="text-xs text-blue-900 font-bold mt-1 leading-relaxed">{r.reply}</p>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
