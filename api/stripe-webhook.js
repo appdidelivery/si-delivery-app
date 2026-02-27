@@ -96,5 +96,6 @@ export default async function handler(req, res) {
     } catch (err) {
         console.error('⚠️ Erro no Webhook:', err.message);
         res.status(400).send(`Webhook Error: ${err.message}`);
+        // build-final-zapi.
     }
 }
