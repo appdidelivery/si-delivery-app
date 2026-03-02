@@ -1,28 +1,35 @@
 // api/social.js
 export default async function handler(req, res) {
-    // 1. Identifica o cliente pelo subdomínio (ex: confrariadopeixe)
+    // 1. Identifica o cliente pelo subdomínio (ex: confrariadopeixe ou csi)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const storeId = host.split('.')[0]; 
 
     // 2. Fallback: Dados genéricos do Velo Delivery caso a loja falhe
     let title = "Velo Delivery | O seu app de entregas";
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
-    let image = "https://velodelivery.com.br/logo.png"; // Substitua pela URL real da logo do Velo
+    let image = "https://velodelivery.com.br/logo.png"; 
 
     try {
-        // 3. Busca os dados no Firebase via REST API (Ultra rápido)
-        // Substitua 'SEU_PROJECT_ID' pelo ID real do seu projeto Firebase (ex: velo-delivery-app)
+        // 3. Busca os dados no Firebase via REST API
         const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
         const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
         
         const response = await fetch(url);
         const data = await response.json();
 
-        // 4. Injeta os dados da loja se o documento existir no Firestore
+        // 4. Injeta os dados mapeando a estrutura exata do seu Firestore
         if (data && data.fields) {
+            // O nome está na raiz do documento
             title = data.fields.name?.stringValue || title;
-            description = data.fields.slogan?.stringValue || description;
-            image = data.fields.storeLogoUrl?.stringValue || image;
+
+            // O Firebase REST coloca mapas dentro de 'mapValue.fields'
+            const settingsObj = data.fields.settings?.mapValue?.fields;
+
+            // Pega o slogan de dentro do settings (se existir)
+            description = settingsObj?.slogan?.stringValue || description;
+
+            // Tenta pegar a logoUrl da raiz, se não tiver, tenta a storeLogoUrl de dentro do settings
+            image = data.fields.logoUrl?.stringValue || settingsObj?.storeLogoUrl?.stringValue || image;
         }
     } catch (error) {
         console.error("Erro ao buscar dados da loja para o WhatsApp:", error);
