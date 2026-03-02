@@ -49,6 +49,9 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 };
 
 export default function Home() {
+  const { productSlug } = useParams();
+  const navigate = useNavigate();
+
   const generateSlug = (text) => {
     return text.toString().toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Tira acentos
@@ -56,7 +59,7 @@ export default function Home() {
         .replace(/\s+/g, '-') // Troca espaços por hifens
         .replace(/-+/g, '-') // Remove hifens duplicados
         .replace(/^-+/, '').replace(/-+$/, ''); // Tira hifens das pontas
-};
+  };
   
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
   
@@ -704,7 +707,7 @@ export default function Home() {
               navigate('/', { replace: true });
           }
       }
-  },[selectedProduct.id, products, selectedProduct, navigate]); 
+  }, [selectedProduct?.id, productSlug, products, navigate]);
   // ----------------------------------------------
 
   const displayCategories =[
