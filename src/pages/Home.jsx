@@ -884,8 +884,16 @@ export default function Home() {
                                       <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
-                                      {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
+                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
+                                          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
+                                              OFERTA 🔥
+                                          </div>
+                                      )}
+                                      {p.isChilled && (
+                                          <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">
+                                              ❄️
+                                          </div>
+                                      )}
                                   </div>
                                   <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1">{p.name}</h3>
                                   {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
@@ -927,8 +935,16 @@ export default function Home() {
                                       <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
-                                      {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
+                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
+                                          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
+                                              OFERTA 🔥
+                                          </div>
+                                      )}
+                                      {p.isChilled && (
+                                          <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">
+                                              ❄️
+                                          </div>
+                                      )}
                                   </div>
                                   <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1">{p.name}</h3>
                                   {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
@@ -967,8 +983,16 @@ export default function Home() {
                                     <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 cursor-pointer" />
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
-                                    {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
+                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
+                                        <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
+                                            OFERTA 🔥
+                                        </div>
+                                    )}
+                                    {p.isChilled && (
+                                        <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">
+                                            ❄️
+                                        </div>
+                                    )}
                                 </div>
                                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
                                 {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
