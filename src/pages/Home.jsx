@@ -887,7 +887,8 @@ export default function Home() {
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
                                       {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
                                   </div>
-                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1">{p.name}</h3>
+                                  {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                   <div className="flex justify-between items-center mt-auto">
                                       <div>
                                           {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
@@ -929,7 +930,8 @@ export default function Home() {
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
                                       {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
                                   </div>
-                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3">{p.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1">{p.name}</h3>
+                                  {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                   <div className="flex justify-between items-center mt-auto">
                                       <div>
                                           {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
@@ -968,7 +970,8 @@ export default function Home() {
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md animate-pulse shadow-sm z-10">OFERTA 🔥</span>}
                                     {p.isChilled && <span className="absolute bottom-2 right-2 bg-cyan-100 text-cyan-800 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm border border-cyan-200 z-10">❄️ GELADA</span>}
                                 </div>
-                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-3 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
+                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
+                                {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                 <div className="flex justify-between items-center mt-auto">
                                     <div>
                                         {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
@@ -1037,7 +1040,8 @@ export default function Home() {
                                                 </div>
                                                 <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
                                                     <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
-                                                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl">-{p.discountPercentage}%</span>}
+                                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
+                                                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl z-10">-{p.discountPercentage}%</span>}
                                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
                                                     {p.isChilled && <span className="absolute bottom-1 right-1 bg-cyan-100 text-cyan-800 text-[10px] p-1 rounded-full leading-none shadow-sm z-10">❄️</span>}
                                                 </div>

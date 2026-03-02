@@ -295,6 +295,7 @@ export default function Admin() {
     // PASSO 1: Atualização do Estado do Formulário (form)
     const[form, setForm] = useState({ 
         name: '', 
+        description: '', 
         price: '', 
         costPrice: '', 
         promotionalPrice: '', 
@@ -318,7 +319,8 @@ export default function Admin() {
     const [editingOrderData, setEditingOrderData] = useState(null);
     const [editOrderProductSearch, setEditOrderProductSearch] = useState(''); // Estado de busca para o modal de edição
     // Estado para o frete do pedido manual
-    const[manualShippingFee, setManualShippingFee] = useState(0);
+    const [manualShippingFee, setManualShippingFee] = useState(0);
+    const [manualExtraFee, setManualExtraFee] = useState(0);
     // Categorias
     const[isCatModalOpen, setIsCatModalOpen] = useState(false);
     const [catForm, setCatForm] = useState({ name: '' });
@@ -566,7 +568,7 @@ export default function Admin() {
 
     const printLabel = (o) => {
         const w = window.open('', '_blank');
-        const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name}</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
+        const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)} un)</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
         // Formata a data
@@ -594,6 +596,7 @@ export default function Admin() {
 
                 <div style="text-align:right; font-size:18px;">
                     <small>Frete: R$ ${Number(o.shippingFee || 0).toFixed(2)}</small><br>
+                    ${o.discountAmount > 0 ? `<small>Desconto: - R$ ${Number(o.discountAmount).toFixed(2)}</small><br>` : ''}
                     <strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong>
                 </div>
                 ${temCorte ? '<center><br>✂--- CORTE AQUI ---✂</center>' : ''}
@@ -1260,7 +1263,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                           <button onClick={() => { setEditingId(null); setForm({ name: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[], isChilled: false }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                           <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[], isChilled: false }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -1503,16 +1506,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <span>Taxa de Entrega:</span>
                                         <span>R$ {manualShippingFee.toFixed(2)}</span>
                                     </div>
+                                    
+                                    <div className="flex justify-between items-center mb-2 font-bold text-orange-500 text-sm">
+                                        <span>Taxa Adicional (Ex: Extra):</span>
+                                        <div className="flex items-center gap-1">
+                                            <span>R$</span>
+                                            <input type="number" step="0.01" className="w-20 p-1 text-right bg-orange-50 border border-orange-200 rounded-md outline-none focus:ring-2 ring-orange-300" placeholder="0.00" value={manualExtraFee} onChange={e => setManualExtraFee(Number(e.target.value) || 0)} />
+                                        </div>
+                                    </div>
 
                                     <div className="text-3xl font-black text-slate-900 mt-4 italic">
-                                        Total R$ {(manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee).toFixed(2)}
+                                        Total R$ {(manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee + Number(manualExtraFee)).toFixed(2)}
                                     </div>
                                     
                                     <button onClick={async () => {
                                         if (!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length === 0) return alert("Preencha tudo e adicione produtos!");
                                         
                                         const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
-                                        const totalWithShipping = subtotal + manualShippingFee;
+                                        const extraFeeNum = Number(manualExtraFee) || 0;
+                                        const totalWithShipping = subtotal + manualShippingFee + extraFeeNum;
                                         const finalAddress = `${manualCustomer.address} - ${manualCustomer.neighborhood || ''}`;
 
                                         await addDoc(collection(db, "orders"), { 
@@ -1520,8 +1532,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             customerName: manualCustomer.name, 
                                             customerAddress: finalAddress, 
                                             customerPhone: manualCustomer.phone, 
-                                            items: manualCart, // costPrice já está aqui
-                                            shippingFee: manualShippingFee, 
+                                            items: manualCart,
+                                            shippingFee: manualShippingFee,
+                                            extraFee: extraFeeNum,
                                             total: totalWithShipping, 
                                             status: 'pending', 
                                             createdAt: serverTimestamp(), 
@@ -1533,7 +1546,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         setManualCart([]); 
                                         setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
                                         setManualCep('');
-                                        setManualShippingFee(0); 
+                                        setManualShippingFee(0);
+                                        setManualExtraFee(0);
                                         alert("Pedido Lançado com Sucesso!");
                                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-6 shadow-xl hover:bg-blue-700 transition-all">
                                         Confirmar Pedido
@@ -2262,6 +2276,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
                                 <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                                <textarea rows="2" placeholder="Breve Descrição do Produto (Opcional)" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none mt-4" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}></textarea>
                                 
                                 {/* PASSO 2: Atualização da UI do Modal de Produto */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
