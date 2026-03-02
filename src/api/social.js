@@ -1,37 +1,37 @@
 // api/social.js
 export default async function handler(req, res) {
-    // Identificar a loja através do subdomínio (ex: confrariadopeixe)
+    // 1. Identifica o cliente pelo subdomínio (ex: confrariadopeixe)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const storeId = host.split('.')[0]; 
 
-    // Valores por defeito caso a loja não seja encontrada
+    // 2. Fallback: Dados genéricos do Velo Delivery caso a loja falhe
     let title = "Velo Delivery | O seu app de entregas";
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
-    let image = "https://velodelivery.com.br/logo.png"; // Coloque a URL do logótipo genérico do Velo aqui
+    let image = "https://velodelivery.com.br/logo.png"; // Substitua pela URL real da logo do Velo
 
     try {
-        // Obter os dados diretamente via API REST do Firebase (super rápido e sem dependências)
-        // Certifique-se de que a variável de ambiente VITE_FIREBASE_PROJECT_ID está configurada na Vercel
-        const projectId = process.env.VITE_FIREBASE_PROJECT_ID; 
+        // 3. Busca os dados no Firebase via REST API (Ultra rápido)
+        // Substitua 'SEU_PROJECT_ID' pelo ID real do seu projeto Firebase (ex: velo-delivery-app)
+        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
         const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
         
         const response = await fetch(url);
         const data = await response.json();
 
-        // Se o documento existir, substituímos os valores genéricos pelos do cliente
+        // 4. Injeta os dados da loja se o documento existir no Firestore
         if (data && data.fields) {
             title = data.fields.name?.stringValue || title;
             description = data.fields.slogan?.stringValue || description;
             image = data.fields.storeLogoUrl?.stringValue || image;
         }
     } catch (error) {
-        console.error("Erro ao obter dados para partilha social:", error);
+        console.error("Erro ao buscar dados da loja para o WhatsApp:", error);
     }
 
-    // Construção do HTML puro focado apenas em SEO/OG Tags
+    // 5. Monta o HTML puro focado SOMENTE nos robôs (OG Tags)
     const html = `
     <!DOCTYPE html>
-    <html lang="pt-PT">
+    <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
         <title>${title}</title>
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     </html>
     `;
 
-    // Cache Edge de 1 hora. Evita que o WhatsApp faça requisições constantes ao seu Firebase
+    // 6. Configura o cache na Edge Network da Vercel (1 hora)
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.status(200).send(html);
