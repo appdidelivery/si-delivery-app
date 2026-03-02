@@ -49,8 +49,14 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 };
 
 export default function Home() {
-  const navigate = useNavigate();
-  const { productId, productSlug } = useParams(); // <--- ROTA SEO (Fase 1)
+  const generateSlug = (text) => {
+    return text.toString().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Tira acentos
+        .replace(/[^a-z0-9 -]/g, '') // Remove caracteres especiais
+        .replace(/\s+/g, '-') // Troca espaços por hifens
+        .replace(/-+/g, '-') // Remove hifens duplicados
+        .replace(/^-+/, '').replace(/-+$/, ''); // Tira hifens das pontas
+};
   
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
   
@@ -63,9 +69,9 @@ export default function Home() {
       setSelectedOptions({});
       setItemObservation('');
       
-      // Gera o slug e muda a URL na barra de navegação sem recarregar a página!
-      const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-      navigate(`/p/${p.id}/${slug}`, { replace: true });
+      // Usa a nova função limpa de slug
+      const slug = generateSlug(p.name);
+      navigate(`/p/${slug}`, { replace: true });
   };
 
   const handleOptionToggle = (group, option) => {
@@ -687,10 +693,11 @@ export default function Home() {
 
   // --- NOVA MÁGICA: AUTO-OPEN PRODUTO PELA URL ---
   useEffect(() => {
-      if (productId && products.length > 0 && !selectedProduct) {
-          const productFromUrl = products.find(p => p.id === productId);
+      if (productSlug && products.length > 0 && !selectedProduct) {
+          // Acha o produto cujo nome, transformado em slug, seja igual ao slug da URL
+          const productFromUrl = products.find(p => generateSlug(p.name) === productSlug);
+          
           if (productFromUrl) {
-              setSelectedProduct(productFromUrl);
               setSelectedOptions({});
               setItemObservation('');
           } else {
