@@ -704,7 +704,7 @@ export default function Home() {
               navigate('/', { replace: true });
           }
       }
-  },[productId, products, selectedProduct, navigate]); 
+  },[selectedProduct.id, products, selectedProduct, navigate]); 
   // ----------------------------------------------
 
   const displayCategories =[
