@@ -2,7 +2,7 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
 
-export default function SEO({ title, description, productData }) { // 1. Adicionado prop 'productData'
+export default function SEO({ title, description, productData }) {
     // 1. Pega os dados do Banco de Dados (SaaS)
     const { store } = useStore();
 
@@ -19,29 +19,30 @@ export default function SEO({ title, description, productData }) { // 1. Adicion
     
     // Tratamento de segurança para SSR (Evita erro 'window is not defined')
     const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velo.com.br";
+    const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velo.com.br";
     const baseUrl = currentUrl.split('?')[0]; // Remove parâmetros de URL para os IDs do Schema
 
     // 4. Base da Entidade da Loja (Evoluído para LiquorStore/AEO)
     const baseStoreSchema = {
         "@id": `${baseUrl}#store`,
-        "@type": "LiquorStore", // Mais forte para ranqueamento geo de bebidas do que apenas 'Store'
+        "@type": "LiquorStore",
         "name": siteName,
         "image": finalImage,
         "description": finalDesc,
         "url": currentUrl,
-        "telephone": store?.whatsapp ? `+${store.whatsapp}` : "",
+        "telephone": store?.whatsapp ? `+${store.whatsapp.replace(/\D/g, '')}` : "",
         "priceRange": "$$",
         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
         "address": store?.address ? {
             "@type": "PostalAddress",
-            "streetAddress": `${store.address.street}, ${store.address.number}`,
+            "streetAddress": `${store.address.street || ''}, ${store.address.number || ''}`.trim(),
             "addressLocality": store.address.city,
             "addressRegion": store.address.state,
             "postalCode": store.address.zip,
             "addressCountry": "BR"
         } : undefined,
         
-        // Mantido seu excelente bloco de avaliações
+        // Avaliações
         ...(store?.rating_count > 0 && {
             "aggregateRating": {
                 "@type": "AggregateRating",
@@ -55,10 +56,9 @@ export default function SEO({ title, description, productData }) { // 1. Adicion
     let structuredData;
 
     if (productData) {
-        // Se a página (ex: Detalhes do Produto) passar 'productData', gera o ecossistema @graph
         structuredData = {
             "@context": "https://schema.org",
-            "@graph": [
+            "@graph":[
                 baseStoreSchema,
                 {
                     "@type": "Product",
@@ -71,8 +71,8 @@ export default function SEO({ title, description, productData }) { // 1. Adicion
                         "@type": "Offer",
                         "url": currentUrl,
                         "priceCurrency": "BRL",
-                        "price": productData.price,
-                        "availability": productData.isInStock !== false ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                        "price": Number(productData.promotionalPrice > 0 ? productData.promotionalPrice : productData.price).toFixed(2),
+                        "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                         "seller": { "@id": `${baseUrl}#store` },
                         "shippingDetails": {
                             "@type": "OfferShippingDetails",
@@ -84,8 +84,8 @@ export default function SEO({ title, description, productData }) { // 1. Adicion
                             "shippingDestination": {
                                 "@type": "DefinedRegion",
                                 "addressCountry": "BR",
-                                "addressRegion": store?.address?.state || "SC",
-                                "addressLocality": store?.address?.city ? [store.address.city] : ["São José"]
+                                "addressRegion": store?.address?.state || "BR",
+                                "addressLocality": store?.address?.city ? [store.address.city] :[]
                             }
                         }
                     }
@@ -94,38 +94,39 @@ export default function SEO({ title, description, productData }) { // 1. Adicion
                     "@type": "OrderAction",
                     "target": {
                         "@type": "EntryPoint",
-                        "urlTemplate": `${window.location.origin}/loja/${store?.id}/checkout?productId=${productData.id}`,
+                        "urlTemplate": `${safeOrigin}/loja/${store?.id}/checkout?productId=${productData.id}`,
                         "inLanguage": "pt-BR",
-                        "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]
+                        "actionPlatform":["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]
                     },
                     "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModeDirectDownload"
                 }
             ]
         };
     } else {
-        // Comportamento padrão (Home da loja, Contato, etc)
         structuredData = {
             "@context": "https://schema.org",
             ...baseStoreSchema
         };
     }
 
+    // 6. Sanitização de Segurança contra XSS (O SEGREDO SÊNIOR)
+    const safeJsonLd = JSON.stringify(structuredData).replace(/</g, '\\u003c');
+
     return (
         <Helmet>
             <title>{finalTitle}</title>
             <meta name="description" content={finalDesc} />
-            {store?.themeColor && <meta name="theme-color" content={store.themeColor} />}
+            {store?.primaryColor && <meta name="theme-color" content={store.primaryColor} />}
 
-            <meta property="og:type" content="website" />
+            <meta property="og:type" content={productData ? "product" : "website"} />
             <meta property="og:title" content={finalTitle} />
             <meta property="og:description" content={finalDesc} />
-            <meta property="og:image" content={finalImage} />
+            <meta property="og:image" content={productData ? (productData.imageUrl || finalImage) : finalImage} />
             <meta property="og:url" content={currentUrl} />
             <meta property="og:site_name" content={siteName} />
             
-            <script type="application/ld+json">
-                {JSON.stringify(structuredData)}
-            </script>
+            {/* Injeção Blindada do Schema */}
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd }} />
         </Helmet>
     );
 }
