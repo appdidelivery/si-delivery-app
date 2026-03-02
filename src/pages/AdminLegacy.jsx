@@ -607,19 +607,27 @@ export default function Admin() {
     };
 
     const updateStatusAndNotify = async (order, newStatus) => {
-        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
-        const lojaNome = storeStatus.name || "Velo Delivery";
-        const messages = {
-            preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
-            delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.`,
-            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n*Poderia nos dar uma força?* Avalie nossa loja no Google, leva apenas 30 segundos: \n👉 https://g.page/r/CTEL4f6nFgE_EBE/review`,
-            canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
-        };
-        if (messages[newStatus]) {
-            const phone = String(order.customerPhone).replace(/\D/g, ''); 
-            if(phone) window.open(`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
-        }
+    await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+    const lojaNome = storeStatus.name || "Velo Delivery";
+    
+    // Cria o link dinâmico de avaliação direto para o app do cliente
+    const reviewLink = `https://${window.location.host}/track/${order.id}`;
+
+    const messages = {
+        preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
+        delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.`,
+        
+        // MENSAGEM NOVA: Focada no produto e com link dinâmico da loja
+        completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n⭐ *Que tal avaliar o seu pedido?* \nLeva só 10 segundos e nos ajuda muito a melhorar: \n👉 ${reviewLink}`,
+        
+        canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
     };
+
+    if (messages[newStatus]) {
+        const phone = String(order.customerPhone).replace(/\D/g, ''); 
+        if(phone) window.open(`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
+    }
+};
 
     const handleAddQuantityDiscount = () => setForm(prev => ({ ...prev, quantityDiscounts:[...prev.quantityDiscounts, { minQuantity: 1, type: 'percentage', value: 0, description: '' }] }));
     const handleUpdateQuantityDiscount = (index, field, value) => { const newDiscounts = [...form.quantityDiscounts]; newDiscounts[index][field] = value; setForm(prev => ({ ...prev, quantityDiscounts: newDiscounts })); };
