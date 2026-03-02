@@ -1,6 +1,6 @@
 import Reviews from '../components/Reviews';
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake } from 'lucide-react';
@@ -15,37 +15,17 @@ import { getStoreIdFromHostname } from '../utils/domainHelper';
 const getCategoryIcon = (name) => {
     const n = name.toLowerCase();
     
-    // Cervejas
     if (n.includes('cerveja') || n.includes('chopp')) return <Beer size={18}/>;
-    
-    // Vinhos e Espumantes
     if (n.includes('vinho') || n.includes('espumante')) return <Wine size={18}/>;
-    
-    // Destilados e Licores
     if (n.includes('licor') || n.includes('destilado') || n.includes('whisky') || n.includes('vodka') || n.includes('gin') || n.includes('tequila') || n.includes('cachaça') || n.includes('cachaca')) return <Martini size={18}/>;
-    
-    // Energéticos
     if (n.includes('energético') || n.includes('energetico')) return <Zap size={18}/>;
-    
-    // Não Alcoólicos
     if (n.includes('sem álcool') || n.includes('sem alcool') || n.includes('suco') || n.includes('refri') || n.includes('água') || n.includes('agua')) return <CupSoda size={18}/>;
-    
-    // Tabacaria
     if (n.includes('tabacaria') || n.includes('cigarro') || n.includes('pod') || n.includes('essência') || n.includes('essencia')) return <Flame size={18}/>;
-    
-    // Gelo
     if (n.includes('gelo')) return <Snowflake size={18}/>;
-    
-    // Guloseimas e Doces
     if (n.includes('guloseima') || n.includes('doce') || n.includes('chocolate') || n.includes('chiclete') || n.includes('bala')) return <Candy size={18}/>;
-    
-    // Salgadinhos e Petiscos
     if (n.includes('salgadinho') || n.includes('petisco') || n.includes('amendoim')) return <Utensils size={18}/>;
-    
-    // Combos
     if (n.includes('combo')) return <Package size={18}/>;
     
-    // Padrão (Se não achar nenhuma palavra acima, usa os 3 tracinhos)
     return <List size={18}/>;
 };
 
@@ -70,9 +50,11 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
 
 export default function Home() {
   const navigate = useNavigate();
+  const { productId, productSlug } = useParams(); // <--- ROTA SEO (Fase 1)
+  
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
   
-  const [selectedProduct, setSelectedProduct] = useState(null); 
+  const[selectedProduct, setSelectedProduct] = useState(null); 
   const [selectedOptions, setSelectedOptions] = useState({}); 
   const [itemObservation, setItemObservation] = useState(''); 
 
@@ -80,18 +62,22 @@ export default function Home() {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
+      
+      // Gera o slug e muda a URL na barra de navegação sem recarregar a página!
+      const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      navigate(`/p/${p.id}/${slug}`, { replace: true });
   };
 
   const handleOptionToggle = (group, option) => {
       setSelectedOptions(prev => {
-          const currentGroupSelections = prev[group.id] || [];
+          const currentGroupSelections = prev[group.id] ||[];
           const isSelected = currentGroupSelections.some(o => o.name === option.name);
 
           if (isSelected) {
               return { ...prev, [group.id]: currentGroupSelections.filter(o => o.name !== option.name) };
           } else {
               if (group.maxSelections === 1) {
-                  return { ...prev, [group.id]: [option] }; 
+                  return { ...prev,[group.id]: [option] }; 
               } else if (currentGroupSelections.length < group.maxSelections) {
                   return { ...prev, [group.id]: [...currentGroupSelections, option] }; 
               } else {
@@ -114,7 +100,7 @@ export default function Home() {
       if (selectedProduct.complements) {
           for (const group of selectedProduct.complements) {
               if (group.isRequired) {
-                  const selectedCount = (selectedOptions[group.id] || []).length;
+                  const selectedCount = (selectedOptions[group.id] ||[]).length;
                   if (selectedCount === 0) {
                       alert(`Por favor, selecione uma opção em: ${group.name}`);
                       return;
@@ -133,7 +119,10 @@ export default function Home() {
           price: calculateModalTotal() 
       };
       addToCart(itemToAdd, 1);
+      
+      // Fecha e reseta a URL
       setSelectedProduct(null); 
+      navigate('/', { replace: true });
   };
 
   const [products, setProducts] = useState([]);
@@ -147,14 +136,14 @@ export default function Home() {
   const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
-  const [showLastOrders, setShowLastOrders] = useState(false);
+  const[showLastOrders, setShowLastOrders] = useState(false);
   const [lastOrders, setLastOrders] = useState([]);
 
-  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const[availableCoupons, setAvailableCoupons] = useState([]);
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const[appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
-  const [discountAmount, setDiscountAmount] = useState(0);
+  const[discountAmount, setDiscountAmount] = useState(0);
 
   useEffect(() => {
     const savedCustomer = localStorage.getItem('veloCustomerData');
@@ -164,7 +153,7 @@ export default function Home() {
       const savedPhone = localStorage.getItem('customerPhone');
       if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
     }
-  }, []);
+  },[]);
 
   const handleCustomerChange = (field, value) => {
     const updatedCustomer = { ...customer, [field]: value };
@@ -177,7 +166,7 @@ export default function Home() {
         promoActive: false,
         promoBannerUrls: []
     });
-  const [showExitModal, setShowExitModal] = useState(false);
+  const[showExitModal, setShowExitModal] = useState(false);
 
   useEffect(() => {
     if (!marketingSettings?.exitIntentActive) return;
@@ -217,7 +206,7 @@ export default function Home() {
         setShowLastOrders(false);
       }
     }
-  }, [showLastOrders, storeId]);
+  },[showLastOrders, storeId]);
 
   const repeatOrder = (order) => {
     order.items.forEach(item => {
@@ -266,7 +255,7 @@ export default function Home() {
     }
   };
 
-  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const[loyaltyPoints, setLoyaltyPoints] = useState(0);
 
   useEffect(() => {
     if (marketingSettings?.loyaltyActive) {
@@ -288,7 +277,7 @@ export default function Home() {
     }
   }, [marketingSettings, storeId]);
     
-  const [isStoreOpenNow, setIsStoreOpenNow] = useState(true);
+  const[isStoreOpenNow, setIsStoreOpenNow] = useState(true);
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
   const [generalBanners, setGeneralBanners] = useState([]);
@@ -301,7 +290,7 @@ export default function Home() {
   const [activeOrderId, setActiveOrderId] = useState(null);
 
     const [deferredPrompt, setDeferredPrompt] = useState(null);
-    const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+    const[showInstallPrompt, setShowInstallPrompt] = useState(false);
     const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
 
     useEffect(() => {
@@ -314,7 +303,7 @@ export default function Home() {
         };
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
-    }, []);
+    },[]);
 
     useEffect(() => {
         const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -327,7 +316,7 @@ export default function Home() {
                 setShowiOSInstallMessage(true);
             }
         }
-    }, []);
+    },[]);
 
     const handleInstallClick = async () => {
         if (deferredPrompt) {
@@ -437,7 +426,7 @@ export default function Home() {
           "short_name": storeNameForPWA, "name": storeNameForPWA, "start_url": "/",
           "display": "standalone", "theme_color": "#1d4ed8", "background_color": "#ffffff",
           "orientation": "portrait", "scope": "/",             
-          "icons": [
+          "icons":[
             { "src": logoUrl, "sizes": "192x192", "type": "image/png", "purpose": "any" },
             { "src": logoUrl, "sizes": "512x512", "type": "image/png", "purpose": "any" }
           ]
@@ -447,7 +436,7 @@ export default function Home() {
         manifestTag.setAttribute('href', manifestURL);
       }
     }
-  }, [storeSettings.storeLogoUrl, storeSettings.name]); 
+  },[storeSettings.storeLogoUrl, storeSettings.name]); 
 
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
@@ -482,12 +471,11 @@ export default function Home() {
     };
     const handler = setTimeout(() => fetchCep(), 500);
     return () => clearTimeout(handler);
-  }, [customer.cep, shippingRates, storeId]);
+  },[customer.cep, shippingRates, storeId]);
 
   const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
     
-    // 1. TRAVA INICIAL
     if (p.stock !== undefined && Number(p.stock) <= 0) { 
         alert(`O produto ${p.name} está esgotado!`); 
         return; 
@@ -501,7 +489,6 @@ export default function Home() {
         newQuantity += existingItem.quantity;
       }
 
-      // 2. TRAVA DE CARRINHO
       if (p.stock !== undefined && (newQuantity > Number(p.stock))) {
           alert(`⚠️ Desculpe, só temos ${p.stock} unidades de ${p.name} disponíveis no momento.`);
           return prev; 
@@ -512,7 +499,7 @@ export default function Home() {
       if (existingItem) {
           return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit } : i);
       } else {
-          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit }];
+          return[...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit }];
       }
     });
   };
@@ -526,7 +513,6 @@ export default function Home() {
 
                 const productOriginal = products.find(p => p.id === productId);
 
-                // 3. TRAVA DO BOTÃO +
                 if (amount > 0 && productOriginal && productOriginal.stock !== undefined) {
                     if (newQuantity > Number(productOriginal.stock)) {
                         alert(`⚠️ Limite atingido! Temos apenas ${productOriginal.stock} unidades de ${productOriginal.name}.`);
@@ -636,7 +622,6 @@ export default function Home() {
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
           const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
           
-          // Define a mensagem do WhatsApp dependendo se é dinheiro ou cartão com motoboy
           const obsMsg = customer.payment === 'dinheiro' 
               ? `\n💵 *Pagamento:* Dinheiro\n🪙 *Troco para:* ${customer.changeFor || 'Não precisa'}`
               : `\n💳 *Pagamento:* Cartão na Entrega (Levar maquininha)`;
@@ -700,12 +685,27 @@ export default function Home() {
     }
   };
 
-  const displayCategories = [
+  // --- NOVA MÁGICA: AUTO-OPEN PRODUTO PELA URL ---
+  useEffect(() => {
+      if (productId && products.length > 0 && !selectedProduct) {
+          const productFromUrl = products.find(p => p.id === productId);
+          if (productFromUrl) {
+              setSelectedProduct(productFromUrl);
+              setSelectedOptions({});
+              setItemObservation('');
+          } else {
+              navigate('/', { replace: true });
+          }
+      }
+  },[productId, products, selectedProduct, navigate]); 
+  // ----------------------------------------------
+
+  const displayCategories =[
       { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
       ...categories.map(c => ({ id: c.name, name: c.name, icon: getCategoryIcon(c.name) }))
   ];
 
-  const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds || []);
+  const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds ||[]);
   const smartUpsell = products.filter(p => 
       recommendedIdsInCart.includes(p.id) && 
       !cart.some(c => c.id === p.id) && 
@@ -880,7 +880,7 @@ export default function Home() {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
                               <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                       <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
@@ -895,7 +895,7 @@ export default function Home() {
                                           </div>
                                       )}
                                   </div>
-                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1">{p.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
                                   {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                   <div className="flex justify-between items-center mt-auto">
                                       <div>
@@ -931,7 +931,7 @@ export default function Home() {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
                               <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative">
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                       <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
@@ -946,7 +946,7 @@ export default function Home() {
                                           </div>
                                       )}
                                   </div>
-                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1">{p.name}</h3>
+                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
                                   {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                   <div className="flex justify-between items-center mt-auto">
                                       <div>
@@ -979,8 +979,8 @@ export default function Home() {
                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                         return (
                             <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative" onClick={() => hasStock ? setSelectedProduct(p) : null}>
-                                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 cursor-pointer" />
+                                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -994,7 +994,7 @@ export default function Home() {
                                         </div>
                                     )}
                                 </div>
-                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? setSelectedProduct(p) : null}>{p.name}</h3>
+                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
                                 {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                 <div className="flex justify-between items-center mt-auto">
                                     <div>
@@ -1043,7 +1043,7 @@ export default function Home() {
                                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                                         return (
                                             <motion.div layout initial={{opacity:0, x:-20}} animate={{opacity:1, x:0}} key={p.id} 
-                                                onClick={() => hasStock ? setSelectedProduct(p) : null}
+                                                onClick={() => hasStock ? handleOpenProduct(p) : null}
                                                 className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
                                             >
                                                 <div className="flex-1 flex flex-col justify-center">
@@ -1456,7 +1456,10 @@ export default function Home() {
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
-            onClick={() => setSelectedProduct(null)} 
+            onClick={() => {
+                setSelectedProduct(null);
+                navigate('/', { replace: true });
+            }} 
           >
             <motion.div 
               initial={{ y: "100%" }} 
@@ -1467,7 +1470,10 @@ export default function Home() {
               className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
             >
               <button 
-                onClick={() => setSelectedProduct(null)} 
+                onClick={() => {
+                    setSelectedProduct(null);
+                    navigate('/', { replace: true });
+                }} 
                 className="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full z-10 backdrop-blur-md hover:bg-black/60 transition-all"
               >
                 <X size={20} />
@@ -1505,7 +1511,7 @@ export default function Home() {
                                 </div>
                                 <div className="space-y-2">
                                     {group.options.map((opt, i) => {
-                                        const isSelected = (selectedOptions[group.id] || []).some(o => o.name === opt.name);
+                                        const isSelected = (selectedOptions[group.id] ||[]).some(o => o.name === opt.name);
                                         return (
                                             <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50` : 'border-transparent bg-white hover:border-slate-200'}`}>
                                                 <div className="flex items-center gap-3">

@@ -49,6 +49,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/p/:productId/:productSlug" element={<Home />} />
             <Route path="/track/:orderId" element={<Tracking />} />
             <Route path="/login" element={<Login />} />
             <Route
