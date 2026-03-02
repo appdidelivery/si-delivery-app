@@ -103,15 +103,29 @@ export default function Admin() {
             alert("Erro de conexão ao tentar configurar recebimentos.");
         }
     };
-    // --- ABRIR PAINEL FINANCEIRO DO LOJISTA ---
+    // --- ABRIR PAINEL FINANCEIRO DO LOJISTA (BLINDADO) ---
     const handleOpenStripeDashboard = async () => {
         try {
-            if (!storeStatus.stripeConnectId) return alert("Conta não conectada.");
+            if (!storeId) return alert("Erro: Loja não identificada na URL.");
+            
+            // BLINDAGEM: Busca a verdade no banco de dados na hora do clique
+            const storeRef = doc(db, "stores", storeId);
+            const storeSnap = await getDoc(storeRef);
+            
+            if (!storeSnap.exists()) {
+                return alert("Erro: Loja não encontrada.");
+            }
+
+            const currentStripeId = storeSnap.data().stripeConnectId;
+
+            if (!currentStripeId) {
+                return alert("Esta loja ainda não conectou uma conta bancária na Stripe.");
+            }
             
             const response = await fetch('/api/create-login-link', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stripeConnectId: storeStatus.stripeConnectId })
+                body: JSON.stringify({ stripeConnectId: currentStripeId })
             });
             
             const data = await response.json();
@@ -122,29 +136,30 @@ export default function Admin() {
                 alert("Erro ao abrir o painel financeiro: " + (data.error || "Desconhecido"));
             }
         } catch (error) {
-            console.error("Erro:", error);
-            alert("Erro de conexão ao tentar abrir o painel financeiro.");
+            console.error("Erro Crítico de Segurança Financeira:", error);
+            alert("Falha de conexão ao tentar abrir o painel financeiro.");
         }
     };
 
-   // 🚨 NOVA LÓGICA DE PRIORIDADE (ONBOARDING MULTI-TENANT) 🚨
-    // 1. Tenta pegar a loja validada e segura que vem do banco de dados
-    let storeId = store ? store.slug : null;
-
-    // 2. Tenta descobrir o nome que o usuário digitou na URL
+   // 🚨 NOVA LÓGICA DE PRIORIDADE CORRIGIDA (SaaS MULTI-TENANT) 🚨
     const hostname = window.location.hostname;
     const currentSubdomain = (hostname !== 'localhost' && hostname.includes('.')) 
         ? hostname.split('.')[0] 
         : null;
-    
+
     const searchParams = new URLSearchParams(window.location.search);
     const urlStoreId = searchParams.get('store');
-    
-    // 3. SE A LOJA NÃO EXISTE: Assumimos o nome da URL temporariamente 
-    // APENAS para permitir que a tela de "Setup Automático" (Criação) apareça.
-    if (!storeId) {
-        storeId = urlStoreId || currentSubdomain;
+
+    // 1. PRIORIDADE MÁXIMA: Tenta definir a loja pela URL
+    let resolvedFromUrl = urlStoreId || currentSubdomain;
+
+    // Bloqueia subdomínios de sistema para não serem tratados como lojas
+    if (resolvedFromUrl === 'app' || resolvedFromUrl === 'www') {
+        resolvedFromUrl = null;
     }
+
+    // 2. Define o storeId final: A URL ganha. Se não houver loja na URL, usa o usuário logado.
+    let storeId = resolvedFromUrl || (store ? store.slug : null);
 
     // TELA DE CARREGAMENTO
     if (loading) {
@@ -386,8 +401,18 @@ export default function Admin() {
     };
 
     // --- LISTENERS FIREBASE ---
-    useEffect(() => {
+   useEffect(() => {
         if (!storeId) return;
+
+        // PREVENÇÃO DE VAZAMENTO VISUAL: Limpa tudo antes de buscar a loja nova
+        setOrders([]);
+        setProducts([]);
+        setCategories([]);
+        setGeneralBanners([]);
+        setShippingRates([]);
+        setCoupons([]);
+        setLoyaltyRedemptions([]);
+        setReviewsList([]);
 
         // Pedidos
         const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), (s) => {
