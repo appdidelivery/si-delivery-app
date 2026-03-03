@@ -2308,8 +2308,60 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
-                                <input type="text" placeholder="Nome do Produto" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-                                <textarea rows="2" placeholder="Breve Descrição do Produto (Opcional)" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none mt-4" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}></textarea>
+                                {/* --- INÍCIO: CAMPOS COM NUDGES DE SEO E EXEMPLO VISUAL --- */}
+                                <div className="space-y-4">
+                                    <div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nome do Produto" 
+                                            className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none focus:ring-2 ring-blue-500 transition-all" 
+                                            value={form.name} 
+                                            onChange={e => setForm({ ...form, name: e.target.value })} 
+                                            required 
+                                        />
+                                        <p className="text-[11px] text-blue-600 font-bold mt-2 ml-4 flex items-center gap-1">
+                                            <Search size={12} /> O nome exato que o seu cliente digitaria na busca do Google.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <textarea 
+                                            rows="2" 
+                                            placeholder="Breve Descrição do Produto (Opcional mas recomendado)" 
+                                            className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none focus:ring-2 ring-blue-500 transition-all" 
+                                            value={form.description} 
+                                            onChange={e => setForm({ ...form, description: e.target.value })}
+                                        ></textarea>
+                                        <p className="text-[11px] text-slate-400 font-bold mt-2 ml-4">
+                                            Detalhes atrativos ajudam a vender mais e melhoram seu posicionamento orgânico.
+                                        </p>
+                                    </div>
+
+                                    {/* BOX DE EXEMPLO PERFEITO DE SEO */}
+                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-3xl border border-blue-100 shadow-sm mt-2">
+                                        <h4 className="text-xs font-black text-blue-800 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <Flame size={14} className="text-orange-500" /> O que mais vende no Google
+                                        </h4>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Exemplo Ruim */}
+                                            <div className="bg-white/60 p-4 rounded-2xl border border-red-100">
+                                                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">❌ Cadastro Ruim (Invisível)</p>
+                                                <p className="text-sm font-bold text-slate-400 line-through decoration-red-400">Heineken</p>
+                                                <p className="text-xs text-slate-400 mt-1 italic">"Cerveja gelada."</p>
+                                            </div>
+                                            
+                                            {/* Exemplo Bom */}
+                                            <div className="bg-white p-4 rounded-2xl border-2 border-green-400 shadow-md relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 bg-green-500 text-white text-[9px] font-black px-2 py-1 rounded-bl-lg uppercase">Ideal</div>
+                                                <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-2">✅ Cadastro Perfeito (Vende muito)</p>
+                                                <p className="text-sm font-black text-slate-800">Cerveja Heineken Long Neck 330ml Gelada</p>
+                                                <p className="text-xs text-slate-600 mt-1 italic font-medium">"Cerveja Premium Puro Malte em garrafa de vidro 330ml. Entregue trincando de gelada na sua porta em minutos."</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* --- FIM: CAMPOS COM NUDGES DE SEO E EXEMPLO VISUAL --- */}
                                 
                                 {/* PASSO 2: Atualização da UI do Modal de Produto */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2477,7 +2529,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* --- FIM: CRIADOR DE COMPLEMENTOS --- */}
                                 <div className="space-y-3 pt-6 border-t border-slate-100">
                                     <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
-                                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">{imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} /></label>
+                                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-all">
+                                        <div className="flex items-center gap-3">
+                                            {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} 
+                                            <UploadCloud size={20} />
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-medium">PNG ou JPG (Evite .webp ou .svg)</p>
+                                    </label>
+                                    
+                                    {/* DICA DE FOTO PARA SEO E CONVERSÃO */}
+                                    <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex gap-3">
+                                        <div className="bg-emerald-500 text-white p-2 rounded-xl h-fit">
+                                            <ImageIcon size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] text-emerald-800 font-black uppercase tracking-wider mb-1">Dica de Especialista:</p>
+                                            <p className="text-[11px] text-emerald-700 leading-tight">
+                                                <b>Fotos originais (tiradas na loja)</b> valem mais que fotos da internet. 
+                                                O Google prioriza imagens reais! <br/>
+                                                <span className="italic opacity-80 text-[10px]">Dica: Renomeie o arquivo para <b>{form.name ? form.name.toLowerCase().replace(/\s+/g, '-') : 'nome-do-produto'}.jpg</b> antes de subir.</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
                                     {imageFile && (<button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload'}</button>)}
                                 </div>
                                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
