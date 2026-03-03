@@ -59,9 +59,20 @@ export default async function handler(req, res) {
             // 3. Proteção anti-quebra: Pula produtos sem nome
             if (!p.name) return;
 
-            // 4. Filtro de Estoque (Exatamente igual ao seu frontend Home.jsx)
+           // 4. Filtro de Estoque (Exatamente igual ao seu frontend Home.jsx)
             const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
             if (!hasStock) return; // Não manda produto esgotado pro Google
+
+            // 5. FILTRO ANTI-BAN (Cigarros, Vapes e Narguile)
+            const nomeProduto = p.name.toLowerCase();
+            const palavrasProibidas = ['cigarro', 'tabaco', 'vape', 'narguile', 'essência', 'essencia', 'palheiro', 'gift'];
+            const contemProibido = palavrasProibidas.some(palavra => nomeProduto.includes(palavra));
+            if (contemProibido) return; // Pula este produto (não vai pro Google)
+
+            // 6. FILTRO DE IMAGEM VÁLIDA (Google recusa sem foto ou .webp/.svg)
+            if (!p.imageUrl || typeof p.imageUrl !== 'string' || !p.imageUrl.startsWith('http')) return; 
+            const urlImagem = p.imageUrl.toLowerCase();
+            if (urlImagem.includes('.webp') || urlImagem.includes('.svg')) return; // Pula formatos não aceitos
             
             const slug = generateSlug(p.name);
             const productLink = `https://${host}/p/${slug}`;
