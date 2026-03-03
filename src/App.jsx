@@ -1,5 +1,5 @@
 // src/App.jsx
-
+import Policies from './pages/Policies';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { useEffect, useState } from 'react';
@@ -51,6 +51,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/p/:productSlug" element={<Home />} />
             <Route path="/track/:orderId" element={<Tracking />} />
+            <Route path="/politicas" element={<Policies />} />
             <Route path="/login" element={<Login />} />
             <Route
               path="/admin"

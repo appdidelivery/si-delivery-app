@@ -1123,6 +1123,11 @@ export default function Home() {
           <img src="/logo retangular Velo Delivery.png" className="h-6 w-auto mb-2" alt="Velo Delivery" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
         </a>
+        <div className="flex gap-4 justify-center text-sm text-gray-500 mt-8 mb-4">
+    <a href="/politicas" className="hover:underline">Política de Privacidade</a>
+    <a href="/politicas" className="hover:underline">Trocas e Devoluções</a>
+    <a href="/politicas" className="hover:underline">Política de Entrega</a>
+</div>
       </footer>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> 
