@@ -2128,6 +2128,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Digite apenas números com DDD (ex: 55519...). É para esse número que o cliente será enviado.</p>
                                 </div>
+                                {/* NOVO CAMPO: LINK DO GOOGLE MEU NEGÓCIO */}
+                                <div className="mt-4">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <Star size={14} className="text-yellow-500"/> Link de Avaliação (Google Meu Negócio)
+                                    </label>
+                                    <input 
+                                        type="url" 
+                                        placeholder="Ex: https://g.page/r/SUA_LOJA/review" 
+                                        value={storeStatus.googleReviewUrl || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { googleReviewUrl: e.target.value }, { merge: true })} 
+                                        className="w-full p-5 bg-yellow-50 text-yellow-700 rounded-2xl font-bold border-none placeholder-yellow-300 outline-none focus:ring-2 ring-yellow-400" 
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
+                                </div>
                                 </div>
                             </div>
                             {/* --- NOVO BLOCO: LOCALIZAÇÃO E REGRAS --- */}

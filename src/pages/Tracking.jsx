@@ -1,8 +1,9 @@
+// --- START OF FILE src/pages/Tracking.jsx ---
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../../src/services/firebase'; 
-import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
-import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2, ExternalLink, Award } from 'lucide-react';
+import { doc, onSnapshot, updateDoc, increment, getDoc } from 'firebase/firestore'; // Adicionado getDoc aqui
+import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2, ExternalLink, Award, Copy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { enviarAvaliacao } from '../../src/services/reviewService';
 
@@ -12,53 +13,67 @@ export default function Tracking() {
   const [loading, setLoading] = useState(true);
 
   const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
+  const[hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const[isSubmitting, setIsSubmitting] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [storeData, setStoreData] = useState(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "orders", orderId), (docSnapshot) => {
+    const unsubOrder = onSnapshot(doc(db, "orders", orderId), (docSnapshot) => {
       if (docSnapshot.exists()) {
-        setOrder({ id: docSnapshot.id, ...docSnapshot.data() });
+        const orderInfo = { id: docSnapshot.id, ...docSnapshot.data() };
+        setOrder(orderInfo);
+        
+        // BUSCA DINÂMICA DA LOJA
+        const storeRef = doc(db, "stores", orderInfo.storeId);
+        getDoc(storeRef).then((s) => {
+          if (s.exists()) setStoreData(s.data());
+        }).catch(err => console.error("Erro ao buscar dados da loja no rastreio:", err));
+
       } else {
         setOrder(null);
       }
       setLoading(false);
     });
-    return () => unsub();
-  }, [orderId]);
+    return () => unsubOrder();
+  },[orderId]);
 
-  // GAMIFICAÇÃO GOOGLE
+  // FUNÇÃO NOVA: GAMIFICAÇÃO GOOGLE (MULTITENANT)
   const handleGoogleReview = async () => {
+    // 1. Pega o link da loja no banco. Se não existir, usa o da CSI como fallback de segurança.
+    const linkAvaliacao = storeData?.googleReviewUrl || 'https://g.page/r/CTEL4f6nFgE_EBE/review';
+    
     const produtoDestaque = order?.items?.[0] ? order.items[0].name : "meu pedido";
     const textoPronto = `Comprei ${produtoDestaque} e a entrega foi super rápida!`;
 
     try {
+      // Tenta copiar o texto para a área de transferência
       await navigator.clipboard.writeText(textoPronto);
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 3000);
 
+      // Marca no pedido que o cliente clicou para avaliar (você pode usar isso pra dar os pontos depois via Cloud Function)
       await updateDoc(doc(db, "orders", orderId), { googleReviewClicked: true });
 
-      const user = auth.currentUser;
-      if (user) {
-        await updateDoc(doc(db, "users", user.uid), { loyaltyPoints: increment(150) });
-      }
-
+      // Abre o link DINÂMICO da loja correta após 1 segundo (dá tempo do usuário ler que copiou)
       setTimeout(() => {
-        window.open('https://g.page/r/CTEL4f6nFgE_EBE/review', '_blank');
+        window.open(linkAvaliacao, '_blank');
       }, 1000);
+
     } catch (err) {
-      window.open('https://g.page/r/CTEL4f6nFgE_EBE/review', '_blank');
+      // Se o navegador do cara bloquear o "copiar", abre o link do Google direto de qualquer forma
+      console.warn("Navegador bloqueou a cópia automática. Abrindo Google...", err);
+      window.open(linkAvaliacao, '_blank');
     }
   };
 
   const handleSendReview = async () => {
-    if (rating === 0) return alert("Por favor, selecione uma nota.");
+    if (rating === 0) return alert("Por favor, selecione uma nota de 1 a 5 estrelas.");
     if (isSubmitting) return;
 
     setIsSubmitting(true);
+    
     try {
       const user = auth.currentUser;
       if (!user) {
@@ -66,25 +81,48 @@ export default function Tracking() {
         setIsSubmitting(false);
         return;
       }
-      const reviewData = { userId: user.uid, storeId: order.storeId, orderId: order.id, rating, comment };
+
+      const reviewData = {
+        userId: user.uid,
+        storeId: order.storeId,
+        orderId: order.id,
+        rating: rating,
+        comment: comment
+      };
+
       await enviarAvaliacao(reviewData);
-      await updateDoc(doc(db, "orders", orderId), { hasBeenReviewed: true });
+
+      await updateDoc(doc(db, "orders", orderId), {
+        hasBeenReviewed: true
+      });
+      
     } catch (error) {
-      alert("Ocorreu um erro. Tente novamente.");
+      console.error("Erro ao enviar avaliação:", error);
+      alert("Ocorreu um erro ao enviar sua avaliação. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
-  if (!order) return <div className="p-10 text-center font-bold text-red-600 uppercase tracking-widest">Pedido não encontrado.</div>;
-
-  const steps = [
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+      </div>
+    );
+  }
+  
+  if (!order) {
+    return <div className="p-10 text-center font-bold text-red-600 uppercase tracking-widest">Pedido não encontrado.</div>;
+  }
+  
+  const steps =[
     { id: 'pending', label: 'Pedido Recebido', icon: <Clock /> },
     { id: 'preparing', label: 'Em Preparo', icon: <PackageCheck /> },
     { id: 'delivery', label: 'Saiu para Entrega', icon: <Truck /> },
     { id: 'completed', label: 'Entregue!', icon: <CheckCircle2 /> },
   ];
+
   const currentIdx = steps.findIndex(s => s.id === order.status);
 
   return (
@@ -119,9 +157,11 @@ export default function Tracking() {
             {/* MISSÃO GOOGLE */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-[2rem] border-2 border-yellow-200 shadow-sm relative overflow-hidden">
               <div className="absolute -right-4 -top-4 opacity-10"><Award size={100}/></div>
+              
               <h3 className="text-yellow-800 font-black italic tracking-tighter text-xl leading-tight mb-2 flex items-center gap-2 relative z-10">
                 <Star className="fill-yellow-500 text-yellow-500" size={24}/> MISSÃO VIP
               </h3>
+              
               <p className="text-yellow-900 text-sm font-medium mb-4 relative z-10">
                 Ganhe <b>+150 Pontos</b> instantâneos avaliando nossa entrega no Google! 
                 <br/><br/>
@@ -129,8 +169,12 @@ export default function Tracking() {
                   💡 Dica: Ao clicar, copiaremos o texto <b>"Comprei {order?.items?.[0]?.name || "aqui"}..."</b>. Cole lá para nos ajudar!
                 </span>
               </p>
-              <button onClick={handleGoogleReview} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 uppercase text-xs tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 relative z-10">
-                {copiedText ? <><CheckCircle2 size={18}/> TEXTO COPIADO! ABRINDO...</> : <><ExternalLink size={18}/> AVALIAR NO GOOGLE (+150 PTS)</>}
+
+              <button 
+                onClick={handleGoogleReview}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 uppercase text-xs tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 relative z-10"
+              >
+                {copiedText ? <><CheckCircle2 size={18}/> TEXTO COPIADO! ABRINDO...</> : <><ExternalLink size={18}/> AVALIAR NO GOOGLE</>}
               </button>
             </motion.div>
 
@@ -142,15 +186,31 @@ export default function Tracking() {
             ) : (
               <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
                 <h3 className="text-slate-800 font-black text-sm uppercase tracking-widest mb-4 text-center">Feedback Interno Rápido</h3>
+                
                 <div className="flex justify-center gap-2 mb-4">
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <button key={star} onClick={() => setRating(star)} onMouseEnter={() => setHoverRating(star)} onMouseLeave={() => setHoverRating(0)}>
+                    <button 
+                      key={star} 
+                      onClick={() => setRating(star)} 
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                    >
                       <Star size={32} className={`cursor-pointer transition-all ${(hoverRating || rating) >= star ? 'text-blue-500 fill-current' : 'text-slate-200'}`} />
                     </button>
                   ))}
                 </div>
-                <textarea className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm focus:ring-2 focus:ring-blue-400 outline-none mb-4 font-medium" rows="2" placeholder="Deixe um comentário..." value={comment} onChange={(e) => setComment(e.target.value)} />
-                <button onClick={handleSendReview} disabled={isSubmitting} className="w-full bg-slate-900 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center">
+                <textarea
+                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm focus:ring-2 focus:ring-blue-400 outline-none mb-4 font-medium"
+                    rows="2"
+                    placeholder="Deixe um comentário..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                />
+                <button 
+                  onClick={handleSendReview} 
+                  disabled={isSubmitting}
+                  className="w-full bg-slate-900 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                >
                   {isSubmitting ? <Loader2 className="animate-spin" /> : 'Enviar Feedback'}
                 </button>
               </div>
