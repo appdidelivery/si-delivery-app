@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db, auth } from '../../src/services/firebase'; // Importar 'auth' para pegar o usuário logado
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore'; // Importar updateDoc
-import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2 } from 'lucide-react'; // Adicionado Star e Loader2
+import { db, auth } from '../../src/services/firebase'; 
+import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
+import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2, ExternalLink, Award, Copy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { enviarAvaliacao } from '../../src/services/reviewService';
 
@@ -11,11 +11,11 @@ export default function Tracking() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- ESTADOS PARA O FORMULÁRIO DE AVALIAÇÃO ---
   const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0); // Para o efeito hover
+  const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "orders", orderId), (docSnapshot) => {
@@ -27,17 +27,47 @@ export default function Tracking() {
       }
       setLoading(false);
     });
-    return () => unsub(); // Limpa o listener ao desmontar
+    return () => unsub();
   }, [orderId]);
+
+  // FUNÇÃO NOVA: GAMIFICAÇÃO GOOGLE
+  const handleGoogleReview = async () => {
+    const produtoDestaque = order?.items?.[0] ? order.items[0].name : "meu pedido";
+    const textoPronto = `Comprei ${produtoDestaque} e a entrega foi super rápida!`;
+
+    try {
+      await navigator.clipboard.writeText(textoPronto);
+      setCopiedText(true);
+      setTimeout(() => setCopiedText(false), 3000);
+
+      await updateDoc(doc(db, "orders", orderId), {
+        googleReviewClicked: true
+      });
+
+      const user = auth.currentUser;
+      if (user) {
+        await updateDoc(doc(db, "users", user.uid), {
+           loyaltyPoints: increment(150)
+        });
+      }
+
+      setTimeout(() => {
+        window.open('https://g.page/r/CTEL4f6nFgE_EBE/review', '_blank');
+      }, 1000);
+
+    } catch (err) {
+      console.error("Erro ao abrir Google:", err);
+      window.open('https://g.page/r/CTEL4f6nFgE_EBE/review', '_blank');
+    }
+  };
 
   const handleSendReview = async () => {
     if (rating === 0) return alert("Por favor, selecione uma nota de 1 a 5 estrelas.");
-    if (isSubmitting) return; // Previne cliques duplos
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     
     try {
-      // Garantir que temos um usuário logado para associar a avaliação
       const user = auth.currentUser;
       if (!user) {
         alert("Você precisa estar logado para avaliar.");
@@ -46,22 +76,18 @@ export default function Tracking() {
       }
 
       const reviewData = {
-        userId: user.uid, // ID do usuário autenticado (mais seguro)
+        userId: user.uid,
         storeId: order.storeId,
-        orderId: order.id, // ID do pedido
+        orderId: order.id,
         rating: rating,
         comment: comment
       };
 
       await enviarAvaliacao(reviewData);
 
-      // CRUCIAL: Marca o pedido como avaliado no Firestore para persistir o estado
       await updateDoc(doc(db, "orders", orderId), {
         hasBeenReviewed: true
       });
-      
-      // O onSnapshot vai atualizar o estado 'order' automaticamente, escondendo o formulário.
-      // Não precisamos mais do estado 'sent'.
       
     } catch (error) {
       console.error("Erro ao enviar avaliação:", error);
@@ -117,19 +143,42 @@ export default function Tracking() {
           ))}
         </div>
 
-        {/* ÁREA DE AVALIAÇÃO (VIP) */}
+        {/* ÁREA DE AVALIAÇÃO (VIP + GOOGLE) */}
         {order.status === 'completed' && (
-          <div className="mt-10 border-t border-slate-100 pt-8">
+          <div className="mt-10 border-t border-slate-100 pt-8 space-y-6">
+            
+            {/* MISSÃO GOOGLE */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-[2rem] border-2 border-yellow-200 shadow-sm relative overflow-hidden">
+              <div className="absolute -right-4 -top-4 opacity-10"><Award size={100}/></div>
+              
+              <h3 className="text-yellow-800 font-black italic tracking-tighter text-xl leading-tight mb-2 flex items-center gap-2 relative z-10">
+                <Star className="fill-yellow-500 text-yellow-500" size={24}/> MISSÃO VIP
+              </h3>
+              
+              <p className="text-yellow-900 text-sm font-medium mb-4 relative z-10">
+                Ganhe <b>+150 Pontos</b> instantâneos avaliando nossa entrega no Google! 
+                <br/><br/>
+                <span className="bg-white p-2 rounded-lg text-xs font-bold border border-yellow-200 block text-center">
+                  💡 Dica: Ao clicar, copiaremos o texto <b>"Comprei {order?.items?.[0]?.name || "aqui"}..."</b>. Cole lá para nos ajudar!
+                </span>
+              </p>
+
+              <button 
+                onClick={handleGoogleReview}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 uppercase text-xs tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 relative z-10"
+              >
+                {copiedText ? <><CheckCircle2 size={18}/> TEXTO COPIADO! ABRINDO...</> : <><ExternalLink size={18}/> AVALIAR NO GOOGLE</>}
+              </button>
+            </motion.div>
+
+            {/* AVALIAÇÃO INTERNA */}
             {order.hasBeenReviewed ? (
-              // Mensagem se JÁ FOI AVALIADO
-              <div className="bg-green-500 p-6 rounded-[2rem] text-white text-center font-black italic shadow-xl shadow-green-200">
-                Obrigado pelo seu feedback! 🎉
+              <div className="bg-slate-100 p-6 rounded-[2rem] text-slate-500 text-center font-bold text-sm">
+                Sua avaliação interna já foi recebida. Obrigado!
               </div>
             ) : (
-              // Formulário se AINDA NÃO FOI AVALIADO
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-blue-50 p-6 rounded-[2rem] border-2 border-blue-100">
-                <h3 className="text-blue-800 font-black italic tracking-tighter text-lg leading-tight mb-1">GOSTOU DA EXPERIÊNCIA?</h3>
-                <p className="text-blue-600 text-[10px] font-bold uppercase mb-4 tracking-wider">Avalie o pedido e ganhe 50 pontos VIP!</p>
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
+                <h3 className="text-slate-800 font-black text-sm uppercase tracking-widest mb-4 text-center">Feedback Interno Rápido</h3>
                 
                 <div className="flex justify-center gap-2 mb-4">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -139,27 +188,25 @@ export default function Tracking() {
                       onMouseEnter={() => setHoverRating(star)}
                       onMouseLeave={() => setHoverRating(0)}
                     >
-                      <Star size={36} className={`cursor-pointer transition-all ${(hoverRating || rating) >= star ? 'text-yellow-400 fill-current' : 'text-slate-300'}`} />
+                      <Star size={32} className={`cursor-pointer transition-all ${(hoverRating || rating) >= star ? 'text-blue-500 fill-current' : 'text-slate-200'}`} />
                     </button>
                   ))}
                 </div>
-
                 <textarea
-                    className="w-full p-3 bg-white rounded-xl border border-blue-200 text-sm placeholder-slate-400 focus:ring-2 focus:ring-blue-400 outline-none mb-4"
+                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm focus:ring-2 focus:ring-blue-400 outline-none mb-4 font-medium"
                     rows="2"
-                    placeholder="Deixe um comentário (opcional)..."
+                    placeholder="Deixe um comentário..."
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                 />
-
                 <button 
                   onClick={handleSendReview} 
                   disabled={isSubmitting}
-                  className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 uppercase text-xs tracking-widest active:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
+                  className="w-full bg-slate-900 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
                 >
-                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Avaliar e ganhar pontos'}
+                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Enviar Feedback'}
                 </button>
-              </motion.div>
+              </div>
             )}
           </div>
         )}
