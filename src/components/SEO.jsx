@@ -2,7 +2,8 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
 
-export default function SEO({ title, description, productData }) {
+// Adicione a prop 'image' na desestruturação
+export default function SEO({ title, description, image, productData }) {
     // 1. Pega os dados do Banco de Dados (SaaS)
     const { store } = useStore();
 
@@ -13,9 +14,11 @@ export default function SEO({ title, description, productData }) {
 
     // 3. Decide quem manda
     const siteName = store?.name || defaultName;
-    const finalTitle = title ? `${title} | ${siteName}` : `${siteName} - App`;
+    const finalTitle = title ? `${title}` : `${siteName} - App`;
     const finalDesc = description || store?.description || defaultDesc;
-    const finalImage = store?.logoUrl || defaultImage;
+    
+    // AQUI ESTÁ A CORREÇÃO DA IMAGEM: A prop image tem prioridade!
+    const finalImage = image || store?.storeLogoUrl || store?.logoUrl || defaultImage;
     
     // Tratamento de segurança para SSR (Evita erro 'window is not defined')
     const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velo.com.br";

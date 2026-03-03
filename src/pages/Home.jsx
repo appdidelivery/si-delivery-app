@@ -745,10 +745,11 @@ export default function Home() {
 
   return (
   <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-    {/* SEO DINÂMICO IA: Reage ao modal de produto aberto */}
+    {/* SEO DINÂMICO IA: Reage ao modal de produto aberto e aos dados da loja */}
     <SEO 
-        title={selectedProduct ? `${selectedProduct.name} | ${storeSettings.name || 'Velo Delivery'}` : `${storeSettings.name || 'Velo Delivery'}`} 
-        description={selectedProduct ? (selectedProduct.description || `Compre ${selectedProduct.name} com entrega rápida na ${storeSettings.name}.`) : storeSettings.slogan} 
+        title={selectedProduct ? `${selectedProduct.name} | ${storeSettings.name || 'Velo Delivery'}` : `${storeSettings.name || 'Carregando...'} | Delivery`} 
+        description={selectedProduct ? (selectedProduct.description || `Compre ${selectedProduct.name} com entrega rápida na ${storeSettings.name}.`) : (storeSettings.slogan || 'Faça seu pedido online.')} 
+        image={selectedProduct ? selectedProduct.imageUrl : storeSettings.storeLogoUrl}
         productData={selectedProduct} 
     />
     
