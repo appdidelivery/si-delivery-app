@@ -1,5 +1,5 @@
 {
-  "rewrites": [
+  "rewrites":[
     {
       "source": "/robots.txt",
       "destination": "/api/robots"
@@ -10,7 +10,7 @@
     },
     {
       "source": "/(.*)",
-      "has": [
+      "has":[
         {
           "type": "header",
           "key": "user-agent",
@@ -22,26 +22,6 @@
     {
       "source": "/(.*)",
       "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/robots.txt",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/sitemap.xml",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
-        }
-      ]
     }
   ]
 }
