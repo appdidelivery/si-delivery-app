@@ -1,10 +1,9 @@
+
 import Reviews from '../components/Reviews';
 import React, { useState, useEffect } from 'react';
-import ReactGA from 'react-ga4';
-import { increment } from 'firebase/firestore'; // Adicione increment se não estiver importado
 import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, Sandwich } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
@@ -14,6 +13,7 @@ import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; 
 
 import { getStoreIdFromHostname } from '../utils/domainHelper';
+
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
 import { 
     GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
@@ -32,7 +32,6 @@ import {
 } from 'react-icons/fa6';
 
 const renderCategoryIcon = (iconName, categoryName) => {
-    // 1. Prioriza o ícone escolhido pelo lojista no banco de dados
     if (iconName) {
         switch (iconName) {
             case 'Combo': return <FaBoxOpen size={18} />;
@@ -80,7 +79,6 @@ const renderCategoryIcon = (iconName, categoryName) => {
         }
     }
 
-    // 2. Fallback de segurança expandido (caso o lojista ainda não tenha escolhido no Admin)
     const n = (categoryName || '').toLowerCase();
     if (n.includes('cerveja') || n.includes('chopp')) return <GiBeerBottle size={18}/>;
     if (n.includes('vinho') || n.includes('espumante')) return <FaWineGlass size={18}/>;
@@ -128,6 +126,7 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
     }
     return product.price; 
 };
+
 // --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM LINHA RETA) ---
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
@@ -141,31 +140,30 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
     return R * c; // Distância em KM
 };
+
 export default function Home() {
   const { productSlug } = useParams();
   const navigate = useNavigate();
 
   const generateSlug = (text) => {
     return text.toString().toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Tira acentos
-        .replace(/[^a-z0-9 -]/g, '') // Remove caracteres especiais
-        .replace(/\s+/g, '-') // Troca espaços por hifens
-        .replace(/-+/g, '-') // Remove hifens duplicados
-        .replace(/^-+/, '').replace(/-+$/, ''); // Tira hifens das pontas
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9 -]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+/, '').replace(/-+$/, '');
   };
   
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
   
-  const[selectedProduct, setSelectedProduct] = useState(null); 
+  const [selectedProduct, setSelectedProduct] = useState(null); 
   const [selectedOptions, setSelectedOptions] = useState({}); 
-  const [itemObservation, setItemObservation] = useState(''); 
+  const[itemObservation, setItemObservation] = useState(''); 
 
   const handleOpenProduct = (p) => {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
-      
-      // Usa a nova função limpa de slug
       const slug = generateSlug(p.name);
       navigate(`/p/${slug}`, { replace: true });
   };
@@ -221,8 +219,6 @@ export default function Home() {
           price: calculateModalTotal() 
       };
       addToCart(itemToAdd, 1);
-      
-      // Fecha e reseta a URL
       setSelectedProduct(null); 
       navigate('/', { replace: true });
   };
@@ -233,17 +229,17 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all'); 
   const [showCheckout, setShowCheckout] = useState(false);
-  const[isFinalizing, setIsFinalizing] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
-  const[showLastOrders, setShowLastOrders] = useState(false);
-  const [lastOrders, setLastOrders] = useState([]);
+  const [showLastOrders, setShowLastOrders] = useState(false);
+  const[lastOrders, setLastOrders] = useState([]);
 
-  const[availableCoupons, setAvailableCoupons] = useState([]);
-  const [couponCode, setCouponCode] = useState('');
-  const[appliedCoupon, setAppliedCoupon] = useState(null);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const[couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
   const[discountAmount, setDiscountAmount] = useState(0);
 
@@ -258,17 +254,18 @@ export default function Home() {
   },[]);
 
   const handleCustomerChange = (field, value) => {
-    const updatedCustomer = { ...customer, [field]: value };
+    const updatedCustomer = { ...customer,[field]: value };
     setCustomer(updatedCustomer);
     const { payment, changeFor, ...dataToSave } = updatedCustomer;
     localStorage.setItem('veloCustomerData', JSON.stringify(dataToSave));
     if (field === 'phone') localStorage.setItem('customerPhone', value);
   };
-  const [marketingSettings, setMarketingSettings] = useState({
+
+  const[marketingSettings, setMarketingSettings] = useState({
         promoActive: false,
-        promoBannerUrls: []
-    });
-  const[showExitModal, setShowExitModal] = useState(false);
+        promoBannerUrls:[]
+  });
+  const [showExitModal, setShowExitModal] = useState(false);
 
   useEffect(() => {
     if (!marketingSettings?.exitIntentActive) return;
@@ -316,8 +313,9 @@ export default function Home() {
     });
     setShowLastOrders(false);
   };
+  
   const [isCepLoading, setIsCepLoading] = useState(false);
-  const [cepError, setCepError] = useState('');
+  const[cepError, setCepError] = useState('');
 
   const [storeSettings, setStoreSettings] = useState({
     isOpen: true, openTime: '08:00', closeTime: '23:00',
@@ -384,21 +382,80 @@ export default function Home() {
 
   const [generalBanners, setGeneralBanners] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [bestsellingProducts, setBestsellingProducts] = useState([]);
+  const[bestsellingProducts, setBestsellingProducts] = useState([]);
 
   const [shippingRates, setShippingRates] = useState([]);
-  const [shippingFee, setShippingFee] = useState(null);
+  const[shippingFee, setShippingFee] = useState(null);
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
   const [activeOrderId, setActiveOrderId] = useState(null);
-// --- INÍCIO: SISTEMA DE ANALYTICS (GA4 E VELO NATIVO) ---
+
+  const[deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
+
   useEffect(() => {
-      // 1. Injeta e dispara o Google Analytics 4 se o lojista tiver ID
+      const handler = (e) => {
+          e.preventDefault();
+          setDeferredPrompt(e);
+          if (!window.matchMedia('(display-mode: standalone)').matches) {
+              setShowInstallPrompt(true);
+          }
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+      return () => window.removeEventListener('beforeinstallprompt', handler);
+  },[]);
+
+  useEffect(() => {
+      const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
+      if (isIos && isSafari && !isStandalone) {
+          const hasDismissediOSPrompt = localStorage.getItem('dismissediOSInstallPrompt');
+          if (!hasDismissediOSPrompt) {
+              setShowiOSInstallMessage(true);
+          }
+      }
+  },[]);
+
+  const handleInstallClick = async () => {
+      if (deferredPrompt) {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+          setDeferredPrompt(null);
+          setShowInstallPrompt(false);
+      }
+  };
+
+  const handleDismissiOSInstallMessage = () => {
+      setShowiOSInstallMessage(false);
+      localStorage.setItem('dismissediOSInstallPrompt', 'true');
+  };
+
+  // --- INÍCIO: SISTEMA DE ANALYTICS (SEGURO E NATIVO) ---
+  useEffect(() => {
+      // 1. Injeta o GA4 nativamente no HTML (Zero risco de conflito React)
       if (storeSettings?.gaTrackingId) {
-          ReactGA.initialize(storeSettings.gaTrackingId);
-          ReactGA.send({ hitType: "pageview", page: window.location.pathname, title: storeSettings.name });
+          const trackingId = storeSettings.gaTrackingId;
+          if (!document.getElementById('ga-script')) {
+              const script = document.createElement('script');
+              script.id = 'ga-script';
+              script.async = true;
+              script.src = `https://www.googletagmanager.com/gtag/js?id=${trackingId}`;
+              document.head.appendChild(script);
+
+              const script2 = document.createElement('script');
+              script2.innerHTML = `
+                  window.dataLayer = window.dataLayer ||[];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${trackingId}');
+              `;
+              document.head.appendChild(script2);
+          }
       }
 
-      // 2. Contador Nativo Velo
+      // 2. Contador Nativo Velo (Para o Painel Admin)
       const registrarVisitaNativa = async () => {
           if (!storeId || storeId === 'csi') return;
           
@@ -420,85 +477,11 @@ export default function Home() {
       };
 
       registrarVisitaNativa();
-  }, [storeSettings?.gaTrackingId, storeId]);
+  },[storeSettings?.gaTrackingId, storeId]);
   // --- FIM: SISTEMA DE ANALYTICS ---
-    const [deferredPrompt, setDeferredPrompt] = useState(null);
-    const[showInstallPrompt, setShowInstallPrompt] = useState(false);
-    const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
 
-    useEffect(() => {
-        const handler = (e) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-            if (!window.matchMedia('(display-mode: standalone)').matches) {
-                setShowInstallPrompt(true);
-            }
-        };
-        window.addEventListener('beforeinstallprompt', handler);
-        return () => window.removeEventListener('beforeinstallprompt', handler);
-    },[]);
-
-    useEffect(() => {
-        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-
-        if (isIos && isSafari && !isStandalone) {
-            const hasDismissediOSPrompt = localStorage.getItem('dismissediOSInstallPrompt');
-            if (!hasDismissediOSPrompt) {
-                setShowiOSInstallMessage(true);
-            }
-        }
-    },[]);
-
-    const handleInstallClick = async () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            setDeferredPrompt(null);
-            setShowInstallPrompt(false);
-        }
-    };
-
-    const handleDismissiOSInstallMessage = () => {
-        setShowiOSInstallMessage(false);
-        localStorage.setItem('dismissediOSInstallPrompt', 'true');
-    };
-
+  // --- INICIA A BUSCA DE DADOS DO BANCO ---
   useEffect(() => {
-    // --- INÍCIO: SISTEMA DE ANALYTICS (GA4 E VELO NATIVO) ---
-  useEffect(() => {
-      // 1. Injeta e dispara o Google Analytics 4 se o lojista tiver ID
-      if (storeSettings?.gaTrackingId) {
-          ReactGA.initialize(storeSettings.gaTrackingId);
-          ReactGA.send({ hitType: "pageview", page: window.location.pathname, title: storeSettings.name });
-      }
-
-      // 2. Contador Nativo Velo (Rastreia visitas diárias no Firebase para o Painel)
-      const registrarVisitaNativa = async () => {
-          if (!storeId || storeId === 'csi' /* Evita contar visitas na master se não quiser */) return;
-          
-          const hoje = new Date().toISOString().split('T')[0]; // Formato: 2026-03-04
-          const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
-          
-          // Verifica se o usuário já visitou hoje (Evita contar F5 infinito)
-          const sessionKey = `visit_${storeId}_${hoje}`;
-          if (!sessionStorage.getItem(sessionKey)) {
-              try {
-                  const snap = await getDoc(visitaRef);
-                  if (snap.exists()) {
-                      await updateDoc(visitaRef, { pageViews: increment(1) });
-                  } else {
-                      await setDoc(visitaRef, { pageViews: 1, date: hoje });
-                  }
-                  sessionStorage.setItem(sessionKey, 'true');
-              } catch (e) { console.error("Erro Analytics Velo:", e); }
-          }
-      };
-
-      registrarVisitaNativa();
-  }, [storeSettings?.gaTrackingId, storeId]);
-  // --- FIM: SISTEMA DE ANALYTICS ---
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
@@ -539,7 +522,7 @@ export default function Home() {
             if (dayConfig && dayConfig.open) {
                 const currentTime = now.getHours() * 60 + now.getMinutes();
                 const [openHour, openMinute] = (dayConfig.start || '00:00').split(':').map(Number);
-                const [closeHour, closeMinute] = (dayConfig.end || '23:59').split(':').map(Number);
+                const[closeHour, closeMinute] = (dayConfig.end || '23:59').split(':').map(Number);
                 
                 const scheduledOpenTime = openHour * 60 + openMinute;
                 const scheduledCloseTime = closeHour * 60 + closeMinute;
@@ -576,7 +559,7 @@ export default function Home() {
         unsubProducts(); unsubCategories(); unsubCoupons(); unsubShippingRates();
         unsubGeneralBanners(); unsubStoreSettings(); unsubMarketingSettings();
     };
-  }, [storeId]);
+  },[storeId]);
 
   useEffect(() => {
     if (storeSettings && storeSettings.storeLogoUrl && storeSettings.storeLogoUrl.startsWith('http')) {
@@ -612,24 +595,21 @@ export default function Home() {
       setIsCepLoading(true); setCepError(''); setShippingFee(null); setDeliveryAreaMessage('');
       
       try {
-        // Passo 1: Pega o Endereço via ViaCEP
         const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await response.json();
         if (data.erro) throw new Error("CEP não encontrado.");
         
         setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
         
-        // Passo 2: Tentativa de Cálculo por Raio (Haversine) - PRIORIDADE 1
         const storeLat = storeSettings?.lat;
         const storeLng = storeSettings?.lng;
-        const zones = storeSettings?.delivery_zones || [];
+        const zones = storeSettings?.delivery_zones ||[];
         const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
         let distanceCalculated = false;
 
         if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
             try {
-                // Converte endereço em Coordenadas usando Google Geocoding
                 const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, Brasil`);
                 const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
                 const geoData = await geoRes.json();
@@ -638,12 +618,10 @@ export default function Home() {
                     const customerLat = geoData.results[0].geometry.location.lat;
                     const customerLng = geoData.results[0].geometry.location.lng;
 
-                    // Calcula distância em linha reta
                     const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
                     
                     if (distanceKm !== null) {
                         distanceCalculated = true;
-                        // O array DEVE estar ordenado no backend. Encontra a primeira zona que cubra o cliente.
                         const matchedZone = [...zones]
                             .sort((a, b) => a.radius_km - b.radius_km)
                             .find(z => distanceKm <= z.radius_km);
@@ -651,7 +629,7 @@ export default function Home() {
                         if (matchedZone) {
                             setShippingFee(Number(matchedZone.fee));
                             setDeliveryAreaMessage(`Frete (Aprox. ${distanceKm.toFixed(1)}km): R$ ${Number(matchedZone.fee).toFixed(2)}`);
-                            return; // Encerra o fluxo com sucesso!
+                            return; 
                         } else {
                             throw new Error("Distância fora da área máxima de cobertura por KM.");
                         }
@@ -662,8 +640,6 @@ export default function Home() {
             }
         }
 
-        // Passo 3: Fallback (Tabela Fixa de CEP/Bairro) - PRIORIDADE 2
-        // Só chega aqui se não tiver Lat/Lng da loja, não tiver KEY do google, ou o cliente estourar o KM máximo.
         const currentCepNum = parseInt(cep); 
         const foundRate = shippingRates.find(rate => {
             if (rate.cepStart && rate.cepEnd) {
@@ -696,7 +672,7 @@ export default function Home() {
 
     const handler = setTimeout(() => fetchDeliveryInfo(), 600);
     return () => clearTimeout(handler);
-  }, [customer.cep, shippingRates, storeSettings]);
+  },[customer.cep, shippingRates, storeSettings]);
 
   const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }
@@ -910,12 +886,9 @@ export default function Home() {
     }
   };
 
-  // --- NOVA MÁGICA: AUTO-OPEN PRODUTO PELA URL ---
   useEffect(() => {
       if (productSlug && products.length > 0 && !selectedProduct) {
-          // Acha o produto cujo nome, transformado em slug, seja igual ao slug da URL
           const productFromUrl = products.find(p => generateSlug(p.name) === productSlug);
-          
           if (productFromUrl) {
               setSelectedOptions({});
               setItemObservation('');
@@ -923,8 +896,7 @@ export default function Home() {
               navigate('/', { replace: true });
           }
       }
-  }, [selectedProduct?.id, productSlug, products, navigate]);
-  // ----------------------------------------------
+  },[selectedProduct?.id, productSlug, products, navigate]);
 
   const displayCategories =[
       { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
@@ -965,7 +937,6 @@ export default function Home() {
 
   return (
   <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-    {/* SEO DINÂMICO IA: Reage ao modal de produto aberto e aos dados da loja */}
     <SEO 
         title={selectedProduct ? `${selectedProduct.name} | ${storeSettings.name || 'Velo Delivery'}` : `${storeSettings.name || 'Carregando...'} | Delivery`} 
         description={selectedProduct ? (selectedProduct.description || `Compre ${selectedProduct.name} com entrega rápida na ${storeSettings.name}.`) : (storeSettings.slogan || 'Faça seu pedido online.')} 
@@ -975,7 +946,6 @@ export default function Home() {
     <AgeGate enabled={storeSettings?.ageGateEnabled} />
 
     <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
-        {/* Fundo Moderno com Padrão de Bebidas (Estilo Line-Art) */}
         <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>
             <div 
               className="absolute inset-0 opacity-[0.15]" 
@@ -987,7 +957,6 @@ export default function Home() {
             ></div>
         </div>
 
-        {/* Conteúdo do Topo */}
         <div className="relative z-10 flex flex-col gap-5">
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-4">
@@ -1005,7 +974,6 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* Status da Loja (Aberto/Fechado) */}
             <div className={`inline-flex self-start items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-md border ${isStoreOpenNow ? 'bg-green-500/20 text-green-100 border-green-400/50' : 'bg-red-500/20 text-red-100 border-red-400/50'} shadow-inner`}>
                 {isStoreOpenNow ? <Clock size={16}/> : <XCircle size={16}/>} 
                 <span className="text-xs font-black uppercase tracking-wider">{storeMessage}</span>
@@ -1090,7 +1058,6 @@ export default function Home() {
                 className="flex flex-col items-center gap-2 min-w-[85px] snap-center group"
             >
               <div className={`w-[72px] h-[72px] rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ${activeCategory === c.id ? `${currentTheme.primary} text-white scale-105 shadow-md` : 'bg-white text-slate-500 border border-slate-100 group-hover:border-slate-300 group-hover:bg-slate-50'}`}>
-                {/* O React.cloneElement permite alterar o tamanho do ícone original renderizado pela função */}
                 {React.cloneElement(c.icon, { size: activeCategory === c.id ? 32 : 28 })}
               </div>
               <span className={`text-[10px] font-black uppercase tracking-tight text-center leading-none px-1 ${activeCategory === c.id ? currentTheme.text : 'text-slate-500'}`}>
@@ -1331,9 +1298,11 @@ export default function Home() {
             )}
         </div>
       </section>
-<section className="px-6 pb-10 max-w-2xl mx-auto">
-    <Reviews storeId={storeId} customerPhone={customer.phone} />
-</section>
+
+      <section className="px-6 pb-10 max-w-2xl mx-auto">
+          <Reviews storeId={storeId} customerPhone={customer.phone} />
+      </section>
+
       <footer className="p-12 text-center">
         <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
         <a 
@@ -1346,10 +1315,10 @@ export default function Home() {
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
         </a>
         <div className="flex gap-4 justify-center text-sm text-gray-500 mt-8 mb-4">
-    <a href="/politicas" className="hover:underline">Política de Privacidade</a>
-    <a href="/politicas" className="hover:underline">Trocas e Devoluções</a>
-    <a href="/politicas" className="hover:underline">Política de Entrega</a>
-</div>
+            <a href="/politicas" className="hover:underline">Política de Privacidade</a>
+            <a href="/politicas" className="hover:underline">Trocas e Devoluções</a>
+            <a href="/politicas" className="hover:underline">Política de Entrega</a>
+        </div>
       </footer>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> 
@@ -1440,10 +1409,10 @@ export default function Home() {
                       <div key={item.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-3"><img src={item.imageUrl} className="w-12 h-12 object-contain rounded-lg bg-white p-1"/><div className="text-sm font-bold">{item.name}</div></div>
                         {item.observation && (
-    <span className="block text-[10px] text-orange-600 font-bold leading-tight mt-1 bg-orange-50 p-1.5 rounded-md border border-orange-100">
-        Obs: {item.observation}
-    </span>
-)}
+                            <span className="block text-[10px] text-orange-600 font-bold leading-tight mt-1 bg-orange-50 p-1.5 rounded-md border border-orange-100">
+                                Obs: {item.observation}
+                            </span>
+                        )}
                         <div className="flex items-center gap-2">
                           <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus size={16}/></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus size={16}/></button>
                           <button onClick={() => removeFromCart(item.id)} className="p-1 text-red-500"><Trash2 size={16}/></button>
@@ -1488,7 +1457,7 @@ export default function Home() {
                                       <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
                                       <p className={`${currentTheme.text} font-black text-sm`}>R$ {p.price?.toFixed(2)}</p>
-                                      <button onClick={() => hasStock && addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
+                                      <button onClick={() => addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
                                   </div>
                               ))}
                           </div>
@@ -1592,7 +1561,6 @@ export default function Home() {
                 >
                     Instalar
                 </button>
-                {/* Botão Fechar (Maior e Flutuando fora do card) */}
                 <button onClick={() => setShowInstallPrompt(false)} className="absolute -top-3 -right-2 bg-slate-900 text-white p-2 rounded-full shadow-xl border-2 border-white hover:bg-slate-800 transition-all z-10">
                     <X size={20} strokeWidth={3} />
                 </button>
@@ -1622,13 +1590,13 @@ export default function Home() {
                 >
                     Entendi
                 </button>
-                {/* Botão Fechar (Maior e Flutuando fora do card) */}
                 <button onClick={() => setShowiOSInstallMessage(false)} className="absolute -top-3 -right-2 bg-slate-900 text-white p-2 rounded-full shadow-xl border-2 border-white hover:bg-slate-800 transition-all z-10">
                     <X size={20} strokeWidth={3} />
                 </button>
             </motion.div>
         )}
       </AnimatePresence>
+
       <AnimatePresence>
         {showExitModal && (
           <motion.div 
@@ -1686,6 +1654,7 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
       <AnimatePresence>
         {selectedProduct && (
           <motion.div 
