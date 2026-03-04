@@ -3228,7 +3228,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 onClick={handleAcceptTerms}
                                 className="bg-blue-600 hover:bg-blue-700 text-white py-4 px-10 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95"
                             >
-                                Li, Entendi e Concordo
+                                Li, Entendi Concordo
                             </button>
                         </div>
                     </div>
