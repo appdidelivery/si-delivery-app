@@ -287,6 +287,7 @@ export default function Admin() {
 
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [visitasHoje, setVisitasHoje] = useState(0);
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -564,7 +565,15 @@ export default function Admin() {
                 setStoreStatus(prev => ({...prev, name: storeId}));
             }
         });
-        
+        // Monitor de Visitas de Hoje (Velo Analytics Nativo)
+        const hojeAnalytics = new Date().toISOString().split('T')[0];
+        const unsubVisitas = onSnapshot(doc(db, "stores", storeId, "analytics", hojeAnalytics), (d) => {
+            if (d.exists()) {
+                setVisitasHoje(d.data().pageViews || 0);
+            } else {
+                setVisitasHoje(0);
+            }
+        });
         // Cupons
        const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         const unsubLoyalty = onSnapshot(query(collection(db, "loyalty_redemptions"), where("storeId", "==", storeId)), (s) => setLoyaltyRedemptions(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -1245,6 +1254,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Visitas Hoje</p>
+    <p className="text-4xl font-black text-indigo-500 italic z-10 relative">{visitasHoje}</p>
+    <div className="absolute -right-4 -bottom-4 text-indigo-50 opacity-30"><ExternalLink size={120}/></div>
+    {/* Taxa de Conversão Rápida */}
+    <p className="text-[10px] font-bold text-slate-400 mt-2">
+        Conversão: {visitasHoje > 0 ? ((orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length / visitasHoje) * 100).toFixed(1) : 0}%
+    </p>
+</div>
                                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
                                     <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento Hoje</p>
                                     <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
@@ -2296,6 +2314,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
                                 </div>
                                 </div>
+                                {/* NOVO CAMPO: GOOGLE ANALYTICS */}
+<div className="mt-4 border-t border-slate-100 pt-4">
+    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+        <TrendingUp size={14} className="text-blue-500"/> ID de Rastreamento (Google Analytics 4)
+    </label>
+    <input 
+        type="text" 
+        placeholder="Ex: G-XXXXXXXXXX" 
+        value={storeStatus.gaTrackingId || ''} 
+        onChange={(e) => updateDoc(doc(db, "stores", storeId), { gaTrackingId: e.target.value.toUpperCase().trim() }, { merge: true })} 
+        className="w-full p-5 bg-blue-50/50 text-blue-800 rounded-2xl font-black border border-blue-100 placeholder-blue-300 outline-none focus:ring-2 ring-blue-400 uppercase" 
+    />
+    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">
+        Opcional: Cole seu código G- do Analytics. Os relatórios completos de origem de tráfego, cidades e eventos aparecerão direto no seu painel oficial do Google.
+    </p>
+</div>
                             </div>
                             {/* --- NOVO BLOCO: LOCALIZAÇÃO E REGRAS --- */}
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">

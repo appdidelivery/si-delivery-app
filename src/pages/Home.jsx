@@ -1,5 +1,7 @@
 import Reviews from '../components/Reviews';
 import React, { useState, useEffect } from 'react';
+import ReactGA from 'react-ga4';
+import { increment } from 'firebase/firestore'; // Adicione increment se não estiver importado
 import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -433,6 +435,39 @@ export default function Home() {
     };
 
   useEffect(() => {
+    // --- INÍCIO: SISTEMA DE ANALYTICS (GA4 E VELO NATIVO) ---
+  useEffect(() => {
+      // 1. Injeta e dispara o Google Analytics 4 se o lojista tiver ID
+      if (storeSettings?.gaTrackingId) {
+          ReactGA.initialize(storeSettings.gaTrackingId);
+          ReactGA.send({ hitType: "pageview", page: window.location.pathname, title: storeSettings.name });
+      }
+
+      // 2. Contador Nativo Velo (Rastreia visitas diárias no Firebase para o Painel)
+      const registrarVisitaNativa = async () => {
+          if (!storeId || storeId === 'csi' /* Evita contar visitas na master se não quiser */) return;
+          
+          const hoje = new Date().toISOString().split('T')[0]; // Formato: 2026-03-04
+          const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+          
+          // Verifica se o usuário já visitou hoje (Evita contar F5 infinito)
+          const sessionKey = `visit_${storeId}_${hoje}`;
+          if (!sessionStorage.getItem(sessionKey)) {
+              try {
+                  const snap = await getDoc(visitaRef);
+                  if (snap.exists()) {
+                      await updateDoc(visitaRef, { pageViews: increment(1) });
+                  } else {
+                      await setDoc(visitaRef, { pageViews: 1, date: hoje });
+                  }
+                  sessionStorage.setItem(sessionKey, 'true');
+              } catch (e) { console.error("Erro Analytics Velo:", e); }
+          }
+      };
+
+      registrarVisitaNativa();
+  }, [storeSettings?.gaTrackingId, storeId]);
+  // --- FIM: SISTEMA DE ANALYTICS ---
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
