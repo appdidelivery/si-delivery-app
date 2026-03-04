@@ -1,5 +1,5 @@
 {
-  "rewrites":[
+  "rewrites": [
     {
       "source": "/robots.txt",
       "destination": "/api/robots"
@@ -9,19 +9,32 @@
       "destination": "/api/sitemap"
     },
     {
-      "source": "/(.*)",
-      "has":[
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(whatsapp|facebookexternalhit|twitterbot|linkedinbot|telegrambot|discordbot).*"
-        }
-      ],
-      "destination": "/api/social"
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
+        }
+      ]
     }
   ]
 }
