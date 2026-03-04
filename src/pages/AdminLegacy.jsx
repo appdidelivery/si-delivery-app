@@ -6,16 +6,48 @@ import {
     addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
 } from 'firebase/firestore';
 import {
-    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star
-} from 'lucide-react'; // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
+    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
+    Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils
+} from 'lucide-react';
+ // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
+// --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
+import { 
+    GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
+    GiSodaCan, GiPizzaSlice, GiTacos, GiHotDog, GiMeat, 
+    GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini
+} from 'react-icons/gi';
+import { FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins } from 'react-icons/fa6';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
+// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS ---
+// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA) ---
+const AVAILABLE_ICONS = [
+  { id: 'List', label: 'Padrão', component: <List size={24} /> },
+  { id: 'Hamburger', label: 'Hamburguer', component: <GiHamburger size={24} /> },
+  { id: 'Fries', label: 'Fritas/Porções', component: <GiFrenchFries size={24} /> },
+  { id: 'Fish', label: 'Peixes', component: <FaFishFins size={24} /> },
+  { id: 'Shrimp', label: 'Frutos do Mar', component: <GiShrimp size={24} /> },
+  { id: 'Oyster', label: 'Ostras', component: <GiOyster size={24} /> },
+  { id: 'Sushi', label: 'Oriental', component: <GiSushis size={24} /> },
+  { id: 'Pizza', label: 'Pizzaria', component: <GiPizzaSlice size={24} /> },
+  { id: 'HotDog', label: 'Lanches', component: <GiHotDog size={24} /> },
+  { id: 'Meat', label: 'Carnes', component: <GiMeat size={24} /> },
+  { id: 'Noodles', label: 'Massas', component: <GiNoodles size={24} /> },
+  { id: 'Combo', label: 'Combos/Kits', component: <FaBoxOpen size={24} /> },
+  { id: 'Energy', label: 'Energéticos', component: <FaBoltLightning size={24} /> },
+  { id: 'Soda', label: 'Refrigerantes', component: <GiSodaCan size={24} /> },
+  { id: 'Water', label: 'Sem Álcool', component: <FaBottleWater size={24} /> },
+  { id: 'Beer', label: 'Cervejas', component: <GiBeerBottle size={24} /> },
+  { id: 'Drink', label: 'Destilados', component: <GiMartini size={24} /> },
+  { id: 'Coffee', label: 'Cafeteria', component: <GiCoffeeCup size={24} /> },
+  { id: 'IceCream', label: 'Doces/Açaí', component: <GiIceCreamCone size={24} /> },
+];
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -366,7 +398,7 @@ export default function Admin() {
     const [manualExtraFee, setManualExtraFee] = useState(0);
     // Categorias
     const[isCatModalOpen, setIsCatModalOpen] = useState(false);
-    const [catForm, setCatForm] = useState({ name: '' });
+    const [catForm, setCatForm] = useState({ name: '', icon: 'List' });
     const [editingCatId, setEditingCatId] = useState(null);
 
     // Banners
@@ -1315,14 +1347,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Categorias</h1>
-                            <button onClick={() => { setEditingCatId(null); setCatForm({ name: '' }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
+                            <button onClick={() => { setEditingCatId(null); setCatForm({ name: '', icon: 'List' }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {categories.map(c => (
                                 <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
                                     <span className="font-bold text-lg">{c.name}</span>
                                     <div className="flex gap-2">
-                                        <button onClick={() => { setEditingCatId(c.id); setCatForm(c); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
+                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List' }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
@@ -2448,6 +2480,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <h2 className="text-2xl font-black uppercase mb-6">{editingCatId ? 'Editar' : 'Nova'} Categoria</h2>
                             <form onSubmit={async (e) => { e.preventDefault(); try { const dataToSave = { ...catForm, storeId: storeId }; if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave); else await addDoc(collection(db, "categories"), dataToSave); setIsCatModalOpen(false); alert("Categoria salva!"); } catch (error) { alert("Erro ao salvar."); } }}>
                                 <input type="text" placeholder="Nome da Categoria" className="w-full p-4 bg-slate-50 rounded-xl font-bold mb-4" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
+                                {/* NOVO: SELETOR DE ÍCONES */}
+<label className="text-xs font-bold text-slate-400 mb-2 block">Selecione um Ícone</label>
+<div className="grid grid-cols-4 gap-2 mb-6 max-h-40 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50 custom-scrollbar">
+    {AVAILABLE_ICONS.map(iconDef => (
+        <button
+            type="button"
+            key={iconDef.id}
+            onClick={() => setCatForm({ ...catForm, icon: iconDef.id })}
+            className={`flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all ${catForm.icon === iconDef.id ? 'border-blue-600 bg-blue-100 text-blue-700' : 'border-transparent bg-white text-slate-400 hover:bg-slate-200'}`}
+        >
+            {iconDef.component}
+            <span className="text-[8px] font-black uppercase mt-1 text-center truncate w-full">{iconDef.label}</span>
+        </button>
+    ))}
+</div>
                                 <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Salvar</button>
                             </form>
                         </motion.div>
