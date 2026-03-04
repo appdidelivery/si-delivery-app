@@ -47,7 +47,19 @@ const getPriceWithQuantityDiscount = (product, quantity) => {
     }
     return product.price; 
 };
-
+// --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM LINHA RETA) ---
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // Raio da Terra em KM
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; // Distância em KM
+};
 export default function Home() {
   const { productSlug } = useParams();
   const navigate = useNavigate();
@@ -450,15 +462,64 @@ export default function Home() {
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
     if (cep.length !== 8) { setCepError(''); return; }
-    const fetchCep = async () => {
+
+    const fetchDeliveryInfo = async () => {
       setIsCepLoading(true); setCepError(''); setShippingFee(null); setDeliveryAreaMessage('');
+      
       try {
+        // Passo 1: Pega o Endereço via ViaCEP
         const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await response.json();
         if (data.erro) throw new Error("CEP não encontrado.");
+        
         setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
-        const currentCepNum = parseInt(cep); 
+        
+        // Passo 2: Tentativa de Cálculo por Raio (Haversine) - PRIORIDADE 1
+        const storeLat = storeSettings?.lat;
+        const storeLng = storeSettings?.lng;
+        const zones = storeSettings?.delivery_zones || [];
+        const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+        let distanceCalculated = false;
+
+        if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
+            try {
+                // Converte endereço em Coordenadas usando Google Geocoding
+                const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, Brasil`);
+                const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
+                const geoData = await geoRes.json();
+
+                if (geoData.status === "OK" && geoData.results[0]) {
+                    const customerLat = geoData.results[0].geometry.location.lat;
+                    const customerLng = geoData.results[0].geometry.location.lng;
+
+                    // Calcula distância em linha reta
+                    const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
+                    
+                    if (distanceKm !== null) {
+                        distanceCalculated = true;
+                        // O array DEVE estar ordenado no backend. Encontra a primeira zona que cubra o cliente.
+                        const matchedZone = [...zones]
+                            .sort((a, b) => a.radius_km - b.radius_km)
+                            .find(z => distanceKm <= z.radius_km);
+
+                        if (matchedZone) {
+                            setShippingFee(Number(matchedZone.fee));
+                            setDeliveryAreaMessage(`Frete (Aprox. ${distanceKm.toFixed(1)}km): R$ ${Number(matchedZone.fee).toFixed(2)}`);
+                            return; // Encerra o fluxo com sucesso!
+                        } else {
+                            throw new Error("Distância fora da área máxima de cobertura por KM.");
+                        }
+                    }
+                }
+            } catch (geoError) {
+                console.warn("Falha no cálculo por KM, caindo para fallback (CEP).", geoError);
+            }
+        }
+
+        // Passo 3: Fallback (Tabela Fixa de CEP/Bairro) - PRIORIDADE 2
+        // Só chega aqui se não tiver Lat/Lng da loja, não tiver KEY do google, ou o cliente estourar o KM máximo.
+        const currentCepNum = parseInt(cep); 
         const foundRate = shippingRates.find(rate => {
             if (rate.cepStart && rate.cepEnd) {
                 const start = parseInt(rate.cepStart.replace(/\D/g, ''));
@@ -470,17 +531,27 @@ export default function Home() {
             }
             return false;
         });
+
         if (foundRate) {
-          setShippingFee(foundRate.fee);
-          setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${foundRate.fee.toFixed(2)}`);
+          setShippingFee(Number(foundRate.fee));
+          setDeliveryAreaMessage(`Entrega para ${foundRate.neighborhood}: R$ ${Number(foundRate.fee).toFixed(2)}`);
         } else {
-          setShippingFee(null); setDeliveryAreaMessage("Infelizmente, não atendemos esta região."); setCepError("Região não atendida.");
+          setShippingFee(null); 
+          setDeliveryAreaMessage("Fora da área de entrega."); 
+          setCepError(distanceCalculated ? "Fora da área de cobertura por KM e sem taxa fixa." : "Região não atendida.");
         }
-      } catch (error) { setCepError(error.message); setCustomer(c => ({ ...c, street: '', neighborhood: '' })); } finally { setIsCepLoading(false); }
+
+      } catch (error) { 
+          setCepError(error.message); 
+          setCustomer(c => ({ ...c, street: '', neighborhood: '' })); 
+      } finally { 
+          setIsCepLoading(false); 
+      }
     };
-    const handler = setTimeout(() => fetchCep(), 500);
+
+    const handler = setTimeout(() => fetchDeliveryInfo(), 600);
     return () => clearTimeout(handler);
-  },[customer.cep, shippingRates, storeId]);
+  }, [customer.cep, shippingRates, storeSettings]);
 
   const addToCart = (p, quantity = 1) => {
     if (!isStoreOpenNow) { alert(storeMessage); return; }

@@ -13,6 +13,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
+import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
+
+const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -48,6 +51,31 @@ export default function Admin() {
     // --- (Cole logo abaixo de const navigate = useNavigate();) ---
     
     const { store, loading } = useStore(); // Pega a loja do usuário logado
+    // --- CARREGAMENTO DO GOOGLE MAPS ---
+    const { isLoaded } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+        libraries: libraries,
+        language: 'pt-BR', // Força o idioma para Português do Brasil
+        region: 'BR'       // Foca a busca de endereços no Brasil
+    });
+
+    // Funções para a Barra de Busca do Lojista
+    const[adminMapAutocomplete, setAdminMapAutocomplete] = useState(null);
+    
+    const onAdminPlaceChanged = () => {
+        if (adminMapAutocomplete !== null) {
+            const place = adminMapAutocomplete.getPlace();
+            if (place && place.geometry) {
+                // Move o pino automaticamente para o endereço buscado
+                setStoreStatus(prev => ({
+                    ...prev, 
+                    lat: place.geometry.location.lat(), 
+                    lng: place.geometry.location.lng()
+                }));
+            }
+        }
+    };
 
     // --- PROTEÇÃO DE ROTA ---
     useEffect(() => {
@@ -590,7 +618,44 @@ export default function Admin() {
         // Salva no Firebase
         updateDoc(doc(db, "stores", storeId), { schedule: newSchedule });
     };
+// --- GERENCIAMENTO DE ZONAS POR RAIO (KM) ---
+    const handleAddDeliveryZone = () => {
+        const currentZones = storeStatus.delivery_zones ||[];
+        const newZone = { radius_km: '', fee: '' };
+        const updatedZones = [...currentZones, newZone];
+        setStoreStatus(prev => ({ ...prev, delivery_zones: updatedZones }));
+    };
 
+    const handleUpdateDeliveryZone = (index, field, value) => {
+        const currentZones = [...(storeStatus.delivery_zones || [])];
+        currentZones[index][field] = Number(value);
+        setStoreStatus(prev => ({ ...prev, delivery_zones: currentZones }));
+    };
+
+    const handleRemoveDeliveryZone = (index) => {
+        const currentZones = [...(storeStatus.delivery_zones || [])];
+        currentZones.splice(index, 1);
+        setStoreStatus(prev => ({ ...prev, delivery_zones: currentZones }));
+    };
+
+    const handleSaveDeliveryZones = async () => {
+        try {
+            // Ordena do menor raio para o maior (Fundamental para a lógica do frontend)
+            const sortedZones = [...(storeStatus.delivery_zones || [])]
+                .filter(z => z.radius_km > 0 && z.fee >= 0)
+                .sort((a, b) => a.radius_km - b.radius_km);
+            
+            await updateDoc(doc(db, "stores", storeId), { 
+                delivery_zones: sortedZones,
+                lat: Number(storeStatus.lat) || null,
+                lng: Number(storeStatus.lng) || null
+            });
+            setStoreStatus(prev => ({ ...prev, delivery_zones: sortedZones }));
+            alert("Zonas de entrega e localização salvas com sucesso!");
+        } catch (error) {
+            alert("Erro ao salvar zonas: " + error.message);
+        }
+    };
     const printLabel = (o) => {
         const w = window.open('', '_blank');
         const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)} un)</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
@@ -2167,25 +2232,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
 
                                 {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
-                                        <Trophy size={14} className="text-yellow-500"/> Meta para Frete Grátis (R$)
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                                <div className="pt-4 border-t border-slate-100">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Coordenadas da Loja (Latitude e Longitude)</label>
+                                    <p className="text-[10px] text-slate-400 mb-3 ml-2">Clique com botão direito na sua loja no Google Maps e copie os números. Essencial para o frete por KM.</p>
+                                    <div className="grid grid-cols-2 gap-4">
                                         <input 
-                                            type="number" 
-                                            placeholder="0.00" 
-                                            className="w-full p-5 pl-12 bg-green-50 text-green-700 rounded-2xl font-black border-none placeholder-green-300"
-                                            value={storeStatus.freeShippingThreshold || ''} 
-                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { freeShippingThreshold: e.target.value }, { merge: true })}
+                                            type="number" step="any" placeholder="Latitude (Ex: -27.59)" 
+                                            className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none"
+                                            value={storeStatus.lat || ''} 
+                                            onChange={(e) => setStoreStatus(prev => ({...prev, lat: e.target.value}))}
+                                        />
+                                        <input 
+                                            type="number" step="any" placeholder="Longitude (Ex: -48.54)" 
+                                            className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none"
+                                            value={storeStatus.lng || ''} 
+                                            onChange={(e) => setStoreStatus(prev => ({...prev, lng: e.target.value}))}
                                         />
                                     </div>
-                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Deixe 0 ou vazio para desativar a barra de progresso no carrinho.</p>
                                 </div>
                             </div>
                         </div>
 
+                        {/* 3. Horários da Semana (NOVO!) */}
                         {/* 3. Horários da Semana (NOVO!) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-6 flex items-center gap-2">
@@ -2229,6 +2297,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
+                        {/* 4. Mídia da Loja */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Mídia da Loja</h2>
                             <div className="flex flex-col gap-6">
@@ -2240,9 +2309,115 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
-                            <div className="flex justify-between items-center"><h2 className="text-2xl font-black text-slate-800 uppercase">Fretes</h2><button onClick={() => { setEditingRateId(null); setRateForm({ neighborhood: '', fee: '', cepStart: '', cepEnd: '' }); setIsRateModalOpen(true); }} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-black text-xs">+ TAXA</button></div>
-                            <div className="space-y-2">{shippingRates.map(rate => (<div key={rate.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl"><span className="font-bold text-slate-700">{rate.neighborhood}</span><div className="flex items-center gap-4"><span className="font-black text-blue-600">R$ {Number(rate.fee).toFixed(2)}</span><button onClick={() => { setEditingRateId(rate.id); setRateForm(rate); setIsRateModalOpen(true); }} className="p-2 text-blue-600"><Edit3 size={16} /></button><button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "shipping_rates", rate.id))} className="p-2 text-red-600"><Trash2 size={16} /></button></div></div>))}</div>
+
+                        {/* --- INÍCIO DO BLOCO DE FRETES COM MAPA INTERATIVO --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+                            
+                            {/* FRETES POR RAIO (KM) - COM MAPA */}
+                            <div>
+                                <div className="flex justify-between items-end mb-6">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2"><MapPin size={24} className="text-blue-600"/> Zonas de Entrega (Mapa)</h2>
+                                        <p className="text-xs font-bold text-slate-400 mt-1">Busque o endereço da sua loja para centralizar o mapa, depois adicione os raios de entrega.</p>
+                                    </div>
+                                    <button onClick={handleAddDeliveryZone} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">+ Adicionar Zona</button>
+                                </div>
+                                
+                                {/* O MAPA INTERATIVO COM BUSCA */}
+                                {isLoaded ? (
+                                    <div className="space-y-4 mb-6">
+                                        
+                                        {/* BARRA DE BUSCA DO LOJISTA */}
+                                        <div className="relative">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={20} />
+                                            <Autocomplete
+                                                onLoad={setAdminMapAutocomplete}
+                                                onPlaceChanged={onAdminPlaceChanged}
+                                                options={{ componentRestrictions: { country: "br" } }}
+                                            >
+                                                <input
+                                                    type="text"
+                                                    placeholder="Digite o endereço ou CEP da sua loja aqui..."
+                                                    className="w-full p-4 pl-12 bg-blue-50/50 border-2 border-blue-100 rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-200 transition-all"
+                                                />
+                                            </Autocomplete>
+                                        </div>
+
+                                        {/* O MAPA EM SI */}
+                                        <div className="w-full h-[400px] rounded-[2rem] overflow-hidden border-4 border-slate-100 shadow-inner relative">
+                                            <GoogleMap
+                                                mapContainerStyle={{ width: '100%', height: '100%' }}
+                                                center={{ 
+                                                    lat: Number(storeStatus.lat) || -23.5505,
+                                                    lng: Number(storeStatus.lng) || -46.6333 
+                                                }}
+                                                zoom={14}
+                                                options={{ disableDefaultUI: true, zoomControl: true }}
+                                            >
+                                                {/* Pino da Loja (Arrastável caso ele queira ajustar o detalhe) */}
+                                                <Marker 
+                                                    position={{ lat: Number(storeStatus.lat) || -23.5505, lng: Number(storeStatus.lng) || -46.6333 }} 
+                                                    draggable={true} 
+                                                    onDragEnd={(e) => {
+                                                        setStoreStatus(prev => ({...prev, lat: e.latLng.lat(), lng: e.latLng.lng()}));
+                                                    }}
+                                                />
+
+                                                {/* Desenho dos Círculos (Raios de KM) */}
+                                                {(storeStatus.delivery_zones || []).map((zone, idx) => {
+                                                    const colors =['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+                                                    return zone.radius_km > 0 && (
+                                                        <Circle 
+                                                            key={idx}
+                                                            center={{ lat: Number(storeStatus.lat) || -23.5505, lng: Number(storeStatus.lng) || -46.6333 }}
+                                                            radius={zone.radius_km * 1000} // Transforma KM em Metros
+                                                            options={{
+                                                                fillColor: colors[idx % colors.length],
+                                                                fillOpacity: 0.15,
+                                                                strokeColor: colors[idx % colors.length],
+                                                                strokeOpacity: 0.8,
+                                                                strokeWeight: 2,
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </GoogleMap>
+                                            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-4 py-2 rounded-xl text-[10px] font-black text-slate-600 shadow-lg">
+                                                📍 Lat: {Number(storeStatus.lat || 0).toFixed(4)} | Lng: {Number(storeStatus.lng || 0).toFixed(4)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="w-full h-[400px] rounded-[2rem] bg-slate-50 flex items-center justify-center font-bold text-slate-400 mb-6 border-2 border-dashed border-slate-200 animate-pulse">
+                                        Conectando ao Google Maps...
+                                    </div>
+                                )}
+
+                                {/* LISTA DE ZONAS PARA EDITAR */}
+                                <div className="space-y-3 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                                    {(!storeStatus.delivery_zones || storeStatus.delivery_zones.length === 0) ? (
+                                        <p className="text-sm font-bold text-slate-400 text-center">Nenhuma zona configurada. Clique em "+ Adicionar Zona" para começar.</p>
+                                    ) : (
+                                        storeStatus.delivery_zones.map((zone, idx) => (
+                                            <div key={idx} className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                                                <div className="flex-1 flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-400 uppercase">Raio Máximo</span>
+                                                    <input type="number" placeholder="Ex: 5" value={zone.radius_km} onChange={e => handleUpdateDeliveryZone(idx, 'radius_km', e.target.value)} className="w-20 p-3 bg-slate-50 rounded-xl outline-none font-black text-slate-800 text-center focus:ring-2 ring-blue-500" />
+                                                    <span className="text-xs font-black text-slate-400 uppercase">KM</span>
+                                                </div>
+                                                <div className="flex-1 flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-400 uppercase">Frete: R$</span>
+                                                    <input type="number" placeholder="Valor" value={zone.fee} onChange={e => handleUpdateDeliveryZone(idx, 'fee', e.target.value)} className="w-24 p-3 bg-green-50 rounded-xl outline-none font-black text-green-700 text-center focus:ring-2 ring-green-500" />
+                                                </div>
+                                                <button onClick={() => handleRemoveDeliveryZone(idx)} className="p-3 text-red-500 hover:text-red-700 bg-red-50 rounded-xl transition-all" title="Remover Zona"><Trash2 size={18}/></button>
+                                            </div>
+                                        ))
+                                    )}
+                                    <button onClick={handleSaveDeliveryZones} className="w-full mt-6 bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-slate-800 shadow-xl transition-all active:scale-95">
+                                        Salvar Mapa e Zonas
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
