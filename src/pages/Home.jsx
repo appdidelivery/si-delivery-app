@@ -6,6 +6,7 @@ import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, w
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, Sandwich } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
+import AgeGate from '../components/AgeGate';
 
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; 
@@ -859,7 +860,8 @@ export default function Home() {
         image={selectedProduct ? selectedProduct.imageUrl : storeSettings.storeLogoUrl}
         productData={selectedProduct} 
     />
-    
+    <AgeGate enabled={storeSettings?.ageGateEnabled} />
+
     <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
         {/* Fundo Moderno com Padrão de Bebidas (Estilo Line-Art) */}
         <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>

@@ -24,7 +24,7 @@ const generateSlug = (text) => {
 };
 
 export default async function handler(req, res) {
-    // 1. Identifica a loja pelo subdomínio da URL
+    // 1. Identifica a loja pelo subdomínio da URL (LÓGICA MULTI-TENANT MANTIDA)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     let storeId = host.split('.')[0]; 
 
@@ -59,11 +59,16 @@ export default async function handler(req, res) {
             // 3. Proteção anti-quebra: Pula produtos sem nome
             if (!p.name) return;
 
-           // 4. Filtro de Estoque (Exatamente igual ao seu frontend Home.jsx)
-            const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-            if (!hasStock) return; // Não manda produto esgotado pro Google
+            // 🚨 4. LÓGICA DE ESTOQUE CORRIGIDA PARA O GOOGLE 🚨
+            // Em vez de "esconder" o produto sem estoque, nós definimos a tag correta
+            let availability = 'in_stock'; // Padrão: se o lojista não controla estoque, consideramos em estoque
+            if (p.stock !== undefined && p.stock !== null && p.stock !== '') {
+                if (parseInt(p.stock) <= 0) {
+                    availability = 'out_of_stock';
+                }
+            }
 
-            // 5. FILTRO ANTI-BAN (Cigarros, Vapes e Narguile)
+            // 5. FILTRO ANTI-BAN MANTIDO INTACTO (Cigarros, Vapes e Narguile)
             const nomeProduto = p.name.toLowerCase();
             const palavrasProibidas = ['cigarro', 'tabaco', 'vape', 'narguile', 'essência', 'essencia', 'palheiro', 'gift'];
             const contemProibido = palavrasProibidas.some(palavra => nomeProduto.includes(palavra));
@@ -78,15 +83,16 @@ export default async function handler(req, res) {
             const productLink = `https://${host}/p/${slug}`;
             const price = Number(p.price || 0).toFixed(2);
 
+            // 7. MONTAGEM DAS TAGS OBRIGATÓRIAS DO GOOGLE SHOPPING
             xml += `
             <item>
                 <g:id>${doc.id}</g:id>
                 <g:title><![CDATA[${p.name}]]></g:title>
                 <g:description><![CDATA[${p.description || p.name}]]></g:description>
                 <g:link>${productLink}</g:link>
-                <g:image_link>${p.imageUrl || 'https://velodelivery.com.br/logo.png'}</g:image_link>
+                <g:image_link>${p.imageUrl}</g:image_link>
                 <g:condition>new</g:condition>
-                <g:availability>in_stock</g:availability>
+                <g:availability>${availability}</g:availability>
                 <g:price>${price} BRL</g:price>
                 ${Number(p.promotionalPrice) > 0 ? `<g:sale_price>${Number(p.promotionalPrice).toFixed(2)} BRL</g:sale_price>` : ''}
                 <g:brand>Bebidas</g:brand>
@@ -101,7 +107,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error("Erro no feed:", error);
-        // 🔥 AGORA O ERRO VAI APARECER NA TELA EM VEZ DE FICAR ESCONDIDO
         res.status(500).send(`Erro interno do servidor: ${error.message}`);
     }
 }

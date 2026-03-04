@@ -2143,6 +2143,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <button onClick={() => updateDoc(doc(db, "stores", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })} className={`w-full py-6 rounded-2xl font-black text-2xl uppercase tracking-widest transition-all ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-xl shadow-green-200' : 'bg-red-500 text-white shadow-xl shadow-red-200'}`}>{storeStatus.isOpen ? 'LOJA ABERTA' : 'LOJA FECHADA'}</button>
                             <p className="mt-4 text-xs font-bold text-slate-400">Isso abre ou fecha a loja manualmente, ignorando o horário.</p>
                         </div>
+                        {/* --- BLOCO: RESTRIÇÃO DE IDADE (+18) --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mt-6">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2">
+                                        <ShieldCheck size={24} className="text-red-500"/> Barreira de Idade (+18)
+                                    </h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">
+                                        Exija confirmação de idade ao entrar na loja (Obrigatório pelo Google Merchant).
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-3 p-4 bg-red-50 rounded-2xl cursor-pointer border border-red-100 hover:bg-red-100 transition-all">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={storeStatus.ageGateEnabled || false} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { ageGateEnabled: e.target.checked })}
+                                        className="w-6 h-6 accent-red-600 cursor-pointer"
+                                    />
+                                    <span className="font-black text-red-800 uppercase tracking-widest text-sm">Ativar Restrição</span>
+                                </label>
+                            </div>
+                        </div>
                         {/* --- NOVO: ESTILO DA VITRINE --- */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">🎨 Estilo da Vitrine</h2>
