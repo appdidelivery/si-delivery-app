@@ -390,7 +390,38 @@ export default function Home() {
   const [shippingFee, setShippingFee] = useState(null);
   const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
   const [activeOrderId, setActiveOrderId] = useState(null);
+// --- INÍCIO: SISTEMA DE ANALYTICS (GA4 E VELO NATIVO) ---
+  useEffect(() => {
+      // 1. Injeta e dispara o Google Analytics 4 se o lojista tiver ID
+      if (storeSettings?.gaTrackingId) {
+          ReactGA.initialize(storeSettings.gaTrackingId);
+          ReactGA.send({ hitType: "pageview", page: window.location.pathname, title: storeSettings.name });
+      }
 
+      // 2. Contador Nativo Velo
+      const registrarVisitaNativa = async () => {
+          if (!storeId || storeId === 'csi') return;
+          
+          const hoje = new Date().toISOString().split('T')[0];
+          const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+          
+          const sessionKey = `visit_${storeId}_${hoje}`;
+          if (!sessionStorage.getItem(sessionKey)) {
+              try {
+                  const snap = await getDoc(visitaRef);
+                  if (snap.exists()) {
+                      await updateDoc(visitaRef, { pageViews: increment(1) });
+                  } else {
+                      await setDoc(visitaRef, { pageViews: 1, date: hoje });
+                  }
+                  sessionStorage.setItem(sessionKey, 'true');
+              } catch (e) { console.error("Erro Analytics Velo:", e); }
+          }
+      };
+
+      registrarVisitaNativa();
+  }, [storeSettings?.gaTrackingId, storeId]);
+  // --- FIM: SISTEMA DE ANALYTICS ---
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const[showInstallPrompt, setShowInstallPrompt] = useState(false);
     const [showiOSInstallMessage, setShowiOSInstallMessage] = useState(false);
