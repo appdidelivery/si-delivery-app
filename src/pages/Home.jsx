@@ -16,48 +16,94 @@ import { getStoreIdFromHostname } from '../utils/domainHelper';
 import { 
     GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
     GiSodaCan, GiPizzaSlice, GiTacos, GiHotDog, GiMeat, 
-    GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini
+    GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
+    GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
+    GiAvocado, GiCigarette, GiChocolateBar
 } from 'react-icons/gi';
-import { FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins } from 'react-icons/fa6';
+import { 
+    FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
+    FaWineGlass, FaWineBottle, FaChampagneGlasses, FaMugHot, 
+    FaBowlFood, FaCarrot, FaLeaf, FaAppleWhole, FaBasketShopping, 
+    FaStore, FaCheese, FaPills, FaPrescriptionBottleMedical, 
+    FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
+    FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar 
+} from 'react-icons/fa6';
 
 const renderCategoryIcon = (iconName, categoryName) => {
     // 1. Prioriza o ícone escolhido pelo lojista no banco de dados
     if (iconName) {
         switch (iconName) {
+            case 'Combo': return <FaBoxOpen size={18} />;
+            case 'Star': return <FaStar size={18} />;
             case 'Hamburger': return <GiHamburger size={18} />;
             case 'Fries': return <GiFrenchFries size={18} />;
-            case 'Fish': return <FaFishFins size={18} />;
-            case 'Shrimp': return <GiShrimp size={18} />;
-            case 'Oyster': return <GiOyster size={18} />;
-            case 'Sushi': return <GiSushis size={18} />;
             case 'Pizza': return <GiPizzaSlice size={18} />;
             case 'HotDog': return <GiHotDog size={18} />;
+            case 'Tacos': return <GiTacos size={18} />;
+            case 'BowlFood': return <FaBowlFood size={18} />;
+            case 'Steak': return <GiSteak size={18} />;
             case 'Meat': return <GiMeat size={18} />;
+            case 'Chicken': return <GiChickenOven size={18} />;
             case 'Noodles': return <GiNoodles size={18} />;
-            case 'Combo': return <FaBoxOpen size={18} />;
-            case 'Energy': return <FaBoltLightning size={18} />;
-            case 'Soda': return <GiSodaCan size={18} />;
-            case 'Water': return <FaBottleWater size={18} />;
+            case 'Sushi': return <GiSushis size={18} />;
+            case 'Fish': return <FaFishFins size={18} />;
+            case 'Shrimp': return <GiShrimp size={18} />;
             case 'Beer': return <GiBeerBottle size={18} />;
             case 'Drink': return <GiMartini size={18} />;
+            case 'WineGlass': return <FaWineGlass size={18} />;
+            case 'Champagne': return <FaChampagneGlasses size={18} />;
+            case 'Soda': return <GiSodaCan size={18} />;
+            case 'Energy': return <FaBoltLightning size={18} />;
+            case 'Water': return <FaBottleWater size={18} />;
             case 'Coffee': return <GiCoffeeCup size={18} />;
+            case 'Acai': return <FaIceCream size={18} />;
             case 'IceCream': return <GiIceCreamCone size={18} />;
+            case 'Cupcake': return <GiCupcake size={18} />;
+            case 'Chocolate': return <GiChocolateBar size={18} />;
+            case 'Bread': return <FaBreadSlice size={18} />;
+            case 'Croissant': return <GiCroissant size={18} />;
+            case 'Leaf': return <FaLeaf size={18} />;
+            case 'Carrot': return <FaCarrot size={18} />;
+            case 'Cheese': return <FaCheese size={18} />;
+            case 'Basket': return <FaBasketShopping size={18} />;
+            case 'Store': return <FaStore size={18} />;
+            case 'Pills': return <FaPills size={18} />;
+            case 'Paw': return <FaPaw size={18} />;
+            case 'Bone': return <FaBone size={18} />;
+            case 'Snowflake': return <FaSnowflake size={18} />;
+            case 'Fire': return <FaFireFlameSimple size={18} />;
+            case 'Cigarette': return <GiCigarette size={18} />;
             case 'List': return <List size={18} />;
             default: return <List size={18} />;
         }
     }
 
-    // 2. Fallback de segurança para categorias que ainda não foram atualizadas pelo lojista
+    // 2. Fallback de segurança expandido (caso o lojista ainda não tenha escolhido no Admin)
     const n = (categoryName || '').toLowerCase();
     if (n.includes('cerveja') || n.includes('chopp')) return <GiBeerBottle size={18}/>;
-    if (n.includes('vinho') || n.includes('destilado') || n.includes('vodka')) return <GiMartini size={18}/>;
+    if (n.includes('vinho') || n.includes('espumante')) return <FaWineGlass size={18}/>;
+    if (n.includes('destilado') || n.includes('vodka') || n.includes('gin')) return <GiMartini size={18}/>;
     if (n.includes('energético') || n.includes('energetico')) return <FaBoltLightning size={18}/>;
     if (n.includes('sem álcool') || n.includes('água') || n.includes('suco')) return <FaBottleWater size={18}/>;
-    if (n.includes('combo')) return <FaBoxOpen size={18}/>;
-    if (n.includes('fritas') || n.includes('porções')) return <GiFrenchFries size={18}/>;
-    if (n.includes('hamburguer') || n.includes('lanche')) return <GiHamburger size={18}/>;
-    if (n.includes('camarão') || n.includes('camarao')) return <GiShrimp size={18}/>;
+    if (n.includes('combo') || n.includes('kit')) return <FaBoxOpen size={18}/>;
+    if (n.includes('fritas') || n.includes('porções') || n.includes('porcoes')) return <GiFrenchFries size={18}/>;
+    if (n.includes('hamburguer') || n.includes('lanche') || n.includes('burger')) return <GiHamburger size={18}/>;
+    if (n.includes('pizza')) return <GiPizzaSlice size={18}/>;
+    if (n.includes('camarão') || n.includes('camarao') || n.includes('frutos')) return <GiShrimp size={18}/>;
     if (n.includes('peixe')) return <FaFishFins size={18}/>;
+    if (n.includes('sushi') || n.includes('oriental')) return <GiSushis size={18}/>;
+    if (n.includes('marmita') || n.includes('prato') || n.includes('refeição')) return <FaBowlFood size={18}/>;
+    if (n.includes('carne') || n.includes('açougue')) return <GiMeat size={18}/>;
+    if (n.includes('espeto') || n.includes('churrasco')) return <GiSteak size={18}/>;
+    if (n.includes('doce') || n.includes('sobremesa') || n.includes('bolo')) return <GiCupcake size={18}/>;
+    if (n.includes('açaí') || n.includes('acai')) return <FaIceCream size={18}/>;
+    if (n.includes('sorvete')) return <GiIceCreamCone size={18}/>;
+    if (n.includes('padaria') || n.includes('pão')) return <FaBreadSlice size={18}/>;
+    if (n.includes('farmácia') || n.includes('drogaria')) return <FaPills size={18}/>;
+    if (n.includes('pet') || n.includes('ração') || n.includes('cachorro')) return <FaPaw size={18}/>;
+    if (n.includes('gelo')) return <FaSnowflake size={18}/>;
+    if (n.includes('gás') || n.includes('gas') || n.includes('carvão')) return <FaFireFlameSimple size={18}/>;
+    if (n.includes('tabaca') || n.includes('vape') || n.includes('cigarro')) return <GiCigarette size={18}/>;
 
     return <List size={18}/>;
 };

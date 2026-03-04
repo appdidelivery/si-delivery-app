@@ -15,38 +15,76 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
+import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
 import { 
     GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
     GiSodaCan, GiPizzaSlice, GiTacos, GiHotDog, GiMeat, 
-    GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini
+    GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
+    GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
+    GiAvocado, GiCigarette, GiChocolateBar
 } from 'react-icons/gi';
-import { FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins } from 'react-icons/fa6';
-import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
+import { 
+    FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
+    FaWineGlass, FaWineBottle, FaChampagneGlasses, FaMugHot, 
+    FaBowlFood, FaCarrot, FaLeaf, FaAppleWhole, FaBasketShopping, 
+    FaStore, FaCheese, FaPills, FaPrescriptionBottleMedical, 
+    FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
+    FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar 
+} from 'react-icons/fa6';
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
-// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS ---
-// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA) ---
+// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA - SUPER CATÁLOGO) ---
 const AVAILABLE_ICONS = [
   { id: 'List', label: 'Padrão', component: <List size={24} /> },
-  { id: 'Hamburger', label: 'Hamburguer', component: <GiHamburger size={24} /> },
-  { id: 'Fries', label: 'Fritas/Porções', component: <GiFrenchFries size={24} /> },
-  { id: 'Fish', label: 'Peixes', component: <FaFishFins size={24} /> },
-  { id: 'Shrimp', label: 'Frutos do Mar', component: <GiShrimp size={24} /> },
-  { id: 'Oyster', label: 'Ostras', component: <GiOyster size={24} /> },
-  { id: 'Sushi', label: 'Oriental', component: <GiSushis size={24} /> },
+  { id: 'Combo', label: 'Combos / Kits', component: <FaBoxOpen size={24} /> },
+  { id: 'Star', label: 'Destaques', component: <FaStar size={24} /> },
+  // Lanches e Fast Food
+  { id: 'Hamburger', label: 'Hambúrguer', component: <GiHamburger size={24} /> },
+  { id: 'Fries', label: 'Porções / Fritas', component: <GiFrenchFries size={24} /> },
   { id: 'Pizza', label: 'Pizzaria', component: <GiPizzaSlice size={24} /> },
-  { id: 'HotDog', label: 'Lanches', component: <GiHotDog size={24} /> },
-  { id: 'Meat', label: 'Carnes', component: <GiMeat size={24} /> },
-  { id: 'Noodles', label: 'Massas', component: <GiNoodles size={24} /> },
-  { id: 'Combo', label: 'Combos/Kits', component: <FaBoxOpen size={24} /> },
-  { id: 'Energy', label: 'Energéticos', component: <FaBoltLightning size={24} /> },
-  { id: 'Soda', label: 'Refrigerantes', component: <GiSodaCan size={24} /> },
-  { id: 'Water', label: 'Sem Álcool', component: <FaBottleWater size={24} /> },
+  { id: 'HotDog', label: 'Cachorro Quente', component: <GiHotDog size={24} /> },
+  { id: 'Tacos', label: 'Mexicano', component: <GiTacos size={24} /> },
+  // Restaurante e Refeições
+  { id: 'BowlFood', label: 'Marmita / PF', component: <FaBowlFood size={24} /> },
+  { id: 'Steak', label: 'Espetinho / Churrasco', component: <GiSteak size={24} /> },
+  { id: 'Meat', label: 'Açougue / Carnes', component: <GiMeat size={24} /> },
+  { id: 'Chicken', label: 'Frango / Aves', component: <GiChickenOven size={24} /> },
+  { id: 'Noodles', label: 'Massas / Italiana', component: <GiNoodles size={24} /> },
+  { id: 'Sushi', label: 'Oriental / Sushi', component: <GiSushis size={24} /> },
+  { id: 'Fish', label: 'Peixaria', component: <FaFishFins size={24} /> },
+  { id: 'Shrimp', label: 'Frutos do Mar', component: <GiShrimp size={24} /> },
+  // Bebidas Alcoólicas
   { id: 'Beer', label: 'Cervejas', component: <GiBeerBottle size={24} /> },
   { id: 'Drink', label: 'Destilados', component: <GiMartini size={24} /> },
+  { id: 'WineGlass', label: 'Vinhos', component: <FaWineGlass size={24} /> },
+  { id: 'Champagne', label: 'Espumantes', component: <FaChampagneGlasses size={24} /> },
+  // Bebidas Sem Álcool
+  { id: 'Soda', label: 'Refrigerantes', component: <GiSodaCan size={24} /> },
+  { id: 'Energy', label: 'Energéticos', component: <FaBoltLightning size={24} /> },
+  { id: 'Water', label: 'Água / Sem Álcool', component: <FaBottleWater size={24} /> },
   { id: 'Coffee', label: 'Cafeteria', component: <GiCoffeeCup size={24} /> },
-  { id: 'IceCream', label: 'Doces/Açaí', component: <GiIceCreamCone size={24} /> },
+  // Doces, Sorvetes e Padaria
+  { id: 'Acai', label: 'Açaí', component: <FaIceCream size={24} /> },
+  { id: 'IceCream', label: 'Sorveteria', component: <GiIceCreamCone size={24} /> },
+  { id: 'Cupcake', label: 'Doces / Bolos', component: <GiCupcake size={24} /> },
+  { id: 'Chocolate', label: 'Chocolates', component: <GiChocolateBar size={24} /> },
+  { id: 'Bread', label: 'Padaria', component: <FaBreadSlice size={24} /> },
+  { id: 'Croissant', label: 'Salgados', component: <GiCroissant size={24} /> },
+  // Saudável e Mercado
+  { id: 'Leaf', label: 'Vegano / Saudável', component: <FaLeaf size={24} /> },
+  { id: 'Carrot', label: 'Hortifruti', component: <FaCarrot size={24} /> },
+  { id: 'Cheese', label: 'Frios / Laticínios', component: <FaCheese size={24} /> },
+  { id: 'Basket', label: 'Mercado / Conveniência', component: <FaBasketShopping size={24} /> },
+  { id: 'Store', label: 'Empório / Adega', component: <FaStore size={24} /> },
+  // Farmácia e Pet Shop
+  { id: 'Pills', label: 'Farmácia', component: <FaPills size={24} /> },
+  { id: 'Paw', label: 'Pet Shop', component: <FaPaw size={24} /> },
+  { id: 'Bone', label: 'Petiscos Pet', component: <FaBone size={24} /> },
+  // Utilidades e Outros
+  { id: 'Snowflake', label: 'Gelo', component: <FaSnowflake size={24} /> },
+  { id: 'Fire', label: 'Gás / Carvão', component: <FaFireFlameSimple size={24} /> },
+  { id: 'Cigarette', label: 'Tabacaria / Vape', component: <GiCigarette size={24} /> }
 ];
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
