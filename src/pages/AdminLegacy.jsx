@@ -2068,10 +2068,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <button onClick={handleAssinarPro} className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-purple-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
         💳 Assinar com Cartão
     </button>
-    
-    <button onClick={handleAssinarPro} className="w-full bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2">
-    <QrCode size={20}/> Pagar com Pix
-</button>
                             </div>
 
                             {/* Monitor de Infraestrutura */}
