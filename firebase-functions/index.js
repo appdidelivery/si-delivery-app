@@ -107,4 +107,43 @@ exports.awardVipPointsOnReview = functions
     return null;
   });
   });
-  
+  // --- INÍCIO DO CÓDIGO DO SUPORTE VELO DELIVERY ---
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
+const SYSTEM_INSTRUCTION = `
+Você é o Assistente de Suporte da Velo Delivery, um sistema SaaS B2B de entregas.
+Seu tom deve ser extremamente profissional, ágil e educado.
+Seu objetivo principal é tirar a dúvida do cliente da forma mais rápida e direta possível.
+Regra de ouro: Ao final de TODAS as suas respostas, você deve obrigatoriamente sugerir que o usuário consulte os manuais completos em: https://ajuda.velodelivery.com.br.
+`;
+
+exports.veloSupportWidget = onCall(
+  { secrets: [geminiApiKey], region: "southamerica-east1", cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Apenas usuários logados podem usar o suporte.");
+    }
+    const userMessage = request.data.message;
+    const chatHistory = request.data.history || [];
+    if (!userMessage) throw new HttpsError("invalid-argument", "Mensagem vazia.");
+
+    try {
+      const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        systemInstruction: SYSTEM_INSTRUCTION,
+      });
+      const chat = model.startChat({ history: chatHistory });
+      const result = await chat.sendMessage(userMessage);
+      return { reply: result.response.text() };
+    } catch (error) {
+      console.error("Erro no Gemini:", error);
+      throw new HttpsError("internal", "Erro ao processar suporte.");
+    }
+  }
+);
+// --- FIM DO CÓDIGO DO SUPORTE VELO DELIVERY ---

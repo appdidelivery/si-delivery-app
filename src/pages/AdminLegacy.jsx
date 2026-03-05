@@ -32,6 +32,8 @@ import {
     FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
     FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar 
 } from 'react-icons/fa6';
+import VeloSupportWidget from "../components/VeloSupportWidget";
+
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
 // --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA - SUPER CATÁLOGO) ---
@@ -3304,6 +3306,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </div>
                 </div>
             )}
+
+            
+            {/* WIDGET DE IA ADICIONADO AQUI */}
+            <VeloSupportWidget />
         </div>
     );
 }
