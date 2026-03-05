@@ -36,7 +36,7 @@ import VeloSupportWidget from "../components/VeloSupportWidget";
 
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
-// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA - SUPER CATÁLOGO) ---
+// --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA s- SUPER CATÁLOGO) ---
 const AVAILABLE_ICONS = [
   { id: 'List', label: 'Padrão', component: <List size={24} /> },
   { id: 'Combo', label: 'Combos / Kits', component: <FaBoxOpen size={24} /> },
