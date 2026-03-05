@@ -168,3 +168,55 @@ exports.veloSupportWidget = onCall(
     }
   }
 );
+exports.gerarCopyProduto = onCall(
+    { secrets: [geminiApiKey], region: "southamerica-east1", cors: true },
+    async (request) => {
+        const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = request.data;
+
+        if (!termoRaw) {
+            throw new HttpsError("invalid-argument", "O termo do produto é obrigatório.");
+        }
+
+        try {
+            // Inicializa o Gemini usando a mesma chave secreta que o seu widget já usa!
+            const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+            const prompt = `
+            Você é um especialista Sênior em Local SEO e Copywriting para Delivery.
+            Sua missão é transformar um termo simples em um cadastro de produto altamente conversivo.
+            
+            === CONTEXTO DO PRODUTO ===
+            - Produto desejado: "${termoRaw}"
+            
+            === CONTEXTO DO LOJISTA (SEO LOCAL) ===
+            - Nome da Loja: "${lojaNome || 'Nossa Loja'}"
+            - Nicho de Mercado: "${lojaNicho || 'Delivery'}"
+            - Localização / Cidade: "${lojaLocalizacao || 'nossa região'}"
+
+            === REGRAS DE GERAÇÃO ===
+            1. NOME DO PRODUTO: Crie um nome claro e otimizado para o algoritmo de busca do Google.
+            2. DESCRIÇÃO: Escreva um texto persuasivo (gatilhos de desejo) de no máximo 3 frases. 
+            3. SEO LOCAL MÁGICO: Na descrição, insira de forma EXTREMAMENTE SUTIL E NATURAL o nome da loja e a localização para forçar o ranqueamento regional no Google.
+            
+            Responda ESTRITAMENTE com um objeto JSON válido, sem formatação markdown, neste formato exato:
+            {
+                "nome": "Nome comercial otimizado",
+                "descricao": "Descrição persuasiva com SEO local embutido"
+            }
+            `;
+
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
+            
+            // Limpa o markdown do JSON que a IA costuma mandar
+            const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            return JSON.parse(cleanJson);
+
+        } catch (error) {
+            console.error("Erro na IA:", error);
+            throw new HttpsError("internal", "Falha ao gerar conteúdo otimizado.");
+        }
+    }
+);

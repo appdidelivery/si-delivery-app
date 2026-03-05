@@ -16,6 +16,8 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getApp } from 'firebase/app';
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
 import { 
     GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
@@ -408,6 +410,8 @@ export default function Admin() {
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const[isModalOpen, setIsModalOpen] = useState(false);
+    const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
+    const [termoIA, setTermoIA] = useState('');
     // PASSO 1: Atualização do Estado do Formulário (form)
     const[form, setForm] = useState({ 
         name: '', 
@@ -603,7 +607,35 @@ export default function Admin() {
         const data = await response.json();
         return data.secure_url;
     };
-
+const handleGenerateProductCopy = async () => {
+    if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
+    setIsGeneratingCopy(true);
+    
+    try {
+        const functions = getFunctions(getApp(), 'southamerica-east1');
+        const gerarCopy = httpsCallable(functions, 'gerarCopyProduto'); 
+        
+        const result = await gerarCopy({ 
+            termoRaw: termoIA, 
+            lojaNome: storeStatus.name,
+            lojaNicho: storeStatus.storeNiche,
+            lojaLocalizacao: storeStatus.address
+        });
+        
+        setForm(prev => ({
+            ...prev,
+            name: result.data.nome || prev.name,
+            description: result.data.descricao || prev.description
+        }));
+        
+        setTermoIA(''); 
+    } catch (error) {
+        console.error("Erro na IA:", error);
+        alert("Erro ao otimizar produto. Tente novamente.");
+    } finally {
+        setIsGeneratingCopy(false);
+    }
+};
     const handleProductImageUpload = async () => {
         setUploading(true); setUploadError('');
         try {
@@ -2650,6 +2682,30 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <p className="text-[11px] text-blue-600 font-bold mt-2 ml-4 flex items-center gap-1">
                                             <Search size={12} /> O nome exato que o seu cliente digitaria na busca do Google.
                                         </p>
+                                        {/* --- GERADOR DE IA --- */}
+<div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-5 rounded-3xl border border-purple-100 mb-4 flex flex-col md:flex-row items-center gap-4 shadow-sm">
+    <div className="flex-1 w-full">
+        <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+            ✨ Assistente de Vendas IA
+        </label>
+        <input 
+            type="text" 
+            placeholder="Ex: hamburguer de costela, heineken gelada..." 
+            className="w-full p-4 bg-white rounded-2xl border border-purple-200 outline-none text-sm font-bold focus:ring-2 ring-purple-400 text-slate-700"
+            value={termoIA}
+            onChange={(e) => setTermoIA(e.target.value)}
+        />
+    </div>
+    <button 
+        type="button" 
+        onClick={handleGenerateProductCopy}
+        disabled={isGeneratingCopy}
+        className="w-full md:w-auto mt-2 md:mt-0 px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-purple-200 transition-all disabled:opacity-50 active:scale-95 flex-shrink-0"
+    >
+        {isGeneratingCopy ? 'Mágica...' : 'Gerar IA'}
+    </button>
+</div>
+{/* --------------------- */}
                                     </div>
 
                                     <div>
