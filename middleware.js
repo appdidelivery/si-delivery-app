@@ -11,11 +11,18 @@ export default async function middleware(request) {
   
   // 🚀 A GRANDE SACADA: O Porteiro VIP para os robôs
   const userAgent = request.headers.get('user-agent') || '';
-  const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber/i.test(userAgent);
+  const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|SkypeUriPreview/i.test(userAgent);
   
-  // Se for o robô do WhatsApp/Meta, repassa DIRETO para a API que vimos que está 100% funcional!
+  // Se for o robô do WhatsApp/Meta, repassa para a API COM OS CABEÇALHOS CLONADOS
   if (isBot) {
-      return fetch(new URL('/api/social', request.url));
+      const botHeaders = new Headers(request.headers);
+      // Garante que a API saiba exatamente qual é o subdomínio (ex: csi)
+      botHeaders.set('x-forwarded-host', host);
+      botHeaders.set('host', host);
+
+      return fetch(new URL('/api/social', request.url), {
+          headers: botHeaders
+      });
   }
 
   // 1. Descobre a loja pela URL
