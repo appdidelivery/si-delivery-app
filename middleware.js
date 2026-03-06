@@ -19,7 +19,7 @@ export default async function middleware(request) {
 
   // 2. CORREÇÃO: Fallback de Variável de Ambiente para Vercel
   // Troque 'velodelivery-xxxx' pelo ID real do seu projeto Firebase se as variáveis falharem
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'SEU_FIREBASE_PROJECT_ID_AQUI';
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
   
   if (projectId) {
       try {
