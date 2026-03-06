@@ -88,7 +88,7 @@ export default async function handler(req, res) {
       if (product.name) {
         const slug = slugify(product.name);
         // loc recebe escapeXml no caso de IDs complexos ou slugs com falha
-        const url = escapeXml(`https://${host}/produto/${slug}-${doc.id}`);
+        const url = escapeXml(`https://${host}/p/${slug}`);
         
         xml += '  <url>\n';
         xml += `    <loc>${url}</loc>\n`;

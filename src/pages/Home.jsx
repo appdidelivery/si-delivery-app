@@ -432,36 +432,51 @@ export default function Home() {
       localStorage.setItem('dismissediOSInstallPrompt', 'true');
   };
 
-  // --- INÍCIO: SISTEMA DE ANALYTICS (SEGURO E NATIVO) ---
+  // --- INÍCIO: SISTEMA INTEGRADO DE PIXELS E ANALYTICS ---
   useEffect(() => {
-      // 1. Injeta o GA4 nativamente no HTML (Zero risco de conflito React)
-      if (storeSettings?.gaTrackingId) {
-          const trackingId = storeSettings.gaTrackingId;
-          if (!document.getElementById('ga-script')) {
-              const script = document.createElement('script');
-              script.id = 'ga-script';
-              script.async = true;
-              script.src = `https://www.googletagmanager.com/gtag/js?id=${trackingId}`;
-              document.head.appendChild(script);
+      const integrations = marketingSettings?.integrations;
 
-              const script2 = document.createElement('script');
-              script2.innerHTML = `
-                  window.dataLayer = window.dataLayer ||[];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js', new Date());
-                  gtag('config', '${trackingId}');
-              `;
-              document.head.appendChild(script2);
-          }
+      // 1. Google Tag Manager (GTM)
+      if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
+          const script = document.createElement('script');
+          script.id = 'gtm-script';
+          script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
+          document.head.appendChild(script);
       }
 
-      // 2. Contador Nativo Velo (Para o Painel Admin)
+      // 2. Meta Pixel (Facebook)
+      if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
+          const script = document.createElement('script');
+          script.id = 'meta-pixel-script';
+          script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
+          document.head.appendChild(script);
+      }
+
+      // 3. Google Analytics 4 (GA4) e Google Ads
+      const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 
+      const gadsId = integrations?.gads?.conversionId;
+
+      if ((ga4Id || gadsId) && !document.getElementById('google-gtag-script')) {
+          const script = document.createElement('script');
+          script.id = 'google-gtag-script';
+          script.async = true;
+          script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id || gadsId}`;
+          document.head.appendChild(script);
+
+          const script2 = document.createElement('script');
+          script2.id = 'google-gtag-config';
+          let configHtml = `window.dataLayer = window.dataLayer ||[]; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());`;
+          if (ga4Id) configHtml += ` gtag('config', '${ga4Id}');`;
+          if (gadsId) configHtml += ` gtag('config', '${gadsId}');`;
+          script2.innerHTML = configHtml;
+          document.head.appendChild(script2);
+      }
+
+      // 4. Contador Nativo Velo (Para o Painel Admin)
       const registrarVisitaNativa = async () => {
           if (!storeId || storeId === 'csi') return;
-          
           const hoje = new Date().toISOString().split('T')[0];
           const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
-          
           const sessionKey = `visit_${storeId}_${hoje}`;
           if (!sessionStorage.getItem(sessionKey)) {
               try {
@@ -477,8 +492,8 @@ export default function Home() {
       };
 
       registrarVisitaNativa();
-  },[storeSettings?.gaTrackingId, storeId]);
-  // --- FIM: SISTEMA DE ANALYTICS ---
+  },[marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId]);
+  // --- FIM: SISTEMA INTEGRADO DE PIXELS E ANALYTICS ---
 
   // --- INICIA A BUSCA DE DADOS DO BANCO ---
   useEffect(() => {
@@ -685,7 +700,12 @@ export default function Home() {
     setCart(prev => {
       const existingItem = prev.find(i => i.id === p.id);
       let newQuantity = quantity;
-
+if (window.fbq) { 
+          window.fbq('track', 'AddToCart', { content_name: p.name, content_ids: [p.id], value: finalPricePerUnit, currency: 'BRL' }); 
+      }
+      if (window.gtag) { 
+          window.gtag('event', 'add_to_cart', { currency: 'BRL', value: finalPricePerUnit, items:[{ item_id: p.id, item_name: p.name, price: finalPricePerUnit, quantity: quantity }] }); 
+      }
       if (existingItem) {
         newQuantity += existingItem.quantity;
       }
@@ -808,7 +828,29 @@ export default function Home() {
         orderData.couponCode = appliedCoupon.code || "";
         orderData.discountAmount = discountAmount || 0;
       }
-
+if (window.fbq) { 
+          window.fbq('track', 'Purchase', { value: finalTotal, currency: 'BRL' }); 
+      }
+      if (window.gtag) { 
+          window.gtag('event', 'purchase', { 
+              transaction_id: orderId, 
+              value: finalTotal, 
+              currency: 'BRL', 
+              items: sanitizedCart.map(i => ({ item_id: i.id, item_name: i.name, price: i.price, quantity: i.quantity })) 
+          }); 
+          
+          // Se tiver o rótulo de conversão específico do Google Ads (ex: AW-XXX/AbCDefg...)
+          const gadsLabel = marketingSettings?.integrations?.gads?.conversionLabel;
+          const gadsId = marketingSettings?.integrations?.gads?.conversionId;
+          if (gadsLabel && gadsId) {
+              window.gtag('event', 'conversion', { 
+                  'send_to': `${gadsId}/${gadsLabel}`, 
+                  'value': finalTotal, 
+                  'currency': 'BRL', 
+                  'transaction_id': orderId 
+              });
+          }
+      }
       if (customer.payment === 'dinheiro' || customer.payment === 'motoboy_card') {
           await setDoc(newOrderRef, orderData);
           if (appliedCoupon) {

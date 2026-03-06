@@ -36,6 +36,8 @@ import {
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
 
+import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
+import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
 // --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA s- SUPER CATÁLOGO) ---
@@ -117,7 +119,8 @@ const allNavItems =[
     { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
     { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
     { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
-    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> }, 
+    { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
+    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
 ];
 
 export default function Admin() {
@@ -298,6 +301,11 @@ export default function Admin() {
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
     const[generalBanners, setGeneralBanners] = useState([]);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+    // --- ESTADOS DE INTEGRAÇÕES ---
+    const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
+    const[selectedIntegration, setSelectedIntegration] = useState(null);
+    const [integrationForm, setIntegrationForm] = useState({});
     // Estado da Busca
     const [productSearch, setProductSearch] = useState('');
     // --- ESTADOS FINANCEIROS (NOVO) ---
@@ -2296,7 +2304,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         ))}
     </div>
 </div>
-
                         {/* 2. Informações e Mensagem */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Dados da Loja</h2>
@@ -2577,6 +2584,135 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     </div>
                 )}
+                {/* --- ABA DE INTEGRAÇÕES --- */}
+                {activeTab === 'integrations' && (() => {
+                    // Dicionário das integrações com Links Oficiais de Ajuda
+                    const integrationList =[
+                        { 
+                            id: 'meta', 
+                            name: 'Meta Ads', 
+                            desc: 'Pixel de Rastreamento e Conversions API (CAPI).', 
+                            icon: <FaFacebook className="text-blue-600" size={40}/>, 
+                            fields:[
+                                {key: 'pixelId', label: 'ID do Pixel (Dataset ID)'}, 
+                                {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'}
+                            ],
+                            helpUrl: 'https://business.facebook.com/settings/pixels',
+
+                            helpText: 'Descobrir meu ID do Meta Pixel'
+                        },
+                        { 
+                            id: 'ga4', 
+                            name: 'Google Analytics 4', 
+                            desc: 'Métricas avançadas de tráfego e funil.', 
+                            icon: <FaGoogle className="text-orange-500" size={40}/>, 
+                            fields:[
+                                {key: 'measurementId', label: 'Measurement ID (Ex: G-XXXXX)'}
+                            ],
+                            helpUrl: 'https://analytics.google.com/analytics/web/',
+                            helpText: 'Encontrar meu ID (G-XXXX)'
+                        },
+                        { 
+                            id: 'gads', 
+                            name: 'Google Ads', 
+                            desc: 'Acompanhamento de conversões de campanhas.', 
+                            icon: <FaGoogle className="text-blue-500" size={40}/>, 
+                            fields:[
+                                {key: 'conversionId', label: 'ID de Conversão (Ex: AW-XXXX)'}, 
+                                {key: 'conversionLabel', label: 'Rótulo de Conversão (Label)'}
+                            ],
+                            helpUrl: 'https://ads.google.com/aw/conversions',
+                            helpText: 'Ver minhas Conversões no Google Ads'
+                        },
+                        { 
+                            id: 'gmc', 
+                            name: 'Google Merchant', 
+                            desc: 'Sincronização de catálogo XML via API.', 
+                            icon: <FaStore className="text-green-600" size={40}/>, 
+                            fields:[
+                                {key: 'merchantId', label: 'Merchant Center ID'}
+                            ],
+                            helpUrl: 'https://merchants.google.com/mc/overview',
+                            helpText: 'Acessar o Google Merchant Center'
+                        },
+                        { 
+                            id: 'gtm', 
+                            name: 'Google Tag Manager', 
+                            desc: 'Gerenciador de tags do Google.', 
+                            icon: <FaTags className="text-blue-400" size={40}/>, 
+                            fields:[
+                                {key: 'containerId', label: 'ID do Container (Ex: GTM-XXXX)'}
+                            ],
+                            helpUrl: 'https://tagmanager.google.com/',
+                            helpText: 'Encontrar meu GTM ID'
+                        },
+                        { 
+                            id: 'whatsapp', 
+                            name: 'WhatsApp API', 
+                            desc: 'Disparos automáticos pela API Oficial Cloud.', 
+                            icon: <FaWhatsapp className="text-green-500" size={40}/>, 
+                            fields:[
+                                {key: 'phoneNumberId', label: 'ID do Número de Telefone'}, 
+                                {key: 'apiToken', label: 'Token de Acesso Permanente'}
+                            ],
+                            helpUrl: 'https://developers.facebook.com/apps/',
+                            helpText: 'Acessar o Painel de Desenvolvedor (Meta)'
+                        }
+                    ];
+
+                    return (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Integrações & API</h1>
+                                    <p className="text-slate-400 font-bold mt-2">Conecte sua loja às principais ferramentas de marketing e vendas.</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {integrationList.map((app) => {
+                                    // Verifica se esta integração já tem dados salvos no Firebase
+                                    const savedData = settings?.integrations?.[app.id] || {};
+                                    // Consideramos 'Conectado' se a primeira chave obrigatória não estiver vazia
+                                    const isConnected = !!savedData[app.fields[0].key];
+
+                                    return (
+                                        <div key={app.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-lg transition-all group relative overflow-hidden">
+                                            {isConnected && <div className="absolute top-0 right-0 w-16 h-16 bg-green-50 rounded-bl-[3rem] -z-0"></div>}
+                                            
+                                            <div className="flex justify-between items-start mb-6 relative z-10">
+                                                <div className="p-4 bg-slate-50 rounded-2xl group-hover:scale-110 transition-transform">
+                                                    {app.icon}
+                                                </div>
+                                                {isConnected ? (
+                                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1">✅ Ativo</span>
+                                                ) : (
+                                                    <span className="bg-slate-100 text-slate-400 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">Desconectado</span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="mb-8 relative z-10">
+                                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{app.name}</h3>
+                                                <p className="text-xs text-slate-400 font-bold mt-2 line-clamp-2">{app.desc}</p>
+                                            </div>
+
+                                            <button 
+                                                onClick={() => {
+                                                    setSelectedIntegration(app);
+                                                    setIntegrationForm(savedData); // Carrega os dados existentes pro input
+                                                    setIsIntegrationModalOpen(true);
+                                                }}
+                                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${isConnected ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'}`}
+                                            >
+                                                {isConnected ? '⚙️ Configurar' : '+ Conectar API'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
             </main>
 
             {/* --- RODAPÉ MOBILE: ESTRUTURA REVISADA --- */}
@@ -3363,7 +3499,78 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
             )}
 
-            
+            {/* MODAL DE INTEGRAÇÕES */}
+            <AnimatePresence>
+                {isIntegrationModalOpen && selectedIntegration && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl relative">
+                            <button onClick={() => setIsIntegrationModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            
+                            <div className="flex items-center gap-4 mb-6 border-b border-slate-100 pb-6">
+                                {selectedIntegration.icon}
+                                <div>
+                                    <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none">{selectedIntegration.name}</h2>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Setup de Conexão</p>
+                                </div>
+                            </div>
+
+                            {/* --- BOTÃO MÁGICO DE DIRECIONAMENTO (HÍBRIDO) --- */}
+                            {selectedIntegration.helpUrl && (
+                                <div className="mb-6">
+                                    <a 
+                                        href={selectedIntegration.helpUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 py-4 bg-blue-50 text-blue-700 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-200"
+                                    >
+                                        👉 {selectedIntegration.helpText}
+                                    </a>
+                                </div>
+                            )}
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    // Salva no Firebase Firestore dentro do documento 'settings' do lojista
+                                    await setDoc(doc(db, "settings", storeId), {
+                                        integrations: {
+                                            [selectedIntegration.id]: integrationForm 
+                                        }
+                                    }, { merge: true });
+                                    
+                                    setIsIntegrationModalOpen(false);
+                                    alert(`✅ ${selectedIntegration.name} configurado com sucesso!`);
+                                } catch (error) {
+                                    console.error("Erro na integração:", error);
+                                    alert("Erro ao salvar configuração.");
+                                }
+                            }} className="space-y-4">
+                                
+                                {/* Renderiza os inputs */}
+                                {selectedIntegration.fields.map((field) => (
+                                    <div key={field.key} className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-500 ml-2">{field.label}</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder={`Cole aqui seu ${field.label}...`}
+                                            className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-700 placeholder-slate-300" 
+                                            value={integrationForm[field.key] || ''} 
+                                            onChange={e => setIntegrationForm({ ...integrationForm,[field.key]: e.target.value.trim() })} 
+                                        />
+                                    </div>
+                                ))}
+
+                                <div className="pt-6 mt-2">
+                                    <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <Save size={18}/> Salvar e Ativar
+                                    </button>
+                                </div>
+                            </form>
+                            
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* WIDGET DE IA ADICIONADO AQUI */}
             <VeloSupportWidget />
         </div>
