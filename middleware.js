@@ -45,16 +45,32 @@ export default async function middleware(request) {
                       logo = `https://${host}${logo.startsWith('/') ? '' : '/'}${logo}`;
                   }
 
-                  // 4. Injeta as tags no HTML bruto via Regex ANTES de enviar pro WhatsApp
-                  html = html.replace(/<title>(.*?)<\/title>/i, `<title>${name} | Delivery</title>`);
-                  html = html.replace(/<meta property="og:title" content="(.*?)"/i, `<meta property="og:title" content="${name} | Delivery"`);
-                  html = html.replace(/<meta property="og:description" content="(.*?)"/i, `<meta property="og:description" content="${slogan}"`);
-                  html = html.replace(/<meta name="description" content="(.*?)"/i, `<meta name="description" content="${slogan}"`);
-                  
-                  // Atualiza as imagens (Open Graph e Twitter)
-                  html = html.replace(/<meta property="og:image" content="(.*?)"/i, `<meta property="og:image" content="${logo}"`);
-                  html = html.replace(/<meta property="og:image:secure_url" content="(.*?)"/i, `<meta property="og:image:secure_url" content="${logo}"`);
-                  html = html.replace(/<meta name="twitter:image" content="(.*?)"/i, `<meta name="twitter:image" content="${logo}"`);
+                  // 4. ESTRATÉGIA BLINDADA DE INJEÇÃO ANTES DE ENVIAR PARA O WHATSAPP
+                  // Remove tags antigas para não gerar conflito ou duplicidade
+                  html = html.replace(/<title>.*?<\/title>/gi, '');
+                  html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
+                  html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
+                  html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
+
+                  // Cria o bloco exato e validado que já funciona na sua api/social.js
+                  const tagsSEO = `
+                    <title>${name} | Delivery</title>
+                    <meta name="description" content="${slogan}" />
+                    <meta property="og:title" content="${name} | Delivery" />
+                    <meta property="og:description" content="${slogan}" />
+                    <meta property="og:image" content="${logo}" />
+                    <meta property="og:image:secure_url" content="${logo}" />
+                    <meta property="og:image:width" content="1200" />
+                    <meta property="og:image:height" content="630" />
+                    <meta property="og:type" content="website" />
+                    <meta name="twitter:card" content="summary_large_image" />
+                    <meta name="twitter:title" content="${name} | Delivery" />
+                    <meta name="twitter:description" content="${slogan}" />
+                    <meta name="twitter:image" content="${logo}" />
+                  `;
+
+                  // Injeta com precisão cirúrgica antes de fechar o cabeçalho
+                  html = html.replace('</head>', `${tagsSEO}\n</head>`);
               }
           }
       } catch (err) {
