@@ -29,7 +29,16 @@ export default async function handler(req, res) {
                 description = data.fields.slogan?.stringValue || data.fields.message?.stringValue || description;
 
                 // Tenta pegar a storeLogoUrl (novo padrão) ou logoUrl (padrão antigo)
-                image = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue || image;
+                let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
+                
+                // GARANTIA WHATSAPP: Valida se a imagem é um link absoluto, exigência do WhatsApp
+                if (fetchedImage) {
+                    if (fetchedImage.startsWith('http')) {
+                        image = fetchedImage;
+                    } else {
+                        image = `https://${host}${fetchedImage.startsWith('/') ? '' : '/'}${fetchedImage}`;
+                    }
+                }
             }
         }
     } catch (error) {
@@ -44,14 +53,15 @@ export default async function handler(req, res) {
         <meta charset="UTF-8">
         <title>${title}</title>
         
-        <!-- Tags Mágicas pro WhatsApp / Facebook -->
         <meta property="og:title" content="${title}" />
         <meta property="og:description" content="${description}" />
         <meta property="og:image" content="${image}" />
+        <meta property="og:image:secure_url" content="${image}" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
         <meta property="og:url" content="https://${host}${req.url}" />
         <meta property="og:type" content="website" />
         
-        <!-- Tags pro Twitter / Telegram -->
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${description}" />
