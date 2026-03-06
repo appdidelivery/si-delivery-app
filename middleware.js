@@ -1,7 +1,6 @@
 // Arquivo: /middleware.js (Raiz do projeto)
 
 export const config = {
-  // Executa o middleware APENAS em rotas de navegação (ignora imagens, js, css e apis)
   matcher: ['/((?!api|_vercel|assets|.*\\..*).*)'], 
 };
 
@@ -11,18 +10,16 @@ export default async function middleware(request) {
   
   // 1. Descobre a loja pela URL
   let storeId = host.split('.')[0];
-  
-  // Fallbacks de segurança para ambiente de teste ou domínio raiz
   if (storeId === 'app' || storeId === 'www' || host.includes('localhost')) {
-      storeId = 'csi'; // Loja padrão de fallback
+      storeId = 'csi'; 
   }
 
-  // 2. Pega o index.html original do seu build (SPA Vite)
   const response = await fetch(new URL('/index.html', request.url));
   let html = await response.text();
 
-  // 3. Busca os dados da loja no Firestore via REST API (Edge Compatible)
-  const projectId = process.env.FIREBASE_PROJECT_ID; // Garanta que isso existe na Vercel
+  // 2. CORREÇÃO: Fallback de Variável de Ambiente para Vercel
+  // Troque 'velodelivery-xxxx' pelo ID real do seu projeto Firebase se as variáveis falharem
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'SEU_FIREBASE_PROJECT_ID_AQUI';
   
   if (projectId) {
       try {
@@ -34,21 +31,30 @@ export default async function middleware(request) {
               const fields = data.fields;
               
               if (fields) {
-                  // Extração segura dos campos do Firestore REST API
                   const name = fields.name?.stringValue || 'Velo Delivery';
                   const slogan = fields.slogan?.stringValue || 'Faça seu pedido online.';
                   const logo = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || 'https://velodelivery.com.br/painel.jpg';
 
-                  // 4. Injeta as tags no HTML bruto via Regex ANTES de enviar pro WhatsApp
-                  html = html.replace(/<title>(.*?)<\/title>/i, `<title>${name} | Delivery</title>`);
-                  html = html.replace(/<meta property="og:title" content="(.*?)"/i, `<meta property="og:title" content="${name} | Delivery"`);
-                  html = html.replace(/<meta property="og:description" content="(.*?)"/i, `<meta property="og:description" content="${slogan}"`);
-                  html = html.replace(/<meta name="description" content="(.*?)"/i, `<meta name="description" content="${slogan}"`);
+                  // 3. CORREÇÃO: Cria o bloco de tags dinâmicas
+                  const dynamicTags = `
+                      <title>${name} | Delivery</title>
+                      <meta name="description" content="${slogan}" />
+                      <meta property="og:title" content="${name} | Delivery" />
+                      <meta property="og:description" content="${slogan}" />
+                      <meta property="og:image" content="${logo}" />
+                      <meta property="og:image:secure_url" content="${logo}" />
+                      <meta property="og:type" content="website" />
+                      <meta name="twitter:image" content="${logo}" />
+                  `;
+
+                  // 4. CORREÇÃO: Estratégia "Limpar e Injetar"
+                  // Remove tags de título, description e open graph velhas geradas pelo Vite
+                  html = html.replace(/<title>(.*?)<\/title>/gi, '');
+                  html = html.replace(/<meta name="description"(.*?)>/gi, '');
+                  html = html.replace(/<meta property="og:(.*?)>/gi, '');
                   
-                  // Atualiza as imagens (Open Graph e Twitter)
-                  html = html.replace(/<meta property="og:image" content="(.*?)"/i, `<meta property="og:image" content="${logo}"`);
-                  html = html.replace(/<meta property="og:image:secure_url" content="(.*?)"/i, `<meta property="og:image:secure_url" content="${logo}"`);
-                  html = html.replace(/<meta name="twitter:image" content="(.*?)"/i, `<meta name="twitter:image" content="${logo}"`);
+                  // Injeta as tags novinhas logo antes de fechar o head
+                  html = html.replace('</head>', `${dynamicTags}\n</head>`);
               }
           }
       } catch (err) {
@@ -56,11 +62,9 @@ export default async function middleware(request) {
       }
   }
 
-  // 5. Retorna o HTML alterado com Cache agressivo para não onerar o Firebase
   return new Response(html, {
       headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          // Armazena no Edge Cache da Vercel por 10 minutos (600s)
           'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200' 
       },
   });
