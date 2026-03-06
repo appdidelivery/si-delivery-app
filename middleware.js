@@ -9,6 +9,15 @@ export default async function middleware(request) {
   const url = new URL(request.url);
   const host = request.headers.get('host') || '';
   
+  // 🚀 A GRANDE SACADA: O Porteiro VIP para os robôs
+  const userAgent = request.headers.get('user-agent') || '';
+  const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber/i.test(userAgent);
+  
+  // Se for o robô do WhatsApp/Meta, repassa DIRETO para a API que vimos que está 100% funcional!
+  if (isBot) {
+      return fetch(new URL('/api/social', request.url));
+  }
+
   // 1. Descobre a loja pela URL
   let storeId = host.split('.')[0];
   
