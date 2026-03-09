@@ -6,9 +6,9 @@ import {
     addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
 } from 'firebase/firestore';
 import {
-    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
-    Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils
+    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
+    Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -120,6 +120,7 @@ const allNavItems =[
     { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
     { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
     { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
+    { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
     { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
 ];
 
@@ -301,6 +302,39 @@ export default function Admin() {
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
     const[generalBanners, setGeneralBanners] = useState([]);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const[isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    const changelog =[
+        { id: 1, title: "🚀 Nova Aba de Financeiro", desc: "Controle seus lucros, visualize faturas e receba via Stripe." },
+        { id: 2, title: "🤖 Assistente de Vendas IA", desc: "Gere nomes e descrições automáticas de produtos usando IA." },
+        { id: 3, title: "🎁 Clube de Fidelidade", desc: "Novo sistema de pontos com resgate de recompensas automático." },
+        { id: 4, title: "⚡ Otimização de Performance", desc: "Melhorias de velocidade e limpeza inteligente de cache." }
+    ];
+    // --- ESTADOS DE EQUIPE / USUÁRIOS ---
+    const [teamMembers, setTeamMembers] = useState([]);
+    const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+    const[editingTeamId, setEditingTeamId] = useState(null);
+    const [teamForm, setTeamForm] = useState({
+        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
+    });
+
+    const handleUpdateAndClearCache = async () => {
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) await registration.unregister();
+            }
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                for (const name of cacheNames) await caches.delete(name);
+            }
+            window.location.reload(true);
+        } catch (error) {
+            console.error("Erro ao limpar cache:", error);
+            window.location.reload();
+        }
+    };
 
     // --- ESTADOS DE INTEGRAÇÕES ---
     const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
@@ -480,6 +514,7 @@ export default function Admin() {
         schedule: {}, // Agenda Semanal
         slogan: '', // Adicionado para consistência
         whatsapp: '', // Adicionado para consistência
+        cnpj: '', // CNPJ da Loja
     });
     const [logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
@@ -526,6 +561,7 @@ export default function Admin() {
         setCoupons([]);
         setLoyaltyRedemptions([]);
         setReviewsList([]);
+        setTeamMembers([]);
 
         // Pedidos
         const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), (s) => {
@@ -574,6 +610,7 @@ export default function Admin() {
                     slogan: data.slogan || '', // Garante que slogan existe
                     whatsapp: data.whatsapp || '', // Garante que whatsapp existe
                     message: data.message || '', // Garante que message existe
+                    cnpj: data.cnpj || '',
                 });
             } else {
                 setStoreStatus(prev => ({...prev, name: storeId}));
@@ -597,10 +634,11 @@ export default function Admin() {
             fetched.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setReviewsList(fetched);
         });
+        const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
         return () => { 
             unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubTeam();
         };
     },[storeId]);
     
@@ -1229,7 +1267,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         ))}
                 </nav>
                 {/* Versão do App na barra lateral do desktop */}
-                <div className="mt-4 text-[9px] font-medium text-slate-400 text-center">Veloapp V7.1</div>
+                {/* Versão do App na barra lateral do desktop */}
+                <div className="mt-4 flex flex-col items-center gap-2">
+                    <div className="text-[9px] font-medium text-slate-400 text-center">Veloapp V7.1</div>
+                    <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[9px] font-bold text-blue-500 hover:text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full transition-all">
+                        <RefreshCw size={10} /> Atualizar Painel
+                    </button>
+                </div>
                 <div className="mt-auto pt-4"> {/* Empurra para o fundo */}
                     {storeId && (
                         <a 
@@ -2044,6 +2088,66 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     </div>
                 )}
+                {/* --- ABA DE EQUIPE E USUÁRIOS --- */}
+                {activeTab === 'team' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Equipe</h1>
+                                <p className="text-slate-400 font-bold mt-2">Gerencie os acessos e permissões da sua loja.</p>
+                            </div>
+                            <button onClick={() => { setEditingTeamId(null); setTeamForm({ name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false } }); setIsTeamModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 flex items-center gap-2 transition-all active:scale-95">
+                                <UserPlus size={20}/> NOVO USUÁRIO
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {teamMembers.length === 0 ? (
+                                <div className="col-span-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center">
+                                    <Shield size={48} className="text-slate-300 mx-auto mb-4" />
+                                    <p className="text-slate-500 font-bold">Sua equipe está vazia. Convide usuários para gerenciar a loja.</p>
+                                </div>
+                            ) : (
+                                teamMembers.map(member => (
+                                    <div key={member.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex flex-col justify-between shadow-sm hover:shadow-md transition-all group">
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-xl shadow-inner">
+                                                    {member.name ? member.name.charAt(0).toUpperCase() : '?'}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-black text-slate-800 text-lg leading-tight truncate">{member.name}</h3>
+                                                    <p className="text-xs font-bold text-slate-400 truncate">{member.email}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="mb-2">
+                                                <span className="text-[10px] font-black uppercase text-slate-300 tracking-widest">Permissões:</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 mb-4">
+                                                {Object.entries(member.permissions || {}).filter(([_, v]) => v).map(([key]) => {
+                                                    const labels = { orders: 'Pedidos', products: 'Cardápio', customers: 'Clientes', store_settings: 'Loja', integrations: 'Integrações' };
+                                                    return (
+                                                        <span key={key} className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-green-100">
+                                                            {labels[key] || key}
+                                                        </span>
+                                                    );
+                                                })}
+                                                {Object.values(member.permissions || {}).every(v => !v) && (
+                                                    <span className="bg-slate-50 text-slate-500 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-slate-200">Nenhuma</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 border-t border-slate-50 pt-4 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => { setEditingTeamId(member.id); setTeamForm(member); setIsTeamModalOpen(true); }} className="flex-1 p-2 bg-slate-50 rounded-xl text-blue-600 font-bold text-xs uppercase hover:bg-blue-100 transition-all flex justify-center items-center gap-2"><Edit3 size={16} /> Editar</button>
+                                            <button onClick={() => window.confirm("Remover usuário?") && deleteDoc(doc(db, "team", member.id))} className="flex-1 p-2 bg-slate-50 rounded-xl text-red-600 font-bold text-xs uppercase hover:bg-red-100 transition-all flex justify-center items-center gap-2"><Trash2 size={16} /> Excluir</button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
 {/* --- ABA FINANCEIRO (NOVA) --- */}
                 {activeTab === 'finance' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2311,6 +2415,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Nome da Loja</label>
                                     <input type="text" placeholder="Nome da Loja" value={storeStatus.name} onChange={(e) => updateDoc(doc(db, "stores", storeId), { name: e.target.value }, { merge: true })} className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none" />
+                                </div>
+                                <div className="mt-4">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">CNPJ da Loja (Opcional)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ex: 00.000.000/0001-00" 
+                                        value={storeStatus.cnpj || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { cnpj: e.target.value }, { merge: true })} 
+                                        className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600" 
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Exibido no rodapé da sua loja para maior transparência e credibilidade.</p>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2"><MessageSquare size={14}/> Mensagem / Aviso (Aparece no Topo)</label>
@@ -2693,7 +2808,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             
                                             <div className="mb-8 relative z-10">
                                                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{app.name}</h3>
-                                                <p className="text-xs text-slate-400 font-bold mt-2 line-clamp-2">{app.desc}</p>
+                                                <p className="text-xs text-slate-400 mt-2 font-medium">
+        CNPJ: {store.cnpj}
+    </p>
                                             </div>
 
                                             <button 
@@ -2717,9 +2834,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             {/* --- RODAPÉ MOBILE: ESTRUTURA REVISADA --- */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-0 flex flex-col lg:hidden z-50"> 
-                {/* Barra da Versão */}
-                <div className="w-full text-right text-[8px] font-medium text-slate-300 px-2 pt-1 pb-0.5 border-b border-slate-50/10">
-                    Veloapp V7.1
+               {/* Barra da Versão e Atualização Mobile */}
+                <div className="w-full flex justify-between items-center px-3 pt-1.5 pb-1 border-b border-slate-50/10">
+                    <span className="text-[8px] font-medium text-slate-300">Veloapp V7.1</span>
+                    <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[8px] font-bold text-blue-500 hover:text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full transition-all">
+                        <RefreshCw size={10} /> Atualizar Painel
+                    </button>
                 </div>
                 {/* Botões de Navegação */}
                 <div className="flex justify-around overflow-x-auto whitespace-nowrap p-2">
@@ -3567,6 +3687,114 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             </form>
                             
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* MODAL DE ATUALIZAÇÃO E CACHE */}
+            <AnimatePresence>
+                {isUpdateModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
+                            <button onClick={() => setIsUpdateModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className="bg-blue-50 text-blue-600 p-4 rounded-full mb-4">
+                                    <RefreshCw size={32} />
+                                </div>
+                                <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none">Novidades da Atualização</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Versão 7.1</p>
+                            </div>
+
+                            <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 mb-8 max-h-60 overflow-y-auto custom-scrollbar">
+                                <ul className="space-y-4">
+                                    {changelog.map(item => (
+                                        <li key={item.id} className="text-left">
+                                            <h4 className="text-sm font-black text-slate-800">{item.title}</h4>
+                                            <p className="text-xs font-medium text-slate-500 mt-1">{item.desc}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            <button 
+                                onClick={handleUpdateAndClearCache}
+                                className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <RefreshCw size={18} /> Aplicar Atualização
+                            </button>
+                            <p className="text-[10px] text-center text-slate-400 font-bold mt-4">Isso irá limpar o cache do seu navegador e recarregar a página para aplicar as melhorias.</p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* MODAL DE EQUIPE (USUÁRIOS) */}
+            <AnimatePresence>
+                {isTeamModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl relative">
+                            <button onClick={() => setIsTeamModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-6">{editingTeamId ? 'Editar' : 'Novo'} Usuário</h2>
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const dataToSave = { ...teamForm, storeId: storeId, updatedAt: serverTimestamp() };
+                                    if (editingTeamId) {
+                                        await updateDoc(doc(db, "team", editingTeamId), dataToSave);
+                                    } else {
+                                        await addDoc(collection(db, "team"), { ...dataToSave, createdAt: serverTimestamp() });
+                                    }
+                                    setIsTeamModalOpen(false);
+                                    alert("Usuário salvo com sucesso!");
+                                } catch (error) {
+                                    alert("Erro ao salvar: " + error.message);
+                                }
+                            }} className="space-y-4">
+                                
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 ml-2">Nome do Colaborador</label>
+                                    <input type="text" placeholder="Ex: João Silva" required className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={teamForm.name} onChange={e => setTeamForm({ ...teamForm, name: e.target.value })} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 ml-2">E-mail de Acesso</label>
+                                    <input type="email" placeholder="joao@email.com" required className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={teamForm.email} onChange={e => setTeamForm({ ...teamForm, email: e.target.value })} />
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100">
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">Permissões de Acesso</label>
+                                    <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                        {[
+                                            { key: 'orders', label: 'Gestão de Pedidos', desc: 'Ver, aceitar e cancelar pedidos' },
+                                            { key: 'products', label: 'Cardápio / Estoque', desc: 'Adicionar produtos e categorias' },
+                                            { key: 'customers', label: 'Clientes VIP', desc: 'Ver clientes e Clube Fidelidade' },
+                                            { key: 'store_settings', label: 'Loja / Status', desc: 'Abrir/fechar loja e alterar regras' },
+                                            { key: 'integrations', label: 'Integrações', desc: 'Pixel, GA4, GTM e WhatsApp API' }
+                                        ].map(perm => (
+                                            <label key={perm.key} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={teamForm.permissions[perm.key] || false}
+                                                    onChange={() => setTeamForm(prev => ({ ...prev, permissions: { ...prev.permissions, [perm.key]: !prev.permissions[perm.key] } }))}
+                                                    className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer"
+                                                />
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-700 leading-none">{perm.label}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-1">{perm.desc}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 mt-2">
+                                    <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <Save size={18}/> Salvar Usuário
+                                    </button>
+                                </div>
+                            </form>
                         </motion.div>
                     </motion.div>
                 )}
