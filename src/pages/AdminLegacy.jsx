@@ -1919,180 +1919,194 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
 
                 {activeTab === 'marketing' && (
-                    <div className="space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className={`p-12 rounded-[4rem] shadow-2xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-transparent'}`}>
-                                <Flame size={64} className={settings.promoActive ? 'animate-bounce' : 'text-orange-500'} />
-                                {/* --- RECUPERAÇÃO DE VENDAS (EXIT INTENT) --- */}
-                        <div className={`p-10 rounded-[3rem] shadow-xl border-4 transition-all mt-8 ${settings.exitIntentActive ? 'bg-rose-600 text-white border-rose-400' : 'bg-white border-slate-100'}`}>
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-white/20 p-4 rounded-full">
-                                        <Ghost size={40} className={settings.exitIntentActive ? 'text-white animate-bounce' : 'text-slate-300'} /> 
-                                        {/* Importe Ghost do lucide-react */}
-                                    </div>
-                                    <div>
-                                        <h2 className={`text-3xl font-black italic uppercase tracking-tighter leading-none ${settings.exitIntentActive ? 'text-white' : 'text-slate-300'}`}>Resgate de Clientes</h2>
-                                        <p className={`text-xs font-bold mt-1 ${settings.exitIntentActive ? 'text-rose-100' : 'text-slate-300'}`}>Ofereça um cupom quando o cliente tentar sair.</p>
-                                    </div>
-                                </div>
-
-                                <button 
-                                    onClick={async () => { 
-                                        const newState = !settings.exitIntentActive; 
-                                        await setDoc(doc(db, "settings", storeId), { exitIntentActive: newState }, { merge: true }); 
-                                    }} 
-                                    className={`px-6 py-3 rounded-xl font-black uppercase tracking-widest text-sm shadow-lg transition-all ${settings.exitIntentActive ? 'bg-white text-rose-600 hover:bg-rose-50' : 'bg-rose-600 text-white hover:bg-rose-700'}`}
-                                >
-                                    {settings.exitIntentActive ? 'Desativar' : 'Ativar Resgate'}
-                                </button>
+                    <div className="space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-end mb-4">
+                            <div>
+                                <h1 className="text-3xl lg:text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Marketing</h1>
+                                <p className="text-slate-400 font-bold mt-2 text-sm">Gerencie suas campanhas, cupons e fidelização.</p>
                             </div>
-
-                            {/* CONFIGURAÇÃO DO CUPOM DE RESGATE */}
-                            {settings.exitIntentActive && (
-                                <div className="mt-6 pt-6 border-t border-rose-500/50 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in">
-                                    <div>
-                                        <label className="text-rose-100 font-bold text-xs uppercase mb-1 block">Cupom a Oferecer (Crie na aba Cupons)</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ex: VOLTA10"
-                                            value={settings.exitIntentCoupon || ''} 
-                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { exitIntentCoupon: e.target.value.toUpperCase() }, { merge: true })}
-                                            className="w-full p-3 rounded-xl bg-white text-rose-900 font-black text-center uppercase outline-none placeholder-rose-200"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-rose-100 font-bold text-xs uppercase mb-1 block">Frase de Impacto</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ex: Espere! Ganhe 5% OFF agora."
-                                            value={settings.exitIntentMessage || ''} 
-                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { exitIntentMessage: e.target.value }, { merge: true })}
-                                            className="w-full p-3 rounded-xl bg-white text-rose-900 font-bold outline-none placeholder-rose-200"
-                                        />
-                                    </div>
-                                </div>
-                            )}
                         </div>
-                                <h2 className="text-4xl font-black italic mt-6 uppercase tracking-tighter leading-none">Promo Relâmpago</h2>
-                                <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-8 rounded-[2.5rem] font-black uppercase tracking-widest text-xl shadow-2xl mt-8 ${settings.promoActive ? 'bg-slate-900' : 'bg-orange-600 text-white'}`}>{settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}</button>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+                            
+                            {/* COLUNA ESQUERDA: PROMOÇÃO E RESGATE */}
+                            <div className="space-y-6 lg:space-y-8">
                                 
-                                {/* --- EXIBIÇÃO DE BANNERS ATIVOS --- */}
-                                {settings.promoBannerUrls && settings.promoBannerUrls.length > 0 && (
-                                    <div className="mt-8 pt-6 border-t border-orange-400 space-y-4">
-                                        <h3 className="text-xl font-black text-white mb-4">Banners Atuais (Ativos na Loja)</h3>
-                                        <div className="space-y-4">
-                                            {settings.promoBannerUrls.map((url, index) => (
-                                                url ? <img key={index} src={url} className="w-full max-w-lg h-40 object-cover rounded-2xl shadow-md bg-orange-400" alt={`Promo Banner ${index + 1}`} /> : null
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {/* --- FIM DA CORREÇÃO (EXIBIÇÃO DE BANNERS ATIVOS) --- */}
-
-                                <div className="mt-10 pt-6 border-t border-slate-100 space-y-4">
-                                    <h3 className="text-xl font-black uppercase mb-4">Gerenciar Banners</h3>
-                                    <div className="flex flex-col items-center gap-4">
-                                        {/* Banner 1 */}
-                                        {(promoBannerFile1 || settings.promoBannerUrls[0]) && <img src={promoBannerFile1 ? URL.createObjectURL(promoBannerFile1) : settings.promoBannerUrls[0]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50"/>}
-                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile1(e.target.files[0])} className="hidden" id="promo-banner-upload-1"/>
-                                        <label htmlFor="promo-banner-upload-1" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 1 <UploadCloud size={20}/></label>
-                                        
-                                        {/* Banner 2 */}
-                                        {(promoBannerFile2 || settings.promoBannerUrls[1]) && <img src={promoBannerFile2 ? URL.createObjectURL(promoBannerFile2) : settings.promoBannerUrls[1]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50 mt-4"/>}
-                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile2(e.target.files[0])} className="hidden" id="promo-banner-upload-2"/>
-                                        <label htmlFor="promo-banner-upload-2" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 2 <UploadCloud size={20}/></label>
-
-                                        {/* Banner 3 */}
-                                        {(promoBannerFile3 || settings.promoBannerUrls[2]) && <img src={promoBannerFile3 ? URL.createObjectURL(promoBannerFile3) : settings.promoBannerUrls[2]} className="w-full max-w-lg h-40 object-cover rounded-2xl bg-slate-50 mt-4"/>}
-                                        <input type="file" accept="image/*" onChange={(e) => setPromoBannerFile3(e.target.files[0])} className="hidden" id="promo-banner-upload-3"/>
-                                        <label htmlFor="promo-banner-upload-3" className="w-full max-w-lg p-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200">Upload Banner 3 <UploadCloud size={20}/></label>
-
-                                        <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className="w-full max-w-lg p-3 bg-blue-600 text-white rounded-2xl font-black">{uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}</button>
-                                    </div>
-                                </div>
-                            </div>
-{/* --- CLUBE DE FIDELIDADE (ATIVO) --- */}
-                        <div className={`p-12 rounded-[4rem] shadow-xl border-4 transition-all ${settings.loyaltyActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-white border-slate-100'}`}>
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                                <div className="flex items-center gap-4">
-                                    <Crown size={64} className={settings.loyaltyActive ? 'text-yellow-300 animate-pulse' : 'text-slate-200'} />
-                                    <div>
-                                        <h2 className={`text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.loyaltyActive ? 'text-white' : 'text-slate-300'}`}>Clube Fidelidade</h2>
-                                        <p className={`text-sm font-bold mt-1 ${settings.loyaltyActive ? 'text-purple-200' : 'text-slate-300'}`}>Fidelize seus clientes com pontos.</p>
-                                    </div>
-                                </div>
-
-                                <button 
-                                    onClick={async () => { 
-                                        const newState = !settings.loyaltyActive; 
-                                        await setDoc(doc(db, "settings", storeId), { loyaltyActive: newState }, { merge: true }); 
-                                    }} 
-                                    className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-lg shadow-lg transition-all ${settings.loyaltyActive ? 'bg-white text-purple-600 hover:bg-purple-50' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
-                                >
-                                    {settings.loyaltyActive ? 'Desativar Clube' : 'Ativar Clube'}
-                                </button>
-                            </div>
-
-                            {/* CONFIGURAÇÕES DO CLUBE (SÓ APARECE SE ATIVO) */}
-                            {settings.loyaltyActive && (
-                                <div className="mt-8 pt-6 border-t border-purple-500/50 space-y-6 animate-in fade-in slide-in-from-top-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        
-                                        {/* Regra de Pontos */}
-                                        <div className="bg-purple-700/50 p-6 rounded-3xl border border-purple-500">
-                                            <label className="text-purple-200 font-bold text-xs uppercase mb-2 block">A cada R$ 1,00 gasto, o cliente ganha:</label>
-                                            <div className="flex items-center gap-3">
-                                                <input 
-                                                    type="number" 
-                                                    value={settings.pointsPerReal || 1} 
-                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { pointsPerReal: Number(e.target.value) }, { merge: true })}
-                                                    className="w-24 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-xl outline-none"
-                                                />
-                                                <span className="text-2xl font-black text-white italic">PONTOS</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Meta de Resgate (Visual) */}
-                                        <div className="bg-purple-700/50 p-6 rounded-3xl border border-purple-500">
-                                            <label className="text-purple-200 font-bold text-xs uppercase mb-2 block">Objetivo (Ex: 100 pontos):</label>
-                                            <div className="flex items-center gap-3">
-                                                <input 
-                                                    type="number" 
-                                                    value={settings.loyaltyGoal || 100} 
-                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyGoal: Number(e.target.value) }, { merge: true })}
-                                                    className="w-24 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-xl outline-none"
-                                                />
-                                                <span className="text-white font-bold text-sm leading-tight">Pontos para<br/>ganhar prêmio</span>
-                                            </div>
+                                {/* --- 1. PROMO RELÂMPAGO --- */}
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl transition-all border-4 ${settings.promoActive ? 'bg-orange-500 text-white border-orange-300' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <Flame size={48} className={settings.promoActive ? 'animate-bounce text-white' : 'text-orange-500'} />
+                                        <div>
+                                            <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.promoActive ? 'text-white' : 'text-slate-800'}`}>Promo Relâmpago</h2>
+                                            <p className={`text-xs font-bold mt-1 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>Banners rotativos no topo da loja.</p>
                                         </div>
                                     </div>
 
-                                    {/* Regras e Prêmios */}
-                                    <div className="bg-purple-700/50 p-6 rounded-3xl border border-purple-500">
-                                        <label className="text-purple-200 font-bold text-xs uppercase mb-2 block flex items-center gap-2"><Edit3 size={14}/> Texto do Prêmio (O que ele ganha?)</label>
-                                        <textarea 
-                                            rows="2"
-                                            placeholder="Ex: Junte 100 pontos e ganhe uma Heineken Long Neck geladíssima!"
-                                            value={settings.loyaltyReward || ''}
-                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyReward: e.target.value }, { merge: true })}
-                                            className="w-full p-4 rounded-xl bg-white text-purple-900 font-bold outline-none placeholder-purple-300"
+                                    {/* NOVO: CAMPO DE AGENDAMENTO (DESATIVAÇÃO AUTOMÁTICA) */}
+                                    <div className={`p-4 rounded-2xl mb-6 border ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
+                                        <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                            ⏱️ Desativar automaticamente em: (Opcional)
+                                        </label>
+                                        <input 
+                                            type="datetime-local" 
+                                            value={settings.promoExpiresAt || ''} 
+                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { promoExpiresAt: e.target.value }, { merge: true })}
+                                            className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`}
                                         />
                                     </div>
+
+                                    <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-5 lg:py-6 rounded-2xl lg:rounded-[2rem] font-black uppercase tracking-widest text-lg shadow-xl ${settings.promoActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-orange-600 text-white hover:bg-orange-700'} transition-all active:scale-95`}>
+                                        {settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}
+                                    </button>
+                                    
+                                    {/* EXIBIÇÃO DE BANNERS ATIVOS */}
+                                    {settings.promoBannerUrls && settings.promoBannerUrls.length > 0 && (
+                                        <div className={`mt-8 pt-6 border-t ${settings.promoActive ? 'border-orange-400' : 'border-slate-100'} space-y-4`}>
+                                            <h3 className={`text-sm font-black uppercase ${settings.promoActive ? 'text-white' : 'text-slate-600'}`}>Banners Atuais</h3>
+                                            <div className="space-y-4">
+                                                {settings.promoBannerUrls.map((url, index) => (
+                                                    url ? <img key={index} src={url} className="w-full h-32 object-cover rounded-2xl shadow-sm bg-slate-100" alt={`Promo Banner ${index + 1}`} /> : null
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* UPLOAD DE BANNERS */}
+                                    <div className={`mt-8 pt-6 border-t ${settings.promoActive ? 'border-orange-400' : 'border-slate-100'} space-y-4`}>
+                                        <h3 className={`text-sm font-black uppercase ${settings.promoActive ? 'text-white' : 'text-slate-600'}`}>Gerenciar Banners</h3>
+                                        <div className="flex flex-col gap-4">
+                                            {/* Banners Inputs (Mantido a lógica original, ajustado layout) */}
+                                            {[
+                                                { file: promoBannerFile1, setFile: setPromoBannerFile1, url: settings.promoBannerUrls?.[0], id: 1 },
+                                                { file: promoBannerFile2, setFile: setPromoBannerFile2, url: settings.promoBannerUrls?.[1], id: 2 },
+                                                { file: promoBannerFile3, setFile: setPromoBannerFile3, url: settings.promoBannerUrls?.[2], id: 3 }
+                                            ].map((b) => (
+                                                <div key={b.id} className="w-full">
+                                                    {(b.file || b.url) && <img src={b.file ? URL.createObjectURL(b.file) : b.url} className="w-full h-24 object-cover rounded-xl mb-2 bg-slate-100"/>}
+                                                    <input type="file" accept="image/*" onChange={(e) => b.setFile(e.target.files[0])} className="hidden" id={`promo-banner-upload-${b.id}`}/>
+                                                    <label htmlFor={`promo-banner-upload-${b.id}`} className={`w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm cursor-pointer border-2 border-dashed ${settings.promoActive ? 'bg-orange-600 border-orange-400 text-orange-50 hover:bg-orange-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'} transition-all`}>
+                                                        Upload Banner {b.id} <UploadCloud size={16}/>
+                                                    </label>
+                                                </div>
+                                            ))}
+                                            <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className={`w-full p-4 mt-2 rounded-xl font-black shadow-lg transition-all ${settings.promoActive ? 'bg-white text-orange-600 hover:bg-orange-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                                                {uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
-                        </div>                        </div>
-                        <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 space-y-8">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>
-                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO CUPOM</button>
+
+                                {/* --- 2. RECUPERAÇÃO DE VENDAS (EXIT INTENT) --- */}
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all ${settings.exitIntentActive ? 'bg-rose-600 text-white border-rose-400' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-white/20 p-3 rounded-full">
+                                                <Ghost size={32} className={settings.exitIntentActive ? 'text-white animate-bounce' : 'text-slate-300'} /> 
+                                            </div>
+                                            <div>
+                                                <h2 className={`text-2xl font-black italic uppercase tracking-tighter leading-none ${settings.exitIntentActive ? 'text-white' : 'text-slate-800'}`}>Resgate de Clientes</h2>
+                                                <p className={`text-xs font-bold mt-1 ${settings.exitIntentActive ? 'text-rose-100' : 'text-slate-400'}`}>Pop-up de retenção.</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={async () => { const newState = !settings.exitIntentActive; await setDoc(doc(db, "settings", storeId), { exitIntentActive: newState }, { merge: true }); }} 
+                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.exitIntentActive ? 'bg-white text-rose-600 hover:bg-rose-50' : 'bg-rose-600 text-white hover:bg-rose-700'}`}
+                                        >
+                                            {settings.exitIntentActive ? 'Desativar' : 'Ativar Resgate'}
+                                        </button>
+                                    </div>
+
+                                    {settings.exitIntentActive && (
+                                        <div className="pt-4 border-t border-rose-500/50 grid grid-cols-1 gap-4 animate-in fade-in">
+                                            <div>
+                                                <label className="text-rose-100 font-bold text-[10px] uppercase mb-1 block">Cupom a Oferecer (Crie na aba Cupons)</label>
+                                                <input 
+                                                    type="text" placeholder="Ex: VOLTA10" value={settings.exitIntentCoupon || ''} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { exitIntentCoupon: e.target.value.toUpperCase() }, { merge: true })}
+                                                    className="w-full p-3 rounded-xl bg-white text-rose-900 font-black text-center uppercase outline-none placeholder-rose-200"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-rose-100 font-bold text-[10px] uppercase mb-1 block">Frase de Impacto</label>
+                                                <input 
+                                                    type="text" placeholder="Ex: Espere! Ganhe 5% OFF agora." value={settings.exitIntentMessage || ''} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { exitIntentMessage: e.target.value }, { merge: true })}
+                                                    className="w-full p-3 rounded-xl bg-white text-rose-900 font-bold outline-none placeholder-rose-200 text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            {coupons.map(c => (
-                                <div key={c.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center">
-                                    <div><p className="font-black text-slate-800 text-xl">{c.code}</p></div>
-                                    <div className="flex gap-2"><button onClick={() => { setEditingCouponId(c.id); setCouponForm(c); setIsCouponModalOpen(true); }} className="p-2 bg-slate-100 rounded-xl text-blue-600"><Edit3 size={18} /></button><button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "coupons", c.id))} className="p-2 bg-slate-100 rounded-xl text-red-600"><Trash2 size={18} /></button></div>
+
+                            {/* COLUNA DIREITA: FIDELIDADE E CUPONS GERAIS */}
+                            <div className="space-y-6 lg:space-y-8">
+                                
+                                {/* --- 3. CLUBE DE FIDELIDADE --- */}
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.loyaltyActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <Crown size={48} className={settings.loyaltyActive ? 'text-yellow-300 animate-pulse' : 'text-slate-200'} />
+                                            <div>
+                                                <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.loyaltyActive ? 'text-white' : 'text-slate-800'}`}>Clube Fidelidade</h2>
+                                                <p className={`text-xs font-bold mt-1 ${settings.loyaltyActive ? 'text-purple-200' : 'text-slate-400'}`}>Gamificação e pontos.</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={async () => { const newState = !settings.loyaltyActive; await setDoc(doc(db, "settings", storeId), { loyaltyActive: newState }, { merge: true }); }} 
+                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.loyaltyActive ? 'bg-white text-purple-600 hover:bg-purple-50' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+                                        >
+                                            {settings.loyaltyActive ? 'Desativar Clube' : 'Ativar Clube'}
+                                        </button>
+                                    </div>
+
+                                    {settings.loyaltyActive && (
+                                        <div className="pt-6 border-t border-purple-500/50 space-y-4 animate-in fade-in slide-in-from-top-4">
+                                            <div className="bg-purple-700/50 p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-purple-500">
+                                                <label className="text-purple-200 font-bold text-[10px] uppercase mb-2 block">A cada R$ 1,00 gasto, o cliente ganha:</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input type="number" value={settings.pointsPerReal || 1} onChange={(e) => setDoc(doc(db, "settings", storeId), { pointsPerReal: Number(e.target.value) }, { merge: true })} className="w-20 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-lg outline-none" />
+                                                    <span className="text-xl font-black text-white italic">PONTOS</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-purple-700/50 p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-purple-500">
+                                                <label className="text-purple-200 font-bold text-[10px] uppercase mb-2 block">Objetivo (Ex: 100 pontos):</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input type="number" value={settings.loyaltyGoal || 100} onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyGoal: Number(e.target.value) }, { merge: true })} className="w-24 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-lg outline-none" />
+                                                    <span className="text-white font-bold text-xs leading-tight">Pontos para<br/>ganhar prêmio</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-purple-700/50 p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-purple-500">
+                                                <label className="text-purple-200 font-bold text-[10px] uppercase mb-2 flex items-center gap-1"><Edit3 size={12}/> Texto do Prêmio</label>
+                                                <textarea rows="2" placeholder="Ex: Ganhe uma Heineken!" value={settings.loyaltyReward || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyReward: e.target.value }, { merge: true })} className="w-full p-3 rounded-xl bg-white text-purple-900 font-bold outline-none placeholder-purple-300 text-sm" />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
+                            </div>
+                        </div>
+
+                        {/* --- 4. GESTÃO DE CUPONS (Abaixo das colunas) --- */}
+                        <div className="bg-white p-6 lg:p-10 rounded-3xl lg:rounded-[4rem] shadow-sm border border-slate-100 space-y-6 mt-6">
+                            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                                <h2 className="text-2xl lg:text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>
+                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm">+ NOVO CUPOM</button>
+                            </div>
+                            <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                {coupons.map(c => (
+                                    <div key={c.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center hover:bg-slate-100 transition-colors">
+                                        <div>
+                                            <p className="font-black text-slate-800 text-lg uppercase">{c.code}</p>
+                                            <p className="text-[10px] font-bold text-slate-500">{c.type === 'percentage' ? `${c.value}% OFF` : `R$ ${c.value} OFF`} {c.minimumOrderValue > 0 && `| Min: R$ ${c.minimumOrderValue}`}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setEditingCouponId(c.id); setCouponForm(c); setIsCouponModalOpen(true); }} className="p-2 bg-white rounded-lg text-blue-600 shadow-sm hover:bg-blue-50"><Edit3 size={16} /></button>
+                                            <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "coupons", c.id))} className="p-2 bg-white rounded-lg text-red-600 shadow-sm hover:bg-red-50"><Trash2 size={16} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {coupons.length === 0 && <p className="text-center text-slate-400 font-bold py-6 text-sm">Nenhum cupom criado ainda.</p>}
+                            </div>
                         </div>
                     </div>
                 )}

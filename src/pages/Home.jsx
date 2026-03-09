@@ -1075,7 +1075,10 @@ if (window.fbq) {
       </AnimatePresence>
 
       <AnimatePresence>
-        {marketingSettings.promoActive && marketingSettings.promoBannerUrls && marketingSettings.promoBannerUrls.length > 0 && (
+        {marketingSettings.promoActive && 
+         marketingSettings.promoBannerUrls && 
+         marketingSettings.promoBannerUrls.length > 0 && 
+         (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
