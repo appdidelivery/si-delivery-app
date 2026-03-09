@@ -109,22 +109,27 @@ const renderCategoryIcon = (iconName, categoryName) => {
 };
 
 const getPriceWithQuantityDiscount = (product, quantity) => {
+    // 1. Define o preço base: Se tem promocional usa ele, senão usa o normal.
+    const basePrice = Number(product.promotionalPrice) > 0 ? Number(product.promotionalPrice) : Number(product.price);
+    
     if (!product.quantityDiscounts || product.quantityDiscounts.length === 0) {
-        return product.price; 
+        return basePrice; 
     }
+    
     const applicableDiscount = product.quantityDiscounts
         .filter(qd => quantity >= qd.minQuantity)
         .sort((a, b) => b.minQuantity - a.minQuantity)[0]; 
+        
     if (applicableDiscount) {
-        let discountedPrice = product.price; 
+        let discountedPrice = basePrice; 
         if (applicableDiscount.type === 'percentage') {
-            discountedPrice = product.price * (1 - applicableDiscount.value / 100);
+            discountedPrice = basePrice * (1 - applicableDiscount.value / 100);
         } else if (applicableDiscount.type === 'fixed') { 
-            discountedPrice = product.price - applicableDiscount.value;
+            discountedPrice = basePrice - applicableDiscount.value;
         }
         return discountedPrice > 0 ? discountedPrice : 0; 
     }
-    return product.price; 
+    return basePrice; 
 };
 
 // --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM LINHA RETA) ---
@@ -189,7 +194,8 @@ export default function Home() {
 
   const calculateModalTotal = () => {
       if (!selectedProduct) return 0;
-      let total = Number(selectedProduct.price);
+      // Pega o promocional se houver, senão o normal
+      let total = Number(selectedProduct.promotionalPrice) > 0 ? Number(selectedProduct.promotionalPrice) : Number(selectedProduct.price);
       Object.values(selectedOptions).forEach(optionArray => {
           optionArray.forEach(opt => { total += Number(opt.price || 0); });
       });
@@ -801,6 +807,10 @@ if (window.fbq) {
     if (cart.length === 0) return alert("Carrinho vazio!");
     if (shippingFee === null) return alert("Frete não calculado.");
 
+    if (!storeSettings?.stripeConnectId &&['pix', 'cartao'].includes(customer.payment)) {
+        return alert("Por favor, selecione uma das formas de pagamento disponíveis abaixo para a entrega.");
+    }
+
     setIsFinalizing(true); 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     
@@ -809,13 +819,16 @@ if (window.fbq) {
       const newOrderRef = doc(collection(db, "orders"));
       const orderId = newOrderRef.id;
 
+      const isOfflinePayment =['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix'].includes(customer.payment);
+
       const orderData = {
         customerName: customer.name || "", 
         customerAddress: fullAddress || "", 
         customerPhone: customer.phone || "",
         paymentMethod: customer.payment || "", 
+        paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
-        items: sanitizedCart, 
+        items: sanitizedCart,
         subtotal: subtotal || 0, 
         shippingFee: shippingFee || 0, 
         total: finalTotal || 0, 
@@ -851,7 +864,7 @@ if (window.fbq) {
               });
           }
       }
-      if (customer.payment === 'dinheiro' || customer.payment === 'motoboy_card') {
+      if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
           if (appliedCoupon) {
             await updateDoc(doc(db, "coupons", appliedCoupon.id), { currentUsage: (appliedCoupon.currentUsage || 0) + 1 });
@@ -865,9 +878,14 @@ if (window.fbq) {
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
           const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
           
-          const obsMsg = customer.payment === 'dinheiro' 
-              ? `\n💵 *Pagamento:* Dinheiro\n🪙 *Troco para:* ${customer.changeFor || 'Não precisa'}`
-              : `\n💳 *Pagamento:* Cartão na Entrega (Levar maquininha)`;
+          let obsMsg = '';
+          if (customer.payment === 'dinheiro') {
+              obsMsg = `\n💵 *Pagamento:* Dinheiro\n🪙 *Troco para:* ${customer.changeFor || 'Não precisa'}`;
+          } else if (customer.payment === 'offline_pix') {
+              obsMsg = `\n📱 *Pagamento:* PIX (Na Entrega / Chave da Loja)`;
+          } else {
+              obsMsg = `\n💳 *Pagamento:* Cartão na Entrega (Levar maquininha)`;
+          }
 
           const linkAcompanhamento = `https://${window.location.host}/track/${orderId}`;
           const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
@@ -1140,13 +1158,13 @@ if (window.fbq) {
                                   {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                   <div className="flex justify-between items-center mt-auto">
                                       <div>
-                                          {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                          {Number(p.promotionalPrice) > 0 ? (
                                               <>
-                                                  <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                  <span className="text-[11px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
+                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
                                               </>
                                           ) : (
-                                              <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
                                       <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
@@ -1191,13 +1209,13 @@ if (window.fbq) {
                                   {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                   <div className="flex justify-between items-center mt-auto">
                                       <div>
-                                          {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                          {Number(p.promotionalPrice) > 0 ? (
                                               <>
-                                                  <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                  <span className="text-[11px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
+                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
                                               </>
                                           ) : (
-                                              <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
                                       <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
@@ -1238,20 +1256,20 @@ if (window.fbq) {
                                 <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
                                 {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                 <div className="flex justify-between items-center mt-auto">
-                                    <div>
-                                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
-                                            <>
-                                                <span className="text-sm font-bold text-slate-400 line-through block">R$ {Number(p.originalPrice).toFixed(2)}</span>
-                                                <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                            </>
-                                        ) : (
-                                            <span className={`${currentTheme.text} font-black text-sm italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                        )}
-                                    </div>
-                                    <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                        <ShoppingCart size={16} />
-                                    </button>
-                                </div>
+                                      <div>
+                                          {Number(p.promotionalPrice) > 0 ? (
+                                              <>
+                                                  <span className="text-[11px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
+                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                              </>
+                                          ) : (
+                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                          )}
+                                      </div>
+                                      <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} />
+                                      </button>
+                                  </div>
                             </motion.div>
                         );
                     })}
@@ -1293,10 +1311,10 @@ if (window.fbq) {
                                                         {p.description || "Clique para ver mais detalhes e opções."}
                                                     </p>
                                                     <div className="mt-auto">
-                                                        {p.hasDiscount && p.originalPrice && p.price < p.originalPrice ? (
+                                                        {Number(p.promotionalPrice) > 0 ? (
                                                             <div className="flex items-center gap-2">
-                                                                <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                                                <span className="text-xs font-bold text-slate-400 line-through">R$ {Number(p.originalPrice).toFixed(2)}</span>
+                                                                <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                                                <span className="text-xs font-bold text-slate-400 line-through">R$ {Number(p.price).toFixed(2)}</span>
                                                             </div>
                                                         ) : (
                                                             <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
@@ -1346,9 +1364,17 @@ if (window.fbq) {
       </section>
 
       <footer className="p-12 text-center">
+        {/* --- INÍCIO: EXIBIÇÃO DO CNPJ --- */}
+        {storeSettings.cnpj && (
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">
+                CNPJ: {storeSettings.cnpj}
+            </p>
+        )}
+        {/* --- FIM: EXIBIÇÃO DO CNPJ --- */}
+        
         <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
         <a 
-          href="https://velodelivery.com.br" 
+          href="https://velodelivery.com.br"
           target="_blank" 
           rel="noopener noreferrer" 
           className="inline-flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer"
@@ -1356,16 +1382,11 @@ if (window.fbq) {
           <img src="/logo retangular Velo Delivery.png" className="h-6 w-auto mb-2" alt="Velo Delivery" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
         </a>
-       <div className="flex gap-4 justify-center text-sm text-gray-500 mt-8 mb-4">
+        <div className="flex gap-4 justify-center text-sm text-gray-500 mt-8 mb-4">
             <a href="/politicas" className="hover:underline">Política de Privacidade</a>
             <a href="/politicas" className="hover:underline">Trocas e Devoluções</a>
             <a href="/politicas" className="hover:underline">Política de Entrega</a>
         </div>
-        {storeSettings?.cnpj && (
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">
-                CNPJ: {storeSettings.cnpj}
-            </p>
-        )}
       </footer>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> 
@@ -1503,7 +1524,9 @@ if (window.fbq) {
                                   <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
                                       <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
-                                      <p className={`${currentTheme.text} font-black text-sm`}>R$ {p.price?.toFixed(2)}</p>
+                                      <p className={`${currentTheme.text} font-black text-sm`}>
+                                          R$ {Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice).toFixed(2) : Number(p.price).toFixed(2)}
+                                      </p>
                                       <button onClick={() => addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
                                   </div>
                               ))}
@@ -1514,12 +1537,16 @@ if (window.fbq) {
                   <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                   <div>
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      {[ 
-                        {id:'pix', name:'PIX', icon: <QrCode size={20}/>}, 
-                        {id:'cartao', name:'CARTÃO', icon: <CreditCard size={20}/>}, 
+                      {(storeSettings?.stripeConnectId ?[ 
+                        {id:'pix', name:'PIX ONLINE', icon: <QrCode size={20}/>}, 
+                        {id:'cartao', name:'CARTÃO ONLINE', icon: <CreditCard size={20}/>}, 
                         {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}, 
-                        {id:'motoboy_card', name:'COM MOTOBOY', icon: <Truck size={20}/>} 
-                      ].map(m => (
+                        {id:'offline_credit_card', name:'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>} 
+                      ] :[
+                        {id:'offline_pix', name:'PIX (NA ENTREGA)', icon: <QrCode size={20}/>}, 
+                        {id:'offline_credit_card', name:'CARTÃO (MAQUININHA)', icon: <CreditCard size={20}/>}, 
+                        {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}
+                      ]).map(m => (
                           <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?`${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`:'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                               {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center">{m.name}</span>
                           </button>
@@ -1751,6 +1778,42 @@ if (window.fbq) {
                 <p className="text-slate-500 text-sm mb-6 leading-relaxed">
                   {selectedProduct.description || "Sem descrição adicional detalhada."}
                 </p>
+                {/* --- INÍCIO: BADGES DE SEO E NUTRIÇÃO VISUAIS --- */}
+                {(selectedProduct.brand || selectedProduct.prepTime || selectedProduct.calories || (selectedProduct.suitableForDiet && selectedProduct.suitableForDiet.length > 0)) && (
+                  <div className="flex flex-wrap gap-2 mb-6 border-t border-slate-100 pt-4">
+                    {selectedProduct.brand && (
+                      <span className="flex items-center gap-1 bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        🏷️ {selectedProduct.brand}
+                      </span>
+                    )}
+                    {selectedProduct.prepTime && (
+                      <span className="flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-100 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        ⏱️ Prepara em {selectedProduct.prepTime} min
+                      </span>
+                    )}
+                    {selectedProduct.calories && (
+                      <span className="flex items-center gap-1 bg-rose-50 text-rose-600 border border-rose-100 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        🔥 {selectedProduct.calories} Kcal
+                      </span>
+                    )}
+                    {selectedProduct.suitableForDiet && selectedProduct.suitableForDiet.map((dietUrl, index) => {
+                       // Converte URL do schema.org em Label bonito
+                       const dietLabels = {
+                          'https://schema.org/VeganDiet': '🌿 Vegano',
+                          'https://schema.org/VegetarianDiet': '🥗 Vegetariano',
+                          'https://schema.org/GlutenFreeDiet': '🌾 Sem Glúten',
+                          'https://schema.org/HalalDiet': '☪️ Halal',
+                          'https://schema.org/KosherDiet': '✡️ Kosher'
+                       };
+                       return dietLabels[dietUrl] ? (
+                         <span key={index} className="flex items-center gap-1 bg-green-50 text-green-700 border border-green-100 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                            {dietLabels[dietUrl]}
+                         </span>
+                       ) : null;
+                    })}
+                  </div>
+                )}
+                {/* --- FIM: BADGES DE SEO E NUTRIÇÃO VISUAIS --- */}
 
                 {selectedProduct.complements && selectedProduct.complements.length > 0 && (
                     <div className="border-t border-slate-100 pt-2 mt-4 space-y-4">

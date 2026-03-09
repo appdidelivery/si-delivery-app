@@ -472,7 +472,15 @@ export default function Admin() {
         isBestSeller: false,
         quantityDiscounts:[], 
         recommendedIds:[],
-        isChilled: false
+        complements:[],
+        isChilled: false,
+        // --- NOVOS CAMPOS SEO / LOGÍSTICA ---
+        gtin: '',
+        brand: '',
+        prepTime: '',
+        deliveryLeadTime: '',
+        calories: '',
+        suitableForDiet: []
     });
 
     const [editingId, setEditingId] = useState(null);
@@ -1535,7 +1543,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                           <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[], isChilled: false }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                           <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -1580,7 +1588,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds || [], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet || [] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -2919,6 +2927,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     costPrice: parseFloat(form.costPrice) || 0,
                                     promotionalPrice: parseFloat(form.promotionalPrice) || 0,
                                     stock: parseInt(form.stock || 0), 
+                                    prepTime: form.prepTime ? parseInt(form.prepTime) : '',
+                                    deliveryLeadTime: form.deliveryLeadTime ? parseInt(form.deliveryLeadTime) : '',
+                                    calories: form.calories ? parseInt(form.calories) : '',
                                     storeId: storeId 
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
@@ -3047,6 +3058,70 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
+                                {/* --- INÍCIO: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
+                                <div className="space-y-4 pt-6 border-t border-slate-100">
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                                        🚀 SEO, Logística e Nutrição
+                                    </label>
+                                    <p className="text-[10px] text-slate-400 font-bold mb-2">Esses dados alimentam o Google e melhoram a conversão do app.</p>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">Código de Barras (GTIN/EAN)</label>
+                                            <input type="text" placeholder="Ex: 7894900011517" className="w-full p-4 bg-slate-50 rounded-xl outline-none font-bold text-sm border-none" value={form.gtin} onChange={e => setForm({...form, gtin: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">Marca / Fabricante</label>
+                                            <input type="text" placeholder="Ex: Coca-Cola, Nestlé" className="w-full p-4 bg-slate-50 rounded-xl outline-none font-bold text-sm border-none" value={form.brand} onChange={e => setForm({...form, brand: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">Tempo de Preparo (minutos)</label>
+                                            <input type="number" placeholder="Ex: 15" className="w-full p-4 bg-slate-50 rounded-xl outline-none font-bold text-sm border-none" value={form.prepTime} onChange={e => setForm({...form, prepTime: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">Calorias (Kcal)</label>
+                                            <input type="number" placeholder="Ex: 350" className="w-full p-4 bg-slate-50 rounded-xl outline-none font-bold text-sm border-none" value={form.calories} onChange={e => setForm({...form, calories: e.target.value})} />
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4">
+                                        <label className="text-[10px] font-bold text-slate-400 mb-2 block ml-2">Restrições Alimentares / Dieta</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[
+                                                { label: '🌿 Vegano', value: 'https://schema.org/VeganDiet' },
+                                                { label: '🥗 Vegetariano', value: 'https://schema.org/VegetarianDiet' },
+                                                { label: '🌾 Sem Glúten', value: 'https://schema.org/GlutenFreeDiet' },
+                                                { label: '☪️ Halal', value: 'https://schema.org/HalalDiet' },
+                                                { label: '✡️ Kosher', value: 'https://schema.org/KosherDiet' },
+                                            ].map(diet => {
+                                                const isSelected = form.suitableForDiet.includes(diet.value);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={diet.value}
+                                                        onClick={() => {
+                                                            const current = form.suitableForDiet;
+                                                            setForm({
+                                                                ...form,
+                                                                suitableForDiet: isSelected
+                                                                    ? current.filter(d => d !== diet.value)
+                                                                    : [...current, diet.value]
+                                                            });
+                                                        }}
+                                                        className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${
+                                                            isSelected 
+                                                            ? 'bg-green-600 text-white border-green-600 shadow-md' 
+                                                            : 'bg-white text-slate-500 border-slate-200 hover:border-green-300'
+                                                        }`}
+                                                    >
+                                                        {diet.label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* --- FIM: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
                                 <div className="space-y-2 pt-4 border-t border-slate-100">
                                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                         <Flame size={14} className="text-orange-500"/> Compre Junto (Upsell)
