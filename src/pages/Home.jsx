@@ -706,12 +706,7 @@ export default function Home() {
     setCart(prev => {
       const existingItem = prev.find(i => i.id === p.id);
       let newQuantity = quantity;
-if (window.fbq) { 
-          window.fbq('track', 'AddToCart', { content_name: p.name, content_ids: [p.id], value: finalPricePerUnit, currency: 'BRL' }); 
-      }
-      if (window.gtag) { 
-          window.gtag('event', 'add_to_cart', { currency: 'BRL', value: finalPricePerUnit, items:[{ item_id: p.id, item_name: p.name, price: finalPricePerUnit, quantity: quantity }] }); 
-      }
+
       if (existingItem) {
         newQuantity += existingItem.quantity;
       }
@@ -721,8 +716,18 @@ if (window.fbq) {
           return prev; 
       }
       
+      // 1. PRIMEIRO: Calculamos o preço final (A CORREÇÃO ESTÁ AQUI)
       const finalPricePerUnit = getPriceWithQuantityDiscount(p, newQuantity);
 
+      // 2. SEGUNDO: Disparamos os Pixels (Agora a variável finalPricePerUnit já existe!)
+      if (window.fbq) { 
+          window.fbq('track', 'AddToCart', { content_name: p.name, content_ids: [p.id], value: finalPricePerUnit, currency: 'BRL' }); 
+      }
+      if (window.gtag) { 
+          window.gtag('event', 'add_to_cart', { currency: 'BRL', value: finalPricePerUnit, items:[{ item_id: p.id, item_name: p.name, price: finalPricePerUnit, quantity: quantity }] }); 
+      }
+
+      // 3. TERCEIRO: Atualizamos o carrinho
       if (existingItem) {
           return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit } : i);
       } else {
