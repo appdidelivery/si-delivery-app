@@ -15,7 +15,6 @@ export default async function handler(req, res) {
             capabilities: {
                 card_payments: { requested: true },
                 transfers: { requested: true },
-                pix_payments: { requested: true }, // 🚀 ATIVA O PIX AQUI
             },
             metadata: { storeId: storeId }
         });
