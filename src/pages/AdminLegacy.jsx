@@ -1212,9 +1212,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 // 3. FALLBACK: SE O MAPA FALHAR OU NÃO TIVER ZONAS, USA A TABELA ANTIGA
                 const cepNum = parseInt(cleanCep);
                 const rateByRange = shippingRates.find(r => {
-                    const start = parseInt(r.cepStart);
-                    const end = parseInt(r.cepEnd);
-                    return start && end && cepNum >= start && cepNum <= end;
+                    if (r.cepStart && r.cepEnd) {
+                        let startStr = String(r.cepStart).replace(/\D/g, '');
+                        let endStr = String(r.cepEnd).replace(/\D/g, '');
+                        if (startStr && endStr) {
+                            startStr = startStr.padEnd(8, '0');
+                            endStr = endStr.padEnd(8, '9');
+                            const start = parseInt(startStr);
+                            const end = parseInt(endStr);
+                            if (cepNum >= start && cepNum <= end) return true;
+                        }
+                    }
+                    return false;
                 });
 
                 if (rateByRange) {
@@ -1223,9 +1232,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     return;
                 }
 
-                const rateByName = shippingRates.find(r => 
-                    r.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim()
-                );
+                const removeAcentos = (str) => str ? String(str).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
+                const rateByName = shippingRates.find(r => {
+                    const rateName = removeAcentos(r.neighborhood);
+                    const viaCepBairro = removeAcentos(data.bairro);
+                    const viaCepCidade = removeAcentos(data.localidade);
+                    if (rateName) {
+                        if (rateName === viaCepBairro || rateName === viaCepCidade) return true;
+                        if (viaCepBairro && (viaCepBairro.includes(rateName) || rateName.includes(viaCepBairro))) return true;
+                    }
+                    return false;
+                });
 
                 if (rateByName) {
                     setManualShippingFee(parseFloat(rateByName.fee));
