@@ -719,6 +719,11 @@ export default function Home() {
                             throw new Error("Distância fora da área máxima de cobertura por KM.");
                         }
                     }
+                } else {
+                    console.error("ERRO GOOGLE MAPS API:", geoData.status, geoData.error_message);
+                    if (geoData.status === "REQUEST_DENIED") {
+                        alert("⚠️ AVISO PARA O LOJISTA: O frete falhou porque a 'Geocoding API' do Google não está ativada no seu Google Cloud Platform, ou a chave API está restrita.");
+                    }
                 }
             } catch (geoError) {
                 console.warn("Falha no cálculo por KM, caindo para fallback (CEP).", geoError);
