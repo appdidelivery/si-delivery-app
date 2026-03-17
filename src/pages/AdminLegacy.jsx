@@ -8,7 +8,7 @@ import {
 import {
     LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
-    Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -301,7 +301,12 @@ export default function Admin() {
     const [categories, setCategories] = useState([]);
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
     const[generalBanners, setGeneralBanners] = useState([]);
+    // --- ESTADOS DO MODAL DE RELATÓRIO ---
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportDateRange, setReportDateRange] = useState('hoje'); // 'hoje', '7dias', '30dias', 'mes'
+    const [reportSeller, setReportSeller] = useState('todos'); // 'todos', 'online', 'manual'
+    const [showReportResults, setShowReportResults] = useState(false); // NOVO: Controla a exibição
+    // -------------------------------------
     const[isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const changelog =[
         { id: 1, title: "🚀 Nova Aba de Financeiro", desc: "Controle seus lucros, visualize faturas e receba via Stripe." },
@@ -1176,7 +1181,55 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             alert("Ocorreu um erro ao consultar o CEP.");
         }
     };
+// --- LÓGICA GLOBAL DO FECHAMENTO DE CAIXA / RELATÓRIO ---
+    const getFilteredOrdersForReport = () => {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        return orders.filter(o => {
+            // Ignora cancelados
+            if (o.status === 'canceled' || !o.createdAt) return false;
 
+            // FILTRO 1: VENDEDOR / ORIGEM
+            if (reportSeller === 'online' && o.source === 'manual') return false;
+            
+            // Se escolheu um vendedor específico (incluindo o dono), ignora os pedidos do App (online) 
+            // e os pedidos manuais que não foram feitos por aquele email
+            if (reportSeller !== 'todos' && reportSeller !== 'online') {
+                if (o.source !== 'manual') return false;
+                if (o.sellerEmail !== reportSeller) return false;
+            }
+            
+            // FILTRO 2: DATA
+            const orderDate = o.createdAt.toDate();
+            
+            if (reportDateRange === 'hoje') {
+                return orderDate >= startOfToday;
+            } else if (reportDateRange === '7dias') {
+                const sevenDaysAgo = new Date(now);
+                sevenDaysAgo.setDate(now.getDate() - 7);
+                return orderDate >= sevenDaysAgo;
+            } else if (reportDateRange === '30dias') {
+                const thirtyDaysAgo = new Date(now);
+                thirtyDaysAgo.setDate(now.getDate() - 30);
+                return orderDate >= thirtyDaysAgo;
+            } else if (reportDateRange === 'mes') {
+                return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+            }
+            return true;
+        });
+    };
+
+    const filteredReportOrders = getFilteredOrdersForReport();
+    
+    const reportTotals = {
+        pix: filteredReportOrders.filter(o => o.paymentMethod === 'pix' || o.paymentMethod === 'offline_pix').reduce((acc, o) => acc + Number(o.total || 0), 0),
+        cartao: filteredReportOrders.filter(o => o.paymentMethod === 'cartao' || o.paymentMethod === 'offline_credit_card' || o.paymentMethod === 'motoboy_card').reduce((acc, o) => acc + Number(o.total || 0), 0),
+        dinheiro: filteredReportOrders.filter(o => o.paymentMethod === 'dinheiro').reduce((acc, o) => acc + Number(o.total || 0), 0),
+        totalGeral: filteredReportOrders.reduce((acc, o) => acc + Number(o.total || 0), 0),
+        qtdPedidos: filteredReportOrders.length
+    };
+    // --------------------------------------------------------
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
         const leadPhone = new URLSearchParams(window.location.search).get('phone');
@@ -1325,12 +1378,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
                     const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
 
-                     // PASSO 5: Cálculo do Lucro Real
+                    // PASSO 5: Cálculo do Lucro Real (RESTAURADO)
                     const todaysProfit = orders
                         .filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString())
                         .reduce((totalProfit, order) => {
                             const orderProfit = (order.items ||[]).reduce((itemProfit, item) => {
-                                // Usa o preço do item no pedido e o custo (se existir), senão considera custo 0
                                 const salePrice = item.price || 0;
                                 const costPrice = item.costPrice || 0;
                                 const quantity = item.quantity || 0;
@@ -1828,7 +1880,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             createdAt: serverTimestamp(), 
                                             customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
                                             storeId: storeId,
-                                            source: 'manual'
+                                            source: 'manual',
+                                            sellerEmail: auth.currentUser?.email || 'owner' // SALVA QUEM FEZ A VENDA
                                         });
                                         
                                         setManualCart([]); 
@@ -2540,6 +2593,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
 
                                 {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
+                                <div className="pt-4 border-t border-slate-100">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <Trophy size={14} className="text-yellow-500"/> Meta para Frete Grátis (R$)
+                                    </label>
+                                    <input 
+                                        type="number" step="0.01" 
+                                        placeholder="Ex: 100.00 (Deixe 0 para desativar)" 
+                                        className="w-full p-5 bg-slate-50 rounded-2xl font-black text-slate-700 border-none outline-none focus:ring-2 ring-yellow-400"
+                                        value={storeStatus.freeShippingThreshold || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { freeShippingThreshold: Number(e.target.value) }, { merge: true })}
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Ativa a barrinha de progresso no carrinho. Deixe 0 se não quiser oferecer frete grátis.</p>
+                                </div>
+
+                                {/* 3. Coordenadas (Latitude e Longitude) */}
                                 <div className="pt-4 border-t border-slate-100">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Coordenadas da Loja (Latitude e Longitude)</label>
                                     <p className="text-[10px] text-slate-400 mb-3 ml-2">Clique com botão direito na sua loja no Google Maps e copie os números. Essencial para o frete por KM.</p>
@@ -3909,6 +3977,132 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </button>
                                 </div>
                             </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- MODAL DE FECHAMENTO DE CAIXA / RELATÓRIO --- */}
+            <AnimatePresence>
+                {isReportModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                            <button onClick={() => setIsReportModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            
+                            <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-6">
+                                <div className="bg-slate-900 text-white p-4 rounded-2xl">
+                                    <Printer size={28} />
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">Fechamento de Caixa</h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Resumo Financeiro da Loja</p>
+                                </div>
+                            </div>
+
+                            {/* FILTROS DE PERÍODO */}
+                            <div className="mb-8">
+                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">1. Selecione o Período</label>
+                                <div className="flex flex-wrap gap-3">
+                                    {[
+                                        { id: 'hoje', label: 'Hoje (Diário)' },
+                                        { id: '7dias', label: 'Últimos 7 Dias' },
+                                        { id: 'mes', label: 'Este Mês Atual' },
+                                        { id: '30dias', label: 'Últimos 30 Dias' },
+                                    ].map(period => (
+                                        <button 
+                                            key={period.id}
+                                            onClick={() => { setReportDateRange(period.id); setShowReportResults(false); }}
+                                            className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border-2 ${
+                                                reportDateRange === period.id 
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                                                : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                            }`}
+                                        >
+                                            {period.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                           {/* FILTRO DE VENDEDOR / EQUIPE */}
+                            <div className="mb-8">
+                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">2. Filtrar por Vendedor</label>
+                                <select 
+                                    value={reportSeller} 
+                                    onChange={(e) => { setReportSeller(e.target.value); setShowReportResults(false); }}
+                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                >
+                                    <option value="todos">📊 Todos os Pedidos (App + Balcão Geral)</option>
+                                    <option value="online">📱 Pedidos do App (Sem Vendedor)</option>
+                                    <optgroup label="Vendedores (Lançamento Manual)">
+                                        <option value="owner">👑 Lojista Principal (Dono)</option>
+                                        {teamMembers.map(member => (
+                                            <option key={member.id} value={member.email}>
+                                                🧑‍💻 {member.name}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                            </div>
+
+                            {/* BOTÃO PARA GERAR O RELATÓRIO NA TELA */}
+                            <button 
+                                onClick={() => setShowReportResults(true)}
+                                className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8"
+                            >
+                                <Printer size={18}/> Gerar Relatório
+                            </button>
+
+                            {/* RESULTADOS SÓ APARECEM SE O BOTÃO FOR CLICADO */}
+                            <AnimatePresence>
+                                {showReportResults && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, height: 0 }} 
+                                        animate={{ opacity: 1, height: 'auto' }} 
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="space-y-4 border-t border-slate-100 pt-8"
+                                    >
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">3. Resultados do Período</label>
+                                        
+                                        {/* DESTAQUE TOTAL GERAL */}
+                                        <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+                                            <div>
+                                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Faturamento Bruto</p>
+                                                <p className="text-4xl font-black italic text-green-400">R$ {reportTotals.totalGeral.toFixed(2)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Volume</p>
+                                                <p className="text-3xl font-black text-white">{reportTotals.qtdPedidos}</p>
+                                                <p className="text-slate-500 font-bold text-[9px] uppercase">Pedidos Pagos</p>
+                                            </div>
+                                        </div>
+
+                                        {/* DIVISÃO POR MÉTODO DE PAGAMENTO */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                                            {/* PIX */}
+                                            <div className="bg-cyan-50 p-6 rounded-3xl border border-cyan-100 flex flex-col justify-center items-center text-center">
+                                                <QrCode size={24} className="text-cyan-600 mb-2"/>
+                                                <p className="text-[10px] font-black uppercase text-cyan-800 tracking-widest mb-1">Via PIX</p>
+                                                <p className="text-2xl font-black text-cyan-600 italic">R$ {reportTotals.pix.toFixed(2)}</p>
+                                            </div>
+                                            
+                                            {/* CARTÃO */}
+                                            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex flex-col justify-center items-center text-center">
+                                                <CreditCard size={24} className="text-blue-600 mb-2"/>
+                                                <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1">Via Cartão</p>
+                                                <p className="text-2xl font-black text-blue-600 italic">R$ {reportTotals.cartao.toFixed(2)}</p>
+                                            </div>
+                                            
+                                            {/* DINHEIRO */}
+                                            <div className="bg-green-50 p-6 rounded-3xl border border-green-100 flex flex-col justify-center items-center text-center">
+                                                <Banknote size={24} className="text-green-600 mb-2"/>
+                                                <p className="text-[10px] font-black uppercase text-green-800 tracking-widest mb-1">Em Dinheiro</p>
+                                                <p className="text-2xl font-black text-green-600 italic">R$ {reportTotals.dinheiro.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">Valores baseados em pedidos não cancelados. Taxas de entrega inclusas.</p>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </motion.div>
                     </motion.div>
                 )}

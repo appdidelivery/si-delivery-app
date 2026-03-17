@@ -537,22 +537,63 @@ export default function Home() {
 
         if (data.isOpen && data.schedule) {
             const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes(); // Hora atual em minutos do dia
+            
+            // 1. Pega a configuração de HOJE e de ONTEM
             const todayDayId = now.getDay();
-            const dayConfig = data.schedule[todayDayId];
+            const yesterdayDayId = todayDayId === 0 ? 6 : todayDayId - 1; // Se hoje for domingo (0), ontem foi sábado (6)
 
-            if (dayConfig && dayConfig.open) {
-                const currentTime = now.getHours() * 60 + now.getMinutes();
-                const [openHour, openMinute] = (dayConfig.start || '00:00').split(':').map(Number);
-                const[closeHour, closeMinute] = (dayConfig.end || '23:59').split(':').map(Number);
+            const todayConfig = data.schedule[todayDayId];
+            const yesterdayConfig = data.schedule[yesterdayDayId];
+
+            let isOpenToday = false;
+            let isOpenFromYesterday = false;
+
+            // 2. VERIFICA O TURNO DE HOJE (Ex: 09:00 às 23:59 ou 18:00 às 04:00 de amanhã)
+            if (todayConfig && todayConfig.open) {
+                const [openHourToday, openMinuteToday] = (todayConfig.start || '00:00').split(':').map(Number);
+                const [closeHourToday, closeMinuteToday] = (todayConfig.end || '23:59').split(':').map(Number);
                 
-                const scheduledOpenTime = openHour * 60 + openMinute;
-                const scheduledCloseTime = closeHour * 60 + closeMinute;
-                
-                const isWithinHours = currentTime >= scheduledOpenTime && currentTime < scheduledCloseTime;
-                finalStatus = isWithinHours;
-            } else {
-                finalStatus = false;
+                const openTimeToday = openHourToday * 60 + openMinuteToday;
+                const closeTimeToday = closeHourToday * 60 + closeMinuteToday;
+
+                // Lógica de hoje: Se fechar *antes* de abrir, significa que vira a noite.
+                if (closeTimeToday <= openTimeToday) {
+                    // OVERNIGHT: Para a loja estar aberta HOJE com o turno de HOJE, basta a hora atual ser maior que a hora de abertura.
+                    // (Ex: Abriu 18:00 e vai até 04:00 amanhã. Agora são 21h. 21h >= 18h).
+                    if (currentTime >= openTimeToday) {
+                        isOpenToday = true;
+                    }
+                } else {
+                    // TURNO NORMAL: Abre e fecha no mesmo dia (Ex: 08:00 às 22:00)
+                    if (currentTime >= openTimeToday && currentTime < closeTimeToday) {
+                        isOpenToday = true;
+                    }
+                }
             }
+
+            // 3. VERIFICA A MADRUGADA DO TURNO DE ONTEM (A Mágica acontece aqui)
+            // Precisamos saber se ontem teve um turno que invadiu a madrugada de hoje.
+            if (yesterdayConfig && yesterdayConfig.open) {
+                const [openHourYest, openMinuteYest] = (yesterdayConfig.start || '00:00').split(':').map(Number);
+                const [closeHourYest, closeMinuteYest] = (yesterdayConfig.end || '23:59').split(':').map(Number);
+                
+                const openTimeYest = openHourYest * 60 + openMinuteYest;
+                const closeTimeYest = closeHourYest * 60 + closeMinuteYest;
+
+                // Se ontem era um turno overnight (ex: abriu 18h de sábado e vai até as 04h de domingo)
+                if (closeTimeYest <= openTimeYest) {
+                    // Para a loja estar aberta devido ao turno de ontem, a hora de HOJE (domingo na madrugada) 
+                    // tem que ser MENOR que a hora de fechamento (04h). (Ex: Agora é 02:00. 02:00 < 04:00)
+                    if (currentTime < closeTimeYest) {
+                        isOpenFromYesterday = true;
+                    }
+                }
+            }
+
+            // A loja está aberta se o turno de hoje a abrir, ou se a madrugada do turno de ontem a manter aberta.
+            finalStatus = isOpenToday || isOpenFromYesterday;
+
         } else if (data.isOpen === false) {
             finalStatus = false;
         }
