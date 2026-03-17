@@ -40,6 +40,19 @@ import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
+// --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM KM) ---
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // Raio da Terra em KM
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; 
+};
 // --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA s- SUPER CATÁLOGO) ---
 const AVAILABLE_ICONS = [
   { id: 'List', label: 'Padrão', component: <List size={24} /> },
@@ -1133,22 +1146,63 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     };
     // --- ALTERAÇÃO FINALIZADA ---
 
-    // ✅ FUNÇÃO MOVIDA PARA O ESCOPO CORRETO E GLOBAL
+    // ✅ FUNÇÃO MOVIDA PARA O ESCOPO CORRETO E GLOBAL (ATUALIZADA COM MAPAS)
     const handleManualCepSearch = async () => {
         const cleanCep = manualCep.replace(/\D/g, '');
         if (cleanCep.length !== 8) return;
 
         try {
+            // 1. Busca os dados da rua no ViaCEP
             const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
             const data = await response.json();
 
             if (!data.erro) {
                 setManualCustomer(prev => ({
                     ...prev,
-                    address: `${data.logradouro}, `, // Deixa o cursor pronto para o número
+                    address: `${data.logradouro}, `, 
                     neighborhood: data.bairro
                 }));
 
+                // 2. TENTA USAR O CÁLCULO POR KM (GOOGLE MAPS)
+                const storeLat = storeStatus?.lat;
+                const storeLng = storeStatus?.lng;
+                const zones = storeStatus?.delivery_zones || [];
+                const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+                if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
+                    try {
+                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, Brasil`);
+                        const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
+                        const geoData = await geoRes.json();
+
+                        if (geoData.status === "OK" && geoData.results[0]) {
+                            const customerLat = geoData.results[0].geometry.location.lat;
+                            const customerLng = geoData.results[0].geometry.location.lng;
+
+                            const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
+                            
+                            if (distanceKm !== null) {
+                                const matchedZone = [...zones]
+                                    .sort((a, b) => a.radius_km - b.radius_km)
+                                    .find(z => distanceKm <= z.radius_km);
+
+                                if (matchedZone) {
+                                    setManualShippingFee(Number(matchedZone.fee));
+                                    alert(`🗺️ Frete de R$ ${Number(matchedZone.fee).toFixed(2)} calculado pelo Mapa! (Distância: ${distanceKm.toFixed(1)}km)`);
+                                    return; // Para a execução aqui se achou no mapa!
+                                } else {
+                                    alert(`⚠️ Cliente está a ${distanceKm.toFixed(1)}km. Fora das zonas de entrega configuradas no mapa.`);
+                                    setManualShippingFee(0);
+                                    return;
+                                }
+                            }
+                        }
+                    } catch (geoError) {
+                        console.warn("Falha no Google Maps, tentando Fallback para Tabela de CEPs...");
+                    }
+                }
+
+                // 3. FALLBACK: SE O MAPA FALHAR OU NÃO TIVER ZONAS, USA A TABELA ANTIGA
                 const cepNum = parseInt(cleanCep);
                 const rateByRange = shippingRates.find(r => {
                     const start = parseInt(r.cepStart);
@@ -1171,7 +1225,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     alert(`✅ Frete de R$ ${parseFloat(rateByName.fee).toFixed(2)} encontrado por Nome do Bairro!`);
                 } else {
                     setManualShippingFee(0);
-                    alert("⚠️ Endereço carregado, mas nenhuma taxa de entrega foi encontrada para esta região.");
+                    alert("⚠️ Endereço carregado, mas nenhuma taxa foi encontrada nem no Mapa nem na Tabela.");
                 }
             } else {
                 alert("CEP não encontrado!");
