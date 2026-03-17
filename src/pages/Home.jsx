@@ -725,26 +725,35 @@ export default function Home() {
             }
         }
 
-        const currentCepNum = parseInt(cep);
+        const currentCepNum = parseInt(cep); 
         const foundRate = shippingRates.find(rate => {
-            // 1. Tenta por Faixa de CEP primeiro (Mais preciso)
+            // 1. BLINDAGEM DE FAIXA DE CEP (Preenche zeros e ignora traços)
             if (rate.cepStart && rate.cepEnd) {
-                const startStr = String(rate.cepStart).replace(/\D/g, '');
-                const endStr = String(rate.cepEnd).replace(/\D/g, '');
+                let startStr = String(rate.cepStart).replace(/\D/g, '');
+                let endStr = String(rate.cepEnd).replace(/\D/g, '');
+                
                 if (startStr && endStr) {
+                    startStr = startStr.padEnd(8, '0'); // vira 88100000 se o lojista botou só 88100
+                    endStr = endStr.padEnd(8, '9');     // vira 88100999
+                    
                     const start = parseInt(startStr);
                     const end = parseInt(endStr);
                     if (currentCepNum >= start && currentCepNum <= end) return true;
                 }
             }
-            // 2. Se não achou por CEP, tenta pelo Bairro (Nome exato)
-            if (data.bairro && rate.neighborhood) {
-                if (rate.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim()) return true;
+            
+            // 2. BLINDAGEM DE NOME DE BAIRRO E CIDADE (Ignora acentos e maiúsculas/minúsculas)
+            const removeAcentos = (str) => str ? String(str).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
+            
+            const rateName = removeAcentos(rate.neighborhood);
+            const viaCepBairro = removeAcentos(data.bairro);
+            const viaCepCidade = removeAcentos(data.localidade);
+
+            if (rateName) {
+                if (rateName === viaCepBairro || rateName === viaCepCidade) return true;
+                if (viaCepBairro && (viaCepBairro.includes(rateName) || rateName.includes(viaCepBairro))) return true;
             }
-            // 3. Tenta por Cidade (Bônus de segurança caso o lojista cadastre o nome da cidade)
-            if (data.localidade && rate.neighborhood) {
-                if (rate.neighborhood.toLowerCase().trim() === data.localidade.toLowerCase().trim()) return true;
-            }
+            
             return false;
         });
 
