@@ -6,7 +6,7 @@ import {
     addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
 } from 'firebase/firestore';
 import {
-    LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
+    ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
     CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw,
 } from 'lucide-react';
