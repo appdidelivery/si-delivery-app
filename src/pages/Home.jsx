@@ -713,7 +713,7 @@ export default function Home() {
 
                         if (matchedZone) {
                             setShippingFee(Number(matchedZone.fee));
-                            setDeliveryAreaMessage(`Frete (Aprox. ${distanceKm.toFixed(1)}km): R$ ${Number(matchedZone.fee).toFixed(2)}`);
+                            setDeliveryAreaMessage(`Taxa de Entrega: R$ ${Number(matchedZone.fee).toFixed(2)}`);
                             return; 
                         } else {
                             throw new Error("Distância fora da área máxima de cobertura por KM.");
