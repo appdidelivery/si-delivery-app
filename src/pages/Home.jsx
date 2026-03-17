@@ -266,7 +266,30 @@ export default function Home() {
     localStorage.setItem('veloCustomerData', JSON.stringify(dataToSave));
     if (field === 'phone') localStorage.setItem('customerPhone', value);
   };
-
+// --- SISTEMA DE CARRINHO ABANDONADO (SALVA SILENCIOSAMENTE) ---
+  useEffect(() => {
+      const phoneStr = customer?.phone?.replace(/\D/g, '') || '';
+      // Salva só se o cliente digitou pelo menos o nome, um telefone válido e tem itens no carrinho
+      if (cart.length > 0 && phoneStr.length >= 10 && customer?.name) {
+          const saveAbandonedCart = async () => {
+              try {
+                  const cartId = `cart_${storeId}_${phoneStr}`;
+                  await setDoc(doc(db, "abandoned_carts", cartId), {
+                      storeId: storeId,
+                      customerName: customer.name,
+                      customerPhone: customer.phone,
+                      items: cart,
+                      subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
+                      lastUpdated: serverTimestamp(),
+                      status: 'abandoned'
+                  });
+              } catch (e) { console.error("Erro ao salvar carrinho abandonado:", e); }
+          };
+          // Espera 3 segundos sem digitar para não sobrecarregar o banco de dados
+          const timeout = setTimeout(saveAbandonedCart, 3000);
+          return () => clearTimeout(timeout);
+      }
+  }, [cart, customer.phone, customer.name, storeId]);
   const[marketingSettings, setMarketingSettings] = useState({
         promoActive: false,
         promoBannerUrls:[]
@@ -702,15 +725,25 @@ export default function Home() {
             }
         }
 
-        const currentCepNum = parseInt(cep); 
+        const currentCepNum = parseInt(cep);
         const foundRate = shippingRates.find(rate => {
+            // 1. Tenta por Faixa de CEP primeiro (Mais preciso)
             if (rate.cepStart && rate.cepEnd) {
-                const start = parseInt(rate.cepStart.replace(/\D/g, ''));
-                const end = parseInt(rate.cepEnd.replace(/\D/g, ''));
-                if (currentCepNum >= start && currentCepNum <= end) return true; 
+                const startStr = String(rate.cepStart).replace(/\D/g, '');
+                const endStr = String(rate.cepEnd).replace(/\D/g, '');
+                if (startStr && endStr) {
+                    const start = parseInt(startStr);
+                    const end = parseInt(endStr);
+                    if (currentCepNum >= start && currentCepNum <= end) return true;
+                }
             }
+            // 2. Se não achou por CEP, tenta pelo Bairro (Nome exato)
             if (data.bairro && rate.neighborhood) {
-                 return rate.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim();
+                if (rate.neighborhood.toLowerCase().trim() === data.bairro.toLowerCase().trim()) return true;
+            }
+            // 3. Tenta por Cidade (Bônus de segurança caso o lojista cadastre o nome da cidade)
+            if (data.localidade && rate.neighborhood) {
+                if (rate.neighborhood.toLowerCase().trim() === data.localidade.toLowerCase().trim()) return true;
             }
             return false;
         });
@@ -912,6 +945,9 @@ if (window.fbq) {
       }
       if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
+          // O Cliente fechou a compra! Removemos dos abandonados
+          try { await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); } catch(e){}
+          
           if (appliedCoupon) {
             await updateDoc(doc(db, "coupons", appliedCoupon.id), { currentUsage: (appliedCoupon.currentUsage || 0) + 1 });
           }
@@ -975,6 +1011,9 @@ if (window.fbq) {
           
           if (data.url) {
               await setDoc(newOrderRef, orderData);
+              // O Cliente fechou a compra online! Removemos dos abandonados
+              try { await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); } catch(e){}
+              
               localStorage.setItem('activeOrderId', orderId);
               setActiveOrderId(orderId);
               setCart([]); setShowCheckout(false);

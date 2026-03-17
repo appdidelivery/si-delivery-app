@@ -125,6 +125,7 @@ const DAYS_OF_WEEK =[
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+    { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
     { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
     { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
     { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
@@ -310,6 +311,7 @@ export default function Admin() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [visitasHoje, setVisitasHoje] = useState(0);
     const [orders, setOrders] = useState([]);
+    const[abandonedCarts, setAbandonedCarts] = useState([]); // NOVO: Estado dos abandonados
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
@@ -599,6 +601,11 @@ export default function Admin() {
             setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
+        // Carrinhos Abandonados
+        const unsubAbandoned = onSnapshot(query(collection(db, "abandoned_carts"), where("storeId", "==", storeId), orderBy("lastUpdated", "desc")), (s) => {
+            setAbandonedCarts(s.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+
         // Produtos
         const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         
@@ -663,7 +670,7 @@ export default function Admin() {
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
         return () => { 
-            unsubOrders(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
+            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubTeam();
         };
     },[storeId]);
@@ -1525,7 +1532,105 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     );
                 })()}
+{activeTab === 'abandoned' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+                            <div>
+                                <h1 className="text-4xl font-black italic uppercase text-slate-900">Carrinhos Abandonados</h1>
+                                <p className="text-slate-500 font-bold mt-2 text-sm">Recupere vendas chamando os clientes no WhatsApp. Use táticas baseadas no tempo.</p>
+                            </div>
+                            <div className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-black text-sm flex items-center gap-2 border border-red-100 shadow-sm">
+                                <Ghost size={18} /> {abandonedCarts.length} Clientes Perdidos
+                            </div>
+                        </div>
 
+                        {abandonedCarts.length === 0 ? (
+                            <div className="bg-white p-12 rounded-[3rem] border border-slate-100 text-center shadow-sm">
+                                <ShoppingCart size={64} className="text-slate-200 mx-auto mb-4" />
+                                <h3 className="text-2xl font-black text-slate-800 mb-2">Nenhum carrinho abandonado!</h3>
+                                <p className="text-slate-500 font-medium">Seus clientes estão finalizando todas as compras ou ainda não iniciaram. Ótimo trabalho!</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {abandonedCarts.map(cart => {
+                                    const dateObj = cart.lastUpdated?.toDate ? cart.lastUpdated.toDate() : new Date();
+                                    const minutesAgo = Math.floor((new Date() - dateObj) / 60000);
+                                    let timeTag = '';
+                                    let timeColor = '';
+                                    if (minutesAgo < 60) { timeTag = `Há ${minutesAgo} min`; timeColor = 'bg-red-100 text-red-700 border-red-200'; }
+                                    else if (minutesAgo < 1440) { timeTag = `Há ${Math.floor(minutesAgo/60)} horas`; timeColor = 'bg-orange-100 text-orange-700 border-orange-200'; }
+                                    else { timeTag = `Há ${Math.floor(minutesAgo/1440)} dias`; timeColor = 'bg-slate-100 text-slate-600 border-slate-200'; }
+
+                                    const firstName = cart.customerName ? cart.customerName.split(' ')[0] : 'Cliente';
+                                    
+                                    const msg30min = `Olá ${firstName}! Tudo bem? Vi que você começou um pedido na *${storeStatus.name}* mas não finalizou. Aconteceu algum erro no site ou faltou alguma coisa? Se precisar de ajuda, estou por aqui! 😊`;
+                                    
+                                    const msg1hora = `Oi ${firstName}! Bateu aquela fome? 🍔 Vi que seu carrinho está te esperando. Finalize seu pedido agora e ganhe 5% OFF usando o cupom *VOLTA5*! \n👉 https://${storeId}.velodelivery.com.br`;
+                                    
+                                    const msg24horas = `Última chance, ${firstName}! 🚨 Seu carrinho na *${storeStatus.name}* vai expirar. Para fechar agora, criamos um cupom muito especial pra você com 10% OFF, use: *VOLTA10* no app. Aproveite! \n👉 https://${storeId}.velodelivery.com.br`;
+
+                                    const sendMsg = (text) => {
+                                        const phone = String(cart.customerPhone).replace(/\D/g, '');
+                                        window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                    };
+
+                                    return (
+                                        <div key={cart.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all">
+                                            <div>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h3 className="font-black text-xl text-slate-800 uppercase tracking-tighter leading-none mb-1">{cart.customerName}</h3>
+                                                        <p className="text-slate-500 font-bold text-xs">{cart.customerPhone}</p>
+                                                    </div>
+                                                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${timeColor}`}>
+                                                        ⏳ {timeTag}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-200 pb-2">Itens Esquecidos</p>
+                                                    <ul className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-2">
+                                                        {(cart.items ||[]).map((i, idx) => (
+                                                            <li key={idx} className="text-sm font-bold text-slate-700 flex justify-between">
+                                                                <span>{i.quantity}x {i.name}</span>
+                                                                <span className="text-blue-600">R$ {(i.price * i.quantity).toFixed(2)}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <div className="mt-3 pt-2 border-t border-slate-200 flex justify-between items-center">
+                                                        <span className="text-xs font-black text-slate-500 uppercase">Subtotal Perdido:</span>
+                                                        <span className="text-lg font-black text-slate-800 italic">R$ {Number(cart.subtotal).toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 text-center">Táticas de Recuperação (WhatsApp)</p>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <button onClick={() => sendMsg(msg30min)} className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-all border border-red-100 group">
+                                                        <MessageCircle size={18} className="mb-1 group-hover:scale-110 transition-transform" />
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Suporte<br/>(30 min)</span>
+                                                    </button>
+                                                    <button onClick={() => sendMsg(msg1hora)} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all border border-orange-100 group">
+                                                        <Flame size={18} className="mb-1 group-hover:scale-110 transition-transform" />
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Desconto<br/>(1 Hora)</span>
+                                                    </button>
+                                                    <button onClick={() => sendMsg(msg24horas)} className="flex flex-col items-center justify-center p-3 bg-green-50 text-green-600 rounded-2xl hover:bg-green-100 transition-all border border-green-100 group">
+                                                        <Tags size={18} className="mb-1 group-hover:scale-110 transition-transform" />
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(24 Horas)</span>
+                                                    </button>
+                                                </div>
+                                                <button onClick={() => window.confirm("Deseja apagar este carrinho?") && deleteDoc(doc(db, "abandoned_carts", cart.id))} className="w-full mt-3 p-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors flex items-center justify-center gap-1">
+                                                    <Trash2 size={12} /> Descartar Carrinho
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
                 {activeTab === 'orders' && (
                     <div className="space-y-6">
                         <h1 className="text-4xl font-black italic uppercase mb-8">Pedidos</h1>
