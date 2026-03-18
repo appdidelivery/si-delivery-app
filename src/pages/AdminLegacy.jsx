@@ -500,7 +500,8 @@ export default function Admin() {
         prepTime: '',
         deliveryLeadTime: '',
         calories: '',
-        suitableForDiet: []
+        suitableForDiet:[],
+        variations: ''
     });
 
     const [editingId, setEditingId] = useState(null);
@@ -1779,7 +1780,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                           <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts: [], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet: [] }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                           <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">
@@ -1824,7 +1825,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds || [], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet || [] }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '' }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -3201,6 +3202,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     calories: isFood && form.calories ? parseInt(form.calories) : null,
                                     suitableForDiet: isFood ? (form.suitableForDiet || []) :[],
                                     deliveryLeadTime: form.deliveryLeadTime ? parseInt(form.deliveryLeadTime) : '',
+                                    variations: form.variations ? form.variations.split(',').map(v => v.trim()).filter(v => v) :[],
                                     storeId: storeId 
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
@@ -3326,9 +3328,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </label>
                                 </div>
 
-                                <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                               <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 ml-2">Variações Simples (Separadas por vírgula)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ex: Morango, Limão, Maracujá" 
+                                        className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none mt-1 focus:ring-2 ring-blue-500 transition-all" 
+                                        value={form.variations} 
+                                        onChange={e => setForm({ ...form, variations: e.target.value })} 
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Opcional. Se preenchido, o cliente será obrigado a escolher uma opção.</p>
+                                </div>
+
+                               {/* --- INÍCIO: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
                                {/* --- INÍCIO: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
                                 <div className="space-y-4 pt-6 border-t border-slate-100">
                                     <label className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">

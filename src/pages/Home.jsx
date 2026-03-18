@@ -162,13 +162,15 @@ export default function Home() {
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
   
   const [selectedProduct, setSelectedProduct] = useState(null); 
-  const [selectedOptions, setSelectedOptions] = useState({}); 
-  const[itemObservation, setItemObservation] = useState(''); 
+  const[selectedOptions, setSelectedOptions] = useState({}); 
+  const [itemObservation, setItemObservation] = useState(''); 
+  const [selectedVariation, setSelectedVariation] = useState(''); // NOVO: Estado da Variação
 
   const handleOpenProduct = (p) => {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
+      setSelectedVariation(''); // Reseta a variação sempre que abrir um item novo
       const slug = generateSlug(p.name);
       navigate(`/p/${slug}`, { replace: true });
   };
@@ -203,6 +205,12 @@ export default function Home() {
   };
 
   const handleAddCustomToCart = () => {
+      // TRAVA DA VARIAÇÃO SIMPLES
+      if (selectedProduct.variations && selectedProduct.variations.length > 0 && !selectedVariation) {
+          alert("Por favor, escolha uma opção obrigatória antes de adicionar ao carrinho.");
+          return;
+      }
+
       if (selectedProduct.complements) {
           for (const group of selectedProduct.complements) {
               if (group.isRequired) {
@@ -214,9 +222,14 @@ export default function Home() {
               }
           }
       }
-      const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}`;
+      
+      const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}-${selectedVariation}`;
       const optionsText = Object.values(selectedOptions).flat().map(o => o.name).join(', ');
-      const cartName = optionsText ? `${selectedProduct.name} (${optionsText})` : selectedProduct.name;
+      
+      // Concatena a Variação Simples + Nome + Complementos
+      let cartName = selectedProduct.name;
+      if (selectedVariation) cartName += ` - Sabor/Tipo: ${selectedVariation}`;
+      if (optionsText) cartName += ` (${optionsText})`;
       const itemToAdd = {
           ...selectedProduct,
           cartItemId: customId,
@@ -1939,8 +1952,31 @@ if (window.fbq) {
                 )}
                 {/* --- FIM: BADGES DE SEO E NUTRIÇÃO VISUAIS --- */}
 
+                {selectedProduct.variations && selectedProduct.variations.length > 0 && (
+                    <div className="border-t border-slate-100 pt-4 mt-4">
+                        <h4 className="font-black text-slate-800 text-sm uppercase mb-3 flex items-center justify-between">
+                            Escolha uma Opção <span className="bg-slate-800 text-white text-[10px] px-2 py-1 rounded-md">Obrigatório</span>
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            {selectedProduct.variations.map((varOption, idx) => (
+                                <label key={idx} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedVariation === varOption ? `border-${currentTheme.ringColor} ${currentTheme.lightBg}` : 'border-slate-100 bg-white hover:border-slate-200'}`}>
+                                    <input 
+                                        type="radio" 
+                                        name="productVariation" 
+                                        value={varOption}
+                                        checked={selectedVariation === varOption}
+                                        onChange={() => setSelectedVariation(varOption)}
+                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer flex-shrink-0`}
+                                    />
+                                    <span className={`text-sm font-bold leading-tight ${selectedVariation === varOption ? currentTheme.darkText : 'text-slate-600'}`}>{varOption}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {selectedProduct.complements && selectedProduct.complements.length > 0 && (
-                    <div className="border-t border-slate-100 pt-2 mt-4 space-y-4">
+                    <div className="border-t border-slate-100 pt-4 mt-4 space-y-4">
                         {selectedProduct.complements.map(group => (
                             <div key={group.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                 <div className="flex justify-between items-center mb-3">
