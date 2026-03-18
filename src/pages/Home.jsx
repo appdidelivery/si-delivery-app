@@ -264,8 +264,15 @@ export default function Home() {
   const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
   });
-  const [showLastOrders, setShowLastOrders] = useState(false);
+  const[showLastOrders, setShowLastOrders] = useState(false);
   const[lastOrders, setLastOrders] = useState([]);
+
+  // --- ESTADOS MODO GARÇOM ---
+  const [isWaiterMode, setIsWaiterMode] = useState(false);
+  const [showWaiterLogin, setShowWaiterLogin] = useState(false);
+  const[waiterPin, setWaiterPin] = useState('');
+  const [waiterName, setWaiterName] = useState('');
+  const[tableNumber, setTableNumber] = useState('');
 
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const[couponCode, setCouponCode] = useState('');
@@ -276,7 +283,8 @@ export default function Home() {
   useEffect(() => {
     const savedCustomer = localStorage.getItem('veloCustomerData');
     if (savedCustomer) {
-      setCustomer(JSON.parse(savedCustomer));
+      // O "prev =>" garante que o método de pagamento padrão não seja apagado pela memória
+      setCustomer(prev => ({ ...prev, ...JSON.parse(savedCustomer) }));
     } else {
       const savedPhone = localStorage.getItem('customerPhone');
       if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
@@ -888,7 +896,8 @@ export default function Home() {
   const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
   const freeShippingThreshold = Number(storeSettings.freeShippingThreshold || 0);
   const isFreeShipping = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
-  const finalShippingFee = isFreeShipping ? 0 : Number(shippingFee || 0);
+  // Zera o frete automaticamente se o Modo Garçom estiver ativo
+  const finalShippingFee = (isFreeShipping || isWaiterMode) ? 0 : Number(shippingFee || 0);
   const finalTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
 
   const applyCoupon = async () => {
@@ -931,11 +940,25 @@ export default function Home() {
   const finalizeOrder = async () => {
     if (isFinalizing) return; 
     if (!isStoreOpenNow) return alert(storeMessage);
-    if (!customer.name || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha todos os dados, incluindo seu e-mail.");
-    if (cart.length === 0) return alert("Carrinho vazio!");
-    if (shippingFee === null) return alert("Frete não calculado.");
 
-    if (!storeSettings?.stripeConnectId &&['pix', 'cartao'].includes(customer.payment)) {
+    // Trava de segurança: Obriga o cliente a selecionar como vai pagar
+    if (!customer.payment) {
+        return alert("Por favor, selecione uma forma de pagamento para continuar.");
+    }
+    
+    // Validação condicional: Garçom x Delivery Padrão
+    if (isWaiterMode) {
+        if (!customer.name || !tableNumber) return alert("Preencha o nome do cliente e o número da mesa.");
+    } else {
+        if (!customer.name || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha todos os dados, incluindo seu e-mail.");
+        if (shippingFee === null) return alert("Frete não calculado.");
+        if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
+    }
+
+    if (cart.length === 0) return alert("Carrinho vazio!");
+
+    if (!isWaiterMode && !storeSettings?.stripeConnectId &&['pix', 'cartao'].includes(customer.payment)) {
+        setIsFinalizing(false);
         return alert("Por favor, selecione uma das formas de pagamento disponíveis abaixo para a entrega.");
     }
 
@@ -947,22 +970,27 @@ export default function Home() {
       const newOrderRef = doc(collection(db, "orders"));
       const orderId = newOrderRef.id;
 
-      const isOfflinePayment =['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix'].includes(customer.payment);
+      // No modo Garçom, força o envio direto e ignora a Stripe para não travar
+      const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix'].includes(customer.payment);
 
       const orderData = {
         customerName: customer.name || "", 
-        customerAddress: fullAddress || "", 
+        customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (fullAddress || ""), 
         customerPhone: customer.phone || "",
         paymentMethod: customer.payment || "", 
         paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
         items: sanitizedCart,
         subtotal: subtotal || 0, 
-        shippingFee: shippingFee || 0, 
+        shippingFee: isWaiterMode ? 0 : (shippingFee || 0), 
         total: finalTotal || 0, 
         status: 'pending', 
         createdAt: serverTimestamp(),
-        storeId: storeId || ""
+        storeId: storeId || "",
+        // Adicionando as TAGs para o Modo Garçom:
+        tipo: isWaiterMode ? "local" : "delivery",
+        mesa: isWaiterMode ? tableNumber : null,
+        waiterName: isWaiterMode ? waiterName : null
       };
 
       if (appliedCoupon) {
@@ -1007,10 +1035,12 @@ if (window.fbq) {
                 return text;
             }).join('\n');
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
-          const enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
+          const enderecoMsg = isWaiterMode ? `\n🍽️ *Mesa:* ${tableNumber}` : `\n📍 *Endereço:* ${fullAddress}`;
           
-          let obsMsg = '';
-          if (customer.payment === 'dinheiro') {
+         let obsMsg = '';
+          if (isWaiterMode) {
+              obsMsg = `\n💳 *Pagamento:* A combinar no Caixa / Salão`;
+          } else if (customer.payment === 'dinheiro') {
               obsMsg = `\n💵 *Pagamento:* Dinheiro\n🪙 *Troco para:* ${customer.changeFor || 'Não precisa'}`;
           } else if (customer.payment === 'offline_pix') {
               obsMsg = `\n📱 *Pagamento:* PIX (Na Entrega / Chave da Loja)`;
@@ -1019,7 +1049,8 @@ if (window.fbq) {
           }
 
           const linkAcompanhamento = `https://${window.location.host}/track/${orderId}`;
-          const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}\n\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
+          const freteTexto = isWaiterMode ? "" : `\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}`;
+          const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone || 'Não informado'}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}${freteTexto}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
 
           const targetPhone = storeSettings.whatsapp || "5551999999999";
           const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
@@ -1509,7 +1540,12 @@ if (window.fbq) {
         )}
         {/* --- FIM: EXIBIÇÃO DO CNPJ --- */}
         
-        <p className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6">Plataforma de Vendas</p>
+        <p 
+            className="text-slate-300 font-black text-[9px] uppercase tracking-[0.3em] mb-6 cursor-pointer"
+            onClick={() => setShowWaiterLogin(true)}
+        >
+            Plataforma de Vendas {isWaiterMode ? ' (Modo Garçom ATIVO)' : ''}
+        </p>
         <a 
           href="https://velodelivery.com.br"
           target="_blank" 
@@ -1574,7 +1610,7 @@ if (window.fbq) {
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
               <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
               <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
-              {storeSettings.freeShippingThreshold > 0 && (
+              {!isWaiterMode && storeSettings.freeShippingThreshold > 0 && (
                   <div className="mb-6 bg-slate-50 p-4 rounded-3xl border border-slate-100">
                       {(() => {
                           const currentTotal = cart.reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
@@ -1628,23 +1664,36 @@ if (window.fbq) {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
                   <div>
-                    <input type="text" placeholder="Seu Nome Completo" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
-                    <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
-                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
-                    <div className="relative">
-                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
-                      {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
-                    </div>
-                    {customer.street && (
-                      <>
-                          <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                          <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
-                      </>
+                    <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
+                    
+                    {isWaiterMode ? (
+                        <>
+                            <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                            <div className="bg-yellow-50 p-4 rounded-[2rem] border border-yellow-200 mb-3">
+                                <label className="text-xs font-black uppercase text-yellow-700 ml-2 mb-1 block">Número da Mesa *</label>
+                                <input type="number" placeholder="Ex: 12" className="w-full p-4 bg-white rounded-xl font-black text-xl text-center shadow-inner border-none outline-none focus:ring-2 ring-yellow-400" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
+                            <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                            <div className="relative">
+                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
+                              {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
+                            </div>
+                            {customer.street && (
+                              <>
+                                  <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
+                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
+                              </>
+                            )}
+                        </>
                     )}
                   </div>
 
-                  {cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
-                  {deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center`}>{deliveryAreaMessage}</p>}
+                  {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
+                  {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center`}>{deliveryAreaMessage}</p>}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
@@ -1671,46 +1720,54 @@ if (window.fbq) {
                       </div>
                   )}
 
-                  <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
-                  <div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {(storeSettings?.stripeConnectId ?[ 
-                        {id:'pix', name:'PIX ONLINE', icon: <QrCode size={20}/>}, 
-                        {id:'cartao', name:'CARTÃO ONLINE', icon: <CreditCard size={20}/>}, 
-                        {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}, 
-                        {id:'offline_credit_card', name:'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>} 
-                      ] :[
-                        {id:'offline_pix', name:'PIX (NA ENTREGA)', icon: <QrCode size={20}/>}, 
-                        {id:'offline_credit_card', name:'CARTÃO (MAQUININHA)', icon: <CreditCard size={20}/>}, 
-                        {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}
-                      ]).map(m => (
-                          <button key={m.id} onClick={()=>setCustomer({...customer, payment:m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment===m.id?`${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`:'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                              {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center">{m.name}</span>
-                          </button>
-                      ))}
-                    </div>
-                    {customer.payment === 'dinheiro' && <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />}
+                  {!isWaiterMode && (
+                      <>
+                          <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
+                          <div>
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              {(storeSettings?.stripeConnectId ? [ 
+                                {id:'pix', name:'PIX ONLINE', icon: <QrCode size={20}/>}, 
+                                {id:'cartao', name:'CARTÃO ONLINE', icon: <CreditCard size={20}/>}, 
+                                {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}, 
+                                {id:'offline_credit_card', name:'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>} 
+                              ] : [
+                                {id:'offline_pix', name:'PIX (NA ENTREGA)', icon: <QrCode size={20}/>}, 
+                                {id:'offline_credit_card', name:'CARTÃO (MAQUININHA)', icon: <CreditCard size={20}/>}, 
+                                {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}
+                              ]).map(m => (
+                                  <button key={m.id} onClick={() => setCustomer({...customer, payment: m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment === m.id ? `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}` : 'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                                      {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center">{m.name}</span>
+                                  </button>
+                              ))}
+                            </div>
+                            {customer.payment === 'dinheiro' && (
+                                <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
+                            )}
+                          </div>
+                      </>
+                  )}
 
-                    <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-                        <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
-                            <span>Frete</span>
-                            <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
-                                {shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'}
-                            </span>
-                        </div>
-                        {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
-                        <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
-                    </div>
-
-                   <button 
-                        onClick={finalizeOrder} 
-                        disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
-                        className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
-                    >
-                        {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
-                    </button>
+                  <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
+                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
+                      {!isWaiterMode && (
+                          <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
+                              <span>Frete</span>
+                              <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
+                                  {shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'}
+                              </span>
+                          </div>
+                      )}
+                      {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
+                      <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
+
+                  <button 
+                      onClick={finalizeOrder} 
+                      disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
+                      className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
+                  >
+                      {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
+                  </button>
 
                 </>
               )}
@@ -2038,6 +2095,73 @@ if (window.fbq) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- MODO GARÇOM LOGIN --- */}
+      <AnimatePresence>
+        {showWaiterLogin && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[200] p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl text-center">
+              <button onClick={() => setShowWaiterLogin(false)} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24}/></button>
+              
+              <div className="bg-yellow-100 text-yellow-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <Utensils size={40} />
+              </div>
+              
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-2">Acesso Garçom</h2>
+              <p className="text-sm font-bold text-slate-500 mb-6">Identifique-se e insira o PIN da loja.</p>
+              
+              <input 
+                type="text" 
+                placeholder="Seu Nome (Ex: João)" 
+                className="w-full p-4 bg-slate-50 rounded-xl font-bold text-center mb-3 outline-none focus:ring-2 ring-yellow-400"
+                value={waiterName}
+                onChange={e => setWaiterName(e.target.value)}
+              />
+
+              <input 
+                type="password" 
+                placeholder="PIN da Loja" 
+                className="w-full p-4 bg-slate-50 rounded-xl font-black text-center text-2xl tracking-[0.5em] mb-4 outline-none focus:ring-2 ring-yellow-400"
+                value={waiterPin}
+                onChange={e => setWaiterPin(e.target.value)}
+              />
+              
+              <button 
+                onClick={() => {
+                  const correctPin = storeSettings?.waiterPin || '1234';
+                  if (!waiterName) return alert("Digite seu nome para identificar a venda!");
+                  if (waiterPin === correctPin) {
+                    setIsWaiterMode(true);
+                    setShowWaiterLogin(false);
+                    setWaiterPin('');
+                    alert(`✅ Bem-vindo(a), ${waiterName}! O Modo Garçom está ativado.`);
+                  } else {
+                    alert("❌ PIN Incorreto.");
+                    setWaiterPin('');
+                  }
+                }} 
+                className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl active:scale-95"
+              >
+                Entrar no Salão
+              </button>
+
+              {isWaiterMode && (
+                  <button 
+                    onClick={() => {
+                      setIsWaiterMode(false);
+                      setShowWaiterLogin(false);
+                      alert("Modo Garçom desativado. O sistema voltou para o Delivery normal.");
+                    }} 
+                    className="w-full mt-3 py-3 text-red-500 font-bold uppercase text-xs tracking-widest"
+                  >
+                    Desativar Garçom
+                  </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

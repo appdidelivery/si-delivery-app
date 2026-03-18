@@ -867,8 +867,7 @@ const handleGenerateProductCopy = async () => {
                 <hr>
                 <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
                 <strong>CLIENTE:</strong> ${o.customerName}<br>
-                <strong>TEL:</strong> ${o.customerPhone || o.phone || ''}<br>
-                <strong>ENDEREÇO:</strong> ${o.address || o.customerAddress || 'Retirada'}<br>
+                ${o.tipo === 'local' ? `<strong>MESA:</strong> ${o.mesa}<br><strong>GARÇOM:</strong> ${o.waiterName || 'Não identificado'}<br>` : `<strong>TEL:</strong> ${o.customerPhone || o.phone || ''}<br><strong>ENDEREÇO:</strong> ${o.address || o.customerAddress || 'Retirada'}<br>`}
                 <strong>PAGTO:</strong> ${pagto}<br>
                 ${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}
                 <hr>
@@ -1666,10 +1665,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     }
     return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGTO NA ENTREGA</span>;
 })()}
+{o.tipo === 'local' && (
+    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
+)}
 <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                     </div>
-                                    <h3 className="font-black text-lg text-slate-800 leading-tight">{o.customerName}</h3>
-                                    <p className="text-xs text-slate-500 font-medium">{typeof o.address === 'object' ? `${o.address.street}, ${o.address.number} - ${o.address.neighborhood}` : o.address}</p>
+                                    <h3 className="font-black text-lg text-slate-800 leading-tight">
+                                        {o.customerName} {o.waiterName && <span className="text-xs text-purple-500 ml-2 font-bold">(Garçom: {o.waiterName})</span>}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        {o.tipo === 'local' 
+                                            ? `Atendimento no Salão - Mesa ${o.mesa}`
+                                            : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
+                                        }
+                                    </p>
                                 </div>
                                 {/* LISTAGEM SEGURA DE ITENS NO PEDIDO */}
                 <div className="py-3 my-2 border-y border-slate-50 space-y-2">
@@ -2769,8 +2778,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Dica: Esse endereço vai gerar o link do Google Maps no site.</p>
                                 </div>
 
-                                {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
+                                {/* --- MODO GARÇOM --- */}
                                 <div className="pt-4 border-t border-slate-100">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <Utensils size={14} className="text-purple-500"/> PIN do Modo Garçom (Salão)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ex: 1234 (Padrão)" 
+                                        className="w-full p-5 bg-slate-50 rounded-2xl font-black text-slate-700 border-none outline-none focus:ring-2 ring-purple-400"
+                                        value={storeStatus.waiterPin || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { waiterPin: e.target.value }, { merge: true })}
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Senha para os garçons acessarem o sistema no rodapé da loja. (Se vazio, o padrão é 1234).</p>
+                                </div>
+
+                                {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
+                                <div className="pt-4 border-t border-slate-100 mt-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <Trophy size={14} className="text-yellow-500"/> Meta para Frete Grátis (R$)
                                     </label>
