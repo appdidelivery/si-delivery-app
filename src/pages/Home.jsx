@@ -230,8 +230,19 @@ export default function Home() {
   };
 
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [cart, setCart] = useState([]);
+  const[categories, setCategories] = useState([]);
+  
+  // 1. CARREGA O CARRINHO SALVO NO NAVEGADOR E IMPEDE QUE ESVAZIE
+  const [cart, setCart] = useState(() => {
+      const saved = localStorage.getItem(`veloCart_${storeId}`);
+      return saved ? JSON.parse(saved) :[];
+  });
+
+  // 2. SALVA O CARRINHO AUTOMATICAMENTE SEMPRE QUE UM ITEM É ADICIONADO/REMOVIDO
+  useEffect(() => {
+      localStorage.setItem(`veloCart_${storeId}`, JSON.stringify(cart));
+  }, [cart, storeId]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all'); 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -269,27 +280,38 @@ export default function Home() {
 // --- SISTEMA DE CARRINHO ABANDONADO (SALVA SILENCIOSAMENTE) ---
   useEffect(() => {
       const phoneStr = customer?.phone?.replace(/\D/g, '') || '';
-      // Salva só se o cliente digitou pelo menos o nome, um telefone válido e tem itens no carrinho
-      if (cart.length > 0 && phoneStr.length >= 10 && customer?.name) {
+      
+      // Gera um ID de visitante temporário se o cliente ainda não digitou o telefone
+      let visitorId = localStorage.getItem('veloVisitorId');
+      if (!visitorId) {
+          visitorId = Math.random().toString(36).substring(2, 15);
+          localStorage.setItem('veloVisitorId', visitorId);
+      }
+
+      // Salva assim que adicionar 1 item no carrinho OU se digitar o WhatsApp
+      if (cart.length > 0 || phoneStr.length >= 10) {
           const saveAbandonedCart = async () => {
               try {
-                  const cartId = `cart_${storeId}_${phoneStr}`;
+                  // Usa o telefone como ID (se existir), senão usa o ID do visitante
+                  const cartId = phoneStr.length >= 10 ? `cart_${storeId}_${phoneStr}` : `cart_${storeId}_${visitorId}`;
+                  
                   await setDoc(doc(db, "abandoned_carts", cartId), {
                       storeId: storeId,
-                      customerName: customer.name,
-                      customerPhone: customer.phone,
+                      customerName: customer?.name || "Visitante (Sem nome)",
+                      customerPhone: customer?.phone || "",
                       items: cart,
                       subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
                       lastUpdated: serverTimestamp(),
                       status: 'abandoned'
-                  });
+                  }, { merge: true }); // merge: true atualiza sem apagar os dados existentes
               } catch (e) { console.error("Erro ao salvar carrinho abandonado:", e); }
           };
-          // Espera 3 segundos sem digitar para não sobrecarregar o banco de dados
-          const timeout = setTimeout(saveAbandonedCart, 3000);
+          // Espera 2 segundos sem digitar para não sobrecarregar o banco
+          const timeout = setTimeout(saveAbandonedCart, 2000);
           return () => clearTimeout(timeout);
       }
   }, [cart, customer.phone, customer.name, storeId]);
+     
   const[marketingSettings, setMarketingSettings] = useState({
         promoActive: false,
         promoBannerUrls:[]
