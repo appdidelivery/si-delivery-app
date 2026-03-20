@@ -526,7 +526,9 @@ export default function Admin() {
 
     // Pedido Manual
     const[manualCart, setManualCart] = useState([]);
-    const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' });
+    const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery' });
+    const[manualCouponCode, setManualCouponCode] = useState('');
+    const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
 
     // Uploads
     const [imageFile, setImageFile] = useState(null);
@@ -1971,36 +1973,61 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="space-y-6">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Novo Pedido Manual</h1>
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm space-y-4 border border-slate-100">
+                                {/* MODO DE ENTREGA / RETIRADA */}
+                                <div className="flex gap-4 mb-4 bg-slate-50 p-2 rounded-2xl">
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery' }); }}
+                                        className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}
+                                    >
+                                        🛵 Entrega
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup' }); setManualShippingFee(0); }}
+                                        className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}
+                                    >
+                                        🏪 Retirada / Balcão
+                                    </button>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Nome do Cliente</label>
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Nome do Cliente (Opcional no Balcão)</label>
                                         <input type="text" placeholder="Nome Completo" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-bold text-slate-400 ml-2">CEP (Saia do campo para buscar)</label>
-                                        <input
-                                            type="text"
-                                            placeholder="00000-000"
-                                            className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none"
-                                            value={manualCep}
-                                            onChange={e => setManualCep(e.target.value)}
-                                            onBlur={handleManualCepSearch}
-                                            maxLength="9"
-                                        />
+                                        <label className="text-xs font-bold text-slate-400 ml-2">WhatsApp (Opcional)</label>
+                                        <input type="tel" placeholder="(DDD + Número)" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
                                     </div>
                                 </div>
                                 
-                                <div>
-                                     <label className="text-xs font-bold text-slate-400 ml-2">Endereço (Rua, Número, Bairro)</label>
-                                     <input 
-                                        type="text" 
-                                        placeholder="Preenchido automaticamente pelo CEP" 
-                                        className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" 
-                                        value={manualCustomer.address} 
-                                        onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} />
-                                </div>
-
-                                <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
+                                {manualCustomer.deliveryMethod === 'delivery' && (
+                                    <div className="animate-in fade-in slide-in-from-top-2 space-y-4 mt-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 ml-2">CEP (Opcional - Busca Automática)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="00000-000"
+                                                className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none"
+                                                value={manualCep}
+                                                onChange={e => setManualCep(e.target.value)}
+                                                onBlur={handleManualCepSearch}
+                                                maxLength="9"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-400 ml-2">Endereço Completo (Livre digitação)</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Rua, Número, Bairro" 
+                                                className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" 
+                                                value={manualCustomer.address} 
+                                                onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} 
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 
                                 <select className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
                                     <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
@@ -2041,40 +2068,95 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
+                                    {/* CAMPO DE CUPOM E DESCONTO MANUAL */}
+                                    <div className="flex items-center gap-2 mb-4 border-b border-dashed border-slate-200 pb-4 mt-4">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Cupom de Desconto" 
+                                            className="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-sm uppercase outline-none" 
+                                            value={manualCouponCode} 
+                                            onChange={e => setManualCouponCode(e.target.value)} 
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                if (!manualCouponCode) return setManualDiscountAmount(0);
+                                                const coupon = coupons.find(c => c.code.toUpperCase() === manualCouponCode.toUpperCase() && c.active);
+                                                if (!coupon) return alert("Cupom inválido ou inativo.");
+                                                
+                                                const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
+                                                if (coupon.minimumOrderValue > subtotal) return alert(`Pedido mínimo para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}`);
+                                                
+                                                let calcDiscount = 0;
+                                                if (coupon.type === 'percentage') calcDiscount = subtotal * (coupon.value / 100);
+                                                else if (coupon.type === 'fixed_amount') calcDiscount = coupon.value;
+                                                
+                                                setManualDiscountAmount(calcDiscount);
+                                                alert("Cupom aplicado com sucesso!");
+                                            }}
+                                            className="bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs uppercase"
+                                        >
+                                            Aplicar
+                                        </button>
+                                    </div>
+                                    
+                                    {manualDiscountAmount > 0 && (
+                                        <div className="flex justify-between mb-2 font-bold text-green-500 text-sm">
+                                            <span>Desconto:</span>
+                                            <span>- R$ {manualDiscountAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+
                                     <div className="text-3xl font-black text-slate-900 mt-4 italic">
-                                        Total R$ {(manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee + Number(manualExtraFee)).toFixed(2)}
+                                        Total R$ {Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee + Number(manualExtraFee) - manualDiscountAmount)).toFixed(2)}
                                     </div>
                                     
                                     <button onClick={async () => {
-                                        if (!manualCustomer.name || !manualCustomer.address || !manualCustomer.phone || manualCart.length === 0) return alert("Preencha tudo e adicione produtos!");
+                                        if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
+                                        if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
                                         
                                         const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
                                         const extraFeeNum = Number(manualExtraFee) || 0;
-                                        const totalWithShipping = subtotal + manualShippingFee + extraFeeNum;
-                                        const finalAddress = `${manualCustomer.address} - ${manualCustomer.neighborhood || ''}`;
+                                        const discountNum = Number(manualDiscountAmount) || 0;
+                                        const finalTotal = Math.max(0, subtotal + manualShippingFee + extraFeeNum - discountNum);
+                                        
+                                        const isPickup = manualCustomer.deliveryMethod === 'pickup';
+                                        const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
+                                        const finalName = manualCustomer.name || 'Cliente Balcão';
+
+                                        // Dados do vendedor logado
+                                        const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+                                        const sellerEmail = auth.currentUser?.email || 'owner';
 
                                         await addDoc(collection(db, "orders"), { 
                                             ...manualCustomer, 
-                                            customerName: manualCustomer.name, 
+                                            customerName: finalName, 
                                             customerAddress: finalAddress, 
-                                            customerPhone: manualCustomer.phone, 
+                                            customerPhone: manualCustomer.phone || '', 
                                             items: manualCart,
-                                            shippingFee: manualShippingFee,
+                                            subtotal: subtotal,
+                                            shippingFee: isPickup ? 0 : manualShippingFee,
                                             extraFee: extraFeeNum,
-                                            total: totalWithShipping, 
-                                            status: 'pending', 
+                                            discountAmount: discountNum,
+                                            couponCode: manualCouponCode,
+                                            total: finalTotal, 
+                                            status: isPickup ? 'completed' : 'pending', // Se for balcão, já cai como concluído/entregue
+                                            tipo: isPickup ? 'local' : 'delivery',
                                             createdAt: serverTimestamp(), 
                                             customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
                                             storeId: storeId,
                                             source: 'manual',
-                                            sellerEmail: auth.currentUser?.email || 'owner' // SALVA QUEM FEZ A VENDA
+                                            vendedor: sellerName,
+                                            sellerEmail: sellerEmail 
                                         });
                                         
                                         setManualCart([]); 
-                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '' }); 
+                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery' }); 
                                         setManualCep('');
                                         setManualShippingFee(0);
                                         setManualExtraFee(0);
+                                        setManualCouponCode('');
+                                        setManualDiscountAmount(0);
                                         alert("Pedido Lançado com Sucesso!");
                                     }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-6 shadow-xl hover:bg-blue-700 transition-all">
                                         Confirmar Pedido
