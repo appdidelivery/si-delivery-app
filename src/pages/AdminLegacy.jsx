@@ -306,7 +306,31 @@ export default function Admin() {
             </div>
          );
     }
+   // --- LÓGICA DE 30 DIAS DE TESTE E VENCIMENTO ---
+    const [trialInfo, setTrialInfo] = useState({ isTrial: true, daysLeft: 30, isOverdue: false });
 
+    useEffect(() => {
+        if (store?.createdAt) {
+            // Converte a data do Firebase para o formato nativo do JS
+            const createdDate = store.createdAt.toDate ? store.createdAt.toDate() : new Date(store.createdAt);
+            const now = new Date();
+            
+            // Calcula a diferença de dias
+            const diffTime = Math.abs(now - createdDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            const daysLeft = Math.max(0, 30 - diffDays);
+            const isTrial = diffDays <= 30;
+            
+            // Fatura vence se passou de 30 dias E o pagamento não consta como 'paid' no banco
+            const overdue = !isTrial && store?.paymentStatus !== 'paid';
+
+            setTrialInfo({ isTrial, daysLeft, isOverdue: overdue });
+        }
+    }, [store?.createdAt, store?.paymentStatus]);
+
+    const isOverdue = trialInfo.isOverdue; // Dispara a tela de bloqueio vermelho se true
+    // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [visitasHoje, setVisitasHoje] = useState(0);
@@ -1429,12 +1453,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             // Atualiza o estado local para fechar o modal na hora
             setStoreStatus(prev => ({ ...prev, termsAccepted: true }));
             alert("Termos aceitos! Bem-vindo à Velo.");
-        } catch (error) {
+       } catch (error) {
             console.error("Erro ao aceitar termos:", error);
             alert("Erro ao salvar aceite via banco de dados.");
         }
     };
-    const isOverdue = false;
+    
    // --- NOVA LÓGICA DE UX PARA SEO / LOGÍSTICA ---
     const isFoodCategory = (categoryName) => {
         if (!categoryName) return true; 
@@ -1522,6 +1546,31 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <Printer size={20}/> Fechar Caixa / Relatório
                                 </button>
                             </div>
+                            {/* --- BANNER DE AVISO: TESTE OU FATURA --- */}
+                            {trialInfo.isTrial && storeStatus.paymentStatus !== 'paid' && (
+                                <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                                    <div>
+                                        <h3 className="text-blue-800 font-black flex items-center gap-2 text-lg"><Clock size={20} /> PERÍODO DE TESTE ATIVO</h3>
+                                        <p className="text-blue-600 font-bold text-sm">Você tem {trialInfo.daysLeft} dias restantes de uso gratuito. Adicione um cartão para não pausar suas vendas.</p>
+                                    </div>
+                                    <button onClick={() => setActiveTab('finance')} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap">
+                                        Ver Fatura
+                                    </button>
+                                </div>
+                            )}
+
+                            {trialInfo.isOverdue && (
+                                <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-pulse">
+                                    <div>
+                                        <h3 className="text-red-700 font-black flex items-center gap-2 text-lg"><Server size={20} /> FATURA EM ABERTO</h3>
+                                        <p className="text-red-600 font-bold text-sm">Seu período de teste expirou. Regularize sua fatura para evitar a suspensão da loja.</p>
+                                    </div>
+                                    <button onClick={() => setActiveTab('finance')} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-red-700 transition-all active:scale-95 whitespace-nowrap">
+                                        Pagar Agora
+                                    </button>
+                                </div>
+                            )}
+                            {/* -------------------------------------- */}
                             {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
                                 <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
                                     <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
@@ -2777,8 +2826,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="flex items-center gap-4">
                                         <div className="bg-green-100 p-2 rounded-lg text-green-600"><FileText size={18}/></div>
                                         <div>
-                                            <p className="font-bold text-slate-700">Fatura Janeiro/2026</p>
-                                            <p className="text-xs text-slate-400">Paga em 10/02/2026</p>
+                                            <p className="font-bold text-slate-700">
+                                                Fatura de Adesão ({storeStatus?.createdAt ? new Date(storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : storeStatus.createdAt).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : 'Atual'})
+                                            </p>
+                                            <p className="text-xs font-bold text-slate-400">
+                                                {storeStatus?.paymentStatus === 'paid' ? 'Pagamento Confirmado' : `Vence após 30 dias de teste`}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="text-right">
