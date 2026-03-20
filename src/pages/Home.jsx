@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, Sandwich } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import AgeGate from '../components/AgeGate';
@@ -175,6 +175,65 @@ export default function Home() {
       navigate(`/p/${slug}`, { replace: true });
   };
 
+  // --- FUNÇÕES DA ÁREA VIP E MISSÕES ---
+  const submitInternalReview = async () => {
+      if (!pendingReviewOrder) return;
+      try {
+          // Grava a missão de avaliação (Vai para o Painel Admin aprovar)
+          await addDoc(collection(db, "loyalty_missions"), {
+              storeId,
+              customerPhone: customer.phone || '',
+              customerName: customer.name || 'Cliente',
+              missionType: 'internal_review',
+              orderId: pendingReviewOrder.id,
+              productName: pendingReviewOrder.items[0]?.name || 'Pedido Completo',
+              rating: reviewRating,
+              comment: 'Avaliação via Clube VIP',
+              pointsExpected: 10,
+              status: 'pending',
+              createdAt: serverTimestamp()
+          });
+          
+          // Bloqueia reavaliação deste pedido
+          await updateDoc(doc(db, "orders", pendingReviewOrder.id), { hasBeenReviewed: true });
+          
+          alert("✅ Avaliação enviada! Seus 10 Pontos estão aguardando aprovação da loja.");
+          setShowReviewPopup(false);
+          setPendingReviewOrder(null);
+      } catch(e) { alert("Erro ao enviar avaliação."); }
+  };
+
+  const submitMissionProof = async () => {
+      if (!proofFile) return alert("Selecione a imagem do print/comprovante!");
+      setUploadingProof(true);
+      try {
+          const formData = new FormData();
+          formData.append('file', proofFile);
+          formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+          const uploadData = await res.json();
+          
+          await addDoc(collection(db, "loyalty_missions"), {
+              storeId,
+              customerPhone: customer.phone,
+              customerName: customer.name || "Cliente VIP",
+              missionType: missionModal.type,
+              pointsExpected: missionModal.points,
+              proofUrl: uploadData.secure_url,
+              status: 'pending',
+              createdAt: serverTimestamp()
+          });
+          
+          alert("✅ Comprovante enviado com sucesso! Seus pontos estão pendentes e serão creditados assim que a loja aprovar.");
+          setMissionModal({ isOpen: false, type: '', title: '', points: 0 });
+          setProofFile(null);
+      } catch (e) {
+          alert("Erro ao enviar comprovante. Tente novamente.");
+      } finally {
+          setUploadingProof(false);
+      }
+  };
+
   const handleOptionToggle = (group, option) => {
       setSelectedOptions(prev => {
           const currentGroupSelections = prev[group.id] ||[];
@@ -337,7 +396,17 @@ export default function Home() {
         promoActive: false,
         promoBannerUrls:[]
   });
-  const [showExitModal, setShowExitModal] = useState(false);
+  const[showExitModal, setShowExitModal] = useState(false);
+
+  // --- ESTADOS DA ÁREA VIP E GAMIFICAÇÃO ---
+  const[showVipArea, setShowVipArea] = useState(false);
+  const[showReviewPopup, setShowReviewPopup] = useState(false);
+  const [pendingReviewOrder, setPendingReviewOrder] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  
+  const[missionModal, setMissionModal] = useState({ isOpen: false, type: '', title: '', points: 0 });
+  const [proofFile, setProofFile] = useState(null);
+  const[uploadingProof, setUploadingProof] = useState(false);
 
   useEffect(() => {
     if (!marketingSettings?.exitIntentActive) return;
@@ -433,18 +502,27 @@ export default function Home() {
     if (marketingSettings?.loyaltyActive) {
       const phone = localStorage.getItem('customerPhone');
       if (phone) {
-        const q = query(
-          collection(db, "orders"),
-          where("storeId", "==", storeId),
-          where("customerPhone", "==", phone),
-          where("status", "==", "completed") 
-        );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        // 1. Calcula Pontos das Compras
+        const qOrders = query(collection(db, "orders"), where("storeId", "==", storeId), where("customerPhone", "==", phone), where("status", "==", "completed"));
+        const unsubOrders = onSnapshot(qOrders, (snapshot) => {
           const totalSpent = snapshot.docs.reduce((acc, doc) => acc + Number(doc.data().total || 0), 0);
-          const points = Math.floor(totalSpent * (marketingSettings.pointsPerReal || 1));
-          setLoyaltyPoints(points);
+          const basePoints = Math.floor(totalSpent * (marketingSettings.pointsPerReal || 1));
+          
+          // 2. Calcula Pontos das Missões (Bônus)
+          const qMissions = query(collection(db, "loyalty_missions"), where("storeId", "==", storeId), where("customerPhone", "==", phone), where("status", "==", "approved"));
+          getDocs(qMissions).then((missionSnap) => {
+              const bonusPoints = missionSnap.docs.reduce((acc, doc) => acc + Number(doc.data().pointsAwarded || 0), 0);
+              setLoyaltyPoints(basePoints + bonusPoints);
+          });
+          
+          // 3. Gatilho da Avaliação Interna (Acha o último não avaliado)
+          const unreviewed = snapshot.docs.find(doc => !doc.data().hasBeenReviewed);
+          if (unreviewed && !sessionStorage.getItem(`review_skipped_${unreviewed.id}`)) {
+              setPendingReviewOrder({ id: unreviewed.id, ...unreviewed.data() });
+              setShowReviewPopup(true);
+          }
         });
-        return () => unsubscribe();
+        return () => unsubOrders();
       }
     }
   }, [marketingSettings, storeId]);
@@ -1600,7 +1678,16 @@ if (window.fbq) {
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
         >
-          <Clock size={24} /> <span className="font-bold text-sm pr-2">Últimos Pedidos</span>
+          <Clock size={24} /> <span className="font-bold text-sm pr-2 hidden md:inline">Últimos Pedidos</span>
+        </motion.button>
+
+        <motion.button
+          onClick={() => setShowVipArea(true)}
+          className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-slate-900 rounded-full p-4 shadow-xl hover:from-yellow-300 hover:to-yellow-500 active:scale-90 flex items-center gap-2 border-2 border-yellow-300"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+        >
+          <Crown size={24} fill="currentColor" /> <span className="font-black text-sm pr-2">VIP</span>
         </motion.button>
       </div>
 
@@ -2095,7 +2182,151 @@ if (window.fbq) {
           </motion.div>
         )}
       </AnimatePresence>
+{/* --- ÁREA VIP & MISSÕES --- */}
+      <AnimatePresence>
+        {showVipArea && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[150] p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <button onClick={() => setShowVipArea(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+              
+              <div className="bg-gradient-to-br from-yellow-300 to-yellow-500 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-yellow-200">
+                  <Crown size={48} className="mx-auto text-slate-900 mb-2" fill="currentColor" />
+                  <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">Clube VIP</h2>
+                  <p className="text-slate-800 font-bold mt-2">Você possui <span className="text-2xl font-black bg-slate-900 text-yellow-400 px-3 py-1 rounded-xl mx-1">{loyaltyPoints}</span> pontos!</p>
+              </div>
 
+              <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4 pl-2">Missões Disponíveis (Ganhe Pontos)</h3>
+              
+              <div className="space-y-4">
+                {/* Missão Nova: Avaliar Produto do App */}
+                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
+                      <div className="flex-1 pr-2">
+                          <h4 className="font-black text-slate-800 text-sm">Avaliar Produto</h4>
+                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">Dê 5 estrelas para o seu último pedido.</p>
+                      </div>
+                      <button 
+                          onClick={() => {
+                              if (pendingReviewOrder) {
+                                  setShowVipArea(false);
+                                  setShowReviewPopup(true);
+                              } else {
+                                  alert("Você não possui pedidos recentes pendentes de avaliação no momento.");
+                              }
+                          }} 
+                          className={`${pendingReviewOrder ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-400'} px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm`}
+                      >
+                          10 Pontos
+                      </button>
+                  </div>
+                  {/* Missão 1: Google Simples */}
+                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
+                      <div className="flex-1">
+                          <h4 className="font-black text-slate-800 text-sm">Avaliar no Google</h4>
+                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">Dê 5 estrelas e cole o texto sugerido.</p>
+                      </div>
+                      <button onClick={() => setMissionModal({ isOpen: true, type: 'google_simple', title: 'Avaliação Google', points: 20 })} className="bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm">20 Pontos</button>
+                  </div>
+
+                  {/* Missão 2: Google com Foto */}
+                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
+                      <div className="flex-1">
+                          <h4 className="font-black text-slate-800 text-sm">Avaliar com Foto</h4>
+                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">GMB: Poste uma foto linda do seu pedido.</p>
+                      </div>
+                      <button onClick={() => setMissionModal({ isOpen: true, type: 'google_photo', title: 'Google + Foto', points: 30 })} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm">30 Pontos</button>
+                  </div>
+
+                  {/* Missão 3: Instagram */}
+                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
+                      <div className="flex-1">
+                          <h4 className="font-black text-slate-800 text-sm">Postar no Instagram</h4>
+                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">Tire uma foto e marque nosso @oficial.</p>
+                      </div>
+                      <button onClick={() => setMissionModal({ isOpen: true, type: 'instagram', title: 'Post Instagram', points: 40 })} className="bg-pink-100 text-pink-700 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm">40 Pontos</button>
+                  </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL DA MISSÃO (UPLOAD DE COMPROVANTE) --- */}
+      <AnimatePresence>
+        {missionModal.isOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[200] p-4">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl">
+              <button onClick={() => { setMissionModal({ isOpen: false }); setProofFile(null); }} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24} /></button>
+              
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase text-slate-900 mb-2">{missionModal.title}</h2>
+              <p className="text-xs font-bold text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  Para ganhar os <strong className="text-yellow-600">{missionModal.points} pontos</strong>, clique no botão abaixo para ir até a página, faça a ação, tire um Print (Screenshot) e envie aqui para validação.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                  {storeSettings.googleReviewUrl && missionModal.type.includes('google') && (
+                      <a href={storeSettings.googleReviewUrl} target="_blank" rel="noopener noreferrer" className="w-full flex justify-center items-center gap-2 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95">
+                          <ExternalLink size={16}/> Abrir Página do Google
+                      </a>
+                  )}
+                  <button onClick={() => { navigator.clipboard.writeText("Excelente atendimento e qualidade! Recomendo muito a loja."); alert("Texto copiado!"); }} className="w-full flex justify-center items-center gap-2 bg-slate-100 text-slate-700 p-4 rounded-2xl font-black text-xs uppercase hover:bg-slate-200">
+                      Copiar Texto Sugerido
+                  </button>
+                  {missionModal.type === 'google_photo' && lastOrders.length > 0 && lastOrders[0].items[0]?.imageUrl && (
+                      <button onClick={() => window.open(lastOrders[0].items[0].imageUrl, '_blank')} className="w-full flex justify-center items-center gap-2 bg-purple-100 text-purple-700 p-4 rounded-2xl font-black text-xs uppercase hover:bg-purple-200">
+                          <ImageIcon size={16}/> Ver Foto do Último Pedido
+                      </button>
+                  )}
+              </div>
+
+              <div className="border-t border-slate-100 pt-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block text-center">Enviar Comprovante (Print)</label>
+                  <input type="file" accept="image/*" onChange={(e) => setProofFile(e.target.files[0])} className="hidden" id="proof-upload" />
+                  <label htmlFor="proof-upload" className="w-full p-4 bg-slate-50 rounded-2xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 transition-all">
+                      <UploadCloud size={24} className={proofFile ? 'text-green-500' : 'text-slate-400'} />
+                      <span className="text-xs text-center">{proofFile ? '✅ Arquivo Selecionado' : 'Toque para anexar o Print'}</span>
+                  </label>
+              </div>
+              
+              <button onClick={submitMissionProof} disabled={uploadingProof || !proofFile} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl mt-4 transition-all ${proofFile ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                  {uploadingProof ? 'Enviando...' : 'Solicitar Pontos'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- POP-UP AVALIAÇÃO INTERNA (AUTOMÁTICA 10 PTS) --- */}
+      <AnimatePresence>
+        {showReviewPopup && pendingReviewOrder && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[250] p-4">
+            <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl text-center">
+              <button onClick={() => { setShowReviewPopup(false); sessionStorage.setItem(`review_skipped_${pendingReviewOrder.id}`, 'true'); }} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24} /></button>
+              
+              <div className="bg-yellow-100 text-yellow-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <Star size={40} fill="currentColor" />
+              </div>
+              
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-2 text-slate-900">Ganhe 10 Pontos!</h2>
+              <p className="text-sm font-bold text-slate-500 mb-6">Como foi o seu último pedido? Avalie agora e credite os pontos na hora.</p>
+              
+              <div className="flex justify-center gap-2 mb-8">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                      <button key={star} onClick={() => setReviewRating(star)} className="transition-transform hover:scale-110 active:scale-95">
+                          <Star size={40} className={star <= reviewRating ? 'text-yellow-400' : 'text-slate-200'} fill={star <= reviewRating ? "currentColor" : "none"} />
+                      </button>
+                  ))}
+              </div>
+              
+              <button onClick={submitInternalReview} className="w-full bg-green-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-xl shadow-green-200 active:scale-95">
+                  Confirmar & Ganhar
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODO GARÇOM LOGIN --- */}
+      <AnimatePresence></AnimatePresence>
       {/* --- MODO GARÇOM LOGIN --- */}
       <AnimatePresence>
         {showWaiterLogin && (

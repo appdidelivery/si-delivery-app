@@ -375,6 +375,10 @@ export default function Admin() {
     const[loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
     const [reviewsList, setReviewsList] = useState([]);
     const [replyText, setReplyText] = useState({});
+    
+    // --- NOVO: ESTADOS DAS MISSÕES VIP ---
+    const [vipMissions, setVipMissions] = useState([]);
+    const [activeReviewTab, setActiveReviewTab] = useState('missions'); // Controla Aba Prints vs Avaliações
 
     // --- 🚨 CÓDIGO DE RESGATE AUTOMÁTICO (COLE AQUI) 🚨 ---
     useEffect(() => {
@@ -670,11 +674,19 @@ export default function Admin() {
             fetched.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setReviewsList(fetched);
         });
+        
+        // --- NOVO: BUSCAR MISSÕES VIP ---
+        const unsubMissions = onSnapshot(query(collection(db, "loyalty_missions"), where("storeId", "==", storeId)), (s) => {
+            const fetchedMissions = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            fetchedMissions.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+            setVipMissions(fetchedMissions);
+        });
+
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
         return () => { 
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubTeam();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam();
         };
     },[storeId]);
     
@@ -901,8 +913,8 @@ const handleGenerateProductCopy = async () => {
         preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
         delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.`,
         
-        // MENSAGEM NOVA: Focada no produto e com link dinâmico da loja
-        completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n⭐ *Que tal avaliar o seu pedido?* \nLeva só 10 segundos e nos ajuda muito a melhorar: \n👉 ${reviewLink}`,
+        // MENSAGEM NOVA: Focada em conversão para o Clube VIP
+        completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!* \nAcesse agora o nosso app e entre no Clube VIP para ganhar pontos na faixa: \n👉 https://${window.location.host}`,
         
         canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
     };
@@ -912,6 +924,37 @@ const handleGenerateProductCopy = async () => {
         if(phone) window.open(`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
     }
 };
+
+    // --- NOVAS FUNÇÕES: APROVAR/RECUSAR MISSÕES VIP ---
+    const handleMissionAction = async (mission, action) => {
+        const confirmMsg = action === 'approved' ? "Aprovar missão e creditar pontos ao cliente?" : "Recusar esta missão?";
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            // Se for avaliação no app e foi aprovada, publica o review na loja!
+            if (action === 'approved' && mission.missionType === 'internal_review') {
+                await addDoc(collection(db, "reviews"), {
+                    storeId: mission.storeId,
+                    orderId: mission.orderId,
+                    customerName: mission.customerName,
+                    rating: mission.rating,
+                    comment: mission.comment || 'Avaliação via Clube VIP',
+                    createdAt: serverTimestamp()
+                });
+            }
+
+            // Atualiza a missão e credita os pontos (pointsAwarded)
+            await updateDoc(doc(db, "loyalty_missions", mission.id), { 
+                status: action,
+                pointsAwarded: action === 'approved' ? mission.pointsExpected : 0,
+                resolvedAt: serverTimestamp()
+            });
+            alert(`Missão ${action === 'approved' ? 'Aprovada! Pontos creditados.' : 'Recusada.'}`);
+        } catch (error) {
+            alert("Erro ao processar a missão.");
+            console.error(error);
+        }
+    };
 
     const handleAddQuantityDiscount = () => setForm(prev => ({ ...prev, quantityDiscounts:[...prev.quantityDiscounts, { minQuantity: 1, type: 'percentage', value: 0, description: '' }] }));
     const handleUpdateQuantityDiscount = (index, field, value) => { const newDiscounts = [...form.quantityDiscounts]; newDiscounts[index][field] = value; setForm(prev => ({ ...prev, quantityDiscounts: newDiscounts })); };
@@ -1906,13 +1949,78 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             )})}
                         </div>
 
-                        {/* --- NOVA GESTÃO DE AVALIAÇÕES AQUI --- */}
+                        {/* --- NOVA GESTÃO DE AVALIAÇÕES E MISSÕES VIP --- */}
                         <div className="mt-16 pt-12 border-t border-slate-200">
-                            <h2 className="text-3xl font-black italic tracking-tighter uppercase text-slate-900 mb-2">Gestão de Avaliações</h2>
-                            <p className="text-slate-400 font-bold mb-8 text-sm">Responda seus clientes. Suas respostas ficarão visíveis no App.</p>
+                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                                <div>
+                                    <h2 className="text-3xl font-black italic tracking-tighter uppercase text-slate-900 mb-2">Engajamento VIP</h2>
+                                    <p className="text-slate-400 font-bold text-sm">Aprove missões com prints ou responda avaliações do App.</p>
+                                </div>
+                                <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-full md:w-auto">
+                                    <button onClick={() => setActiveReviewTab('missions')} className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeReviewTab === 'missions' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                                        📸 Prints Pendentes {vipMissions.filter(m => m.status === 'pending').length > 0 && <span className="bg-red-500 text-white px-2 py-0.5 rounded-full ml-1 animate-pulse">{vipMissions.filter(m => m.status === 'pending').length}</span>}
+                                    </button>
+                                    <button onClick={() => setActiveReviewTab('reviews')} className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeReviewTab === 'reviews' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                                        ⭐ Avaliações do App
+                                    </button>
+                                </div>
+                            </div>
                             
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {reviewsList.length === 0 ? (
+                            {activeReviewTab === 'missions' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
+                                    {vipMissions.filter(m => m.status === 'pending').length === 0 ? (
+                                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 text-center col-span-full">
+                                            <p className="text-slate-400 font-bold">Ufa! Nenhuma missão pendente de aprovação no momento.</p>
+                                        </div>
+                                    ) : vipMissions.filter(m => m.status === 'pending').map(m => (
+                                        <div key={m.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <span className="font-black text-slate-800 uppercase text-lg">{m.customerName}</span>
+                                                    <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase">WhatsApp: {m.customerPhone}</p>
+                                                </div>
+                                                <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                                                    🪙 +{m.pointsExpected} Pts
+                                                </span>
+                                            </div>
+                                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                <p className="text-xs font-bold text-slate-500 mb-3">
+                                                    Missão: <strong className="text-slate-800">
+                                                        {m.missionType === 'google_simple' ? 'Avaliação Simples (Google)' : 
+                                                         m.missionType === 'google_photo' ? 'Avaliação c/ Foto (Google)' : 
+                                                         m.missionType === 'internal_review' ? 'Avaliação no App' : 'Post Instagram'}
+                                                    </strong>
+                                                </p>
+                                                
+                                                {m.missionType === 'internal_review' ? (
+                                                    <div className="bg-white p-3 rounded-xl border border-slate-100 flex flex-col gap-1 text-center">
+                                                        <div className="flex justify-center text-yellow-400 mb-1">
+                                                            {[...Array(5)].map((_, i) => <Star key={i} size={14} fill={i < m.rating ? "currentColor" : "none"} />)}
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-slate-600 uppercase truncate">{m.productName}</span>
+                                                    </div>
+                                                ) : (
+                                                    <button onClick={() => window.open(m.proofUrl, '_blank')} className="w-full flex justify-center items-center gap-2 bg-slate-900 text-white p-3 rounded-xl font-black text-xs uppercase hover:bg-slate-800 transition-all shadow-md">
+                                                        <ImageIcon size={16}/> Ver Print Enviado
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2 mt-auto">
+                                                <button onClick={() => handleMissionAction(m, 'rejected')} className="flex-1 bg-red-50 text-red-600 p-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-all border border-red-100">
+                                                    ❌ Recusar
+                                                </button>
+                                                <button onClick={() => handleMissionAction(m, 'approved')} className="flex-1 bg-green-500 text-white p-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all shadow-lg shadow-green-200 active:scale-95">
+                                                    ✅ Aprovar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {activeReviewTab === 'reviews' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
+                                    {reviewsList.length === 0 ? (
                                     <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 text-center col-span-full">
                                         <p className="text-slate-400 font-bold">Nenhuma avaliação recebida ainda.</p>
                                     </div>
@@ -1962,6 +2070,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 ))}
                             </div>
+                        )}
                         </div>
                     </div>
                 )}
