@@ -186,21 +186,24 @@ export default function Home() {
               customerName: customer.name || 'Cliente',
               missionType: 'internal_review',
               orderId: pendingReviewOrder.id,
-              productName: pendingReviewOrder.items[0]?.name || 'Pedido Completo',
+              productName: pendingReviewOrder.items?.[0]?.name || 'Pedido Completo',
               rating: reviewRating,
               comment: 'Avaliação via Clube VIP',
               pointsExpected: 10,
               status: 'pending',
               createdAt: serverTimestamp()
           });
-          
+
           // Bloqueia reavaliação deste pedido
           await updateDoc(doc(db, "orders", pendingReviewOrder.id), { hasBeenReviewed: true });
-          
+
           alert("✅ Avaliação enviada! Seus 10 Pontos estão aguardando aprovação da loja.");
           setShowReviewPopup(false);
           setPendingReviewOrder(null);
-      } catch(e) { alert("Erro ao enviar avaliação."); }
+      } catch(e) {
+          console.error("ERRO AO ENVIAR AVALIAÇÃO VIP:", e);
+          alert(`Erro ao enviar avaliação: ${e.message}`);
+      }
   };
 
   const submitMissionProof = async () => {
