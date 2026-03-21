@@ -4207,8 +4207,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
                             <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
                         </div>
-                        <button onClick={() => alert("Em breve: Integração InfinitePay")} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl">
-                            Pagar Agora
+                        <button onClick={handleAssinarPro} className="w-full bg-green-600 hover:bg-green-700 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <CreditCard size={20}/> Pagar com Cartão
                         </button>
                     </div>
                 </div>
