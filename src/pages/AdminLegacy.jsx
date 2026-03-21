@@ -1450,10 +1450,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 termsAcceptedAt: serverTimestamp(),
                 termsVersion: "v1.0-manifesto"
             });
-            // Atualiza o estado local para fechar o modal na hora
+           // Atualiza o estado local para fechar o modal na hora
             setStoreStatus(prev => ({ ...prev, termsAccepted: true }));
             alert("Termos aceitos! Bem-vindo à Velo.");
-       } catch (error) {
+            window.location.reload(); // Força o reload para limpar o modal e entrar no Dashboard
+        } catch (error) {
             console.error("Erro ao aceitar termos:", error);
             alert("Erro ao salvar aceite via banco de dados.");
         }
