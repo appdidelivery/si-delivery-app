@@ -25,30 +25,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Cria a sessão de Checkout da Mensalidade (SaaS)
+    // Cria a sessão de Checkout de ASSINATURA RECORRENTE
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'pix'], // Aceita Cartão de Crédito e Pix
+      payment_method_types: ['card'], // Para assinatura recorrente no Brasil, a Stripe usa predominantemente Cartão
       line_items: [
         {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: 'Mensalidade Velo Delivery Pro',
-              description: `Acesso completo ao painel, pedidos ilimitados e suporte para a loja ${storeId}.`,
-              images: ['https://velodelivery.com.br/logo-square.png'], // Opcional: Sua Logo
-            },
-            unit_amount: 4990, // R$ 49,90 (em centavos = 4990)
-          },
+          // COLOQUE O SEU PRICE ID AQUI EMBAIXO
+          price: 'price_COLE_AQUI_SEU_ID', 
           quantity: 1,
         },
       ],
-      mode: 'payment', // 'payment' para cobrança única. Use 'subscription' se quiser que a Stripe cobre automático todo mês
-      success_url: `${req.headers.origin}/admin?fatura=paga`, // Volta pro Admin
+      mode: 'subscription', // MUITO IMPORTANTE: Isso diz à Stripe para cobrar todo mês
+      success_url: `${req.headers.origin}/admin?fatura=paga`, 
       cancel_url: `${req.headers.origin}/admin?fatura=cancelada`,
-      client_reference_id: storeId, // Salva o ID da loja no pagamento para o seu webhook liberar o sistema
-      metadata: {
-        storeId: storeId,
-        type: 'SaaS_Subscription'
+      client_reference_id: storeId, // Salva o ID da loja para seu webhook saber quem pagou
+      subscription_data: {
+        metadata: {
+          storeId: storeId,
+          plano: 'Pro_Velo'
+        }
       }
     });
 
