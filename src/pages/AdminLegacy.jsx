@@ -184,25 +184,30 @@ export default function Admin() {
 
     const handleAssinarPro = async () => {
         try {
-            // Usamos o storeId que já foi identificado na lógica acima
             if (!storeId) return alert("Erro: Loja não identificada.");
 
-            // AJUSTE: Força o uso do domínio principal para evitar Erro 405 em subdomínios
-            const apiUrl = window.location.hostname === 'localhost' 
+            // Em localhost (desenvolvimento) bate relativo. Em produção, força o domínio principal para evitar erros de subdomínio.
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const apiUrl = isLocal 
                 ? '/api/checkout-pro' 
                 : 'https://velodelivery.com.br/api/checkout-pro';
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: storeId }) // Mudamos de store.slug para storeId
+                body: JSON.stringify({ storeId: storeId })
             });
+            
             const data = await response.json();
-            if (data.url) window.location.href = data.url;
-            else alert("Erro: " + data.error);
+            
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
+            }
         } catch (error) {
-            console.error("Erro no checkout da Stripe:", error);
-            alert("Erro de conexão ao tentar gerar o pagamento.");
+            console.error("Erro na cobrança SaaS:", error);
+            alert("Erro de conexão ao tentar gerar a fatura. Tente novamente em instantes.");
         }
     };
 
