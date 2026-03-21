@@ -190,7 +190,7 @@ export default function Admin() {
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             const apiUrl = isLocal 
                 ? '/api/checkout-pro' 
-                : 'https://velodelivery.com.br/api/checkout-pro';
+                : 'https://app.velodelivery.com.br/api/checkout-pro';
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
