@@ -322,10 +322,14 @@ export default function Admin() {
             const daysLeft = Math.max(0, 30 - diffDays);
             const isTrial = diffDays <= 30;
             
-            // Fatura vence se passou de 30 dias E o pagamento não consta como 'paid' no banco
-            const overdue = !isTrial && store?.paymentStatus !== 'paid';
+            // Fatura vence APENAS se não for Trial E o pagamento não estiver pago
+            const overdue = !isTrial && storeStatus.paymentStatus !== 'paid';
 
             setTrialInfo({ isTrial, daysLeft, isOverdue: overdue });
+        } else {
+            // Se a loja não tem createdAt (recém criada), garante o trial!
+            setTrialInfo({ isTrial: true, daysLeft: 30, isOverdue: false });
+        
         }
     }, [store?.createdAt, store?.paymentStatus]);
 
@@ -4186,7 +4190,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
-            {isOverdue && (
+            {/* --- FLUXO DE BLOQUEIOS (ONBOARDING E FATURA) --- */}
+            {/* 1. SE A FATURA ESTIVER VENCIDA E OS TERMOS JÁ TIVEREM SIDO ACEITOS */}
+            {isOverdue && storeStatus?.termsAccepted && (
                 <div className="fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-6">
                     <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 text-center shadow-2xl relative overflow-hidden border-4 border-red-500">
                         <div className="absolute top-0 left-0 w-full h-4 bg-red-500 animate-pulse"></div>
@@ -4204,19 +4210,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <button onClick={() => alert("Em breve: Integração InfinitePay")} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl">
                             Pagar Agora
                         </button>
-                        <div className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+                    </div>
+                </div>
+            )}
+
+            {/* 2. SE OS TERMOS AINDA NÃO FORAM ACEITOS (MESMO NO PERÍODO DE TESTE) */}
+            {!storeStatus?.termsAccepted && (
+                <div className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
-                        
                         <div className="bg-slate-900 p-8 text-white">
                             <h2 className="text-2xl font-black italic uppercase flex items-center gap-3">
-                                <ShieldCheck className="text-velo-orange" size={28} /> 
+                                <ShieldCheck className="text-blue-500" size={28} /> 
                                 Termos de Uso e Cobrança
                             </h2>
                             <p className="text-slate-400 text-sm mt-2">Para continuar, precisamos que você entenda como nossa infraestrutura funciona.</p>
                         </div>
 
                         <div className="p-8 overflow-y-auto custom-scrollbar text-slate-600 space-y-6 text-sm leading-relaxed">
-                            
                             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl">
                                 <p className="font-bold text-blue-900">
                                     Resumo: Não cobramos % sobre suas vendas. Cobramos pelo uso técnico (Hardware/Dados) que sua loja consome.
@@ -4258,9 +4268,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     </div>
                 </div>
-                    </div>
-                </div>
             )}
+            {/* -------------------------------------------------------- */}
 
             {/* MODAL DE INTEGRAÇÕES */}
             <AnimatePresence>
