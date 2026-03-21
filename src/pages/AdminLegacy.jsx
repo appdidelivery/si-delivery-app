@@ -187,7 +187,12 @@ export default function Admin() {
             // Usamos o storeId que já foi identificado na lógica acima
             if (!storeId) return alert("Erro: Loja não identificada.");
 
-            const response = await fetch('/api/checkout-pro', {
+            // AJUSTE: Força o uso do domínio principal para evitar Erro 405 em subdomínios
+            const apiUrl = window.location.hostname === 'localhost' 
+                ? '/api/checkout-pro' 
+                : 'https://velodelivery.com.br/api/checkout-pro';
+
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storeId: storeId }) // Mudamos de store.slug para storeId
@@ -196,7 +201,8 @@ export default function Admin() {
             if (data.url) window.location.href = data.url;
             else alert("Erro: " + data.error);
         } catch (error) {
-            alert("Erro de conexão.");
+            console.error("Erro no checkout da Stripe:", error);
+            alert("Erro de conexão ao tentar gerar o pagamento.");
         }
     };
 
