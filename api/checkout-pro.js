@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export default async function handler(req, res) {
-  // CORS Headers (Essencial para não dar bloqueio no Subdomínio)
+  // CORS Headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -25,24 +25,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Cria a sessão de Checkout de ASSINATURA RECORRENTE
+    // Modo Assinatura Recorrente exige uma estrutura mais simples
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'], // Para assinatura recorrente no Brasil, a Stripe usa predominantemente Cartão
+      payment_method_types: ['card'], 
       line_items: [
         {
-          // COLOQUE O SEU PRICE ID AQUI EMBAIXO
-          price: 'price_COLE_AQUI_SEU_ID', 
+          price: price_1T4gNo6iD1OCwvLcVlQ9q2hW, // <-- O SEU PRICE ID OFICIAL AQUI
           quantity: 1,
         },
       ],
-      mode: 'subscription', // MUITO IMPORTANTE: Isso diz à Stripe para cobrar todo mês
-      success_url: `${req.headers.origin}/admin?fatura=paga`, 
+      mode: 'subscription', // MODO RECORRENTE
+      success_url: `${req.headers.origin}/admin?fatura=paga`,
       cancel_url: `${req.headers.origin}/admin?fatura=cancelada`,
-      client_reference_id: storeId, // Salva o ID da loja para seu webhook saber quem pagou
+      client_reference_id: storeId, // O ID da loja para seu Webhook ouvir
       subscription_data: {
         metadata: {
           storeId: storeId,
-          plano: 'Pro_Velo'
+          type: 'velo_pro_subscription'
         }
       }
     });
@@ -50,7 +49,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ url: session.url });
 
   } catch (error) {
-    console.error('Erro ao criar sessão na Stripe:', error);
-    return res.status(500).json({ error: 'Erro interno ao comunicar com a Stripe.' });
+    console.error('Erro ao criar sessão de Assinatura na Stripe:', error);
+    // Retorna a mensagem de erro específica da Stripe para facilitar o debug
+    return res.status(500).json({ error: error.message || 'Erro interno ao comunicar com a Stripe.' });
   }
 }
