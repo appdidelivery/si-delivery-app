@@ -457,12 +457,35 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
             }
 
-            if (action === 'transactional') {
-                if (!toPhone || !templateName) return res.status(400).json({ error: 'Telefone/template obrigatórios' });
-                const result = await sendMessageToMeta(toPhone, templateName);
-                if(result.ok) return res.status(200).json({ success: true });
-                else return res.status(400).json({ error: 'Falha na API Meta', details: result.data });
+            // --- INÍCIO: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
+            if (action === 'chat_reply') {
+                if (!toPhone || !dynamicParams?.text) return res.status(400).json({ error: 'Telefone e texto são obrigatórios' });
+                
+                let cleanPhone = String(toPhone).replace(/\D/g, '');
+                if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+
+                const payload = {
+                    messaging_product: "whatsapp",
+                    recipient_type: "individual",
+                    to: cleanPhone,
+                    type: "text",
+                    text: { body: dynamicParams.text }
+                };
+                
+                const response = await fetch(GRAPH_API_URL, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                if(response.ok) {
+                    return res.status(200).json({ success: true });
+                } else {
+                    return res.status(400).json({ error: 'Falha na API Meta', details: data });
+                }
             }
+            // --- FIM: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
 
             return res.status(400).json({ error: 'Ação não reconhecida' });
         } catch (error) {
@@ -507,16 +530,76 @@ export default async function handler(req, res) {
                             if (message.type === 'text') messageText = message.text.body;
                             else if (message.type === 'button') messageText = message.button.text;
 
-                            if (messageText) {
+                           if (messageText) {
                                 try {
+                                    // 1. MULTILOJA: Descobrir qual loja é dona deste número do WhatsApp
+                                    const settingsSnap = await db.collection('settings')
+                                        .where('integrations.whatsapp.phoneNumberId', '==', phoneNumberId)
+                                        .limit(1)
+                                        .get();
+                                    
+                                    let storeId = 'desconhecida';
+                                    let apiToken = null;
+                                    let storeDomain = '';
+
+                                    if (!settingsSnap.empty) {
+                                        const storeData = settingsSnap.docs[0].data();
+                                        storeId = settingsSnap.docs[0].id;
+                                        apiToken = storeData.integrations?.whatsapp?.apiToken;
+                                        // Monta o link dinâmico da loja baseado no padrão do Velo
+                                        storeDomain = `https://${storeId}.velodelivery.com.br`; 
+                                    }
+
+                                    // 2. Salva a mensagem na caixa de entrada (agora atrelada ao storeId)
                                     await db.collection('whatsapp_inbound').add({
+                                        storeId: storeId,
                                         phoneNumberId: phoneNumberId, 
                                         from: message.from,
                                         text: messageText,
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(),
                                         status: 'unread'
                                     });
-                                } catch (error) { console.error('Erro:', error); }
+
+                                    // 3. LÓGICA DO BOT (Executa apenas se achou o token da loja)
+                                    const waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
+                                    
+                                    // Só responde automático se o lojista ativou o botão "Ativar Menu Automático" no painel
+                                    if (apiToken && waSettings.botEnabled) {
+                                        const incomingText = messageText.trim().toLowerCase();
+                                        let replyText = "";
+
+                                        // Textos personalizados pelo lojista (com fallbacks se ele deixar em branco)
+                                        const greeting = waSettings.botGreeting || "Olá! 👋 Sou o assistente virtual da loja.\n\nComo posso te ajudar hoje?\n*Digite o número da opção desejada:*";
+                                        const opt1 = waSettings.botOption1 || "Fazer um Pedido (Ver Cardápio)";
+                                        const opt2 = waSettings.botOption2 || "Falar com um Atendente";
+
+                                        // Árvore de decisão
+                                        if (incomingText === "1") {
+                                            replyText = `Acesse nosso cardápio digital e faça seu pedido rapidinho por aqui:\n\n👉 ${storeDomain}`;
+                                        } else if (incomingText === "2") {
+                                            replyText = "Certo! Já chamei um de nossos atendentes. Por favor, aguarde um instante que já vamos te responder por aqui mesmo.";
+                                        } else {
+                                            // Monta o menu dinâmico
+                                            replyText = `${greeting}\n\n*1* - ${opt1}\n*2* - ${opt2}`;
+                                        }
+
+                                        // 4. Dispara a resposta automática usando o token específico da loja
+                                        await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Authorization': `Bearer ${apiToken}`,
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify({
+                                                messaging_product: "whatsapp",
+                                                recipient_type: "individual",
+                                                to: message.from,
+                                                type: "text",
+                                                text: { body: replyText }
+                                            })
+                                        });
+                                    }
+                                } catch (error) { console.error('Erro no processamento da mensagem recebida:', error); }
                             }
                         }
                     }

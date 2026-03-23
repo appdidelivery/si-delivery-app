@@ -35,6 +35,7 @@ import {
     FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar 
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
+import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
@@ -135,7 +136,8 @@ const allNavItems =[
     { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
     { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
     { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
-    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
+    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
+    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
 ];
 
 export default function Admin() {
@@ -1681,6 +1683,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     );
                 })()}
+                {activeTab === 'chat' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-end mb-4">
+                            <div>
+                                <h1 className="text-3xl lg:text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Chat e Suporte</h1>
+                                <p className="text-slate-400 font-bold mt-2 text-sm">Atenda seus clientes via WhatsApp direto do painel.</p>
+                            </div>
+                        </div>
+                        <AdminChat />
+                    </div>
+                )}
 {activeTab === 'abandoned' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
@@ -4492,6 +4505,55 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <input type="checkbox" className="w-4 h-4 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoLoyalty || false} onChange={e => setIntegrationForm({...integrationForm, autoLoyalty: e.target.checked})} />
                                             </label>
                                         </div>
+                                        {/* --- INÍCIO: CONFIGURAÇÃO DO CHATBOT --- */}
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mt-6">
+                                            💬 Menu do Chatbot Automático
+                                        </h3>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                                            <label className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-4">
+                                                <div className="pr-4">
+                                                    <p className="text-xs font-black text-slate-700 uppercase">Ativar Menu Automático</p>
+                                                    <p className="text-[10px] text-slate-500 leading-tight mt-1">Responde automaticamente com um menu de opções quando o cliente manda mensagem.</p>
+                                                </div>
+                                                <input type="checkbox" className="w-5 h-5 accent-blue-600 flex-shrink-0" checked={integrationForm.botEnabled || false} onChange={e => setIntegrationForm({...integrationForm, botEnabled: e.target.checked})} />
+                                            </label>
+
+                                            {integrationForm.botEnabled && (
+                                                <div className="space-y-3 animate-in fade-in">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Mensagem de Saudação</label>
+                                                        <textarea 
+                                                            rows="3" 
+                                                            placeholder="Ex: Olá! Sou o assistente virtual. Como posso ajudar?" 
+                                                            className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none focus:ring-2 ring-blue-500"
+                                                            value={integrationForm.botGreeting || ''}
+                                                            onChange={e => setIntegrationForm({...integrationForm, botGreeting: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Texto da Opção 1 (Cardápio)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ex: 🍔 Ver Cardápio e Fazer Pedido" 
+                                                            className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none"
+                                                            value={integrationForm.botOption1 || ''}
+                                                            onChange={e => setIntegrationForm({...integrationForm, botOption1: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Texto da Opção 2 (Falar com Atendente)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ex: 👨‍💻 Falar com Humano" 
+                                                            className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none"
+                                                            value={integrationForm.botOption2 || ''}
+                                                            onChange={e => setIntegrationForm({...integrationForm, botOption2: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* --- FIM: CONFIGURAÇÃO DO CHATBOT --- */}
 
                                         {/* Lista de Transmissão / Marketing */}
                                         <div className="bg-green-50 p-5 rounded-2xl border border-green-200 relative overflow-hidden">
