@@ -560,11 +560,20 @@ export default async function handler(req, res) {
                                         status: 'unread'
                                     });
 
-                                    // 3. LÓGICA DO BOT (Executa apenas se achou o token da loja)
+                                    // --- INÍCIO: CONTROLE DE SESSÃO DO BOT ---
+                                    // Verifica se o bot foi pausado para este cliente (transbordo para humano)
+                                    const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
+                                    const sessionSnap = await sessionRef.get();
+                                    let botPaused = false;
+
+                                    if (sessionSnap.exists) {
+                                        botPaused = sessionSnap.data().botPaused || false;
+                                    }
+
+                                    // 3. LÓGICA DO BOT (Só executa se token existe, bot ativado na loja E bot NÃO estiver pausado)
                                     const waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
                                     
-                                    // Só responde automático se o lojista ativou o botão "Ativar Menu Automático" no painel
-                                    if (apiToken && waSettings.botEnabled) {
+                                    if (apiToken && waSettings.botEnabled && !botPaused) {
                                         const incomingText = messageText.trim().toLowerCase();
                                         let replyText = "";
 
@@ -573,11 +582,20 @@ export default async function handler(req, res) {
                                         const opt1 = waSettings.botOption1 || "Fazer um Pedido (Ver Cardápio)";
                                         const opt2 = waSettings.botOption2 || "Falar com um Atendente";
 
-                                        // Árvore de decisão
+                                       // Árvore de decisão
                                         if (incomingText === "1") {
                                             replyText = `Acesse nosso cardápio digital e faça seu pedido rapidinho por aqui:\n\n👉 ${storeDomain}`;
                                         } else if (incomingText === "2") {
                                             replyText = "Certo! Já chamei um de nossos atendentes. Por favor, aguarde um instante que já vamos te responder por aqui mesmo.";
+                                            
+                                            // 🚨 TRANBORDO PARA HUMANO: Pausa o bot para este cliente
+                                            await sessionRef.set({
+                                                storeId: storeId,
+                                                phone: message.from,
+                                                botPaused: true,
+                                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                            }, { merge: true });
+
                                         } else {
                                             // Monta o menu dinâmico
                                             replyText = `${greeting}\n\n*1* - ${opt1}\n*2* - ${opt2}`;
