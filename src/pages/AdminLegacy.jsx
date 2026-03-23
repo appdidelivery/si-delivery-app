@@ -557,7 +557,7 @@ export default function Admin() {
     const [manualExtraFee, setManualExtraFee] = useState(0);
     // Categorias
     const[isCatModalOpen, setIsCatModalOpen] = useState(false);
-    const [catForm, setCatForm] = useState({ name: '', icon: 'List' });
+    const [catForm, setCatForm] = useState({ name: '', icon: 'List', order: 0 });
     const [editingCatId, setEditingCatId] = useState(null);
 
     // Banners
@@ -660,7 +660,7 @@ export default function Admin() {
         const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         
         // Categorias
-        const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
         
         // Banners
         const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), orderBy("order", "asc")), (s) => setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -1862,14 +1862,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Categorias</h1>
-                            <button onClick={() => { setEditingCatId(null); setCatForm({ name: '', icon: 'List' }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
+                           <button onClick={() => { setEditingCatId(null); setCatForm({ name: '', icon: 'List', order: 0 }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {categories.map(c => (
                                 <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
-                                    <span className="font-bold text-lg">{c.name}</span>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-lg leading-tight">{c.name}</span>
+                                        <span className="text-xs font-bold text-slate-400 mt-1">Ordem: {c.order || 0}</span>
+                                    </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List' }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
+                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List', order: c.order || 0 }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
@@ -3474,8 +3477,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative">
                             <button onClick={() => setIsCatModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X /></button>
                             <h2 className="text-2xl font-black uppercase mb-6">{editingCatId ? 'Editar' : 'Nova'} Categoria</h2>
-                            <form onSubmit={async (e) => { e.preventDefault(); try { const dataToSave = { ...catForm, storeId: storeId }; if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave); else await addDoc(collection(db, "categories"), dataToSave); setIsCatModalOpen(false); alert("Categoria salva!"); } catch (error) { alert("Erro ao salvar."); } }}>
-                                <input type="text" placeholder="Nome da Categoria" className="w-full p-4 bg-slate-50 rounded-xl font-bold mb-4" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
+                           <form onSubmit={async (e) => { e.preventDefault(); try { const dataToSave = { ...catForm, order: Number(catForm.order) || 0, storeId: storeId }; if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave); else await addDoc(collection(db, "categories"), dataToSave); setIsCatModalOpen(false); alert("Categoria salva!"); } catch (error) { alert("Erro ao salvar."); } }}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <input type="text" placeholder="Nome da Categoria" className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
+                                    <input type="number" placeholder="Ordem (Ex: 1, 2, 3)" className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={catForm.order} onChange={e => setCatForm({ ...catForm, order: e.target.value })} required />
+                                </div>
                                 {/* NOVO: SELETOR DE ÍCONES */}
 <label className="text-xs font-bold text-slate-400 mb-2 block">Selecione um Ícone</label>
 <div className="grid grid-cols-4 gap-2 mb-6 max-h-40 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50 custom-scrollbar">
