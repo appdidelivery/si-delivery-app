@@ -378,20 +378,35 @@ export default function Admin() {
 
     const handleUpdateAndClearCache = async () => {
         try {
-            localStorage.clear();
-            sessionStorage.clear();
+            // 1. Destruir os Service Workers (PWA) que interceptam os arquivos antigos
             if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
-                for (const registration of registrations) await registration.unregister();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
             }
+
+            // 2. Limpar o Cache Storage (Arquivos JS/CSS retidos no navegador)
             if ('caches' in window) {
                 const cacheNames = await caches.keys();
-                for (const name of cacheNames) await caches.delete(name);
+                for (const name of cacheNames) {
+                    await caches.delete(name);
+                }
             }
-            window.location.reload(true);
+
+            // 3. Limpar a sessão atual
+            sessionStorage.clear();
+            // Mantemos o localStorage para não derrubar o login do Firebase (que salva no IndexedDB/Local)
+
+            // 4. Forçar o Hard Reload ignorando o cache de disco injetando um timestamp único na URL
+            const url = new URL(window.location.href);
+            url.searchParams.set('force_update', new Date().getTime());
+            window.location.href = url.toString();
+
         } catch (error) {
-            console.error("Erro ao limpar cache:", error);
-            window.location.reload();
+            console.error("Erro ao limpar cache, forçando fallback:", error);
+            // Fallback direto de cache-busting
+            window.location.href = window.location.pathname + '?v=' + new Date().getTime();
         }
     };
 
