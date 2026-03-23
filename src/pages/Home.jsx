@@ -1236,14 +1236,45 @@ if (window.fbq) {
     oriental: { primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900', shadow: 'shadow-slate-200', hoverPrimary: 'hover:bg-slate-800', lightBg: 'bg-slate-800', hoverLightBg: 'hover:bg-slate-700', accent: 'accent-slate-900', darkText: 'text-slate-900', gradientFrom: 'from-slate-700', gradientTo: 'to-slate-900', ringColor: 'slate-600', headerBg: 'url(https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=1000&auto=format&fit=crop)' },
     natural: { primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600', shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700', lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100', accent: 'accent-green-600', darkText: 'text-green-900', gradientFrom: 'from-green-500', gradientTo: 'to-green-800', ringColor: 'green-500', headerBg: 'url(https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=1000&auto=format&fit=crop)' },
     sweet: { primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700', lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100', accent: 'accent-purple-600', darkText: 'text-purple-900', gradientFrom: 'from-purple-500', gradientTo: 'to-purple-800', ringColor: 'purple-500', headerBg: 'url(https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=1000&auto=format&fit=crop)' },
-    drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-600', ringColor: 'amber-500', headerBg: 'url(https://images.unsplash.com/photo-1563223771-383790515286?q=80&w=1000&auto=format&fit=crop)' }
+    drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-600', ringColor: 'amber-500', headerBg: 'url(https://images.unsplash.com/photo-1563223771-383790515286?q=80&w=1000&auto=format&fit=crop)' },
+    custom: { 
+        primary: 'bg-[var(--custom-color)]', 
+        text: 'text-[var(--custom-color)]', 
+        border: 'border-[var(--custom-color)]', 
+        shadow: 'shadow-md', 
+        hoverPrimary: 'opacity-90', 
+        lightBg: 'bg-[var(--custom-color)]/10', 
+        hoverLightBg: 'hover:bg-[var(--custom-color)]/20', 
+        accent: 'accent-[var(--custom-color)]', 
+        darkText: 'text-[var(--custom-color)]', 
+        gradientFrom: 'from-[var(--custom-color)]', 
+        gradientTo: 'to-slate-900', 
+        ringColor: '[var(--custom-color)]', 
+        headerBg: 'none' 
+    }
   };
 
   const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
 
-  return (
-  <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-    <SEO 
+ return (
+  <div 
+    className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
+    style={storeSettings?.storeNiche === 'custom' && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {}}
+  >
+    {storeSettings?.storeNiche === 'custom' && storeSettings.customBackgroundUrl && (
+        <div 
+            className="fixed inset-0 z-0 pointer-events-none" 
+            style={{ 
+                backgroundImage: `url(${storeSettings.customBackgroundUrl})`, 
+                backgroundSize: 'cover', 
+                backgroundPosition: 'center', 
+                backgroundAttachment: 'fixed',
+                opacity: 0.15 
+            }} 
+        />
+    )}
+    <div className="relative z-10">
+    <SEO
         title={selectedProduct ? `${selectedProduct.name} | ${storeSettings.name || 'Velo Delivery'}` : `${storeSettings.name || 'Carregando...'} | Delivery`} 
         description={selectedProduct ? (selectedProduct.description || `Compre ${selectedProduct.name} com entrega rápida na ${storeSettings.name}.`) : (storeSettings.slogan || 'Faça seu pedido online.')} 
         image={selectedProduct ? selectedProduct.imageUrl : storeSettings.storeLogoUrl}
@@ -2379,7 +2410,7 @@ if (window.fbq) {
                 Entrar no Salão
               </button>
 
-              {isWaiterMode && (
+             {isWaiterMode && (
                   <button 
                     onClick={() => {
                       setIsWaiterMode(false);
@@ -2395,6 +2426,7 @@ if (window.fbq) {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
     </div>
   );

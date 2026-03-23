@@ -590,10 +590,14 @@ export default function Admin() {
         whatsapp: '', // Adicionado para consistência
         cnpj: '', // CNPJ da Loja
     });
-    const [logoFile, setLogoFile] = useState(null);
+    const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
-    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const[uploadingLogo, setUploadingLogo] = useState(false);
     const [uploadingBanner, setUploadingBanner] = useState(false); // Manter este
+    
+    // Novos estados para o Nicho Personalizado
+    const[customBgFile, setCustomBgFile] = useState(null);
+    const[uploadingCustomBg, setUploadingCustomBg] = useState(false);
 
     // Promoção Relâmpago
     const [promoBannerFile1, setPromoBannerFile1] = useState(null);
@@ -788,13 +792,16 @@ const handleGenerateProductCopy = async () => {
         } catch (e) { alert("Erro upload logo"); } setUploadingLogo(false);
     };
 
-    const handleBannerUpload = async () => {
-        if (!bannerFile) return; setUploadingBanner(true);
+    const handleCustomBgUpload = async () => {
+        if (!customBgFile) return; 
+        setUploadingCustomBg(true);
         try {
-            const url = await uploadImageToCloudinary(bannerFile);
-            await updateDoc(doc(db, "stores", storeId), { storeBannerUrl: url }); 
-            setBannerFile(null); alert("Banner atualizado!");
-        } catch (e) { alert("Erro upload banner"); } setUploadingBanner(false);
+            const url = await uploadImageToCloudinary(customBgFile);
+            await updateDoc(doc(db, "stores", storeId), { customBackgroundUrl: url }, { merge: true }); 
+            setCustomBgFile(null); 
+            alert("Imagem de fundo personalizada salva com sucesso!");
+        } catch (e) { alert("Erro no upload do fundo personalizado"); } 
+        setUploadingCustomBg(false);
     };
 
     const handlePromoBannerUpload = async () => {
@@ -2919,14 +2926,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 <div className="mt-8 pt-8 border-t border-slate-100">
     <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-4">🎯 Nicho da Loja (Personaliza Cores)</label>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
+       {[
             { id: 'default', label: 'Conveniência', color: '#2563eb' },
             { id: 'pizza', label: 'Pizzaria', color: '#e11d48' },
             { id: 'oriental', label: 'Oriental', color: '#111827' },
             { id: 'natural', label: 'Hortifruti', color: '#16a34a' },
             { id: 'sweet', label: 'Doceria/Açaí', color: '#9333ea' },
             { id: 'burger', label: 'Hamburgueria', color: '#ea580c' },
-            { id: 'drinks', label: 'Adega', color: '#f59e0b' }
+            { id: 'drinks', label: 'Adega', color: '#f59e0b' },
+            { id: 'custom', label: 'Personalizado', color: storeStatus.customColor || '#475569' }
         ].map(nicho => (
             <button
                 key={nicho.id}
@@ -2938,6 +2946,53 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </button>
         ))}
     </div>
+
+    <AnimatePresence>
+        {storeStatus.storeNiche === 'custom' && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-6 p-6 bg-slate-50 border border-slate-200 rounded-3xl space-y-4 overflow-hidden">
+                <h4 className="text-sm font-black text-slate-700 uppercase">🎨 Personalização Avançada</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-2">Cor Principal (HEX)</label>
+                        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200">
+                            <input 
+                                type="color" 
+                                value={storeStatus.customColor || '#2563eb'} 
+                                onChange={(e) => updateDoc(doc(db, "stores", storeId), { customColor: e.target.value }, { merge: true })}
+                                className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent"
+                            />
+                            <input 
+                                type="text" 
+                                value={storeStatus.customColor || '#2563eb'}
+                                onChange={(e) => updateDoc(doc(db, "stores", storeId), { customColor: e.target.value }, { merge: true })}
+                                className="flex-1 font-bold bg-transparent outline-none text-slate-700 uppercase"
+                                placeholder="#HEX"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-2">Imagem de Fundo (Opcional)</label>
+                        <input type="file" accept="image/*" onChange={(e) => setCustomBgFile(e.target.files[0])} className="hidden" id="custom-bg-upload" />
+                        <div className="flex items-center gap-2">
+                            <label htmlFor="custom-bg-upload" className="flex-1 p-4 bg-white rounded-2xl font-bold text-slate-600 cursor-pointer border border-slate-200 text-center hover:bg-slate-100 transition-all text-sm truncate">
+                                {customBgFile ? customBgFile.name : (storeStatus.customBackgroundUrl ? 'Alterar Fundo' : 'Selecionar Imagem')}
+                            </label>
+                            {customBgFile && (
+                                <button onClick={handleCustomBgUpload} disabled={uploadingCustomBg} className="p-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all">
+                                    {uploadingCustomBg ? <Loader2 className="animate-spin" size={20} /> : <UploadCloud size={20} />}
+                                </button>
+                            )}
+                        </div>
+                        {storeStatus.customBackgroundUrl && (
+                            <button onClick={() => updateDoc(doc(db, "stores", storeId), { customBackgroundUrl: null }, { merge: true })} className="mt-3 text-[10px] text-red-500 font-bold uppercase tracking-widest hover:underline flex items-center gap-1">
+                                <Trash2 size={12}/> Remover Fundo Atual
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </motion.div>
+        )}
+    </AnimatePresence>
 </div>
                         {/* 2. Informações e Mensagem */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
