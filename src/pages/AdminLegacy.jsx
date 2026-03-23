@@ -4287,9 +4287,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* MODAL DE INTEGRAÇÕES */}
             <AnimatePresence>
                 {isIntegrationModalOpen && selectedIntegration && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl relative">
-                            <button onClick={() => setIsIntegrationModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+                    {/* AQUI ESTÁ A CORREÇÃO: Adicionado max-h-[90vh], overflow-y-auto e ajustado o padding */}
+                    <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <button onClick={() => setIsIntegrationModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors z-50"><X size={20}/></button>
                             
                             <div className="flex items-center gap-4 mb-6 border-b border-slate-100 pb-6">
                                 {selectedIntegration.icon}
@@ -4316,6 +4317,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
+                                    // Validação Específica para WhatsApp Cloud API (Graph API)
+                                    if (selectedIntegration.id === 'whatsapp' && integrationForm.phoneNumberId && integrationForm.apiToken) {
+                                        // Bate no endpoint da Meta para validar credenciais antes de salvar
+                                        const verifyUrl = `https://graph.facebook.com/v19.0/${integrationForm.phoneNumberId}`;
+                                        const verifyRes = await fetch(verifyUrl, {
+                                            method: 'GET',
+                                            headers: { 'Authorization': `Bearer ${integrationForm.apiToken}` }
+                                        });
+                                        
+                                        if (!verifyRes.ok) {
+                                            const errorData = await verifyRes.json();
+                                            alert(`❌ Erro de Autenticação na Meta: ${errorData.error?.message || 'Verifique seu Token Permanente e ID do Telefone.'}`);
+                                            return; // Trava o salvamento para evitar falsos "Conectados"
+                                        }
+                                    }
+
                                     // Salva no Firebase Firestore dentro do documento 'settings' do lojista
                                     await setDoc(doc(db, "settings", storeId), {
                                         integrations: {
@@ -4344,6 +4361,185 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         />
                                     </div>
                                 ))}
+
+                                {/* MOTOR DE AUTOMAÇÕES DO WHATSAPP (Sempre Visível) */}
+                                {selectedIntegration.id === 'whatsapp' && (
+                                    <div className="pt-4 border-t border-slate-100 space-y-4 mt-4 animate-in fade-in slide-in-from-top-2">
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                            🤖 Gatilhos (Velo Bot)
+                                        </h3>
+                                        
+                                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-3">
+                                            
+                                            {/* Alerta para o Lojista */}
+                                            <label className="flex items-center justify-between cursor-pointer">
+                                                <div className="pr-2">
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><FaStore className="text-blue-500"/> Alerta de Novo Pedido (Loja)</p>
+                                                    <p className="text-[9px] text-slate-500 leading-tight mt-0.5">Seu WhatsApp apita ao receber pedidos.</p>
+                                                </div>
+                                                <input type="checkbox" className="w-4 h-4 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoOwnerAlert || false} onChange={e => setIntegrationForm({...integrationForm, autoOwnerAlert: e.target.checked})} />
+                                            </label>
+
+                                            {/* Avisos para o Cliente (Transacional) */}
+                                            <label className="flex items-center justify-between cursor-pointer pt-3 border-t border-slate-200">
+                                                <div className="pr-2">
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><FaBoxOpen className="text-orange-500"/> Status do Pedido (Cliente)</p>
+                                                    <p className="text-[9px] text-slate-500 leading-tight mt-0.5">Avisa quando sai para entrega.</p>
+                                                </div>
+                                                <input type="checkbox" className="w-4 h-4 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoOrderStatus || false} onChange={e => setIntegrationForm({...integrationForm, autoOrderStatus: e.target.checked})} />
+                                            </label>
+
+                                            {/* Carrinho Abandonado */}
+                                            <label className="flex items-center justify-between cursor-pointer pt-3 border-t border-slate-200">
+                                                <div className="pr-2">
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><ShoppingCart size={12} className="text-red-500"/> Carrinho Abandonado</p>
+                                                    <p className="text-[9px] text-slate-500 leading-tight mt-0.5">Alerta 1h após produtos no carrinho.</p>
+                                                </div>
+                                                <input type="checkbox" className="w-4 h-4 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoAbandonedCart || false} onChange={e => setIntegrationForm({...integrationForm, autoAbandonedCart: e.target.checked})} />
+                                            </label>
+
+                                            {/* Pesquisa de Satisfação NPS */}
+                                            <label className="flex items-center justify-between cursor-pointer pt-3 border-t border-slate-200">
+                                                <div className="pr-2">
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><FaStar className="text-yellow-400"/> Avaliação (Pós-Entrega)</p>
+                                                    <p className="text-[9px] text-slate-500 leading-tight mt-0.5">Pede nota ao cliente horas depois.</p>
+                                                </div>
+                                                <input type="checkbox" className="w-4 h-4 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoNps || false} onChange={e => setIntegrationForm({...integrationForm, autoNps: e.target.checked})} />
+                                            </label>
+
+                                            {/* Aviso Clube VIP */}
+                                            <label className="flex items-center justify-between cursor-pointer pt-3 border-t border-slate-200">
+                                                <div className="pr-2">
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><Crown size={12} className="text-purple-500"/> Notificação Clube VIP</p>
+                                                    <p className="text-[9px] text-slate-500 leading-tight mt-0.5">Informa pontos ganhos após a compra.</p>
+                                                </div>
+                                                <input type="checkbox" className="w-4 h-4 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoLoyalty || false} onChange={e => setIntegrationForm({...integrationForm, autoLoyalty: e.target.checked})} />
+                                            </label>
+                                        </div>
+
+                                        {/* Lista de Transmissão / Marketing */}
+                                        <div className="bg-green-50 p-5 rounded-2xl border border-green-200 relative overflow-hidden">
+                                            <div className="absolute -right-4 -top-4 opacity-10"><FaWhatsapp size={100} /></div>
+                                            <h4 className="text-xs font-black text-green-800 uppercase mb-2 relative z-10">📢 Disparo em Massa (Base VIP)</h4>
+                                            <p className="text-[10px] text-green-700 mb-4 relative z-10">Envie um Template (ex: promoções) aprovado na Meta para todos os clientes ativos.</p>
+                                            
+                                            <div className="relative z-10">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Nome exato do Template na Meta (ex: promo_fds)" 
+                                                    className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-green-200 mb-3 focus:ring-2 ring-green-400"
+                                                    value={integrationForm.broadcastTemplate || ''}
+                                                    onChange={e => setIntegrationForm({...integrationForm, broadcastTemplate: e.target.value.trim()})}
+                                                />
+                                                
+                                                <button 
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        if(!integrationForm.phoneNumberId || !integrationForm.apiToken) return alert("Salve suas credenciais da API primeiro!");
+                                                        if(!integrationForm.broadcastTemplate) return alert("Digite o nome do Template aprovado na Meta!");
+                                                        
+                                                        if(window.confirm(`Iniciar disparo do template '${integrationForm.broadcastTemplate}' para sua base de clientes? Isso consumirá créditos da sua conta Meta.`)){
+                                                            try {
+                                                                const res = await fetch('/api/whatsapp-send', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                        action: 'broadcast',
+                                                                        storeId: storeId,
+                                                                        templateName: integrationForm.broadcastTemplate
+                                                                    })
+                                                                });
+                                                                if(res.ok) alert("✅ Disparo iniciado em background! O envio pode levar alguns minutos.");
+                                                                else alert("❌ Erro ao solicitar o disparo. Verifique se o nome do Template está correto.");
+                                                            } catch(e) { alert("Erro de conexão com o servidor da Velo."); }
+                                                        }
+                                                    }}
+                                                    className="w-full bg-green-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    ▶️ Iniciar Disparo
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* NOVO: Motor de Automações do WhatsApp (Exibe apenas se conectado) */}
+                                {selectedIntegration.id === 'whatsapp' && integrationForm.phoneNumberId && integrationForm.apiToken && (
+                                    <div className="pt-6 border-t border-slate-100 space-y-4 mt-6 animate-in fade-in">
+                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                            🤖 Gatilhos e Automações
+                                        </h3>
+                                        
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                                            {/* Status de Pedido */}
+                                            <label className="flex items-center justify-between cursor-pointer">
+                                                <div className="pr-4">
+                                                    <p className="text-xs font-black text-slate-700 uppercase">Avisos de Pedido (Status)</p>
+                                                    <p className="text-[10px] text-slate-500 leading-tight mt-1">Notifica o cliente via API quando o status muda (Saiu p/ Entrega, etc).</p>
+                                                </div>
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-5 h-5 accent-green-500 flex-shrink-0"
+                                                    checked={integrationForm.autoOrderStatus || false}
+                                                    onChange={e => setIntegrationForm({...integrationForm, autoOrderStatus: e.target.checked})}
+                                                />
+                                            </label>
+
+                                            {/* Carrinho Abandonado */}
+                                            <label className="flex items-center justify-between cursor-pointer pt-4 border-t border-slate-200">
+                                                <div className="pr-4">
+                                                    <p className="text-xs font-black text-slate-700 uppercase">Carrinhos Abandonados</p>
+                                                    <p className="text-[10px] text-slate-500 leading-tight mt-1">Dispara um Template de resgate 1h após inatividade no carrinho.</p>
+                                                </div>
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-5 h-5 accent-green-500 flex-shrink-0"
+                                                    checked={integrationForm.autoAbandonedCart || false}
+                                                    onChange={e => setIntegrationForm({...integrationForm, autoAbandonedCart: e.target.checked})}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        {/* Lista de Transmissão / Marketing */}
+                                        <div className="bg-green-50 p-4 rounded-2xl border border-green-200">
+                                            <h4 className="text-xs font-black text-green-800 uppercase mb-2">📢 Disparo em Massa (Base VIP)</h4>
+                                            <p className="text-[10px] text-green-700 mb-3">Envie um Template aprovado na Meta para todos os clientes ativos.</p>
+                                            
+                                            <input 
+                                                type="text" 
+                                                placeholder="Nome do Template (ex: promo_fds)" 
+                                                className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-green-200 mb-3"
+                                                value={integrationForm.broadcastTemplate || ''}
+                                                onChange={e => setIntegrationForm({...integrationForm, broadcastTemplate: e.target.value.trim()})}
+                                            />
+                                            
+                                            <button 
+                                                type="button"
+                                                onClick={async () => {
+                                                    if(!integrationForm.broadcastTemplate) return alert("Digite o nome exato do Template cadastrado no seu Meta Business!");
+                                                    if(window.confirm(`Disparar o template '${integrationForm.broadcastTemplate}' para toda a base? Essa ação enviará mensagens através da sua API e consumirá créditos da Meta.`)){
+                                                        try {
+                                                            const res = await fetch('/api/whatsapp-send', {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                    action: 'broadcast',
+                                                                    storeId: storeId,
+                                                                    templateName: integrationForm.broadcastTemplate
+                                                                })
+                                                            });
+                                                            if(res.ok) alert("✅ Disparo iniciado em background! Verifique os relatórios no Meta Business.");
+                                                            else alert("❌ Erro ao solicitar o disparo. Verifique os logs.");
+                                                        } catch(e) { alert("Erro de conexão com a API Serverless."); }
+                                                    }
+                                                }}
+                                                className="w-full bg-green-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-green-700 active:scale-95 transition-all"
+                                            >
+                                                ▶️ Iniciar Disparo para Clientes
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="pt-6 mt-2">
                                     <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
