@@ -1780,9 +1780,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 )}
 <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                     </div>
-                                    <h3 className="font-black text-lg text-slate-800 leading-tight">
-                                        {o.customerName} {o.waiterName && <span className="text-xs text-purple-500 ml-2 font-bold">(Garçom: {o.waiterName})</span>}
-                                    </h3>
+                                    <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
+                                        {o.customerName} 
+                                        {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
+                                        {o.source === 'google_food_marketplace' && <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 Via Google Maps</span>}
+                                    </h3>
                                     <p className="text-xs text-slate-500 font-medium">
                                         {o.tipo === 'local' 
                                             ? `Atendimento no Salão - Mesa ${o.mesa}`
@@ -3298,17 +3300,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             helpUrl: 'https://ads.google.com/aw/conversions',
                             helpText: 'Ver minhas Conversões no Google Ads'
                         },
-                        { 
-                            id: 'gmc', 
-                            name: 'Google Merchant', 
-                            desc: 'Sincronização de catálogo XML via API.', 
-                            icon: <FaStore className="text-green-600" size={40}/>, 
-                            fields:[
-                                {key: 'merchantId', label: 'Merchant Center ID'}
-                            ],
-                            helpUrl: 'https://merchants.google.com/mc/overview',
-                            helpText: 'Acessar o Google Merchant Center'
-                        },
+                        { 
+                            id: 'order_with_google', 
+                            name: 'Google Maps (Pedidos)', 
+                            desc: 'Botão "Fazer Pedido" direto na Busca e Maps.', 
+                            icon: <FaStore className="text-orange-500" size={40}/>, 
+                            fields:[
+                                {key: 'merchantId', label: 'ID da sua Loja no Google Actions'}
+                            ],
+                            helpUrl: 'https://partnerdash.google.com/',
+                            helpText: 'Acessar o Actions Center'
+                        },
                         { 
                             id: 'gtm', 
                             name: 'Google Tag Manager', 

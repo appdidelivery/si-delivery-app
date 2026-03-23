@@ -35,23 +35,65 @@ export default async function handler(req, res) {
 
     if (!storeId) return res.status(400).send('Loja não informada.');
 
+    // Novo: Captura o tipo de feed solicitado via URL (padrão é 'menu')
+    const feedType = req.query.feed || 'menu';
+
     try {
         const storeDoc = await db.collection('stores').doc(storeId).get();
         if (!storeDoc.exists) return res.status(404).send('Loja não encontrada no banco.');
         const storeData = storeDoc.data();
 
+        // ==========================================
+        // ROTA 1: FEED DO LOJISTA (MERCHANT)
+        // ==========================================
+        if (feedType === 'merchant') {
+            const merchantFeed = {
+                data: [{
+                    "@type": "Restaurant",
+                    "merchantId": storeId,
+                    "name": storeData.name || "Velo Delivery",
+                    // Atenção: Ajuste o mapeamento abaixo se os nomes das chaves no seu Firestore (storeData) forem diferentes
+                    "telephone": storeData.phone || "+5500000000000",
+                    "address": {
+                        "streetAddress": storeData.address?.street || "Endereço não informado",
+                        "locality": storeData.address?.city || "São José",
+                        "region": storeData.address?.state || "SC",
+                        "postalCode": storeData.address?.zipcode || "00000-000"
+                    }
+                }]
+            };
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            return res.status(200).send(JSON.stringify(merchantFeed));
+        }
+
+        // ==========================================
+        // ROTA 2: FEED DE SERVIÇOS (SERVICE)
+        // ==========================================
+        if (feedType === 'service') {
+            const serviceFeed = {
+                data: [{
+                    "@type": "Service",
+                    "serviceId": `srv_delivery_${storeId}`,
+                    "merchantId": storeId,
+                    "serviceType": "DELIVERY" // Pode puxar dinamicamente se o lojista aceitar TAKEOUT (Retirada)
+                }]
+            };
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            return res.status(200).send(JSON.stringify(serviceFeed));
+        }
+
+        // ==========================================
+        // ROTA 3: FEED DE CARDÁPIO (MENU)
+        // ==========================================
         // 2. Busca APENAS pela loja (Evita o erro de Índice do Firebase)
         const productsSnapshot = await db.collection('products')
                                        .where('storeId', '==', storeId)
                                        .get();
 
-        let xml = `<?xml version="1.0" encoding="UTF-8" ?>
-        <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
-        <channel>
-            <title><![CDATA[${storeData.name || 'Velo Delivery'}]]></title>
-            <link>https://${host}</link>
-            <description><![CDATA[Catálogo de produtos da ${storeData.name || 'loja'}]]></description>
-        `;
+        // Inicializa o array principal que conterá os dados no padrão JSON do Google
+        let googleOrderFeed = {
+            data: []
+        };
 
         productsSnapshot.forEach(doc => {
             const p = doc.data();
@@ -83,27 +125,37 @@ export default async function handler(req, res) {
             const productLink = `https://${host}/p/${slug}`;
             const price = Number(p.price || 0).toFixed(2);
 
-            // 7. MONTAGEM DAS TAGS OBRIGATÓRIAS DO GOOGLE SHOPPING
-            xml += `
-            <item>
-                <g:id>${doc.id}</g:id>
-                <g:title><![CDATA[${p.name}]]></g:title>
-                <g:description><![CDATA[${p.description || p.name}]]></g:description>
-                <g:link>${productLink}</g:link>
-                <g:image_link>${p.imageUrl}</g:image_link>
-                <g:condition>new</g:condition>
-                <g:availability>${availability}</g:availability>
-                <g:price>${price} BRL</g:price>
-                ${Number(p.promotionalPrice) > 0 ? `<g:sale_price>${Number(p.promotionalPrice).toFixed(2)} BRL</g:sale_price>` : ''}
-                <g:brand>Bebidas</g:brand>
-            </item>`;
+            // 7. MONTAGEM DO JSON OBRIGATÓRIO DO ORDER WITH GOOGLE (MENU FEED)
+            const finalPrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price || 0);
+            
+            // O Order with Google exige o formato de preço com o código da moeda
+            const itemMenu = {
+                "@type": "MenuItem",
+                "menuItemId": doc.id,
+                "name": [{
+                    "@type": "TextProperty",
+                    "text": p.name,
+                    "language": "pt"
+                }],
+                "description": [{
+                    "@type": "TextProperty",
+                    "text": p.description || p.name,
+                    "language": "pt"
+                }],
+                "price": {
+                    "@type": "Price",
+                    "price": finalPrice,
+                    "currency": "BRL"
+                },
+                "image": [p.imageUrl]
+            };
+
+            googleOrderFeed.data.push(itemMenu);
         });
-
-        xml += `</channel></rss>`;
-
-        res.setHeader('Content-Type', 'text/xml; charset=utf-8');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate'); 
-        res.status(200).send(xml);
+        // Retorna o JSON completo gerado
+        res.status(200).send(JSON.stringify(googleOrderFeed));
 
     } catch (error) {
         console.error("Erro no feed:", error);
