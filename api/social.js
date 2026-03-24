@@ -1,17 +1,21 @@
 // api/social.js
 export default async function handler(req, res) {
-    // 1. Identifica a loja pelo subdomínio (ex: meudelivery)
+    // 1. Identifica a loja pelo subdomínio dinamicamente
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const storeId = host.split('.')[0]; 
 
-    // 2. Fallback: Se der erro, mostra os dados padrão da Velo
     let title = "Velo Delivery | O seu app de entregas";
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
-    let image = "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"; // Coloque uma logo genérica válida aqui
+    let image = "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"; 
+    
+    // Novas variáveis para o Schema (SEO Google)
+    let ratingAggregate = 0;
+    let ratingCount = 0;
+    let address = null;
+    let whatsapp = "";
 
     try {
-        // 3. Busca os dados no Firebase via REST API
-        // Certifique-se que VITE_FIREBASE_PROJECT_ID está cadastrado nas Environment Variables da Vercel!
+        // 2. Busca os dados no Firebase via REST API
         const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
         const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
         
@@ -20,32 +24,72 @@ export default async function handler(req, res) {
         if (response.ok) {
             const data = await response.json();
 
-            // 4. A CORREÇÃO ESTÁ AQUI: Tudo agora é lido da raiz do documento!
             if (data && data.fields) {
-                // Pega o nome
                 title = data.fields.name?.stringValue || title;
-
-                // Tenta pegar o slogan, se não tiver, tenta a mensagem de aviso
                 description = data.fields.slogan?.stringValue || data.fields.message?.stringValue || description;
 
-                // Tenta pegar a storeLogoUrl (novo padrão) ou logoUrl (padrão antigo)
                 let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
-                
-                // GARANTIA WHATSAPP: Valida se a imagem é um link absoluto, exigência do WhatsApp
                 if (fetchedImage) {
-                    if (fetchedImage.startsWith('http')) {
-                        image = fetchedImage;
-                    } else {
-                        image = `https://${host}${fetchedImage.startsWith('/') ? '' : '/'}${fetchedImage}`;
-                    }
+                    image = fetchedImage.startsWith('http') ? fetchedImage : `https://${host}${fetchedImage.startsWith('/') ? '' : '/'}${fetchedImage}`;
+                }
+
+                // 3. A MÁGICA DO SEO: Capturando os dados da sua Cloud Function
+                ratingAggregate = data.fields.rating_aggregate?.doubleValue || data.fields.rating_aggregate?.integerValue || 0;
+                ratingCount = data.fields.rating_count?.integerValue || 0;
+                whatsapp = data.fields.whatsapp?.stringValue || "";
+
+                if (data.fields.address?.mapValue?.fields) {
+                    const addrFields = data.fields.address.mapValue.fields;
+                    address = {
+                        street: addrFields.street?.stringValue || "",
+                        number: addrFields.number?.stringValue || "",
+                        city: addrFields.city?.stringValue || "",
+                        state: addrFields.state?.stringValue || "",
+                        zip: addrFields.zip?.stringValue || ""
+                    };
                 }
             }
         }
     } catch (error) {
-        console.error(`Erro ao buscar dados da loja ${storeId} para o WhatsApp:`, error);
+        console.error(`Erro ao buscar dados da loja ${storeId} para o bot:`, error);
     }
 
-    // 5. Monta o HTML puro focado SOMENTE nos robôs
+    // 4. Montando os Dados Estruturados para o Googlebot (JSON-LD)
+    const schemaData = {
+        "@context": "https://schema.org",
+        "@type": "LiquorStore",
+        "name": title,
+        "image": image,
+        "description": description,
+        "url": `https://${host}`,
+        "telephone": whatsapp ? `+${whatsapp.replace(/\D/g, '')}` : "",
+        "priceRange": "$$",
+        "paymentAccepted": ["Cash", "Credit Card", "Pix"]
+    };
+
+    if (address) {
+        schemaData.address = {
+            "@type": "PostalAddress",
+            "streetAddress": `${address.street}, ${address.number}`.trim(),
+            "addressLocality": address.city,
+            "addressRegion": address.state,
+            "postalCode": address.zip,
+            "addressCountry": "BR"
+        };
+    }
+
+    // Só injeta as estrelas se a Cloud Function já tiver contabilizado avaliações
+    if (ratingCount > 0) {
+        schemaData.aggregateRating = {
+            "@type": "AggregateRating",
+            "ratingValue": Number(ratingAggregate).toFixed(1),
+            "reviewCount": ratingCount.toString()
+        };
+    }
+
+    const safeJsonLd = JSON.stringify(schemaData).replace(/</g, '\\u003c');
+
+    // 5. Monta o HTML entregando Meta Tags e JSON-LD direto do Servidor
     const html = `
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -66,6 +110,10 @@ export default async function handler(req, res) {
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${description}" />
         <meta name="twitter:image" content="${image}" />
+
+        <script type="application/ld+json">
+            ${safeJsonLd}
+        </script>
     </head>
     <body>
         <h1>${title}</h1>
