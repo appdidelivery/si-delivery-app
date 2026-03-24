@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import AgeGate from '../components/AgeGate';
@@ -411,6 +411,69 @@ export default function Home() {
   const [proofFile, setProofFile] = useState(null);
   const[uploadingProof, setUploadingProof] = useState(false);
 
+  // --- ESTADOS DA ROLETA PÓS-CHECKOUT (GAMIFICAÇÃO) ---
+  const [showRoulette, setShowRoulette] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [rouletteResult, setRouletteResult] = useState(null);
+  const [pendingRedirect, setPendingRedirect] = useState(null);
+  const ROULETTE_PRIZES = ["10% OFF", "Frete Grátis", "Tente Novamente", "Brinde Surpresa", "5% OFF", "Tente Novamente"];
+
+  // --- NOVOS ESTADOS GAMIFICAÇÃO (Cashback, Tiers, Badges) ---
+  const [useCashback, setUseCashback] = useState(false);
+  const [cashbackBalance, setCashbackBalance] = useState(0);
+  const [userTier, setUserTier] = useState({ name: 'Visitante', next: 'Bronze', missing: 0, progress: 0, color: 'text-slate-400' });
+  const [userBadges, setUserBadges] = useState([]);
+
+  // CAPTURA DO LINK DE INDICAÇÃO NO LOAD INICIAL
+  useEffect(() => {
+      const refParam = new URLSearchParams(window.location.search).get('ref');
+      if (refParam) {
+          localStorage.setItem('veloReferredBy', refParam);
+      }
+  }, []);
+
+  // --- LEITURA REAL DA CARTEIRA (WALLET) NO BANCO DE DADOS ---
+  useEffect(() => {
+      if (marketingSettings?.gamification?.cashback) {
+          const phone = customer.phone || localStorage.getItem('customerPhone');
+          if (phone && phone.length >= 10) {
+              const cleanPhone = phone.replace(/\D/g, '');
+              const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
+              
+              const unsubWallet = onSnapshot(walletRef, (docSnap) => {
+                  if (docSnap.exists()) {
+                      setCashbackBalance(docSnap.data().balance || 0);
+                  } else {
+                      setCashbackBalance(0);
+                  }
+              });
+              return () => unsubWallet();
+          }
+      }
+  }, [marketingSettings?.gamification?.cashback, storeId, customer.phone]);
+
+  const spinRoulette = () => {
+      if (isSpinning) return;
+      setIsSpinning(true);
+      setRouletteResult(null);
+      
+      // Simula o tempo girando a roleta
+      setTimeout(() => {
+          const randomIndex = Math.floor(Math.random() * ROULETTE_PRIZES.length);
+          setRouletteResult(ROULETTE_PRIZES[randomIndex]);
+          setIsSpinning(false);
+          // Opcional futuro: Aqui você pode disparar um setDoc/updateDoc para salvar o prêmio no perfil do usuário
+      }, 3000);
+  };
+
+  const closeRouletteAndRedirect = () => {
+      setShowRoulette(false);
+      if (pendingRedirect) {
+          window.open(pendingRedirect.url, '_blank');
+          navigate(pendingRedirect.track);
+      }
+  };
+
   useEffect(() => {
     if (!marketingSettings?.exitIntentActive) return;
     const triggerExitIntent = () => {
@@ -518,6 +581,33 @@ export default function Home() {
               setLoyaltyPoints(basePoints + bonusPoints);
           });
           
+          // --- GAMIFICAÇÃO: NÍVEIS VIP (TIERS) ---
+          if (marketingSettings?.gamification?.tiers) {
+              let tier = { name: 'Bronze', next: 'Prata', missing: 200 - totalSpent, progress: (totalSpent/200)*100, color: 'text-amber-600', bg: 'bg-amber-100' };
+              if (totalSpent >= 200 && totalSpent < 1000) tier = { name: 'Prata', next: 'Ouro', missing: 1000 - totalSpent, progress: ((totalSpent-200)/800)*100, color: 'text-slate-400', bg: 'bg-slate-200' };
+              if (totalSpent >= 1000 && totalSpent < 3000) tier = { name: 'Ouro', next: 'Diamante', missing: 3000 - totalSpent, progress: ((totalSpent-1000)/2000)*100, color: 'text-yellow-500', bg: 'bg-yellow-100' };
+              if (totalSpent >= 3000) tier = { name: 'Diamante 💎', next: 'Máximo', missing: 0, progress: 100, color: 'text-cyan-500', bg: 'bg-cyan-100' };
+              setUserTier(tier);
+          }
+
+          // --- GAMIFICAÇÃO: SELOS DE CONQUISTA (BADGES) ---
+          if (marketingSettings?.gamification?.badges) {
+              const badges = [];
+              const ordersList = snapshot.docs.map(d => d.data());
+              if (ordersList.length >= 1) badges.push({ icon: '🎉', name: 'Primeira Compra' });
+              if (ordersList.length >= 5) badges.push({ icon: '🏆', name: 'Fiel (5+)' });
+              
+              const hasNightOrder = ordersList.some(o => {
+                  if(!o.createdAt) return false;
+                  const h = o.createdAt.toDate().getHours();
+                  return h >= 22 || h <= 4;
+              });
+              if (hasNightOrder) badges.push({ icon: '🦉', name: 'Coruja' });
+              setUserBadges(badges);
+          }
+
+          // A leitura do Cashback Real agora é feita em um useEffect independente abaixo.
+
           // 3. Gatilho da Avaliação Interna (Acha o último não avaliado)
           const unreviewed = snapshot.docs.find(doc => !doc.data().hasBeenReviewed);
           if (unreviewed && !sessionStorage.getItem(`review_skipped_${unreviewed.id}`)) {
@@ -979,7 +1069,11 @@ export default function Home() {
   const isFreeShipping = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
   // Zera o frete automaticamente se o Modo Garçom estiver ativo
   const finalShippingFee = (isFreeShipping || isWaiterMode) ? 0 : Number(shippingFee || 0);
-  const finalTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
+  
+  const baseTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
+  // Cálculo do Cashback dinâmico: Não pode abater mais do que o total do pedido.
+  const cashbackDiscount = (marketingSettings?.gamification?.cashback && useCashback) ? Math.min(cashbackBalance, baseTotal) : 0;
+  const finalTotal = baseTotal - cashbackDiscount;
 
   const applyCoupon = async () => {
     setCouponError(''); setDiscountAmount(0); setAppliedCoupon(null);
@@ -1071,7 +1165,10 @@ export default function Home() {
         // Adicionando as TAGs para o Modo Garçom:
         tipo: isWaiterMode ? "local" : "delivery",
         mesa: isWaiterMode ? tableNumber : null,
-        waiterName: isWaiterMode ? waiterName : null
+        waiterName: isWaiterMode ? waiterName : null,
+        // Gamificação Info:
+        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+        referredBy: localStorage.getItem('veloReferredBy') || null
       };
 
       if (appliedCoupon) {
@@ -1103,6 +1200,14 @@ if (window.fbq) {
       }
       if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
+
+          // --- GAMIFICAÇÃO: ABATER SALDO REAL DA CARTEIRA ---
+          if (cashbackDiscount > 0) {
+              const cleanPhone = customer.phone.replace(/\D/g, '');
+              try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+          }
+          // --------------------------------------------------
+
           // O Cliente fechou a compra! Removemos dos abandonados
           try { await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); } catch(e){}
           
@@ -1141,8 +1246,14 @@ if (window.fbq) {
           setCart([]); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
           setIsFinalizing(false); 
           
-          window.open(whatsappUrl, '_blank');
-          navigate(`/track/${orderId}`);
+          // GATILHO DA GAMIFICAÇÃO: Intercepta o redirecionamento se a Roleta estiver ativa
+          if (marketingSettings?.gamification?.roulette) {
+              setPendingRedirect({ url: whatsappUrl, track: `/track/${orderId}` });
+              setShowRoulette(true);
+          } else {
+              window.open(whatsappUrl, '_blank');
+              navigate(`/track/${orderId}`);
+          }
           return;
       }
 
@@ -1172,6 +1283,14 @@ if (window.fbq) {
           
           if (data.url) {
               await setDoc(newOrderRef, orderData);
+
+              // --- GAMIFICAÇÃO: ABATER SALDO REAL DA CARTEIRA ---
+              if (cashbackDiscount > 0) {
+                  const cleanPhone = customer.phone.replace(/\D/g, '');
+                  try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+              }
+              // --------------------------------------------------
+
               // O Cliente fechou a compra online! Removemos dos abandonados
               try { await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); } catch(e){}
               
@@ -1869,8 +1988,7 @@ if (window.fbq) {
                   )}
 
                   <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-                      <div className="flex justify-between text-sm opacity-60 font-bold mb-2"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                      {!isWaiterMode && (
+                     {!isWaiterMode && (
                           <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
                               <span>Frete</span>
                               <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
@@ -1879,7 +1997,22 @@ if (window.fbq) {
                           </div>
                       )}
                       {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
-                      <div className="flex justify-between text-xl font-black italic"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
+                      
+                      {/* TOGGLE DA CARTEIRA DE CASHBACK NO CHECKOUT */}
+                      {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && (
+                          <label className="flex items-center justify-between bg-green-500/10 p-3 rounded-xl border border-green-500/20 cursor-pointer my-3 hover:bg-green-500/20 transition-all">
+                              <div className="flex items-center gap-2">
+                                  <Wallet size={18} className="text-green-400" />
+                                  <span className="text-xs font-bold text-green-100">Usar Saldo de Cashback</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <span className="text-sm font-black text-green-400">- R$ {Math.min(cashbackBalance, baseTotal).toFixed(2)}</span>
+                                  <input type="checkbox" checked={useCashback} onChange={e => setUseCashback(e.target.checked)} className="w-5 h-5 accent-green-500 rounded cursor-pointer" />
+                              </div>
+                          </label>
+                      )}
+
+                      <div className="flex justify-between text-xl font-black italic mt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
 
                   <button 
@@ -2223,10 +2356,57 @@ if (window.fbq) {
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
               <button onClick={() => setShowVipArea(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900"><X size={24} /></button>
               
-              <div className="bg-gradient-to-br from-yellow-300 to-yellow-500 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-yellow-200">
-                  <Crown size={48} className="mx-auto text-slate-900 mb-2" fill="currentColor" />
-                  <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">Clube VIP</h2>
-                  <p className="text-slate-800 font-bold mt-2">Você possui <span className="text-2xl font-black bg-slate-900 text-yellow-400 px-3 py-1 rounded-xl mx-1">{loyaltyPoints}</span> pontos!</p>
+             <div className="bg-gradient-to-br from-yellow-300 to-yellow-500 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-yellow-200 relative overflow-hidden">
+                  <Crown size={48} className="mx-auto text-slate-900 mb-2 relative z-10" fill="currentColor" />
+                  <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none relative z-10">Clube VIP</h2>
+                  <p className="text-slate-800 font-bold mt-2 relative z-10">Você possui <span className="text-2xl font-black bg-slate-900 text-yellow-400 px-3 py-1 rounded-xl mx-1 shadow-inner">{loyaltyPoints}</span> pontos!</p>
+                  
+                  {/* TIER VIP PROGRESS */}
+                  {marketingSettings?.gamification?.tiers && (
+                      <div className="mt-6 pt-4 border-t border-yellow-600/20 relative z-10 text-left">
+                          <div className="flex justify-between items-end mb-2">
+                              <span className={`font-black uppercase tracking-widest text-[10px] ${userTier.bg} ${userTier.color} px-2 py-1 rounded-md`}>Nível {userTier.name}</span>
+                              {userTier.missing > 0 && <span className="text-[10px] font-bold text-yellow-900 uppercase">Faltam R$ {userTier.missing.toFixed(2)} p/ {userTier.next}</span>}
+                          </div>
+                          <div className="w-full bg-yellow-600/30 h-2 rounded-full overflow-hidden">
+                              <div className="bg-slate-900 h-full rounded-full transition-all" style={{ width: `${userTier.progress}%` }}></div>
+                          </div>
+                      </div>
+                  )}
+              </div>
+
+              {/* MÓDULOS DE GAMIFICAÇÃO */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                  {/* BADGES (SELOS) */}
+                  {marketingSettings?.gamification?.badges && (
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center text-center">
+                          <Medal size={24} className="text-purple-500 mb-2"/>
+                          <h4 className="font-black text-slate-800 text-xs uppercase mb-2">Minhas Conquistas</h4>
+                          <div className="flex flex-wrap justify-center gap-1">
+                              {userBadges.length > 0 ? userBadges.map((b, i) => (
+                                  <span key={i} className="bg-white border border-slate-200 text-[10px] px-2 py-1 rounded-lg font-bold shadow-sm" title={b.name}>{b.icon}</span>
+                              )) : <span className="text-[9px] text-slate-400 font-bold">Faça pedidos para ganhar.</span>}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* REFERRAL (INDIQUE E GANHE) */}
+                  {marketingSettings?.gamification?.referral && (
+                      <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex flex-col items-center text-center justify-center">
+                          <Share2 size={24} className="text-blue-600 mb-2"/>
+                          <h4 className="font-black text-blue-900 text-xs uppercase mb-1">Indique Amigos</h4>
+                          <button 
+                              onClick={() => {
+                                  const refLink = `${window.location.origin}/?ref=${customer.phone || 'GUEST'}`;
+                                  navigator.clipboard.writeText(refLink);
+                                  alert("✅ Link de indicação copiado! Envie para seus amigos.");
+                              }} 
+                              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 hover:bg-blue-700 active:scale-95 shadow-sm mt-1"
+                          >
+                              <Copy size={12}/> Copiar Link
+                          </button>
+                      </div>
+                  )}
               </div>
 
               <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4 pl-2">Missões Disponíveis (Ganhe Pontos)</h3>
@@ -2420,6 +2600,80 @@ if (window.fbq) {
                     className="w-full mt-3 py-3 text-red-500 font-bold uppercase text-xs tracking-widest"
                   >
                     Desativar Garçom
+                  </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL DA ROLETA PÓS-CHECKOUT --- */}
+      <AnimatePresence>
+        {showRoulette && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+            <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 text-center relative shadow-2xl overflow-hidden">
+              <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2">Gire e Ganhe!</h2>
+              <p className="text-slate-500 font-bold mb-8 text-sm">Você finalizou seu pedido e ganhou uma chance na nossa roleta.</p>
+
+              <div className="relative w-64 h-64 mx-auto mb-8">
+                  {/* Seta indicadora centralizada no topo */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-4 z-20 text-red-500 drop-shadow-md">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L20 20L12 16L4 20L12 2Z"/></svg>
+                  </div>
+                  
+                  {/* Disco da Roleta com Conic Gradient (Fatias perfeitas via CSS) */}
+                  <motion.div 
+                      className="w-full h-full rounded-full border-8 border-slate-900 shadow-inner relative overflow-hidden"
+                      style={{
+                          background: `conic-gradient(
+                              #ef4444 0deg 60deg, 
+                              #f59e0b 60deg 120deg, 
+                              #10b981 120deg 180deg, 
+                              #3b82f6 180deg 240deg, 
+                              #8b5cf6 240deg 300deg, 
+                              #ec4899 300deg 360deg
+                          )`
+                      }}
+                      animate={{ rotate: isSpinning ? 3600 + Math.random() * 360 : 0 }}
+                      transition={{ duration: 3, ease: "circOut" }}
+                  >
+                      {ROULETTE_PRIZES.map((prize, index) => {
+                          const rotation = (index * 60) + 30; // Posiciona o texto exatamente no meio da fatia
+                          return (
+                              <div key={index} className="absolute top-0 left-0 w-full h-full text-center origin-center" style={{ transform: `rotate(${rotation}deg)` }}>
+                                  <div className="w-full h-1/2 flex justify-center pt-4">
+                                      <span className="font-black text-[11px] uppercase text-white drop-shadow-md max-w-[70px] leading-tight">
+                                          {prize}
+                                      </span>
+                                  </div>
+                              </div>
+                          );
+                      })}
+                      {/* Centro Fixo da Roleta */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-slate-900 rounded-full z-10 border-4 border-white flex items-center justify-center shadow-lg">
+                          <Gift size={24} className="text-yellow-400" />
+                      </div>
+                  </motion.div>
+              </div>
+
+              {rouletteResult ? (
+                  <div className="animate-in zoom-in">
+                      <p className="text-lg font-black text-slate-900 uppercase mb-4">
+                          {rouletteResult === "Tente Novamente" ? "Ah, que pena!" : `🎉 Você ganhou: ${rouletteResult}`}
+                      </p>
+                      <button onClick={closeRouletteAndRedirect} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 active:scale-95 transition-all">
+                          Continuar para o Pedido
+                      </button>
+                  </div>
+              ) : (
+                  <button onClick={spinRoulette} disabled={isSpinning} className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all ${isSpinning ? 'bg-slate-200 text-slate-400' : 'bg-green-500 text-white hover:bg-green-600 active:scale-95'}`}>
+                      {isSpinning ? 'Girando...' : 'Girar Roleta Agora'}
+                  </button>
+              )}
+              
+              {!isSpinning && !rouletteResult && (
+                  <button onClick={closeRouletteAndRedirect} className="w-full mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">
+                      Pular
                   </button>
               )}
             </motion.div>

@@ -629,6 +629,104 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
+    // ------------------------------------------------------------------------
+    // 11. TOTEM: ACORDAR MAQUININHA (CLOUD POS)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/pos-payment') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+        
+        const { storeId, orderId, amount } = req.body;
+        if (!storeId || !orderId || !amount) return res.status(400).json({ error: 'Parâmetros obrigatórios ausentes.' });
+
+        try {
+            // 1. Busca Token e ID do Dispositivo (Maquininha)
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const mpConfig = settingsDoc.data()?.integrations?.mercadopago || {};
+            
+            if (!mpConfig.accessToken || !mpConfig.posDeviceId) {
+                return res.status(400).json({ error: 'Terminal de pagamento físico não configurado para esta loja.' });
+            }
+
+            // 2. Dispara a API do Mercado Pago Point para acender a tela da máquina
+            const paymentIntentPayload = {
+                amount: Math.round(Number(amount) * 100), // A API do MP espera o valor em centavos
+                description: `Velo Totem #${orderId.slice(-5)}`,
+                payment: {
+                    installments: 1,
+                    type: "credit_card" // ou deixar dinâmico para credit/debit
+                }
+            };
+
+            const mpResponse = await fetch(`https://api.mercadopago.com/point/integration-api/devices/${mpConfig.posDeviceId}/payment-intents`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${mpConfig.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(paymentIntentPayload)
+            });
+
+            if (!mpResponse.ok) {
+                const mpError = await mpResponse.json();
+                console.error("Erro Point API:", mpError);
+                return res.status(400).json({ error: 'A maquininha recusou a comunicação ou está offline.', details: mpError });
+            }
+
+            const intentData = await mpResponse.json();
+
+            // 3. Salva a intenção no pedido para conferência posterior
+            await db.collection('orders').doc(orderId).set({
+                paymentIntentId: intentData.id,
+                posStatus: 'awaiting_payment'
+            }, { merge: true });
+
+            return res.status(200).json({ success: true, message: 'Maquininha ativada com sucesso.', intentId: intentData.id });
+        } catch (error) {
+            console.error('Erro no Acionamento POS:', error);
+            return res.status(500).json({ error: 'Erro interno ao conectar com terminal físico.' });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 12. TOTEM: WEBHOOK DE RETORNO (MERCADO PAGO POINT)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/pos-webhook') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+
+        try {
+            // O Mercado Pago envia o webhook quando o cliente tira o cartão da máquina
+            const { action, data } = req.body;
+            
+            // Só interessa se a intenção de pagamento mudou de estado
+            if (action === 'payment.created' || action === 'payment.updated') {
+                const paymentId = data.id;
+
+                // Consulta a API do MP para pegar os dados deste pagamento
+                // *Nota: Na produção, o Webhook trará o `external_reference` (nosso orderId).
+                // Precisamos procurar o pedido com base no paymentIntentId gerado na rota anterior.
+                const ordersRef = db.collection('orders');
+                const q = await ordersRef.where('paymentIntentId', '==', paymentId).limit(1).get();
+
+                if (!q.empty) {
+                    const orderDoc = q.docs[0];
+                    // Atualiza o pedido como pago e concluído para a cozinha imprimir
+                    await orderDoc.ref.set({
+                        paymentStatus: 'paid',
+                        status: 'preparing', // Manda direto pra cozinha/painel
+                        paidAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    
+                    console.log(`✅ Totem: Pagamento físico processado no pedido ${orderDoc.id}`);
+                }
+            }
+
+            return res.status(200).json({ received: true });
+        } catch (error) {
+            console.error('Erro no POS Webhook:', error);
+            return res.status(500).json({ error: 'Erro no processamento do webhook físico.' });
+        }
+    }
+
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================

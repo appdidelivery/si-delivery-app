@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
 
 export default function AdminChat() {
@@ -101,7 +101,28 @@ export default function AdminChat() {
             setLoadingSend(false);
         }
     };
-
+// --- LÓGICA DE REATIVAR O BOT (ENCERRAR ATENDIMENTO) ---
+    const handleEndSession = async () => {
+        if (!activeChat || !storeId) return;
+        
+        if (window.confirm("Encerrar este atendimento? O robô voltará a responder este cliente automaticamente na próxima mensagem.")) {
+            try {
+                // Atualiza a sessão para botPaused: false
+                await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${activeChat}`), {
+                    storeId: storeId,
+                    phone: activeChat,
+                    botPaused: false,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+                
+                alert("✅ Atendimento encerrado! O bot foi reativado para este cliente.");
+                setActiveChat(null); // Fecha a tela de conversa atual
+            } catch (error) {
+                console.error("Erro ao reativar bot:", error);
+                alert("Erro ao encerrar atendimento.");
+            }
+        }
+    };
     return (
         <div className="flex h-[600px] border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm">
             {/* Sidebar: Lista de Contatos */}
@@ -138,8 +159,14 @@ export default function AdminChat() {
                 {activeChat ? (
                     <>
                         {/* Header do Chat */}
-                        <div className="p-4 bg-white border-b border-gray-200 font-bold text-gray-700">
-                            Conversando com +{activeChat}
+                        <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center">
+                            <span className="font-bold text-gray-700">Conversando com +{activeChat}</span>
+                            <button 
+                                onClick={handleEndSession}
+                                className="bg-slate-100 hover:bg-green-100 text-green-700 border border-slate-200 hover:border-green-300 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                🤖 Encerrar e Ligar Bot
+                            </button>
                         </div>
                         
                         {/* Histórico */}

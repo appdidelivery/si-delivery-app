@@ -3,12 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment
 } from 'firebase/firestore';
 import {
     ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -967,6 +967,30 @@ const handleGenerateProductCopy = async () => {
 
     const updateStatusAndNotify = async (order, newStatus) => {
     await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+    
+    // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
+    if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
+        if (!order.cashbackAwarded) {
+            try {
+                const cashbackEarned = (Number(order.total) || 0) * 0.02; // Fração de 2%
+                if (cashbackEarned > 0) {
+                    const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
+                    const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
+                    const walletSnap = await getDoc(walletRef);
+                    
+                    if (walletSnap.exists()) {
+                        await updateDoc(walletRef, { balance: increment(cashbackEarned), lastUpdated: serverTimestamp() });
+                    } else {
+                        await setDoc(walletRef, { storeId, customerPhone: cleanPhone, customerName: order.customerName, balance: cashbackEarned, lastUpdated: serverTimestamp() });
+                    }
+                    // Trava de segurança para não dar cashback duas vezes no mesmo pedido
+                    await updateDoc(doc(db, "orders", order.id), { cashbackAwarded: true });
+                }
+            } catch (e) { console.error("Erro ao creditar cashback:", e); }
+        }
+    }
+    // -----------------------------------------------------------------
+
     const lojaNome = storeStatus.name || "Velo Delivery";
     
     // Cria o link dinâmico de avaliação direto para o app do cliente
@@ -2606,30 +2630,95 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     {settings.loyaltyActive && (
                                         <div className="pt-6 border-t border-purple-500/50 space-y-4 animate-in fade-in slide-in-from-top-4">
                                             <div className="bg-purple-700/50 p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-purple-500">
-                                                <label className="text-purple-200 font-bold text-[10px] uppercase mb-2 block">A cada R$ 1,00 gasto, o cliente ganha:</label>
-                                                <div className="flex items-center gap-3">
-                                                    <input type="number" value={settings.pointsPerReal || 1} onChange={(e) => setDoc(doc(db, "settings", storeId), { pointsPerReal: Number(e.target.value) }, { merge: true })} className="w-20 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-lg outline-none" />
-                                                    <span className="text-xl font-black text-white italic">PONTOS</span>
-                                                </div>
-                                            </div>
-                                            <div className="bg-purple-700/50 p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-purple-500">
-                                                <label className="text-purple-200 font-bold text-[10px] uppercase mb-2 block">Objetivo (Ex: 100 pontos):</label>
-                                                <div className="flex items-center gap-3">
-                                                    <input type="number" value={settings.loyaltyGoal || 100} onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyGoal: Number(e.target.value) }, { merge: true })} className="w-24 p-3 rounded-xl bg-white text-purple-900 font-black text-center text-lg outline-none" />
-                                                    <span className="text-white font-bold text-xs leading-tight">Pontos para<br/>ganhar prêmio</span>
-                                                </div>
-                                            </div>
-                                            <div className="bg-purple-700/50 p-4 lg:p-6 rounded-2xl lg:rounded-3xl border border-purple-500">
                                                 <label className="text-purple-200 font-bold text-[10px] uppercase mb-2 flex items-center gap-1"><Edit3 size={12}/> Texto do Prêmio</label>
                                                 <textarea rows="2" placeholder="Ex: Ganhe uma Heineken!" value={settings.loyaltyReward || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { loyaltyReward: e.target.value }, { merge: true })} className="w-full p-3 rounded-xl bg-white text-purple-900 font-bold outline-none placeholder-purple-300 text-sm" />
                                             </div>
                                         </div>
                                     )}
                                 </div>
+
+                                {/* --- NOVO: CENTRO DE GAMIFICAÇÃO AVANÇADA --- */}
+                                <div className="bg-slate-900 p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-2xl border-4 border-slate-800 transition-all h-fit">
+                                    <div className="mb-6 border-b border-slate-800 pb-6">
+                                        <h2 className="text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none text-white flex items-center gap-3">
+                                            <Award className="text-yellow-400" size={36}/> Velo Game
+                                        </h2>
+                                        <p className="text-xs font-bold mt-2 text-slate-400">Ative gatilhos psicológicos para fidelizar e reter mais clientes.</p>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {/* Roleta */}
+                                        <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-pink-500/20 p-2 rounded-xl text-pink-400"><Gift size={20}/></div>
+                                                <div>
+                                                    <p className="font-black text-white text-sm uppercase">Roleta Pós-Checkout</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Oferece prêmios ao finalizar a compra.</p>
+                                                </div>
+                                            </div>
+                                            <input type="checkbox" className="w-5 h-5 accent-pink-500 cursor-pointer" checked={settings.gamification?.roulette || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, roulette: e.target.checked } }, { merge: true })} />
+                                        </div>
+
+                                        {/* Cashback */}
+                                        <div className="flex items-start justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-start gap-3">
+                                                <div className="bg-green-500/20 p-2 rounded-xl text-green-400 mt-1"><Wallet size={20}/></div>
+                                                <div className="pr-4">
+                                                    <p className="font-black text-white text-sm uppercase">Carteira de Cashback</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Cliente usa saldo acumulado na compra.</p>
+                                                    {settings.gamification?.cashback && (
+                                                        <div className="mt-3 bg-green-900/30 p-3 rounded-xl border border-green-800/50">
+                                                            <p className="text-[10px] text-green-400 font-bold leading-relaxed">
+                                                                💡 <strong className="text-white">Automação Ativa:</strong> Toda vez que você marcar um pedido como "✅ Entregue", o sistema irá depositar automaticamente <strong>2% do valor</strong> na Carteira Digital atrelada ao WhatsApp do cliente.
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
+                                        </div>
+
+                                        {/* Tiers VIP */}
+                                        <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-orange-500/20 p-2 rounded-xl text-orange-400"><Crown size={20}/></div>
+                                                <div>
+                                                    <p className="font-black text-white text-sm uppercase">Níveis VIP (Bronze a Diamante)</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Barra de progresso de gastos no Perfil.</p>
+                                                </div>
+                                            </div>
+                                            <input type="checkbox" className="w-5 h-5 accent-orange-500 cursor-pointer" checked={settings.gamification?.tiers || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, tiers: e.target.checked } }, { merge: true })} />
+                                        </div>
+
+                                        {/* Indique e Ganhe */}
+                                        <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400"><Share2 size={20}/></div>
+                                                <div>
+                                                    <p className="font-black text-white text-sm uppercase">Indique e Ganhe</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Link único para o cliente convidar amigos.</p>
+                                                </div>
+                                            </div>
+                                            <input type="checkbox" className="w-5 h-5 accent-blue-500 cursor-pointer" checked={settings.gamification?.referral || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referral: e.target.checked } }, { merge: true })} />
+                                        </div>
+
+                                        {/* Selos (Badges) */}
+                                        <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-purple-500/20 p-2 rounded-xl text-purple-400"><Medal size={20}/></div>
+                                                <div>
+                                                    <p className="font-black text-white text-sm uppercase">Selos de Conquista</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Badges liberadas via comportamento.</p>
+                                                </div>
+                                            </div>
+                                            <input type="checkbox" className="w-5 h-5 accent-purple-500 cursor-pointer" checked={settings.gamification?.badges || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, badges: e.target.checked } }, { merge: true })} />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* --- 4. GESTÃO DE CUPONS (Abaixo das colunas) --- */}
+                        {/* --- 5. GESTÃO DE CUPONS (Abaixo das colunas) --- */}
                         <div className="bg-white p-6 lg:p-10 rounded-3xl lg:rounded-[4rem] shadow-sm border border-slate-100 space-y-6 mt-6">
                             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                                 <h2 className="text-2xl lg:text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>
