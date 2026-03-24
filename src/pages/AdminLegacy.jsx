@@ -431,6 +431,9 @@ export default function Admin() {
     const[loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
     const [reviewsList, setReviewsList] = useState([]);
     const [replyText, setReplyText] = useState({});
+    // --- ESTADOS DA CONFIGURAÇÃO DA ROLETA ---
+    const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
+    const [rouletteSlices, setRouletteSlices] = useState([]);
     
     // --- NOVO: ESTADOS DAS MISSÕES VIP ---
     const [vipMissions, setVipMissions] = useState([]);
@@ -2651,10 +2654,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
                                             <div className="flex items-center gap-3">
                                                 <div className="bg-pink-500/20 p-2 rounded-xl text-pink-400"><Gift size={20}/></div>
-                                                <div>
-                                                    <p className="font-black text-white text-sm uppercase">Roleta Pós-Checkout</p>
-                                                    <p className="text-[10px] text-slate-400 font-bold">Oferece prêmios ao finalizar a compra.</p>
-                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                        <p className="font-black text-white text-sm uppercase">Roleta Pós-Checkout</p>
+                                                        {settings.gamification?.roulette && (
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const defaultSlices = [
+                                                                        { id: '1', label: '10% OFF', type: 'discount_percent', value: 10, probability: 10, stock: 50, color: '#ef4444' },
+                                                                        { id: '2', label: 'R$ 5 Cashback', type: 'cashback', value: 5, probability: 15, stock: 100, color: '#f59e0b' },
+                                                                        { id: '3', label: 'Nada 😭', type: 'empty', value: 0, probability: 25, stock: 9999, color: '#10b981' },
+                                                                        { id: '4', label: '5% OFF', type: 'discount_percent', value: 5, probability: 15, stock: 100, color: '#3b82f6' },
+                                                                        { id: '5', label: 'R$ 2 Cashback', type: 'cashback', value: 2, probability: 10, stock: 100, color: '#8b5cf6' },
+                                                                        { id: '6', label: 'Tente na Próxima', type: 'empty', value: 0, probability: 25, stock: 9999, color: '#ec4899' }
+                                                                    ];
+                                                                    setRouletteSlices(settings.rouletteConfig?.slices || defaultSlices);
+                                                                    setIsRouletteModalOpen(true);
+                                                                }}
+                                                                className="bg-pink-500/20 text-pink-300 hover:text-pink-100 hover:bg-pink-500/40 px-2 py-0.5 rounded text-[10px] font-black uppercase transition-all"
+                                                            >
+                                                                ⚙️ Configurar Prêmios
+                                                            </button>
+                                                        )}
+                                                    </div>
                                             </div>
                                             <input type="checkbox" className="w-5 h-5 accent-pink-500 cursor-pointer" checked={settings.gamification?.roulette || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, roulette: e.target.checked } }, { merge: true })} />
                                         </div>
@@ -4358,6 +4379,89 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             <AnimatePresence>
+                {/* MODAL DE CONFIGURAÇÃO DA ROLETA (LOJISTA) */}
+            <AnimatePresence>
+                {isRouletteModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 w-full max-w-4xl rounded-[3rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-700 custom-scrollbar">
+                            <button onClick={() => setIsRouletteModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white"><X size={24}/></button>
+                            
+                            <h2 className="text-3xl font-black italic uppercase text-white mb-2 flex items-center gap-3">
+                                <Gift className="text-pink-500" size={32}/> Roleta de Prêmios
+                            </h2>
+                            <p className="text-sm font-bold text-slate-400 mb-6">Configure exatamente o que o cliente pode ganhar. A soma das probabilidades deve ser sempre 100%.</p>
+
+                            <div className="bg-slate-800 p-4 rounded-3xl mb-6">
+                                <div className="grid grid-cols-12 gap-2 px-4 mb-2 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">
+                                    <div className="col-span-3 text-left">Texto na Roleta</div>
+                                    <div className="col-span-3">Tipo de Prêmio</div>
+                                    <div className="col-span-2">Valor (R$ ou %)</div>
+                                    <div className="col-span-2">Estoque</div>
+                                    <div className="col-span-2">Probabilidade %</div>
+                                </div>
+                                
+                                {rouletteSlices.map((slice, index) => (
+                                    <div key={slice.id} className="grid grid-cols-12 gap-2 items-center bg-slate-900 p-2 rounded-2xl mb-2 border border-slate-700">
+                                        <div className="col-span-3 flex items-center gap-2">
+                                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: slice.color }}></div>
+                                            <input type="text" value={slice.label} onChange={(e) => {
+                                                const newSlices = [...rouletteSlices]; newSlices[index].label = e.target.value; setRouletteSlices(newSlices);
+                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none" />
+                                        </div>
+                                        <div className="col-span-3">
+                                            <select value={slice.type} onChange={(e) => {
+                                                const newSlices = [...rouletteSlices]; newSlices[index].type = e.target.value; setRouletteSlices(newSlices);
+                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none border-none">
+                                                <option value="empty">Sem Prêmio (Perdeu)</option>
+                                                <option value="cashback">Saldo na Carteira (R$)</option>
+                                                <option value="discount_percent">Cupom (% OFF)</option>
+                                                <option value="discount_fixed">Cupom (R$ OFF)</option>
+                                            </select>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <input type="number" disabled={slice.type === 'empty'} value={slice.value} onChange={(e) => {
+                                                const newSlices = [...rouletteSlices]; newSlices[index].value = Number(e.target.value); setRouletteSlices(newSlices);
+                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none text-center disabled:opacity-50" />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <input type="number" value={slice.stock} onChange={(e) => {
+                                                const newSlices = [...rouletteSlices]; newSlices[index].stock = Number(e.target.value); setRouletteSlices(newSlices);
+                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none text-center" />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <input type="number" value={slice.probability} onChange={(e) => {
+                                                const newSlices = [...rouletteSlices]; newSlices[index].probability = Number(e.target.value); setRouletteSlices(newSlices);
+                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none text-center text-pink-400" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {(() => {
+                                const totalProb = rouletteSlices.reduce((acc, curr) => acc + (Number(curr.probability) || 0), 0);
+                                return (
+                                    <div className="flex justify-between items-center mt-6">
+                                        <p className={`text-sm font-black uppercase ${totalProb === 100 ? 'text-green-400' : 'text-red-500'}`}>
+                                            Soma das Chances: {totalProb}% {totalProb !== 100 && '(Ajuste para dar 100%)'}
+                                        </p>
+                                        <button 
+                                            onClick={async () => {
+                                                if (totalProb !== 100) return alert("A soma das probabilidades deve ser exatamente 100%.");
+                                                await setDoc(doc(db, "settings", storeId), { rouletteConfig: { slices: rouletteSlices } }, { merge: true });
+                                                alert("Roleta configurada e salva com sucesso!");
+                                                setIsRouletteModalOpen(false);
+                                            }}
+                                            className="bg-pink-600 hover:bg-pink-700 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                                        >
+                                            Salvar Roleta
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
                 {showPixModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center">

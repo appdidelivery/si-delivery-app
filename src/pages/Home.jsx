@@ -416,7 +416,22 @@ export default function Home() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [rouletteResult, setRouletteResult] = useState(null);
   const [pendingRedirect, setPendingRedirect] = useState(null);
-  const ROULETTE_PRIZES = ["10% OFF", "Frete Grátis", "Tente Novamente", "Brinde Surpresa", "5% OFF", "Tente Novamente"];
+ const [rouletteRotation, setRouletteRotation] = useState(0); // Controla a rotação visual
+  
+  // Memoiza os prêmios direto do banco, ou usa um fallback visual de 6 fatias.
+  const dynamicRouletteSlices = React.useMemo(() => {
+      if (marketingSettings?.rouletteConfig?.slices && marketingSettings.rouletteConfig.slices.length > 0) {
+          return marketingSettings.rouletteConfig.slices;
+      }
+      return [
+          { id: '1', label: '10% OFF', type: 'discount_percent', value: 10, probability: 10, stock: 50, color: '#ef4444' },
+          { id: '2', label: 'R$ 5 Cashback', type: 'cashback', value: 5, probability: 15, stock: 100, color: '#f59e0b' },
+          { id: '3', label: 'Nada 😭', type: 'empty', value: 0, probability: 25, stock: 9999, color: '#10b981' },
+          { id: '4', label: '5% OFF', type: 'discount_percent', value: 5, probability: 15, stock: 100, color: '#3b82f6' },
+          { id: '5', label: 'R$ 2 Cashback', type: 'cashback', value: 2, probability: 10, stock: 100, color: '#8b5cf6' },
+          { id: '6', label: 'Tente na Próxima', type: 'empty', value: 0, probability: 25, stock: 9999, color: '#ec4899' }
+      ];
+  }, [marketingSettings?.rouletteConfig]);
 
   // --- NOVOS ESTADOS GAMIFICAÇÃO (Cashback, Tiers, Badges) ---
   const [useCashback, setUseCashback] = useState(false);
@@ -452,17 +467,84 @@ export default function Home() {
       }
   }, [marketingSettings?.gamification?.cashback, storeId, customer.phone]);
 
-  const spinRoulette = () => {
+  const spinRoulette = async () => {
       if (isSpinning) return;
       setIsSpinning(true);
       setRouletteResult(null);
+
+      const slices = dynamicRouletteSlices;
       
-      // Simula o tempo girando a roleta
-      setTimeout(() => {
-          const randomIndex = Math.floor(Math.random() * ROULETTE_PRIZES.length);
-          setRouletteResult(ROULETTE_PRIZES[randomIndex]);
+      // Lógica de Random Ponderado (Weighted Random)
+      let rand = Math.random() * 100;
+      let cumulative = 0;
+      let winningIndex = 0;
+      
+      for (let i = 0; i < slices.length; i++) {
+          cumulative += Number(slices[i].probability);
+          // Se caiu na chance E tem estoque, ele ganha.
+          if (rand <= cumulative && Number(slices[i].stock) > 0) {
+              winningIndex = i;
+              break;
+          }
+      }
+      
+      // Fallback: Se por algum motivo o sorteado não tem estoque, acha o primeiro 'empty'
+      if (Number(slices[winningIndex].stock) <= 0) {
+          winningIndex = slices.findIndex(s => s.type === 'empty') || 0;
+      }
+
+      const winningSlice = slices[winningIndex];
+
+      // Cálculo Visual Matemático Perfeito
+      // Cada fatia ocupa (360 / numero de fatias) graus.
+      const degreesPerSlice = 360 / slices.length;
+      // Para o topo apontar exatamente para o meio da fatia vencedora, calculamos o deslocamento
+      const baseRotation = 3600; // 10 voltas completas para emoção
+      // A fórmula ajusta o ângulo para parar perfeitamente com a seta (topo) apontando pro meio do índice
+      const targetRotation = baseRotation + (360 - (winningIndex * degreesPerSlice)); 
+      
+      setRouletteRotation(targetRotation);
+
+      // Espera a animação visual da roleta terminar (3s configurados no CSS)
+      setTimeout(async () => {
+          setRouletteResult(winningSlice.label);
           setIsSpinning(false);
-          // Opcional futuro: Aqui você pode disparar um setDoc/updateDoc para salvar o prêmio no perfil do usuário
+          
+          try {
+              const cleanPhone = customer.phone.replace(/\D/g, '');
+              
+              if (winningSlice.type !== 'empty' && cleanPhone) {
+                  // 1. Desconta 1 do estoque global da fatia vencedora
+                  const updatedSlices = [...slices];
+                  updatedSlices[winningIndex].stock -= 1;
+                  await setDoc(doc(db, "settings", storeId), { rouletteConfig: { slices: updatedSlices } }, { merge: true });
+
+                  // 2. Credita o prêmio ao usuário
+                  if (winningSlice.type === 'cashback') {
+                      const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
+                      await setDoc(walletRef, { balance: increment(winningSlice.value) }, { merge: true });
+                  } 
+                  else if (winningSlice.type.includes('discount')) {
+                      // Cria um cupom de uso único para este cliente
+                      const uniqueCode = `VIP${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+                      await addDoc(collection(db, "coupons"), {
+                          storeId: storeId,
+                          code: uniqueCode,
+                          type: winningSlice.type === 'discount_percent' ? 'percentage' : 'fixed_amount',
+                          value: winningSlice.value,
+                          minimumOrderValue: 0,
+                          usageLimit: 1,
+                          userUsageLimit: 1,
+                          firstPurchaseOnly: false,
+                          active: true,
+                          assignedTo: cleanPhone // Exclusivo dele
+                      });
+                      setRouletteResult(`Cupom Gerado: ${uniqueCode} (${winningSlice.label})`);
+                  }
+              }
+          } catch (e) {
+              console.error("Erro ao salvar prêmio da roleta:", e);
+          }
       }, 3000);
   };
 
@@ -2626,24 +2708,24 @@ if (window.fbq) {
                       className="w-full h-full rounded-full border-8 border-slate-900 shadow-inner relative overflow-hidden"
                       style={{
                           background: `conic-gradient(
-                              #ef4444 0deg 60deg, 
-                              #f59e0b 60deg 120deg, 
-                              #10b981 120deg 180deg, 
-                              #3b82f6 180deg 240deg, 
-                              #8b5cf6 240deg 300deg, 
-                              #ec4899 300deg 360deg
+                              ${dynamicRouletteSlices.map((slice, i) => {
+                                  const step = 360 / dynamicRouletteSlices.length;
+                                  return `${slice.color} ${i * step}deg ${(i + 1) * step}deg`;
+                              }).join(', ')}
                           )`
                       }}
-                      animate={{ rotate: isSpinning ? 3600 + Math.random() * 360 : 0 }}
+                      animate={{ rotate: isSpinning ? rouletteRotation : (rouletteRotation > 0 ? rouletteRotation : 0) }}
                       transition={{ duration: 3, ease: "circOut" }}
                   >
-                      {ROULETTE_PRIZES.map((prize, index) => {
-                          const rotation = (index * 60) + 30; // Posiciona o texto exatamente no meio da fatia
+                      {dynamicRouletteSlices.map((slice, index) => {
+                          const step = 360 / dynamicRouletteSlices.length;
+                          // A rotação posiciona o texto no centro exato da fatia.
+                          const rotation = (index * step) + (step / 2); 
                           return (
                               <div key={index} className="absolute top-0 left-0 w-full h-full text-center origin-center" style={{ transform: `rotate(${rotation}deg)` }}>
-                                  <div className="w-full h-1/2 flex justify-center pt-4">
-                                      <span className="font-black text-[11px] uppercase text-white drop-shadow-md max-w-[70px] leading-tight">
-                                          {prize}
+                                  <div className="w-full h-1/2 flex justify-center pt-3">
+                                      <span className="font-black text-[10px] uppercase text-white drop-shadow-md max-w-[60px] leading-tight break-words">
+                                          {slice.label}
                                       </span>
                                   </div>
                               </div>
@@ -2659,7 +2741,7 @@ if (window.fbq) {
               {rouletteResult ? (
                   <div className="animate-in zoom-in">
                       <p className="text-lg font-black text-slate-900 uppercase mb-4">
-                          {rouletteResult === "Tente Novamente" ? "Ah, que pena!" : `🎉 Você ganhou: ${rouletteResult}`}
+                         {rouletteResult === "Nada 😭" || rouletteResult === "Tente na Próxima" ? "Ah, que pena! Tente na próxima." : `🎉 Você ganhou: ${rouletteResult}`}
                       </p>
                       <button onClick={closeRouletteAndRedirect} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 active:scale-95 transition-all">
                           Continuar para o Pedido
