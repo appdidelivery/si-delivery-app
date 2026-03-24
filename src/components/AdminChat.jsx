@@ -11,14 +11,14 @@ export default function AdminChat() {
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
 
-    // Busca as mensagens da loja em tempo real
+    // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
         if (!storeId) return;
 
+        // Removemos o orderBy daqui para não depender de Índice Composto manual no Firebase
         const q = query(
             collection(db, 'whatsapp_inbound'),
-            where('storeId', '==', storeId),
-            orderBy('receivedAt', 'asc')
+            where('storeId', '==', storeId)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -26,7 +26,18 @@ export default function AdminChat() {
                 id: doc.id,
                 ...doc.data()
             }));
+            
+            // Ordenamos no próprio frontend de forma segura e cronológica
+            msgs.sort((a, b) => {
+                const timeA = a.receivedAt?.toMillis ? a.receivedAt.toMillis() : (a.receivedAt?.seconds * 1000 || 0);
+                const timeB = b.receivedAt?.toMillis ? b.receivedAt.toMillis() : (b.receivedAt?.seconds * 1000 || 0);
+                return timeA - timeB; 
+            });
+
             setMessages(msgs);
+        }, (error) => {
+            // Se der qualquer outro erro de permissão, agora aparecerá no console
+            console.error("🔥 Erro no onSnapshot do WhatsApp:", error);
         });
 
         return () => unsubscribe();
@@ -47,7 +58,15 @@ export default function AdminChat() {
         return acc;
     }, {});
 
-    const chatList = Object.values(chats);
+    // Transforma em array e ordena para que o cliente com a mensagem mais recente fique no topo da lista
+    const chatList = Object.values(chats).sort((a, b) => {
+        const lastMsgA = a.msgs[a.msgs.length - 1];
+        const lastMsgB = b.msgs[b.msgs.length - 1];
+        const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds * 1000 || 0);
+        const timeB = lastMsgB?.receivedAt?.toMillis ? lastMsgB.receivedAt.toMillis() : (lastMsgB?.receivedAt?.seconds * 1000 || 0);
+        return timeB - timeA; // Ordem decrescente (mais novos primeiro)
+    });
+    
     const activeMessages = activeChat ? chats[activeChat]?.msgs || [] : [];
 
     // Marca como lido ao abrir o chat

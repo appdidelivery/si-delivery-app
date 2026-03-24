@@ -537,10 +537,18 @@ export default async function handler(req, res) {
                            if (messageText) {
                                 try {
                                     // 1. MULTILOJA: Descobrir qual loja é dona deste número do WhatsApp
-                                    const settingsSnap = await db.collection('settings')
-                                        .where('integrations.whatsapp.phoneNumberId', '==', phoneNumberId)
+                                    // FIX: Busca como String primeiro (Padrão) e faz fallback para Number se não achar
+                                    let settingsSnap = await db.collection('settings')
+                                        .where('integrations.whatsapp.phoneNumberId', '==', String(phoneNumberId))
                                         .limit(1)
                                         .get();
+
+                                    if (settingsSnap.empty) {
+                                        settingsSnap = await db.collection('settings')
+                                            .where('integrations.whatsapp.phoneNumberId', '==', Number(phoneNumberId))
+                                            .limit(1)
+                                            .get();
+                                    }
                                     
                                     let storeId = 'desconhecida';
                                     let apiToken = null;
