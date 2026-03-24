@@ -823,7 +823,7 @@ export default async function handler(req, res) {
 
             // 5. Cria a Sessão de Checkout na Stripe roteando para a conta Connect
             const session = await stripe.checkout.sessions.create({
-                payment_method_types: ['card', 'pix'],
+                payment_method_types: ['card'], // Removemos o 'pix' provisoriamente
                 line_items: line_items,
                 mode: 'payment',
                 customer_email: customerEmail || undefined, // Usa o e-mail do cliente se existir
