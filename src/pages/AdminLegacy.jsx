@@ -319,33 +319,10 @@ export default function Admin() {
             </div>
          );
     }
-   // --- LÓGICA DE 30 DIAS DE TESTE E VENCIMENTO ---
-    const [trialInfo, setTrialInfo] = useState({ isTrial: true, daysLeft: 30, isOverdue: false });
-
-    useEffect(() => {
-        if (store?.createdAt) {
-            // Converte a data do Firebase para o formato nativo do JS
-            const createdDate = store.createdAt.toDate ? store.createdAt.toDate() : new Date(store.createdAt);
-            const now = new Date();
-            
-            // Calcula a diferença de dias
-            const diffTime = Math.abs(now - createdDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            const daysLeft = Math.max(0, 30 - diffDays);
-            const isTrial = diffDays <= 30;
-            
-            // Fatura vence APENAS se não for Trial E o pagamento não estiver pago
-const overdue = storeStatus.paymentStatus === 'overdue' || (!isTrial && storeStatus.paymentStatus !== 'paid');
-            setTrialInfo({ isTrial, daysLeft, isOverdue: overdue });
-        } else {
-            // Se a loja não tem createdAt (recém criada), garante o trial!
-            setTrialInfo({ isTrial: true, daysLeft: 30, isOverdue: false });
-        
-        }
-    }, [store?.createdAt, store?.paymentStatus]);
-
-const isOverdue = (storeStatus.paymentStatus === 'overdue') || (trialInfo.isOverdue && storeStatus.paymentStatus !== 'paid');    // ----------------------------------------------
+  // --- LÓGICA DE VENCIMENTO REMOVIDA (LOJA SEMPRE LIBERADA) ---
+    const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
+    const isOverdue = false; 
+    // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [visitasHoje, setVisitasHoje] = useState(0);
