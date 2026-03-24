@@ -482,6 +482,7 @@ export default async function handler(req, res) {
                 if(response.ok) {
                     return res.status(200).json({ success: true });
                 } else {
+                    console.error("❌ Falha na API Meta [chat_reply]:", data);
                     return res.status(400).json({ error: 'Falha na API Meta', details: data });
                 }
             }
@@ -507,7 +508,7 @@ export default async function handler(req, res) {
 
             if (mode && token) {
                 if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
-                    console.log('WEBHOOK_VERIFIED');
+                    console.log('✅ WEBHOOK_VERIFIED');
                     return res.status(200).send(challenge);
                 } else {
                     return res.status(403).json({ error: 'Token inválido' });
@@ -518,6 +519,9 @@ export default async function handler(req, res) {
 
         if (req.method === 'POST') {
             const body = req.body;
+            // Novo rastreio visual para logs da Vercel
+            console.log("📥 [WhatsApp Webhook] Recebeu POST da Meta:", JSON.stringify(body, null, 2));
+
             if (body.object === 'whatsapp_business_account') {
                 for (const entry of body.entry) {
                     for (const change of entry.changes) {
@@ -571,7 +575,11 @@ export default async function handler(req, res) {
                                     }
 
                                     // 3. LÓGICA DO BOT (Só executa se token existe, bot ativado na loja E bot NÃO estiver pausado)
-                                    const waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
+                                    // CORREÇÃO AQUI: Previne crash caso settingsSnap retorne vazio
+                                    let waSettings = {};
+                                    if (!settingsSnap.empty) {
+                                        waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
+                                    }
                                     
                                     if (apiToken && waSettings.botEnabled && !botPaused) {
                                         const incomingText = messageText.trim().toLowerCase();
@@ -617,7 +625,9 @@ export default async function handler(req, res) {
                                             })
                                         });
                                     }
-                                } catch (error) { console.error('Erro no processamento da mensagem recebida:', error); }
+                                } catch (error) { 
+                                    console.error('❌ Erro no processamento da mensagem recebida:', error); 
+                                }
                             }
                         }
                     }
