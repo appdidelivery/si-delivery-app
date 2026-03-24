@@ -336,8 +336,7 @@ export default function Admin() {
             const isTrial = diffDays <= 30;
             
             // Fatura vence APENAS se não for Trial E o pagamento não estiver pago
-            const overdue = !isTrial && storeStatus.paymentStatus !== 'paid';
-
+const overdue = storeStatus.paymentStatus === 'overdue' || (!isTrial && storeStatus.paymentStatus !== 'paid');
             setTrialInfo({ isTrial, daysLeft, isOverdue: overdue });
         } else {
             // Se a loja não tem createdAt (recém criada), garante o trial!
@@ -346,8 +345,7 @@ export default function Admin() {
         }
     }, [store?.createdAt, store?.paymentStatus]);
 
-    const isOverdue = trialInfo.isOverdue; // Dispara a tela de bloqueio vermelho se true
-    // ----------------------------------------------
+const isOverdue = (storeStatus.paymentStatus === 'overdue') || (trialInfo.isOverdue && storeStatus.paymentStatus !== 'paid');    // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [visitasHoje, setVisitasHoje] = useState(0);
