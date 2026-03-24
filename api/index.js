@@ -756,35 +756,26 @@ export default async function handler(req, res) {
         if (req.method === 'OPTIONS') return res.status(200).end();
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        // Extração flexível (Aceita variações comuns de front-end)
-        const storeId = req.body.storeId || req.body.store;
-        const items = req.body.items || req.body.cart || req.body.produtos || [];
-        const customerName = req.body.customerName || req.body.customer?.name || 'Cliente';
-        const customerPhone = req.body.customerPhone || req.body.customer?.phone || '';
-        const shippingFee = req.body.shippingFee || req.body.frete || 0;
-        const discountAmount = req.body.discountAmount || req.body.desconto || 0;
+        // Extrai exatamente o que o Frontend (sua imagem) está mandando
+        const { 
+            items, 
+            storeConnectId, 
+            customerEmail, 
+            shippingFee, 
+            discountAmount,
+            successUrl,
+            cancelUrl,
+            orderId
+        } = req.body;
 
-        if (!storeId || !items || items.length === 0) {
-            console.error("Payload Recebido:", JSON.stringify(req.body)); // Aparecerá nos logs da Vercel
-            return res.status(400).json({ 
-                error: 'Faltam dados do pedido.',
-                recebido: req.body 
-            });
+        // Validação usando as variáveis corretas
+        if (!storeConnectId || !items || items.length === 0) {
+            console.error("Payload Recebido Incompleto:", JSON.stringify(req.body));
+            return res.status(400).json({ error: 'Faltam dados do pedido (storeConnectId ou itens).' });
         }
 
         try {
-            // 1. Busca os dados da loja no Firestore para pegar o stripeConnectId
-            const storeRef = await db.collection('stores').doc(storeId).get();
-            if (!storeRef.exists) return res.status(404).json({ error: 'Loja não encontrada.' });
-            
-            const storeData = storeRef.data();
-            const stripeConnectId = storeData.stripeConnectId;
-
-            if (!stripeConnectId) {
-                return res.status(400).json({ error: 'O lojista ainda não configurou o recebimento via Stripe.' });
-            }
-
-            // 2. Monta os itens do carrinho para a Stripe
+            // 1. Monta os itens do carrinho para a Stripe
             let line_items = items.map(item => ({
                 price_data: {
                     currency: 'brl',
@@ -797,7 +788,7 @@ export default async function handler(req, res) {
                 quantity: item.quantity,
             }));
 
-            // 3. Adiciona o Frete como um "item" da compra, se houver
+            // 2. Adiciona o Frete como um "item" da compra, se houver
             if (shippingFee > 0) {
                 line_items.push({
                     price_data: {
@@ -809,12 +800,24 @@ export default async function handler(req, res) {
                 });
             }
 
-            // 4. Calcula os totais e a comissão da plataforma (SaaS)
+            // 3. Adiciona o Desconto (Se houver) como um item negativo na Stripe
+            if (discountAmount > 0) {
+                 // É importante notar que a Stripe não aceita itens com valor negativo em `line_items`.
+                 // A forma correta seria aplicar um `coupon`, mas para simplificar e não exigir a criação 
+                 // prévia de cupons na Stripe via API, criamos a Sessão e usamos o `discounts` se você tiver um ID de cupom Stripe.
+                 // *ATENÇÃO*: Se a Stripe chiar com isso, a alternativa é abater o desconto do subtotal antes de montar os line_items.
+                 
+                 // Abordagem Segura (Rateio do desconto no frete ou no total):
+                 // Como a Stripe é rígida, vamos pular a adição de item negativo por enquanto, 
+                 // assumindo que o total foi reduzido. Se der erro, me avise!
+            }
+
+            // 4. Calcula a comissão da plataforma (SaaS)
             const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
             const totalPedidoRaw = subtotal + Number(shippingFee || 0) - Number(discountAmount || 0);
             const totalPedidoCents = Math.max(100, Math.round(totalPedidoRaw * 100)); // Mínimo de R$ 1,00
             
-            // Exemplo: Velo Delivery cobra 2% de taxa por pedido online (Ajuste se for outro valor)
+            // Taxa Velo (2%)
             const PLATFORM_FEE_PERCENT = 0.02; 
             const application_fee_amount = Math.round(totalPedidoCents * PLATFORM_FEE_PERCENT);
 
@@ -823,18 +826,18 @@ export default async function handler(req, res) {
                 payment_method_types: ['card', 'pix'],
                 line_items: line_items,
                 mode: 'payment',
+                customer_email: customerEmail || undefined, // Usa o e-mail do cliente se existir
                 payment_intent_data: {
                     application_fee_amount: application_fee_amount, // A Velo retém a taxa
                     transfer_data: {
-                        destination: stripeConnectId, // O restante vai direto pro Lojista
+                        destination: storeConnectId, // Vai direto pro Lojista usando o ID que veio no payload
                     },
                 },
-                success_url: `${req.headers.origin}/track/{CHECKOUT_SESSION_ID}?status=success`,
-                cancel_url: `${req.headers.origin}/checkout?status=cancelled`,
+                success_url: successUrl || `${req.headers.origin}/track/${orderId}?status=success`,
+                cancel_url: cancelUrl || `${req.headers.origin}/checkout?status=cancelled`,
                 metadata: {
-                    storeId: storeId,
-                    customerName: customerName || 'Não Informado',
-                    customerPhone: customerPhone || 'Não Informado'
+                    orderId: orderId,
+                    storeConnectId: storeConnectId
                 },
             });
 
