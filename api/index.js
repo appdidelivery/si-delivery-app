@@ -756,10 +756,20 @@ export default async function handler(req, res) {
         if (req.method === 'OPTIONS') return res.status(200).end();
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { items, storeId, customerName, customerPhone, shippingFee, discountAmount } = req.body;
+        // Extração flexível (Aceita variações comuns de front-end)
+        const storeId = req.body.storeId || req.body.store;
+        const items = req.body.items || req.body.cart || req.body.produtos || [];
+        const customerName = req.body.customerName || req.body.customer?.name || 'Cliente';
+        const customerPhone = req.body.customerPhone || req.body.customer?.phone || '';
+        const shippingFee = req.body.shippingFee || req.body.frete || 0;
+        const discountAmount = req.body.discountAmount || req.body.desconto || 0;
 
         if (!storeId || !items || items.length === 0) {
-            return res.status(400).json({ error: 'Faltam dados do pedido (storeId ou itens).' });
+            console.error("Payload Recebido:", JSON.stringify(req.body)); // Aparecerá nos logs da Vercel
+            return res.status(400).json({ 
+                error: 'Faltam dados do pedido.',
+                recebido: req.body 
+            });
         }
 
         try {
