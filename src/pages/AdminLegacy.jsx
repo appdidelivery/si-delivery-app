@@ -4525,7 +4525,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     alert("Erro ao salvar configuração.");
                                 }
                             }} className="space-y-4">
-                                
+                                {/* Guia Passo a Passo WhatsApp API */}
+{selectedIntegration.id === 'whatsapp' && (
+    <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 mb-6 shadow-sm animate-in fade-in slide-in-from-top-2">
+        <h3 className="text-sm font-black text-slate-800 uppercase flex items-center gap-2 mb-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 16a1 1 0 1 1 1-1 1 1 0 0 1-1 1zm1-5.16V14a1 1 0 0 1-2 0v-2a1 1 0 0 1 1-1 2 2 0 1 0-2-2 1 1 0 0 1-2 0 4 4 0 1 1 5 3.84z"></path>
+            </svg>
+            Como conectar a API Oficial
+        </h3>
+        <p className="text-xs font-bold text-slate-500 mb-5">
+            Siga as etapas abaixo no Portal da Meta e cole as credenciais para ativar o bot.
+        </p>
+
+        <ol className="list-decimal ml-5 text-xs font-medium text-slate-700 space-y-4 marker:text-green-500 marker:font-black">
+            <li>
+                <b>Criar o App:</b> Acesse o <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Facebook Developers</a> e crie um aplicativo do tipo <b>Empresa (Business)</b>.
+            </li>
+            <li>
+                <b>Ativar o WhatsApp:</b> Dentro do seu app na Meta, encontre o card <b>WhatsApp</b> e clique em <b>Configurar</b>.
+            </li>
+            <li>
+                <b>Pegar o ID do Número:</b> Vá em <i>WhatsApp {'>'} Configuração da API</i> e copie o <b>ID do número de telefone</b>. Cole no primeiro campo abaixo.
+            </li>
+            <li>
+                <b>Gerar Token Permanente (Crítico):</b> Acesse o <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Gerenciador de Negócios (Usuários do Sistema)</a>, crie um <b>Usuário do Sistema</b>, adicione o App como ativo e gere um novo token marcando a permissão <code className="bg-slate-200 text-pink-600 px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold">whatsapp_business_messaging</code>. Copie esse token e cole no segundo campo abaixo.
+            </li>
+        </ol>
+    </div>
+)}
                                 {/* Renderiza os inputs */}
                                 {selectedIntegration.fields.map((field) => (
                                     <div key={field.key} className="space-y-1">
