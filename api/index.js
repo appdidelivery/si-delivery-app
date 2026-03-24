@@ -744,7 +744,96 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: 'Erro no processamento do webhook físico.' });
         }
     }
+// ------------------------------------------------------------------------
+    // 13. MARKETPLACE CHECKOUT (CLIENTE FINAL PAGANDO COM STRIPE CONNECT)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/create-marketplace-checkout') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { items, storeId, customerName, customerPhone, shippingFee, discountAmount } = req.body;
+
+        if (!storeId || !items || items.length === 0) {
+            return res.status(400).json({ error: 'Faltam dados do pedido (storeId ou itens).' });
+        }
+
+        try {
+            // 1. Busca os dados da loja no Firestore para pegar o stripeConnectId
+            const storeRef = await db.collection('stores').doc(storeId).get();
+            if (!storeRef.exists) return res.status(404).json({ error: 'Loja não encontrada.' });
+            
+            const storeData = storeRef.data();
+            const stripeConnectId = storeData.stripeConnectId;
+
+            if (!stripeConnectId) {
+                return res.status(400).json({ error: 'O lojista ainda não configurou o recebimento via Stripe.' });
+            }
+
+            // 2. Monta os itens do carrinho para a Stripe
+            let line_items = items.map(item => ({
+                price_data: {
+                    currency: 'brl',
+                    product_data: {
+                        name: item.name,
+                        images: item.imageUrl ? [item.imageUrl] : [],
+                    },
+                    unit_amount: Math.round(item.price * 100), // Stripe exige valor em centavos
+                },
+                quantity: item.quantity,
+            }));
+
+            // 3. Adiciona o Frete como um "item" da compra, se houver
+            if (shippingFee > 0) {
+                line_items.push({
+                    price_data: {
+                        currency: 'brl',
+                        product_data: { name: 'Taxa de Entrega' },
+                        unit_amount: Math.round(shippingFee * 100),
+                    },
+                    quantity: 1,
+                });
+            }
+
+            // 4. Calcula os totais e a comissão da plataforma (SaaS)
+            const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+            const totalPedidoRaw = subtotal + Number(shippingFee || 0) - Number(discountAmount || 0);
+            const totalPedidoCents = Math.max(100, Math.round(totalPedidoRaw * 100)); // Mínimo de R$ 1,00
+            
+            // Exemplo: Velo Delivery cobra 2% de taxa por pedido online (Ajuste se for outro valor)
+            const PLATFORM_FEE_PERCENT = 0.02; 
+            const application_fee_amount = Math.round(totalPedidoCents * PLATFORM_FEE_PERCENT);
+
+            // 5. Cria a Sessão de Checkout na Stripe roteando para a conta Connect
+            const session = await stripe.checkout.sessions.create({
+                payment_method_types: ['card', 'pix'],
+                line_items: line_items,
+                mode: 'payment',
+                payment_intent_data: {
+                    application_fee_amount: application_fee_amount, // A Velo retém a taxa
+                    transfer_data: {
+                        destination: stripeConnectId, // O restante vai direto pro Lojista
+                    },
+                },
+                success_url: `${req.headers.origin}/track/{CHECKOUT_SESSION_ID}?status=success`,
+                cancel_url: `${req.headers.origin}/checkout?status=cancelled`,
+                metadata: {
+                    storeId: storeId,
+                    customerName: customerName || 'Não Informado',
+                    customerPhone: customerPhone || 'Não Informado'
+                },
+            });
+
+            return res.status(200).json({ url: session.url, id: session.id });
+        } catch (error) {
+            console.error('Erro ao gerar Stripe Checkout (Marketplace):', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================
