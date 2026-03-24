@@ -1,57 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
-import { db } from '../services/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function SEO({ title, description, image, productData }) {
+    // 1. Pega os dados do Banco de Dados (SaaS)
     const { store } = useStore();
-    
-    // --- NOVO: ESTADO PARA ARMAZENAR AS AVALIAÇÕES ---
-    const [reviewStats, setReviewStats] = useState({ count: 0, average: 0 });
 
-    // --- NOVO: BUSCA E CÁLCULO DE AVALIAÇÕES EM TEMPO REAL ---
-    useEffect(() => {
-        const fetchReviews = async () => {
-            if (!store?.slug) return; // Garante que temos a loja
-            
-            try {
-                const q = query(collection(db, "reviews"), where("storeId", "==", store.slug));
-                const snapshot = await getDocs(q);
-                
-                if (!snapshot.empty) {
-                    const totalReviews = snapshot.size;
-                    const sumRatings = snapshot.docs.reduce((acc, doc) => acc + Number(doc.data().rating || 0), 0);
-                    const avgRating = (sumRatings / totalReviews).toFixed(1);
-                    
-                    setReviewStats({
-                        count: totalReviews,
-                        average: avgRating
-                    });
-                }
-            } catch (error) {
-                console.error("Erro ao buscar avaliações para o SEO:", error);
-            }
-        };
-
-        fetchReviews();
-    }, [store?.slug]);
-
+    // 2. Define valores padrão
     const defaultName = "Velo Delivery";
     const defaultDesc = "O seu aplicativo de delivery.";
     const defaultImage = "/logo-square.png";
 
+    // 3. Decide quem manda
     const siteName = store?.name || defaultName;
     const finalTitle = title ? `${title}` : `${siteName} - App`;
     const finalDesc = description || store?.description || defaultDesc;
     
+    // Prioridade absoluta para a imagem passada por prop (Produto)
     const finalImage = image || store?.storeLogoUrl || store?.logoUrl || defaultImage;
     
+    // Tratamento de segurança para SSR (Evita erro 'window is not defined')
     const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velo.com.br";
     const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velo.com.br";
-    const baseUrl = currentUrl.split('?')[0]; 
+    const baseUrl = currentUrl.split('?')[0]; // Remove parâmetros de URL para os IDs do Schema
 
-    // Base da Entidade da Loja (Atualizado para injetar reviewStats)
+    // 4. Base da Entidade da Loja (Evoluído para LiquorStore/AEO)
     const baseStoreSchema = {
         "@id": `${baseUrl}#store`,
         "@type": "LiquorStore",
@@ -71,19 +44,21 @@ export default function SEO({ title, description, image, productData }) {
             "addressCountry": "BR"
         } : undefined,
         
-        // --- CORREÇÃO AQUI: Agora usamos reviewStats calculado no useEffect ---
-        ...(reviewStats.count > 0 && {
+        // Avaliações da Loja (Fallback dinâmico)
+        ...(store?.rating_count > 0 && {
             "aggregateRating": {
                 "@type": "AggregateRating",
-                "ratingValue": reviewStats.average.toString(),
-                "reviewCount": reviewStats.count.toString()
+                "ratingValue": Number(store.rating_aggregate).toFixed(1),
+                "reviewCount": store.rating_count
             }
         })
     };
 
+    // 5. Montagem Dinâmica e Exaustiva do JSON-LD
     let structuredData;
 
     if (productData) {
+        // Cálculo do preço com fallback seguro para não quebrar a UI/Schema
         const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
 
         structuredData = {
@@ -93,6 +68,7 @@ export default function SEO({ title, description, image, productData }) {
                 {
                     "@type": ["Product", "MenuItem"],
                     "@id": `${baseUrl}#product`,
+                    // 1. DADOS BASE DO PRODUTO
                     "name": productData.name || "",
                     "description": productData.description || finalDesc || "",
                     "image": productData.imageUrl ? [productData.imageUrl] : [finalImage],
@@ -103,21 +79,26 @@ export default function SEO({ title, description, image, productData }) {
                         "name": productData.brand || siteName || ""
                     },
                     "category": productData.category || "",
+                    
+                    // 3. LOGÍSTICA E PREPARO (Food/Delivery)
                     "prepTime": productData.prepTime || "",
+                    
+                    // 4. ALIMENTAÇÃO E CUSTOMIZAÇÃO (MenuItem)
                     "suitableForDiet": productData.suitableForDiet || [],
                     "menuAddOn": productData.menuAddOn || [],
                     "nutrition": {
                         "@type": "NutritionInformation",
                         "calories": productData.calories || ""
                     },
-                    // Avaliação do Produto (se existir, usa a nota do produto; senão, remove o bloco para evitar erros no Google)
-                    ...(productData.ratingValue ? {
-                         "aggregateRating": {
-                             "@type": "AggregateRating",
-                             "ratingValue": productData.ratingValue.toString(),
-                             "reviewCount": (productData.reviewCount || 1).toString()
-                         }
-                    } : {}),
+                    
+                    // 5. PROVA SOCIAL
+                    "aggregateRating": productData.ratingValue ? {
+                        "@type": "AggregateRating",
+                        "ratingValue": productData.ratingValue,
+                        "reviewCount": productData.reviewCount || 1
+                    } : null,
+                    
+                    // 2. OFERTA E VENDA
                     "offers": {
                         "@type": "Offer",
                         "url": currentUrl,
@@ -152,6 +133,7 @@ export default function SEO({ title, description, image, productData }) {
                         }
                     }
                 },
+                // Ação de Pedido Direto (Acelera AEO e Google Actions)
                 {
                     "@type": "OrderAction",
                     "target": {
@@ -171,6 +153,7 @@ export default function SEO({ title, description, image, productData }) {
         };
     }
 
+    // 6. Sanitização de Segurança contra XSS (O SEGREDO SÊNIOR)
     const safeJsonLd = JSON.stringify(structuredData).replace(/</g, '\\u003c');
 
     return (
@@ -186,6 +169,7 @@ export default function SEO({ title, description, image, productData }) {
             <meta property="og:url" content={currentUrl} />
             <meta property="og:site_name" content={siteName} />
             
+            {/* Injeção Blindada do Schema */}
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd }} />
         </Helmet>
     );
