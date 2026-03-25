@@ -14,7 +14,7 @@ export const config = {
 // Função para ler os dados crus (Raw Body)
 async function getRawBody(req) {
     return new Promise((resolve, reject) => {
-        const chunks =[];
+        const chunks = [];
         req.on('data', (chunk) => chunks.push(chunk));
         req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
         req.on('error', reject);
@@ -86,10 +86,19 @@ export default async function handler(req, res) {
             const { stripeConnectId } = req.body;
             if (!stripeConnectId) return res.status(400).json({ error: 'ID da conta Connect não fornecido.' });
 
-            const account = await stripe.accounts.update(stripeConnectId, {
-                capabilities: { pix_payments: { requested: true } },
+            // Atualizado para usar o endpoint explícito de Capabilities conforme a Stripe exige para contas Connect
+            const capability = await stripe.accounts.updateCapability(
+                stripeConnectId,
+                'pix_payments',
+                { requested: true }
+            );
+            
+            return res.status(200).json({ 
+                success: true, 
+                status: capability.status, 
+                requirements: capability.requirements,
+                message: "Solicitação de Pix enviada com sucesso!" 
             });
-            return res.status(200).json({ success: true, status: account.capabilities.pix_payments, message: "Solicitação de Pix enviada com sucesso!" });
         } catch (error) {
             console.error('Erro ao ativar Pix:', error);
             return res.status(500).json({ error: error.message });
@@ -114,7 +123,7 @@ export default async function handler(req, res) {
         try {
             const session = await stripe.checkout.sessions.create({
                 payment_method_types: ['card'], 
-                line_items:[{ price: 'price_1T4gNo6iD1OCwvLcVlQ9q2hW', quantity: 1 }],
+                line_items: [{ price: 'price_1T4gNo6iD1OCwvLcVlQ9q2hW', quantity: 1 }],
                 mode: 'subscription',
                 success_url: `${req.headers.origin}/admin?fatura=paga`,
                 cancel_url: `${req.headers.origin}/admin?fatura=cancelada`,
@@ -135,12 +144,28 @@ export default async function handler(req, res) {
         if (req.method !== 'POST') return res.status(405).end();
         try {
             const { storeId } = req.body;
+            // 1. Cria a conta base na Stripe
             const account = await stripe.accounts.create({
                 type: 'express',
                 country: 'BR',
                 capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
                 metadata: { storeId: storeId }
             });
+
+            // 2. Chama a API de Capabilities separadamente para injetar a permissão do PIX
+            try {
+                await stripe.accounts.updateCapability(
+                    account.id,
+                    'pix_payments',
+                    { requested: true }
+                );
+                console.log(`[Stripe Connect] Capability pix_payments solicitada para ${account.id}`);
+            } catch (pixError) {
+                // Logamos o erro da capability mas não travamos a criação da conta
+                console.error(`[Stripe Connect] Falha ao solicitar pix_payments para ${account.id}:`, pixError.message);
+            }
+
+            // 3. Gera o link de onboarding
             const accountLink = await stripe.accountLinks.create({
                 account: account.id,
                 refresh_url: `${req.headers.origin}/admin?stripe_error=true`,
@@ -186,7 +211,7 @@ export default async function handler(req, res) {
             const thirtyMinsAgo = new Date(now.getTime() - 30 * 60000);
             
             const abandonedQuery = await db.collection("orders").where("status", "==", "pending").where("abandonmentAlertSent", "!=", true).get();
-            const abandonedPromises =[];
+            const abandonedPromises = [];
 
             abandonedQuery.forEach(doc => {
                 const data = doc.data();
@@ -240,7 +265,7 @@ export default async function handler(req, res) {
 
             if (feedType === 'merchant') {
                 const merchantFeed = {
-                    data:[{
+                    data: [{
                         "@type": "Restaurant", "merchantId": storeId, "name": storeData.name || "Velo Delivery",
                         "telephone": storeData.phone || "+5500000000000",
                         "address": {
@@ -256,13 +281,13 @@ export default async function handler(req, res) {
             }
 
             if (feedType === 'service') {
-                const serviceFeed = { data:[{ "@type": "Service", "serviceId": `srv_delivery_${storeId}`, "merchantId": storeId, "serviceType": "DELIVERY" }] };
+                const serviceFeed = { data: [{ "@type": "Service", "serviceId": `srv_delivery_${storeId}`, "merchantId": storeId, "serviceType": "DELIVERY" }] };
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 return res.status(200).send(JSON.stringify(serviceFeed));
             }
 
             const productsSnapshot = await db.collection('products').where('storeId', '==', storeId).get();
-            let googleOrderFeed = { data:[] };
+            let googleOrderFeed = { data: [] };
 
             productsSnapshot.forEach(doc => {
                 const p = doc.data();
@@ -274,7 +299,7 @@ export default async function handler(req, res) {
                 }
 
                 const nomeProduto = p.name.toLowerCase();
-                const palavrasProibidas =['cigarro', 'tabaco', 'vape', 'narguile', 'essência', 'essencia', 'palheiro', 'gift'];
+                const palavrasProibidas = ['cigarro', 'tabaco', 'vape', 'narguile', 'essência', 'essencia', 'palheiro', 'gift'];
                 if (palavrasProibidas.some(palavra => nomeProduto.includes(palavra))) return; 
 
                 if (!p.imageUrl || typeof p.imageUrl !== 'string' || !p.imageUrl.startsWith('http')) return; 
@@ -284,8 +309,8 @@ export default async function handler(req, res) {
                 const finalPrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price || 0);
                 const itemMenu = {
                     "@type": "MenuItem", "menuItemId": doc.id,
-                    "name":[{ "@type": "TextProperty", "text": p.name, "language": "pt" }],
-                    "description":[{ "@type": "TextProperty", "text": p.description || p.name, "language": "pt" }],
+                    "name": [{ "@type": "TextProperty", "text": p.name, "language": "pt" }],
+                    "description": [{ "@type": "TextProperty", "text": p.description || p.name, "language": "pt" }],
                     "price": { "@type": "Price", "price": finalPrice, "currency": "BRL" },
                     "image": [p.imageUrl]
                 };
@@ -322,7 +347,7 @@ export default async function handler(req, res) {
                     source: 'google_food_marketplace', 
                     googleOrderId: payload.orderId || 'N/A',
                     customer: { name: payload.customer?.name || 'Cliente Google', phone: payload.customer?.phone || '' },
-                    items: payload.cart?.items ||[],
+                    items: payload.cart?.items || [],
                     total: payload.cart?.total || 0,
                     status: 'pending', 
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -744,7 +769,7 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: 'Erro no processamento do webhook físico.' });
         }
     }
-// ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // 13. MARKETPLACE CHECKOUT (CLIENTE FINAL PAGANDO COM STRIPE CONNECT)
     // ------------------------------------------------------------------------
     else if (path === '/api/create-marketplace-checkout') {
@@ -823,7 +848,7 @@ export default async function handler(req, res) {
 
             // 5. Cria a Sessão de Checkout na Stripe roteando para a conta Connect
             const session = await stripe.checkout.sessions.create({
-                payment_method_types: ['card'], // Removemos o 'pix' provisoriamente
+                payment_method_types: ['card', 'pix'], // PIX INSERIDO DE VOLTA PARA TESTE REAL
                 line_items: line_items,
                 mode: 'payment',
                 customer_email: customerEmail || undefined, // Usa o e-mail do cliente se existir
