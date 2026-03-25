@@ -16,21 +16,18 @@ export default function SEO({ title, description, image, productData }) {
     const finalTitle = title ? `${title}` : `${siteName} - App`;
     const finalDesc = description || store?.description || defaultDesc;
     
-    // Prioridade absoluta para a imagem passada por prop (Produto)
     const finalImage = image || store?.storeLogoUrl || store?.logoUrl || defaultImage;
     
-    // Tratamento de segurança para SSR (Evita erro 'window is not defined')
     const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velo.com.br";
     const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velo.com.br";
-    const baseUrl = currentUrl.split('?')[0]; // Remove parâmetros de URL para os IDs do Schema
+    const baseUrl = currentUrl.split('?')[0]; 
 
-    // 4. MOTOR DE INJEÇÃO REST API (BYPASS NO BLOQUEIO DE WEBSOCKET DO GOOGLEBOT)
+    // 4. MOTOR DE INJEÇÃO REST API (O QUE FUNCIONOU NO SEU TESTE!)
     useEffect(() => {
         let isMounted = true;
 
         const injectSchemaForGoogle = async () => {
             try {
-                // Identifica a loja pelo subdomínio
                 const hostname = window.location.hostname;
                 let storeId = 'csi'; 
                 
@@ -38,7 +35,7 @@ export default function SEO({ title, description, image, productData }) {
                     storeId = hostname.split('.')[0];
                 }
 
-                // Faz um Fetch HTTP tradicional (Googlebot espera isso terminar)
+                // O seu Fetch vitorioso
                 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
                 const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
                 
@@ -57,7 +54,20 @@ export default function SEO({ title, description, image, productData }) {
                     const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                     const ratingCount = fields.rating_count?.integerValue || 0;
 
-                    // TRATAMENTO DE ENDEREÇO (Garante que não quebra se for String)
+                    // --- TRADUTOR DINÂMICO DE NICHOS PARA O GOOGLE ---
+                    const niche = fields.storeNiche?.stringValue || 'default';
+                    const schemaTypes = {
+                        'burger': 'FastFoodRestaurant',
+                        'pizza': 'Restaurant',
+                        'drinks': 'LiquorStore',
+                        'sweet': 'IceCreamShop',
+                        'natural': 'GroceryStore',
+                        'default': 'ConvenienceStore',
+                        'custom': 'LocalBusiness'
+                    };
+                    const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
+
+                    // TRATAMENTO DE ENDEREÇO
                     let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
                     if (fields.address?.stringValue) {
                         addressObj.streetAddress = fields.address.stringValue;
@@ -69,21 +79,21 @@ export default function SEO({ title, description, image, productData }) {
                         addressObj.postalCode = addr.zip?.stringValue || "";
                     }
 
-                    // A) BASE DA ENTIDADE DA LOJA (LiquorStore / LocalBusiness)
+                    // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
                         "@id": `${baseUrl}#store`,
-                        "@type": "LiquorStore",
+                        "@type": googleBusinessType, // Usa o tipo dinâmico da loja
                         "name": fetchedName,
                         "image": fetchedImage,
                         "description": fetchedDesc,
-                        "url": currentUrl,
+                        "url": `https://${hostname}`,
                         "telephone": fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "",
                         "priceRange": "$$",
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
                         "address": addressObj
                     };
 
-                    // Injeta a nota apenas se existir
+                    // Injeta a nota da loja apenas se existir
                     if (ratingCount > 0) {
                         baseStoreSchema.aggregateRating = {
                             "@type": "AggregateRating",
@@ -94,7 +104,7 @@ export default function SEO({ title, description, image, productData }) {
 
                     let structuredData;
 
-                    // B) ESTRUTURA COMPLETA DE PRODUTO (Mantendo TODAS as suas 170+ linhas intactas)
+                    // B) ESTRUTURA COMPLETA DE PRODUTO (Suas 170 linhas de inteligência)
                     if (productData) {
                         const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
 
@@ -105,7 +115,7 @@ export default function SEO({ title, description, image, productData }) {
                                 {
                                     "@type": ["Product", "MenuItem"],
                                     "@id": `${baseUrl}#product`,
-                                    // 1. DADOS BASE DO PRODUTO
+                                    // DADOS BASE DO PRODUTO
                                     "name": productData.name || "",
                                     "description": productData.description || fetchedDesc || "",
                                     "image": productData.imageUrl ? [productData.imageUrl] : [fetchedImage],
@@ -117,10 +127,10 @@ export default function SEO({ title, description, image, productData }) {
                                     },
                                     "category": productData.category || "",
                                     
-                                    // 3. LOGÍSTICA E PREPARO (Food/Delivery)
+                                    // LOGÍSTICA E PREPARO
                                     "prepTime": productData.prepTime ? `PT${productData.prepTime}M` : "",
                                     
-                                    // 4. ALIMENTAÇÃO E CUSTOMIZAÇÃO (MenuItem)
+                                    // ALIMENTAÇÃO E CUSTOMIZAÇÃO
                                     "suitableForDiet": productData.suitableForDiet || [],
                                     "menuAddOn": productData.menuAddOn || [],
                                     "nutrition": {
@@ -128,7 +138,7 @@ export default function SEO({ title, description, image, productData }) {
                                         "calories": productData.calories ? `${productData.calories} kcal` : ""
                                     },
                                     
-                                    // 5. PROVA SOCIAL DO PRODUTO
+                                    // PROVA SOCIAL DO PRODUTO
                                     ...(productData.ratingValue ? {
                                         "aggregateRating": {
                                             "@type": "AggregateRating",
@@ -137,7 +147,7 @@ export default function SEO({ title, description, image, productData }) {
                                         }
                                     } : {}),
                                     
-                                    // 2. OFERTA E VENDA
+                                    // OFERTA E VENDA
                                     "offers": {
                                         "@type": "Offer",
                                         "url": currentUrl,
@@ -170,7 +180,7 @@ export default function SEO({ title, description, image, productData }) {
                                         }
                                     }
                                 },
-                                // Ação de Pedido Direto (Acelera AEO e Google Actions)
+                                // Ação de Pedido Direto
                                 {
                                     "@type": "OrderAction",
                                     "target": {
@@ -184,7 +194,7 @@ export default function SEO({ title, description, image, productData }) {
                             ]
                         };
                     } else {
-                        // C) PÁGINA INICIAL DA LOJA (Apenas os dados do LocalBusiness/LiquorStore)
+                        // C) PÁGINA INICIAL DA LOJA
                         structuredData = {
                             "@context": "https://schema.org",
                             ...baseStoreSchema
@@ -192,10 +202,8 @@ export default function SEO({ title, description, image, productData }) {
                     }
 
                     if (isMounted) {
-                        // Sanitização de Segurança contra XSS
                         const safeJsonLd = JSON.stringify(structuredData).replace(/</g, '\\u003c');
                         
-                        // Injeção forçada direto no Head (O Googlebot lê isso perfeitamente)
                         const scriptId = 'google-schema-forced';
                         let scriptTag = document.getElementById(scriptId);
                         
@@ -223,7 +231,7 @@ export default function SEO({ title, description, image, productData }) {
         };
     }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin]);
 
-    // 5. O HELMET AGORA FICA RESPONSÁVEL APENAS PELO SOCIAL (OG, TWITTER, ETC.)
+    // O HELMET CUIDA APENAS DO SOCIAL (META TAGS)
     return (
         <Helmet>
             <title>{finalTitle}</title>
