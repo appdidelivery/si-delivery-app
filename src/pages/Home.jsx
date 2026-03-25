@@ -1496,6 +1496,27 @@ if (window.fbq) {
         productData={selectedProduct} 
     />
     <AgeGate enabled={storeSettings?.ageGateEnabled} />
+    {/* BOTÃO TEMPORÁRIO PARA ATIVAR O PIX DA CSI - APAGAR DEPOIS */}
+<button
+  onClick={async () => {
+    try {
+      const resposta = await fetch('/api/activate-pix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stripeConnectId: "acct_1T4mPQQIwSAh0ABu" })
+      });
+      const dados = await resposta.json();
+      console.log("RESPOSTA DA STRIPE:", dados);
+      alert(`Status da ativação: ${dados.status}`);
+    } catch (erro) {
+      alert("Erro na requisição: " + erro.message);
+    }
+  }}
+  style={{ padding: '15px 30px', background: '#4CAF50', color: '#fff', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', margin: '20px auto', display: 'block', zIndex: 9999, position: 'relative' }}
+>
+  FORÇAR ATIVAÇÃO DO PIX (CSI)
+</button>
+{/* FIM DO BOTÃO TEMPORÁRIO */}
 
     <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
         <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>
