@@ -252,7 +252,7 @@ export default function Admin() {
 
         // O 'state' é CRÍTICO: Passamos o ID da loja nele. Quando o MP redirecionar de volta, 
         // ele nos devolve esse state. Assim sabemos em qual loja salvar o token no banco!
-        const authUrl = `https://auth.mercadopago.com/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${storeId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${storeId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
         // Redireciona o lojista para a tela de aprovação do Mercado Pago
         window.location.href = authUrl;
