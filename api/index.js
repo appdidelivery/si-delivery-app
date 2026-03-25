@@ -872,6 +872,76 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: error.message });
         }
     }
+    // ------------------------------------------------------------------------
+    // 14. MERCADO PAGO CONNECT (OAUTH CALLBACK)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/mp-callback') {
+        if (req.method !== 'GET') return res.status(405).end();
+        
+        const { code, state } = req.query; // 'state' contém o nosso storeId!
+        
+        if (!code || !state) {
+            return res.status(400).send("Faltam parâmetros do Mercado Pago (code ou state).");
+        }
+
+        try {
+            const storeId = state;
+            const isLocal = req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1');
+            
+            // IMPORTANTE: Esta URL deve ser estritamente igual à enviada no Admin.jsx
+            const redirectUri = isLocal 
+                ? 'http://localhost:3000/api/mp-callback' 
+                : 'https://app.velodelivery.com.br/api/mp-callback'; // Ajuste para seu domínio principal, se for outro
+
+            // 1. Chama o Mercado Pago para trocar o 'code' pelo 'access_token'
+            const mpResponse = await fetch('https://api.mercadopago.com/oauth/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    client_id: process.env.MP_CLIENT_ID,
+                    client_secret: process.env.MP_CLIENT_SECRET,
+                    grant_type: 'authorization_code',
+                    code: code,
+                    redirect_uri: redirectUri
+                })
+            });
+
+            const data = await mpResponse.json();
+
+            if (!mpResponse.ok) {
+                console.error("❌ Erro OAuth MP:", data);
+                return res.status(400).send(`Erro ao gerar token no Mercado Pago: ${data.message || 'Desconhecido'}`);
+            }
+
+            // 2. Salva as credenciais do Lojista no Firebase
+            await db.collection('settings').doc(storeId).set({
+                integrations: {
+                    mercadopago: {
+                        accessToken: data.access_token,
+                        refreshToken: data.refresh_token,
+                        publicKey: data.public_key,
+                        userId: data.user_id,
+                        expiresIn: data.expires_in,
+                        connectedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }
+                }
+            }, { merge: true });
+
+            // 3. Redireciona o lojista de volta para o painel com sucesso
+            const protocol = isLocal ? 'http' : 'https';
+            // Pega o domínio atual exato para não quebrar em caso de múltiplos subdomínios
+            const returnHost = `${protocol}://${req.headers.host}`; 
+            
+            res.writeHead(302, { Location: `${returnHost}/admin?mp_connected=true` });
+            res.end();
+
+        } catch (error) {
+            console.error('❌ Erro na rota mp-callback:', error);
+            return res.status(500).send('Erro interno ao processar callback do Mercado Pago.');
+        }
+    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================

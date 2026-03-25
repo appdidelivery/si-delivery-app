@@ -236,6 +236,27 @@ export default function Admin() {
             alert("Erro de conexão ao tentar configurar recebimentos.");
         }
     };
+    // --- INTEGRAÇÃO MERCADO PAGO CONNECT (OAUTH) ---
+    const handleConectarMercadoPago = () => {
+        if (!storeId) return alert("Erro: Loja não identificada.");
+
+        // ⚠️ COLOQUE AQUI O SEU CLIENT ID (ID do Aplicativo) COPIADO DO PAINEL DO MP
+        const clientId = "SEU_CLIENT_ID_AQUI"; 
+        
+        // A Redirect URI deve apontar para o seu BACKEND (Next.js), pois ele fará a requisição segura
+        // Ajuste a porta 3000 se o seu backend local rodar em outra porta.
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const redirectUri = isLocal 
+            ? 'http://localhost:3000/api/mp-callback' 
+            : 'https://app.velodelivery.com.br/api/mp-callback'; // ⚠️ Ajuste para o domínio real da sua API na Vercel
+
+        // O 'state' é CRÍTICO: Passamos o ID da loja nele. Quando o MP redirecionar de volta, 
+        // ele nos devolve esse state. Assim sabemos em qual loja salvar o token no banco!
+        const authUrl = `https://auth.mercadopago.com/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${storeId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+        // Redireciona o lojista para a tela de aprovação do Mercado Pago
+        window.location.href = authUrl;
+    };
     // --- ABRIR PAINEL FINANCEIRO DO LOJISTA (BLINDADO) ---
     const handleOpenStripeDashboard = async () => {
         try {
@@ -2941,7 +2962,46 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
                         </div>
-
+{/* NOVO CARD: MERCADO PAGO CONNECT */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
+                            <div className="flex items-center gap-2 mb-6">
+                                <Landmark size={24} className="text-blue-600"/>
+                                <h3 className="text-2xl font-black uppercase text-slate-800 italic">Recebimento via Mercado Pago <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(PIX e Cartão)</span></h3>
+                            </div>
+                            
+                            {settings?.integrations?.mercadopago?.accessToken ? (
+                                <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div>
+                                        <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Mercado Pago Conectada</p>
+                                        <p className="text-green-600 font-bold text-xs mt-1">UserID do Lojista: {settings.integrations.mercadopago.userId}</p>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={async () => {
+                                            if(window.confirm("Deseja desconectar o Mercado Pago? O lojista perderá o PIX/Cartão até conectar de novo.")) {
+                                                await updateDoc(doc(db, "settings", storeId), {
+                                                    "integrations.mercadopago": null
+                                                });
+                                                alert("Mercado Pago desconectado.");
+                                            }
+                                        }} 
+                                        className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        Desconectar
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
+                                    <p className="text-slate-500 font-bold text-sm">Autorize a Velo Delivery a processar pagamentos de Cartão e PIX direto na sua conta do Mercado Pago.</p>
+                                    <button 
+                                        onClick={handleConectarMercadoPago} 
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        <Landmark size={20}/> 🤝 Integrar Mercado Pago
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Card da Fatura */}
                             <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
