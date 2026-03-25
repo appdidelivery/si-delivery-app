@@ -223,7 +223,7 @@ export default function SEO({ title, description, image, productData }) {
         };
     }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin]);
 
-    // 5. O HELMET AGORA FICA RESPONSÁVEL APENAS PELO SOCIAL (OG, TWITTER, ETC)
+    // 5. O HELMET AGORA FICA RESPONSÁVEL APENAS PELO SOCIAL (OG, TWITTER, ETC.)
     return (
         <Helmet>
             <title>{finalTitle}</title>
