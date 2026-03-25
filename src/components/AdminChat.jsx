@@ -2,15 +2,16 @@ import React, { useState, useEffect, useContext } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X } from 'lucide-react';
 
 export default function AdminChat() {
     const { store } = useStore();
-    const storeId = store?.slug; // Puxa o ID corretamente dentro do seu ecossistema
+    const storeId = store?.slug; 
     const [messages, setMessages] = useState([]);
     const [activeChat, setActiveChat] = useState(null);
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
+    const [replyingTo, setReplyingTo] = useState(null); // NOVO: Estado para responder mensagem específica
 
     // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
@@ -49,13 +50,15 @@ export default function AdminChat() {
         const phone = msg.from || msg.to; // 'from' é cliente, 'to' somos nós
         if (!phone) return acc;
         
+       // Salva vidas: tenta achar o nome em diferentes formatos que a API da Meta envia
+        const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
+
         if (!acc[phone]) {
-            acc[phone] = { phone, msgs: [], unreadCount: 0, pushName: msg.pushName || '' };
+            acc[phone] = { phone, msgs: [], unreadCount: 0, pushName: clientName };
         }
         
-        // Se a mensagem atual tem um pushName e ainda não tínhamos salvo, atualiza
-        if (msg.pushName && !acc[phone].pushName) {
-            acc[phone].pushName = msg.pushName;
+        if (clientName && !acc[phone].pushName) {
+            acc[phone].pushName = clientName;
         }
         
         acc[phone].msgs.push(msg);
@@ -115,9 +118,11 @@ export default function AdminChat() {
                     text: replyText,
                     receivedAt: serverTimestamp(),
                     status: 'read',
-                    direction: 'outbound' // Marca que fomos nós que enviamos
+                    direction: 'outbound', 
+                    quotedMsg: replyingTo ? replyingTo.text : null // Salva no banco o contexto da resposta
                 });
                 setReplyText('');
+                setReplyingTo(null); // Limpa o bloco de citação após enviar
             } else {
                 alert('Erro ao enviar mensagem: ' + (data.error || 'Falha na Meta'));
             }
@@ -219,10 +224,10 @@ export default function AdminChat() {
                 </div>
             </div>
 
-            {/* Main: Área de Mensagens */}
+           {/* Main: Área de Mensagens */}
             <div className="flex-1 flex flex-col relative bg-[#efeae2]">
-                {/* Background Pattern WhatsApp */}
-                <div className="absolute inset-0 z-0 opacity-40 pointer-events-none" style={{ backgroundImage: 'url("https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png")', backgroundSize: '400px' }}></div>
+                {/* Background Pattern WhatsApp (SVG Nativo para não dar erro 404) */}
+                <div className="absolute inset-0 z-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")', backgroundSize: '120px' }}></div>
 
                 {activeChat ? (
                     <>
@@ -255,13 +260,30 @@ export default function AdminChat() {
                                 🔒 As mensagens são protegidas com a criptografia de ponta a ponta da Velo.
                             </div>
 
-                            {activeMessages.map((msg) => {
+                           {activeMessages.map((msg) => {
                                 const isOutbound = msg.direction === 'outbound';
                                 const msgDate = msg.receivedAt?.toDate ? msg.receivedAt.toDate() : new Date(msg.receivedAt?.seconds * 1000 || Date.now());
                                 const timeStr = msgDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
                                 return (
-                                    <div key={msg.id} className={`max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg relative shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
+                                    <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
+                                        
+                                        {/* Botão de Responder (Aparece no Hover) */}
+                                        <button 
+                                            onClick={() => setReplyingTo(msg)}
+                                            className={`absolute top-1 ${isOutbound ? '-left-10' : '-right-10'} opacity-0 group-hover:opacity-100 p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-blue-500 transition-all z-20`}
+                                            title="Responder Mensagem"
+                                        >
+                                            <Reply size={16}/>
+                                        </button>
+
+                                        {/* Se a mensagem for uma resposta a algo, mostra o balãozinho de citação */}
+                                        {msg.quotedMsg && (
+                                            <div className="bg-black/5 border-l-4 border-[#00a884] p-2 rounded text-xs text-gray-600 mb-1 line-clamp-3">
+                                                {msg.quotedMsg}
+                                            </div>
+                                        )}
+
                                         <span className="pr-12 whitespace-pre-wrap">{msg.text}</span>
                                         <div className="text-[10px] text-gray-500 self-end -mt-1 ml-4 flex items-center gap-1 float-right">
                                             {timeStr}
@@ -272,8 +294,23 @@ export default function AdminChat() {
                             })}
                         </div>
 
+                        {/* Bloco de Visualização da Resposta (Fica grudado em cima do input) */}
+                        {replyingTo && (
+                            <div className="bg-[#f0f2f5] px-4 pt-3 -mb-1 z-10 flex flex-col relative shrink-0">
+                                <div className="bg-white border-l-4 border-[#00a884] p-3 rounded-t-xl flex justify-between items-start shadow-sm">
+                                    <div className="flex flex-col flex-1 overflow-hidden pr-4">
+                                        <span className="font-bold text-[#00a884] text-xs mb-0.5">Respondendo a {replyingTo.direction === 'outbound' ? 'você mesmo' : (chats[activeChat]?.pushName || 'Cliente')}</span>
+                                        <span className="text-gray-600 text-sm line-clamp-1">{replyingTo.text}</span>
+                                    </div>
+                                    <button onClick={() => setReplyingTo(null)} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Input de Resposta */}
-                        <div className="px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0">
+                        <div className={`px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0 ${replyingTo ? 'pt-0' : ''}`}>
                             {/* Botão de Mídia / Arquivos */}
                             <button 
                                 onClick={() => alert('O envio de mídia e arquivos requer integração nativa no backend do Webhook da Velo. Fale com o suporte técnico.')}
