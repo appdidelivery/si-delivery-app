@@ -1212,7 +1212,15 @@ export default function Home() {
         if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
     }
 
-    if (cart.length === 0) return alert("Carrinho vazio!");
+   if (cart.length === 0) return alert("Carrinho vazio!");
+
+    // Trava de Valor Mínimo de Pedido
+    if (!isWaiterMode && storeSettings?.minOrderValue > 0) {
+        if (subtotal < storeSettings.minOrderValue) {
+            setIsFinalizing(false);
+            return alert(`⚠️ O valor mínimo para pedidos é R$ ${storeSettings.minOrderValue.toFixed(2)}. Adicione mais itens ao carrinho.`);
+        }
+    }
 
     if (!isWaiterMode && !storeSettings?.stripeConnectId &&['pix', 'cartao'].includes(customer.payment)) {
         setIsFinalizing(false);
@@ -1327,6 +1335,12 @@ if (window.fbq) {
           setActiveOrderId(orderId);
           setCart([]); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
           setIsFinalizing(false); 
+
+          // BLINDAGEM MODO GARÇOM: Não envia WhatsApp, não abre roleta, não muda de tela. Apenas zera o carrinho.
+          if (isWaiterMode) {
+              alert("✅ Pedido enviado para a cozinha com sucesso!");
+              return; // Para a execução aqui mesmo!
+          }
           
           // GATILHO DA GAMIFICAÇÃO: Intercepta o redirecionamento se a Roleta estiver ativa
           if (marketingSettings?.gamification?.roulette) {

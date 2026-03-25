@@ -646,8 +646,13 @@ export default function Admin() {
             setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-        // Carrinhos Abandonados
+       // Carrinhos Abandonados (Com som de notificação macio)
         const unsubAbandoned = onSnapshot(query(collection(db, "abandoned_carts"), where("storeId", "==", storeId), orderBy("lastUpdated", "desc")), (s) => {
+            s.docChanges().forEach((change) => {
+                if (change.type === "added" && change.doc.data().lastUpdated?.toMillis() > Date.now() - 10000) {
+                    new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(() => { });
+                }
+            });
             setAbandonedCarts(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
@@ -708,13 +713,23 @@ export default function Admin() {
         const unsubLoyalty = onSnapshot(query(collection(db, "loyalty_redemptions"), where("storeId", "==", storeId)), (s) => setLoyaltyRedemptions(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         
         const unsubReviews = onSnapshot(query(collection(db, "reviews"), where("storeId", "==", storeId)), (s) => {
+            s.docChanges().forEach((change) => {
+                if (change.type === "added" && change.doc.data().createdAt?.toMillis() > Date.now() - 10000) {
+                    new Audio('https://assets.mixkit.co/active_storage/sfx/2868/2868-preview.mp3').play().catch(() => { });
+                }
+            });
             const fetched = s.docs.map(d => ({ id: d.id, ...d.data() }));
             fetched.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setReviewsList(fetched);
         });
         
-        // --- NOVO: BUSCAR MISSÕES VIP ---
+        // --- NOVO: BUSCAR MISSÕES VIP (Com som de moeda) ---
         const unsubMissions = onSnapshot(query(collection(db, "loyalty_missions"), where("storeId", "==", storeId)), (s) => {
+            s.docChanges().forEach((change) => {
+                if (change.type === "added" && change.doc.data().createdAt?.toMillis() > Date.now() - 10000) {
+                    new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3').play().catch(() => { });
+                }
+            });
             const fetchedMissions = s.docs.map(d => ({ id: d.id, ...d.data() }));
             fetchedMissions.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setVipMissions(fetchedMissions);
@@ -876,7 +891,8 @@ const handleGenerateProductCopy = async () => {
 
     const handleUpdateDeliveryZone = (index, field, value) => {
         const currentZones = [...(storeStatus.delivery_zones || [])];
-        currentZones[index][field] = Number(value);
+        // Cria uma cópia do objeto específico antes de alterar (Evita Mutação Direta)
+        currentZones[index] = { ...currentZones[index], [field]: Number(value) };
         setStoreStatus(prev => ({ ...prev, delivery_zones: currentZones }));
     };
 
@@ -1878,8 +1894,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </button>
                                         <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
                                         <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                        <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className="py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-blue-50 text-blue-800">
-                                            <option value="pending">⏳ Pendente</option><option value="preparing">👨‍🍳 Preparando</option><option value="delivery">🏍️ Em Rota</option><option value="completed">✅ Entregue</option><option value="canceled">❌ Cancelado</option>
+                                        <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer ${o.status === 'paid' ? 'bg-green-500 text-white' : 'bg-blue-50 text-blue-800'}`}>
+                                            <option value="pending">⏳ Pendente</option>
+                                            <option value="preparing">👨‍🍳 Preparando</option>
+                                            <option value="delivery">🏍️ Em Rota</option>
+                                            <option value="completed">✅ Entregue</option>
+                                            <option value="paid">✅ Pago (Mesa/Balcão)</option>
+                                            <option value="canceled">❌ Cancelado</option>
                                         </select>
                                     </div>
                                 </div>
@@ -3226,6 +3247,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Senha para os garçons acessarem o sistema no rodapé da loja. (Se vazio, o padrão é 1234).</p>
                                 </div>
 
+                               {/* --- VALOR MÍNIMO DO PEDIDO --- */}
+                                <div className="pt-4 border-t border-slate-100 mt-4 mb-4">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <Banknote size={14} className="text-green-500"/> Valor Mínimo do Pedido (R$)
+                                    </label>
+                                    <input 
+                                        type="number" step="0.01" 
+                                        placeholder="Ex: 20.00 (Deixe 0 para aceitar qualquer valor)" 
+                                        className="w-full p-5 bg-slate-50 rounded-2xl font-black text-slate-700 border-none outline-none focus:ring-2 ring-green-400"
+                                        value={storeStatus.minOrderValue || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { minOrderValue: Number(e.target.value) }, { merge: true })}
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Impede que o cliente finalize o pedido se o subtotal (sem frete) for menor que este valor.</p>
+                                </div>
+
                                 {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
                                 <div className="pt-4 border-t border-slate-100 mt-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
@@ -4278,11 +4314,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-xs font-bold text-slate-400 ml-2">Status do Pedido</label>
-                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={editingOrderData.status || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, status: e.target.value})}>
+                                       <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={editingOrderData.status || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, status: e.target.value})}>
                                             <option value="pending">⏳ Pendente</option>
                                             <option value="preparing">👨‍🍳 Preparando</option>
                                             <option value="delivery">🏍️ Em Rota</option>
                                             <option value="completed">✅ Entregue</option>
+                                            <option value="paid">✅ Pago (Mesa/Balcão)</option>
                                             <option value="canceled">❌ Cancelado</option>
                                         </select>
                                     </div>
