@@ -1002,7 +1002,27 @@ const handleGenerateProductCopy = async () => {
 
     if (messages[newStatus]) {
         const phone = String(order.customerPhone).replace(/\D/g, ''); 
-        if(phone) window.open(`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
+        const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
+
+        // Verifica se a API Oficial está conectada E se a automação de status está ativa
+        if (settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoOrderStatus) {
+            // Dispara silenciosamente pela API (O lojista não precisa clicar em enviar)
+            fetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'chat_reply', // Envio de texto livre
+                    storeId: storeId,
+                    toPhone: cleanPhone,
+                    dynamicParams: { text: messages[newStatus] }
+                })
+            }).then(res => {
+                if(!res.ok) console.error("Erro ao enviar aviso via API");
+            }).catch(e => console.error("Erro na API WA", e));
+        } else {
+            // Fallback: Se não tiver API conectada, abre a janela do WhatsApp do lojista
+            if(phone) window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
+        }
     }
 };
 
@@ -1749,9 +1769,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     
                                     const msg24horas = `Última chance, ${firstName}! 🚨 Seu carrinho na *${storeStatus.name}* vai expirar. Para fechar agora, criamos um cupom muito especial pra você com 10% OFF, use: *VOLTA10* no app. Aproveite! \n👉 https://${storeId}.velodelivery.com.br`;
 
-                                    const sendMsg = (text) => {
+                                    const sendMsg = async (text) => {
                                         const phone = String(cart.customerPhone).replace(/\D/g, '');
-                                        window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                        
+                                        // Se a API Oficial estiver conectada, dispara pelo sistema
+                                        if (settings?.integrations?.whatsapp?.apiToken) {
+                                            try {
+                                                const res = await fetch('/api/whatsapp-send', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        action: 'chat_reply',
+                                                        storeId: storeId,
+                                                        toPhone: `55${phone}`,
+                                                        dynamicParams: { text: text }
+                                                    })
+                                                });
+                                                if (res.ok) {
+                                                    alert("✅ Mensagem de resgate enviada com sucesso pela API (Robô)!");
+                                                } else {
+                                                    alert("❌ Erro ao enviar pela API. O WhatsApp Web será aberto manualmente.");
+                                                    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                                }
+                                            } catch (e) {
+                                                window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                            }
+                                        } else {
+                                            // Fallback: Lojista sem API abre a janela manual
+                                            window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                        }
                                     };
 
                                     return (
@@ -2365,7 +2411,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
                                         const sellerEmail = auth.currentUser?.email || 'owner';
 
-                                        await addDoc(collection(db, "orders"), { 
+                                        const newOrderDoc = await addDoc(collection(db, "orders"), { 
                                             ...manualCustomer, 
                                             customerName: finalName, 
                                             customerAddress: finalAddress, 
@@ -2377,7 +2423,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             discountAmount: discountNum,
                                             couponCode: manualCouponCode,
                                             total: finalTotal, 
-                                            status: isPickup ? 'completed' : 'pending', // Se for balcão, já cai como concluído/entregue
+                                            status: isPickup ? 'completed' : 'pending', 
                                             tipo: isPickup ? 'local' : 'delivery',
                                             createdAt: serverTimestamp(), 
                                             customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
@@ -2386,8 +2432,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             vendedor: sellerName,
                                             sellerEmail: sellerEmail 
                                         });
+
+                                        // --- INTEGRAÇÃO WHATSAPP API: Envio de Recibo do PDV ---
+                                        if (manualCustomer.phone && settings?.integrations?.whatsapp?.apiToken) {
+                                            const cleanPhone = String(manualCustomer.phone).replace(/\D/g, '');
+                                            if (cleanPhone.length >= 10) {
+                                                const itemsText = manualCart.map(i => `🔸 ${i.quantity}x ${i.name} - R$ ${(i.price * i.quantity).toFixed(2)}`).join('\n');
+                                                const msgRecibo = `🧾 *RECIBO DE PEDIDO - ${storeStatus.name || 'Loja'}*\n\nOlá ${finalName.split(' ')[0]}!\nSeu pedido foi registrado com sucesso.\n\n*Resumo:*\n${itemsText}\n\n*Taxa/Extra:* R$ ${(manualShippingFee + extraFeeNum).toFixed(2)}\n*Desconto:* - R$ ${discountNum.toFixed(2)}\n*TOTAL:* R$ ${finalTotal.toFixed(2)}\n\nAcompanhe ou peça novamente aqui:\n👉 https://${window.location.host}/track/${newOrderDoc.id}`;
+
+                                                fetch('/api/whatsapp-send', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        action: 'chat_reply',
+                                                        storeId: storeId,
+                                                        toPhone: cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`,
+                                                        dynamicParams: { text: msgRecibo }
+                                                    })
+                                                }).catch(() => console.log("Erro silencioso ao enviar recibo do PDV"));
+                                            }
+                                        }
+                                        // ---------------------------------------------------------
                                         
-                                        setManualCart([]); 
+                                        setManualCart([]);
                                         setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery' }); 
                                         setManualCep('');
                                         setManualShippingFee(0);
