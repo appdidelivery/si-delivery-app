@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon } from 'lucide-react';
+
+// Variáveis do Cloudinary (As mesmas usadas nos produtos)
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 export default function AdminChat() {
     const { store } = useStore();
@@ -11,7 +15,15 @@ export default function AdminChat() {
     const [activeChat, setActiveChat] = useState(null);
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
-    const [replyingTo, setReplyingTo] = useState(null); // NOVO: Estado para responder mensagem específica
+    const [replyingTo, setReplyingTo] = useState(null); 
+    
+    // --- ESTADOS PARA ÁUDIO E ARQUIVOS ---
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const timerIntervalRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
@@ -89,7 +101,121 @@ export default function AdminChat() {
             await updateDoc(doc(db, 'whatsapp_inbound', msg.id), { status: 'read' });
         }
     };
+// --- FUNÇÕES DE MÍDIA (ÁUDIO E IMAGEM) ---
+    const uploadToCloudinary = async (file, resourceType = 'auto') => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`, { method: 'POST', body: formData });
+        const data = await res.json();
+        return data.secure_url;
+    };
 
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp3' });
+                setLoadingSend(true);
+                try {
+                    const file = new File([audioBlob], "audio_message.mp3", { type: 'audio/mp3' });
+                    const mediaUrl = await uploadToCloudinary(file, 'video'); // Cloudinary usa 'video' para áudio
+                    await sendMediaMessage(mediaUrl, 'audio');
+                } catch (e) {
+                    alert("Erro ao enviar áudio.");
+                } finally {
+                    setLoadingSend(false);
+                }
+                stream.getTracks().forEach(track => track.stop()); // Desliga o microfone
+            };
+
+            mediaRecorderRef.current.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            timerIntervalRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
+        } catch (err) {
+            alert("Permissão de microfone negada. Libere no navegador.");
+        }
+    };
+
+    const stopRecordingAndSend = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            clearInterval(timerIntervalRef.current);
+        }
+    };
+
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop(); // Para a gravação
+            audioChunksRef.current = []; // Limpa os dados para não enviar
+            setIsRecording(false);
+            clearInterval(timerIntervalRef.current);
+            // Um pequeno delay para garantir que o onstop não tente enviar array vazio
+            setTimeout(() => setLoadingSend(false), 500); 
+        }
+    };
+
+    const handleFileSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setLoadingSend(true);
+        try {
+            const mediaUrl = await uploadToCloudinary(file, 'image');
+            await sendMediaMessage(mediaUrl, 'image');
+        } catch (err) {
+            alert("Erro ao enviar imagem.");
+        } finally {
+            setLoadingSend(false);
+            e.target.value = ''; // Limpa o input
+        }
+    };
+
+    const sendMediaMessage = async (mediaUrl, type) => {
+        if (!activeChat) return;
+        try {
+            // Dispara a API (Manda a URL como texto caso o webhook não suporte mídia nativa ainda)
+            const response = await fetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'chat_reply',
+                    storeId: storeId,
+                    toPhone: activeChat,
+                    dynamicParams: { 
+                        text: type === 'audio' ? `🎤 Áudio: ${mediaUrl}` : `📷 Imagem: ${mediaUrl}`,
+                        mediaUrl: mediaUrl,
+                        mediaType: type
+                    }
+                })
+            });
+
+            if (response.ok) {
+                // Salva no Firebase para renderizar no chat visualmente
+                await addDoc(collection(db, 'whatsapp_inbound'), {
+                    storeId: storeId,
+                    to: activeChat,
+                    text: '',
+                    mediaUrl: mediaUrl,
+                    mediaType: type,
+                    receivedAt: serverTimestamp(),
+                    status: 'read',
+                    direction: 'outbound'
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao enviar mídia:', error);
+        }
+    };
+    // ----------------------------------------
     // Envia a resposta usando a nossa API e salva no banco
     const handleSendReply = async () => {
         if (!replyText.trim() || !activeChat) return;
@@ -277,15 +403,32 @@ export default function AdminChat() {
                                             <Reply size={16}/>
                                         </button>
 
-                                        {/* Se a mensagem for uma resposta a algo, mostra o balãozinho de citação */}
+                                       {/* Se a mensagem for uma resposta a algo, mostra o balãozinho de citação */}
                                         {msg.quotedMsg && (
                                             <div className="bg-black/5 border-l-4 border-[#00a884] p-2 rounded text-xs text-gray-600 mb-1 line-clamp-3">
                                                 {msg.quotedMsg}
                                             </div>
                                         )}
 
-                                        <span className="pr-12 whitespace-pre-wrap">{msg.text}</span>
-                                        <div className="text-[10px] text-gray-500 self-end -mt-1 ml-4 flex items-center gap-1 float-right">
+                                        {/* Renderizador de Mídia (Imagens e Áudios) */}
+                                        {msg.mediaType === 'image' && msg.mediaUrl && (
+                                            <div className="mb-1 rounded-lg overflow-hidden cursor-pointer" onClick={() => window.open(msg.mediaUrl, '_blank')}>
+                                                <img src={msg.mediaUrl} className="max-w-[250px] max-h-[250px] object-cover" alt="Imagem" />
+                                            </div>
+                                        )}
+                                        
+                                        {msg.mediaType === 'audio' && msg.mediaUrl && (
+                                            <div className="mb-1 w-[250px]">
+                                                <audio controls className="h-10 w-full">
+                                                    <source src={msg.mediaUrl} type="audio/mp3" />
+                                                    <source src={msg.mediaUrl} type="audio/ogg" />
+                                                </audio>
+                                            </div>
+                                        )}
+
+                                        {msg.text && <span className="pr-12 whitespace-pre-wrap">{msg.text}</span>}
+                                        
+                                        <div className={`text-[10px] text-gray-500 self-end ml-4 flex items-center gap-1 float-right ${(!msg.text && msg.mediaUrl) ? 'mt-1' : '-mt-1'}`}>
                                             {timeStr}
                                             {isOutbound && <CheckCheck size={14} className="text-[#53bdeb] ml-0.5" />}
                                         </div>
@@ -309,40 +452,79 @@ export default function AdminChat() {
                             </div>
                         )}
 
-                        {/* Input de Resposta */}
+                       {/* Input de Resposta */}
                         <div className={`px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0 ${replyingTo ? 'pt-0' : ''}`}>
-                            {/* Botão de Mídia / Arquivos */}
-                            <button 
-                                onClick={() => alert('O envio de mídia e arquivos requer integração nativa no backend do Webhook da Velo. Fale com o suporte técnico.')}
-                                className="text-gray-500 hover:text-gray-700 p-2 rounded-full transition-colors"
-                            >
-                                <Paperclip size={24} />
-                            </button>
                             
-                            <div className="flex-1 bg-white rounded-xl px-4 py-2 shadow-sm flex items-center">
-                                <input 
-                                    type="text"
-                                    value={replyText}
-                                    onChange={(e) => setReplyText(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
-                                    placeholder="Mensagem"
-                                    className="w-full bg-transparent border-none outline-none text-sm text-gray-800"
-                                />
-                            </div>
+                            {/* Input Escondido para upload de arquivo */}
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                ref={fileInputRef} 
+                                onChange={handleFileSelect} 
+                                className="hidden" 
+                            />
 
-                            {/* Alterna entre Enviar Áudio e Enviar Texto dinamicamente */}
-                            {replyText.trim() ? (
+                            {isRecording ? (
+                                /* --- UI DE GRAVAÇÃO DE ÁUDIO --- */
+                                <div className="flex-1 bg-white rounded-xl px-4 py-2 shadow-sm flex items-center justify-between">
+                                    <div className="flex items-center gap-3 text-red-500">
+                                        <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                                        <span className="font-medium">
+                                            Gravando... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+                                        </span>
+                                    </div>
+                                    <button onClick={cancelRecording} className="text-gray-400 hover:text-red-500 font-bold text-sm uppercase">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            ) : (
+                                /* --- UI PADRÃO DE TEXTO --- */
+                                <>
+                                    <button 
+                                        onClick={() => fileInputRef.current.click()}
+                                        className="text-gray-500 hover:text-gray-700 p-2 rounded-full transition-colors"
+                                        title="Anexar Imagem"
+                                    >
+                                        <Paperclip size={24} />
+                                    </button>
+                                    
+                                    <div className="flex-1 bg-white rounded-xl px-4 py-2 shadow-sm flex items-center">
+                                        <input 
+                                            type="text"
+                                            value={replyText}
+                                            onChange={(e) => setReplyText(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
+                                            placeholder="Mensagem"
+                                            className="w-full bg-transparent border-none outline-none text-sm text-gray-800"
+                                            disabled={loadingSend}
+                                        />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Alterna entre Botões: Enviar Texto, Enviar Áudio ou Iniciar Áudio */}
+                            {loadingSend ? (
+                                <div className="p-2.5 text-gray-400 animate-pulse"><Send size={20}/></div>
+                            ) : replyText.trim() ? (
                                 <button 
                                     onClick={handleSendReply}
-                                    disabled={loadingSend}
-                                    className="text-white bg-[#00a884] p-2.5 rounded-full hover:bg-[#008f6f] transition-colors shadow-sm disabled:opacity-50"
+                                    className="text-white bg-[#00a884] p-2.5 rounded-full hover:bg-[#008f6f] transition-colors shadow-sm"
+                                >
+                                    <Send size={20} className="ml-1" />
+                                </button>
+                            ) : isRecording ? (
+                                <button 
+                                    onClick={stopRecordingAndSend}
+                                    className="text-white bg-green-500 p-2.5 rounded-full hover:bg-green-600 transition-colors shadow-sm"
+                                    title="Enviar Áudio"
                                 >
                                     <Send size={20} className="ml-1" />
                                 </button>
                             ) : (
                                 <button 
-                                    onClick={() => alert('O envio de áudios requer permissão de gravação do navegador e liberação no backend.')}
+                                    onClick={startRecording}
                                     className="text-gray-500 hover:text-gray-700 p-2 rounded-full transition-colors"
+                                    title="Gravar Áudio"
                                 >
                                     <Mic size={24} />
                                 </button>
@@ -352,7 +534,6 @@ export default function AdminChat() {
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center z-10 p-8">
                         <div className="w-64 mb-6 opacity-30">
-                            {/* Ilustração genérica de fundo similar ao WA */}
                             <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full text-gray-500">
                                 <circle cx="50" cy="50" r="40" strokeDasharray="5,5"/>
                                 <path d="M30 50 l15 15 l30 -30"/>
