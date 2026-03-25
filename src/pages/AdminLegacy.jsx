@@ -240,7 +240,7 @@ export default function Admin() {
     const handleConectarMercadoPago = () => {
         if (!storeId) return alert("Erro: Loja não identificada.");
 
-        // ⚠️ COLOQUE AQUI O SEU CLIENT ID (ID do Aplicativo) COPIADO DO PAINEL DO MP
+        // ⚠️ COLOQUE AQUI O SEU CLIENT ID (ID do Aplicativo.) COPIADO DO PAINEL DO MP
         const clientId = "5475253896791244"; 
         
         // A Redirect URI deve apontar para o seu BACKEND (Next.js), pois ele fará a requisição segura
