@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2 } from 'lucide-react';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -79,12 +79,24 @@ export default function AdminChat() {
         return () => unsub();
     }, [storeId]);
 
-    // Agrupa mensagens por remetente (número do cliente) e captura o pushName
+    // Função para apagar mensagem do banco de dados
+    const handleDeleteMessage = async (msgId) => {
+        if (window.confirm("Tem certeza que deseja apagar esta mensagem para você?")) {
+            try {
+                await deleteDoc(doc(db, 'whatsapp_inbound', msgId));
+            } catch (error) {
+                console.error("Erro ao apagar mensagem:", error);
+                alert("Erro ao tentar apagar a mensagem.");
+            }
+        }
+    };
+
+    // Agrupa mensagens BLINDADO (Garante que mensagens do cliente e da loja se unam pelo número certo)
     const chats = messages.reduce((acc, msg) => {
-        const phone = msg.from || msg.to; // 'from' é cliente, 'to' somos nós
+        // Se a direção for outbound (nós enviamos), o cliente é o 'to'. Se for inbound, o cliente é o 'from'.
+        const phone = msg.direction === 'outbound' ? msg.to : msg.from; 
         if (!phone) return acc;
         
-       // Salva vidas: tenta achar o nome em diferentes formatos que a API da Meta envia
         const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
         if (!acc[phone]) {
@@ -417,21 +429,25 @@ export default function AdminChat() {
                                 return (
                                     <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
                                         
-                                        {/* Botão de Responder (Aparece no Hover) */}
-                                        <button 
-                                            onClick={() => setReplyingTo(msg)}
-                                            className={`absolute top-1 ${isOutbound ? '-left-10' : '-right-10'} opacity-0 group-hover:opacity-100 p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-blue-500 transition-all z-20`}
-                                            title="Responder Mensagem"
-                                        >
-                                            <Reply size={16}/>
-                                        </button>
+                                        {/* Ações da Mensagem (Aparecem no Hover) */}
+                                        <div className={`absolute top-1 ${isOutbound ? '-left-20' : '-right-20'} opacity-0 group-hover:opacity-100 flex items-center gap-1 z-20 transition-all`}>
+                                            <button 
+                                                onClick={() => handleDeleteMessage(msg.id)}
+                                                className="p-1.5 bg-white rounded-full shadow-md text-gray-400 hover:text-red-500 transition-colors"
+                                                title="Apagar Mensagem"
+                                            >
+                                                <Trash2 size={16}/>
+                                            </button>
+                                            <button 
+                                                onClick={() => setReplyingTo(msg)}
+                                                className="p-1.5 bg-white rounded-full shadow-md text-gray-400 hover:text-blue-500 transition-colors"
+                                                title="Responder Mensagem"
+                                            >
+                                                <Reply size={16}/>
+                                            </button>
+                                        </div>
 
-                                       {/* Se a mensagem for uma resposta a algo, mostra o balãozinho de citação */}
-                                        {msg.quotedMsg && (
-                                            <div className="bg-black/5 border-l-4 border-[#00a884] p-2 rounded text-xs text-gray-600 mb-1 line-clamp-3">
-                                                {msg.quotedMsg}
-                                            </div>
-                                        )}
+                                        {/* Se a mensagem for uma resposta a algo, mostra o balãozinho de citação */}
 
                                         {/* Renderizador de Mídia (Imagens e Áudios) */}
                                         {msg.mediaType === 'image' && msg.mediaUrl && (
