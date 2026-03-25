@@ -16,6 +16,7 @@ export default function AdminChat() {
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
     const [replyingTo, setReplyingTo] = useState(null); 
+    const [addressBook, setAddressBook] = useState({}); // NOVO: Agenda de Contatos Inteligente
     
     // --- ESTADOS PARA ÁUDIO E ARQUIVOS ---
     const [isRecording, setIsRecording] = useState(false);
@@ -55,6 +56,27 @@ export default function AdminChat() {
         });
 
         return () => unsubscribe();
+    }, [storeId]);
+
+    // --- NOVO: BUSCA O NOME DOS CLIENTES DIRETAMENTE DOS PEDIDOS (AGENDA) ---
+    useEffect(() => {
+        if (!storeId) return;
+        const q = query(collection(db, 'orders'), where('storeId', '==', storeId));
+        const unsub = onSnapshot(q, (snapshot) => {
+            const book = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.customerPhone && data.customerName) {
+                    // Limpa o telefone para cruzar perfeitamente com o chat
+                    let phone = String(data.customerPhone).replace(/\D/g, '');
+                    if (phone.length >= 10 && !phone.startsWith('55')) phone = '55' + phone;
+                    // Associa o número ao nome (o último pedido sobreescreve, mantendo atualizado)
+                    book[phone] = data.customerName;
+                }
+            });
+            setAddressBook(book);
+        });
+        return () => unsub();
     }, [storeId]);
 
     // Agrupa mensagens por remetente (número do cliente) e captura o pushName
@@ -327,7 +349,8 @@ export default function AdminChat() {
                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="flex justify-between items-center mb-1">
                                         <span className="font-semibold text-gray-800 text-sm truncate">
-                                            {chat.pushName || `+${chat.phone}`}
+                                            {/* Puxa o nome do Pedido primeiro, depois o do Whats, se não tiver nenhum, mostra o número */}
+                                            {addressBook[chat.phone] || chat.pushName || `+${chat.phone}`}
                                         </span>
                                         <span className={`text-[11px] ${chat.unreadCount > 0 ? 'text-[#25d366] font-bold' : 'text-gray-400'}`}>
                                             {timeString}
@@ -365,7 +388,7 @@ export default function AdminChat() {
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="font-semibold text-gray-800 text-sm">
-                                        {chats[activeChat]?.pushName || `+${activeChat}`}
+                                        {addressBook[activeChat] || chats[activeChat]?.pushName || `+${activeChat}`}
                                     </span>
                                     <span className="text-xs text-gray-500">{`+${activeChat}`}</span>
                                 </div>
