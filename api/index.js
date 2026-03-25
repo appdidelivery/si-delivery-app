@@ -942,6 +942,114 @@ export default async function handler(req, res) {
             return res.status(500).send('Erro interno ao processar callback do Mercado Pago.');
         }
     }
+   // ------------------------------------------------------------------------
+    // 15. MERCADO PAGO CHECKOUT (CLIENTE FINAL PAGANDO VIA MP)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/create-mp-checkout') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { items, storeId, orderId, customerEmail, shippingFee, discountAmount, successUrl, cancelUrl } = req.body;
+
+        if (!storeId || !items || items.length === 0) {
+            return res.status(400).json({ error: 'Faltam dados do pedido.' });
+        }
+
+        try {
+            // 1. Busca o Access Token do Lojista de forma SEGURA no Banco de Dados
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const mpConfig = settingsDoc.data()?.integrations?.mercadopago;
+
+            if (!mpConfig || !mpConfig.accessToken) {
+                return res.status(400).json({ error: 'Mercado Pago não está configurado nesta loja.' });
+            }
+
+            // 2. Calcula Totais
+            const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+            const totalPedido = subtotal + Number(shippingFee || 0) - Number(discountAmount || 0);
+            
+            // 3. O MP não aceita itens com valor negativo. 
+            // Se houver desconto, enviamos o pacote fechado como um item único para evitar bugs.
+            let mpItems = [];
+            if (Number(discountAmount) > 0) {
+                mpItems =[{
+                    title: `Pedido #${orderId.slice(-5).toUpperCase()} - Velo Delivery`,
+                    quantity: 1,
+                    unit_price: Number(totalPedido.toFixed(2)),
+                    currency_id: "BRL"
+                }];
+            } else {
+                mpItems = items.map(item => ({
+                    title: item.name,
+                    picture_url: item.imageUrl || undefined,
+                    quantity: item.quantity,
+                    unit_price: Number(Number(item.price).toFixed(2)),
+                    currency_id: "BRL"
+                }));
+
+                if (Number(shippingFee) > 0) {
+                    mpItems.push({
+                        title: "Taxa de Entrega",
+                        quantity: 1,
+                        unit_price: Number(Number(shippingFee).toFixed(2)),
+                        currency_id: "BRL"
+                    });
+                }
+            }
+
+            // 4. Calcula a comissão da Velo (2% de taxa de plataforma)
+            const marketplaceFee = Number((totalPedido * 0.02).toFixed(2));
+
+            // 5. Cria a Preferência de Pagamento na API do Mercado Pago
+            const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${mpConfig.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    items: mpItems,
+                    payer: {
+                        email: customerEmail || 'cliente@email.com'
+                    },
+                    back_urls: {
+                        success: successUrl || `https://${req.headers.host}/track/${orderId}?status=success`,
+                        failure: cancelUrl || `https://${req.headers.host}/checkout?status=cancelled`,
+                        pending: successUrl || `https://${req.headers.host}/track/${orderId}?status=pending`
+                    },
+                    auto_return: "approved",
+                    external_reference: orderId, // CRÍTICO: Usado para o webhook saber qual pedido foi pago
+                    marketplace_fee: marketplaceFee > 0 ? marketplaceFee : undefined, // Split de pagamento
+                    statement_descriptor: "VELO DELIVERY",
+                    payment_methods: {
+                        excluded_payment_types:[
+                            { id: "ticket" } // Remove boleto, focando em PIX e Cartão para delivery
+                        ],
+                        installments: 3
+                    }
+                })
+            });
+
+            const data = await mpResponse.json();
+
+            if (!mpResponse.ok) {
+                console.error("❌ Erro MP Preference:", data);
+                return res.status(400).json({ error: "Erro ao gerar pagamento no Mercado Pago.", details: data });
+            }
+
+            // Retorna a URL de checkout gerada pelo MP
+            return res.status(200).json({ url: data.init_point, id: data.id });
+
+        } catch (error) {
+            console.error('❌ Erro ao gerar MP Checkout:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================

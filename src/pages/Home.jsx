@@ -1222,7 +1222,8 @@ export default function Home() {
         }
     }
 
-    if (!isWaiterMode && !storeSettings?.stripeConnectId &&['pix', 'cartao'].includes(customer.payment)) {
+  const hasOnlinePayments = storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken;
+    if (!isWaiterMode && !hasOnlinePayments &&['pix', 'cartao'].includes(customer.payment)) {
         setIsFinalizing(false);
         return alert("Por favor, selecione uma das formas de pagamento disponíveis abaixo para a entrega.");
     }
@@ -1353,20 +1354,28 @@ if (window.fbq) {
           return;
       }
 
-      if (customer.payment === 'cartao' || customer.payment === 'pix') {
-          if (!storeSettings.stripeConnectId) {
+     if (customer.payment === 'cartao' || customer.payment === 'pix') {
+          const hasStripe = storeSettings?.stripeConnectId;
+          const hasMP = marketingSettings?.integrations?.mercadopago?.accessToken;
+
+          if (!hasStripe && !hasMP) {
               alert("⚠️ Esta loja ainda não configurou pagamentos online. Escolha a opção 'Dinheiro'.");
               setIsFinalizing(false); 
               return;
           }
 
-          const response = await fetch('/api/create-marketplace-checkout', {
+          // Dá preferência ao Mercado Pago se ambos estiverem conectados.
+          const gateway = hasMP ? 'mercadopago' : 'stripe';
+          const apiUrl = gateway === 'mercadopago' ? '/api/create-mp-checkout' : '/api/create-marketplace-checkout';
+
+          const response = await fetch(apiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                   items: sanitizedCart,
+                  storeId: storeId, // MP precisa do storeId
                   orderId: orderId, 
-                  storeConnectId: storeSettings.stripeConnectId,
+                  storeConnectId: storeSettings.stripeConnectId, // Stripe precisa disso
                   customerEmail: customer.email || 'cliente@padrao.com',
                   shippingFee: shippingFee || 0,
                   discountAmount: discountAmount || 0,
@@ -2061,12 +2070,12 @@ if (window.fbq) {
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                           <div>
                             <div className="grid grid-cols-2 gap-2 mt-2">
-                              {(storeSettings?.stripeConnectId ? [ 
+                              {((storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken) ?[ 
                                 {id:'pix', name:'PIX ONLINE', icon: <QrCode size={20}/>}, 
                                 {id:'cartao', name:'CARTÃO ONLINE', icon: <CreditCard size={20}/>}, 
                                 {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}, 
                                 {id:'offline_credit_card', name:'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>} 
-                              ] : [
+                              ] :[
                                 {id:'offline_pix', name:'PIX (NA ENTREGA)', icon: <QrCode size={20}/>}, 
                                 {id:'offline_credit_card', name:'CARTÃO (MAQUININHA)', icon: <CreditCard size={20}/>}, 
                                 {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}
