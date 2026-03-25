@@ -2949,7 +2949,31 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     >
                                         Ver Extrato e Saques <ExternalLink size={16} />
                                     </button>
+                                    <div className="flex gap-2">
+    <button 
+        onClick={handleOpenStripeDashboard} 
+        className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2"
+    >
+        Ver Extrato e Saques <ExternalLink size={16} />
+    </button>
+    
+    {/* NOVO BOTÃO PARA DESCONECTAR A STRIPE */}
+    <button 
+        onClick={async () => {
+            if(window.confirm("Deseja desconectar a Stripe?")) {
+                await updateDoc(doc(db, "stores", storeId), {
+                    stripeConnectId: null
+                });
+                alert("Stripe desconectada com sucesso.");
+            }
+        }} 
+        className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
+    >
+        Desconectar
+    </button>
+</div>
                                 </div>
+                                
                             ) : (
                                 <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
                                     <p className="text-slate-500 font-bold text-sm">Você ainda não configurou sua conta bancária para receber os pagamentos das suas vendas online via cartão e Pix.</p>
