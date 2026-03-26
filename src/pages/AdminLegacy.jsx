@@ -1751,7 +1751,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <p className="text-slate-400 font-bold mt-2 text-sm">Atenda seus clientes via WhatsApp direto do painel.</p>
                             </div>
                         </div>
-                        <AdminChat />
+                        
+                        {/* VALIDAÇÃO: Só exibe o Chat se o ID e o Token da Meta estiverem salvos */}
+                        {settings?.integrations?.whatsapp?.phoneNumberId && settings?.integrations?.whatsapp?.apiToken ? (
+                            <AdminChat />
+                        ) : (
+                            <div className="bg-white p-12 rounded-[3rem] border border-slate-100 text-center shadow-sm max-w-2xl mx-auto mt-12 animate-in zoom-in">
+                                <div className="w-24 h-24 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <MessageCircle size={48} />
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-800 mb-2 uppercase tracking-tighter">Chat Desconectado</h3>
+                                <p className="text-slate-500 font-bold mb-8 text-sm">
+                                    Para usar o Velo Web Chat e responder seus clientes por aqui, você precisa configurar as credenciais da API Oficial do WhatsApp (Meta).
+                                </p>
+                                <button 
+                                    onClick={() => setActiveTab('integrations')} 
+                                    className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95"
+                                >
+                                    ⚙️ Ir para Integrações
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 {activeTab === 'abandoned' && (
