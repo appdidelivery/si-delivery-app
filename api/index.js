@@ -687,6 +687,21 @@ export default async function handler(req, res) {
                                                 text: { body: replyText }
                                             })
                                         });
+                                        // 5. Salva a resposta do bot no banco para aparecer no painel do lojista
+                                        try {
+                                            await db.collection('whatsapp_inbound').add({
+                                                storeId: storeId,
+                                                phoneNumberId: phoneNumberId,
+                                                from: 'bot', // Marca que foi o sistema que enviou
+                                                to: message.from,
+                                                text: replyText,
+                                                receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                status: 'read',
+                                                isOutbound: true // Flag para o AdminChat saber que é balão verde
+                                            });
+                                        } catch(e) {
+                                            console.error("Erro ao gravar log do bot", e);
+                                        }
                                     }
                                 } catch (error) { 
                                     console.error('❌ Erro no processamento da mensagem recebida:', error); 
