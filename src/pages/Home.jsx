@@ -1,7 +1,7 @@
 
 import Reviews from '../components/Reviews';
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy } from 'lucide-react';
@@ -149,6 +149,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 export default function Home() {
   const { productSlug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const generateSlug = (text) => {
     return text.toString().toLowerCase()
@@ -160,6 +161,19 @@ export default function Home() {
   };
   
   const storeId = (window.location.hostname.includes('github') || window.location.hostname.includes('localhost')) ? (import.meta.env.VITE_LOJA_LOCAL || 'csi') : getStoreIdFromHostname();
+
+  // --- SEO: CORREÇÃO DE URL CANÔNICA (EVITA DUPLICIDADE NO GOOGLE) ---
+  useEffect(() => {
+      const canonicalUrl = `${window.location.protocol}//${window.location.host}${location.pathname}`;
+      let canonicalLink = document.querySelector("link[rel='canonical']");
+      
+      if (!canonicalLink) {
+          canonicalLink = document.createElement('link');
+          canonicalLink.setAttribute('rel', 'canonical');
+          document.head.appendChild(canonicalLink);
+      }
+      canonicalLink.setAttribute('href', canonicalUrl);
+  }, [location.pathname]);
   
   const [selectedProduct, setSelectedProduct] = useState(null); 
   const[selectedOptions, setSelectedOptions] = useState({}); 
