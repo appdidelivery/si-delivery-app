@@ -1080,6 +1080,81 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: error.message });
         }
     }
+    // ------------------------------------------------------------------------
+    // 16. MERCADO PAGO WEBHOOK (Mensalidades e Pedidos)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/mp-webhook') {
+        if (req.method !== 'POST') return res.status(405).end();
+
+        try {
+            const { type, data, action } = req.body;
+            
+            const isPayment = type === 'payment' || action === 'payment.created' || action === 'payment.updated';
+
+            if (isPayment && data && data.id) {
+                const paymentId = data.id;
+
+                const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+                    headers: { 'Authorization': `Bearer ${process.env.MP_ACCESS_TOKEN}` }
+                });
+
+                if (mpResponse.ok) {
+                    const paymentData = await mpResponse.json();
+                    
+                    if (paymentData.status === 'approved') {
+                        const externalRef = paymentData.external_reference;
+                        const valorPago = paymentData.transaction_amount;
+                        
+                        // LÓGICA: MENSALIDADE DA LOJA PAGA
+                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
+                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
+                            
+                            const storeRef = db.collection('stores').doc(storeIdToRelease);
+                            await storeRef.set({
+                                paymentStatus: 'paid', // Libera o painel
+                                lastPaymentDate: admin.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true });
+
+                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga!`);
+                            return res.status(200).send('OK');
+                        }
+
+                        // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
+                        const orderId = externalRef;
+                        if (orderId && !externalRef.startsWith('fatura_saas_')) {
+                            const orderRef = db.collection('orders').doc(orderId);
+                            const orderDoc = await orderRef.get();
+
+                            if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
+                                const storeId = orderDoc.data().storeId;
+                                const batch = db.batch();
+                                
+                                batch.update(orderRef, {
+                                    paymentStatus: 'paid',
+                                    status: 'preparing', 
+                                    paidAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+
+                                const statsRef = db.collection("stats").doc(storeId);
+                                batch.set(statsRef, {
+                                    faturamentoTotal: admin.firestore.FieldValue.increment(valorPago),
+                                    pedidosPagos: admin.firestore.FieldValue.increment(1)
+                                }, { merge: true });
+
+                                await batch.commit();
+                                console.log(`✅ Webhook MP: Pedido ${orderId} atualizado para PAGO!`);
+                            }
+                        }
+                    }
+                }
+            }
+            return res.status(200).send('OK');
+        } catch (error) {
+            console.error('❌ Erro no Webhook do MP:', error);
+            return res.status(500).send('Erro interno');
+        }
+    }
+
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================
