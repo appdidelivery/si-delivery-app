@@ -1638,7 +1638,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             return totalProfit + orderProfit;
                         }, 0);
 
-                    // --- NOVO: CÁLCULOS DE HISTÓRICO FINANCEIRO (7, 30, 180 E 365 DIAS) ---
+                    // --- NOVO: CÁLCULOS DE HISTÓRICO FINANCEIRO att(7, 30, 180 E 365 DIAS) ---
                     const nowMs = Date.now();
                     const dayMs = 24 * 60 * 60 * 1000;
                     
