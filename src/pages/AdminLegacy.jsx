@@ -359,13 +359,14 @@ export default function Admin() {
     const [reportSeller, setReportSeller] = useState('todos'); // 'todos', 'online', 'manual'
     const [showReportResults, setShowReportResults] = useState(false); // NOVO: Controla a exibição
     // -------------------------------------
-    const[isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-    const changelog =[
-        { id: 1, title: "🚀 Nova Aba de Financeiro", desc: "Controle seus lucros, visualize faturas e receba via Stripe." },
-        { id: 2, title: "🤖 Assistente de Vendas IA", desc: "Gere nomes e descrições automáticas de produtos usando IA." },
-        { id: 3, title: "🎁 Clube de Fidelidade", desc: "Novo sistema de pontos com resgate de recompensas automático." },
-        { id: 4, title: "⚡ Otimização de Performance", desc: "Melhorias de velocidade e limpeza inteligente de cache." }
-    ];
+    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    // NOVO: Estado que vai receber as novidades do Firebase em tempo real
+    const [systemUpdate, setSystemUpdate] = useState({ 
+        version: "7.1.0", 
+        log: [
+            { title: "🚀 Veloapp Dinâmico", desc: "Aguardando conexão com o servidor central..." }
+        ] 
+    });
     // --- ESTADOS DE EQUIPE / USUÁRIOS ---
     const [teamMembers, setTeamMembers] = useState([]);
     const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -759,9 +760,14 @@ export default function Admin() {
 
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
+        // NOVO: Escuta a versão e changelog global do sistema
+        const unsubSystem = onSnapshot(doc(db, "system", "updates"), (d) => {
+            if (d.exists()) setSystemUpdate({ version: d.data().version, log: d.data().log || [] });
+        });
+
         return () => { 
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem();
         };
     },[storeId]);
     
@@ -1585,7 +1591,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {/* Versão do App na barra lateral do desktop */}
                 {/* Versão do App na barra lateral do desktop */}
                 <div className="mt-4 flex flex-col items-center gap-2">
-                    <div className="text-[9px] font-medium text-slate-400 text-center">Veloapp V7.1</div>
+                    <div className="text-[9px] font-medium text-slate-400 text-center">Veloapp V{systemUpdate.version}</div>
                     <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[9px] font-bold text-blue-500 hover:text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full transition-all">
                         <RefreshCw size={10} /> Atualizar Painel
                     </button>
@@ -2409,8 +2415,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 )}
                                 
-                                <select className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
-                                    <option value="pix">PIX</option><option value="cartao">Cartão</option><option value="dinheiro">Dinheiro</option>
+                                <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none cursor-pointer outline-none focus:ring-2 ring-blue-500 text-slate-700 shadow-inner" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
+                                    <option value="pix">
+                                        PIX (Chave da Loja)
+                                    </option>
+                                    <option value="cartao">
+                                        {manualCustomer.deliveryMethod === 'delivery' ? '💳 Cartão (Levar Maquininha com Motoboy)' : '💳 Cartão (Maquininha no Balcão)'}
+                                    </option>
+                                    <option value="dinheiro">
+                                        {manualCustomer.deliveryMethod === 'delivery' ? '💵 Dinheiro (Pagar na Entrega)' : '💵 Dinheiro (Pagar no Caixa)'}
+                                    </option>
+                                    {settings?.integrations?.mercadopago?.accessToken && (
+                                        <option value="link_mp">🔗 Enviar Link Mercado Pago (WhatsApp)</option>
+                                    )}
                                 </select>
                                 
                                 {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
@@ -2508,6 +2525,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
                                         const sellerEmail = auth.currentUser?.email || 'owner';
 
+                                       const isMpLink = manualCustomer.payment === 'link_mp';
+
                                         const newOrderDoc = await addDoc(collection(db, "orders"), { 
                                             ...manualCustomer, 
                                             customerName: finalName, 
@@ -2520,7 +2539,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             discountAmount: discountNum,
                                             couponCode: manualCouponCode,
                                             total: finalTotal, 
-                                            status: isPickup ? 'completed' : 'pending', 
+                                            status: (isPickup && !isMpLink) ? 'completed' : 'pending', 
+                                            paymentStatus: isMpLink ? 'pending' : 'pending_on_delivery',
                                             tipo: isPickup ? 'local' : 'delivery',
                                             createdAt: serverTimestamp(), 
                                             customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
@@ -2530,23 +2550,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             sellerEmail: sellerEmail 
                                         });
 
-                                        // --- INTEGRAÇÃO WHATSAPP API: Envio de Recibo do PDV ---
-                                        if (manualCustomer.phone && settings?.integrations?.whatsapp?.apiToken) {
-                                            const cleanPhone = String(manualCustomer.phone).replace(/\D/g, '');
-                                            if (cleanPhone.length >= 10) {
-                                                const itemsText = manualCart.map(i => `🔸 ${i.quantity}x ${i.name} - R$ ${(i.price * i.quantity).toFixed(2)}`).join('\n');
-                                                const msgRecibo = `🧾 *RECIBO DE PEDIDO - ${storeStatus.name || 'Loja'}*\n\nOlá ${finalName.split(' ')[0]}!\nSeu pedido foi registrado com sucesso.\n\n*Resumo:*\n${itemsText}\n\n*Taxa/Extra:* R$ ${(manualShippingFee + extraFeeNum).toFixed(2)}\n*Desconto:* - R$ ${discountNum.toFixed(2)}\n*TOTAL:* R$ ${finalTotal.toFixed(2)}\n\nAcompanhe ou peça novamente aqui:\n👉 https://${window.location.host}/track/${newOrderDoc.id}`;
-
-                                                fetch('/api/whatsapp-send', {
+                                        let mpCheckoutUrl = '';
+                                        
+                                        // Se escolheu Link de Pagamento, gera o Link na API
+                                        if (isMpLink) {
+                                            try {
+                                                const resMp = await fetch('/api/create-mp-checkout', {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
-                                                        action: 'chat_reply',
+                                                        items: manualCart.map(i => ({...i, price: i.price})), 
                                                         storeId: storeId,
-                                                        toPhone: cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`,
-                                                        dynamicParams: { text: msgRecibo }
+                                                        orderId: newOrderDoc.id,
+                                                        customerEmail: 'cliente@balcao.com',
+                                                        shippingFee: isPickup ? 0 : manualShippingFee + extraFeeNum,
+                                                        discountAmount: discountNum,
+                                                        successUrl: `https://${window.location.host}/track/${newOrderDoc.id}`,
+                                                        cancelUrl: `https://${window.location.host}/track/${newOrderDoc.id}`
                                                     })
-                                                }).catch(() => console.log("Erro silencioso ao enviar recibo do PDV"));
+                                                });
+                                                const dataMp = await resMp.json();
+                                                if (dataMp.url) mpCheckoutUrl = dataMp.url;
+                                            } catch (err) {
+                                                console.error("Erro ao gerar link MP:", err);
+                                            }
+                                        }
+
+                                        // --- INTEGRAÇÃO WHATSAPP API: Envio de Recibo ou Link de Pagamento ---
+                                        if (manualCustomer.phone) {
+                                            const cleanPhone = String(manualCustomer.phone).replace(/\D/g, '');
+                                            if (cleanPhone.length >= 10) {
+                                                const itemsText = manualCart.map(i => `🔸 ${i.quantity}x ${i.name} - R$ ${(i.price * i.quantity).toFixed(2)}`).join('\n');
+                                                let msgRecibo = `🧾 *PEDIDO REGISTRADO - ${storeStatus.name || 'Loja'}*\n\nOlá ${finalName.split(' ')[0]}!\n\n*Resumo:*\n${itemsText}\n\n*Taxa/Extra:* R$ ${(manualShippingFee + extraFeeNum).toFixed(2)}\n*Desconto:* - R$ ${discountNum.toFixed(2)}\n*TOTAL:* R$ ${finalTotal.toFixed(2)}\n`;
+
+                                                if (isMpLink && mpCheckoutUrl) {
+                                                    msgRecibo += `\n💳 *PAGAMENTO ONLINE (PIX/Cartão):*\n👉 Acesse este link para pagar: ${mpCheckoutUrl}\n\n_O seu pedido irá para a cozinha automaticamente após a confirmação do pagamento!_`;
+                                                } else {
+                                                    msgRecibo += `\n🔗 *Acompanhe seu pedido aqui:*\n👉 https://${window.location.host}/track/${newOrderDoc.id}`;
+                                                }
+
+                                                // Se tem API conectada, envia via robô
+                                                if (settings?.integrations?.whatsapp?.apiToken) {
+                                                    fetch('/api/whatsapp-send', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            action: 'chat_reply',
+                                                            storeId: storeId,
+                                                            toPhone: cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`,
+                                                            dynamicParams: { text: msgRecibo }
+                                                        })
+                                                    }).catch(() => console.log("Erro silencioso ao enviar WhatsApp"));
+                                                } 
+                                                // Se não tem API mas gerou link MP, força abertura manual do WhatsApp pro lojista mandar o link
+                                                else if (isMpLink) {
+                                                    window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msgRecibo)}`, '_blank');
+                                                }
                                             }
                                         }
                                         // ---------------------------------------------------------
@@ -3830,8 +3889,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- RODAPÉ MOBILE: ESTRUTURA REVISADA --- */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-0 flex flex-col lg:hidden z-50"> 
                {/* Barra da Versão e Atualização Mobile */}
-                <div className="w-full flex justify-between items-center px-3 pt-1.5 pb-1 border-b border-slate-50/10">
-                    <span className="text-[8px] font-medium text-slate-300">Veloapp V7.1</span>
+               <div className="w-full flex justify-between items-center px-3 pt-1.5 pb-1 border-b border-slate-50/10">
+                    <span className="text-[8px] font-medium text-slate-300">Veloapp V{systemUpdate.version}</span>
                     <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[8px] font-bold text-blue-500 hover:text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full transition-all">
                         <RefreshCw size={10} /> Atualizar Painel
                     </button>
@@ -5148,13 +5207,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <RefreshCw size={32} />
                                 </div>
                                 <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none">Novidades da Atualização</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Versão 7.1</p>
+                                <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Versão {systemUpdate.version}</p>
                             </div>
 
                             <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 mb-8 max-h-60 overflow-y-auto custom-scrollbar">
                                 <ul className="space-y-4">
-                                    {changelog.map(item => (
-                                        <li key={item.id} className="text-left">
+                                    {systemUpdate.log.map((item, idx) => (
+                                        <li key={idx} className="text-left">
                                             <h4 className="text-sm font-black text-slate-800">{item.title}</h4>
                                             <p className="text-xs font-medium text-slate-500 mt-1">{item.desc}</p>
                                         </li>
