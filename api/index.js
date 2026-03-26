@@ -106,9 +106,9 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------------------
-    // 2. CHECKOUT PRO
+    // 2. PAGAMENTO DE MENSALIDADE VELO SAAS (MERCADO PAGO)
     // ------------------------------------------------------------------------
-    else if (path === '/api/checkout-pro') {
+    else if (path === '/api/pay-subscription-mp') {
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -117,22 +117,52 @@ export default async function handler(req, res) {
         if (req.method === 'OPTIONS') return res.status(200).end();
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { storeId } = req.body;
-        if (!storeId) return res.status(400).json({ error: 'ID da loja (storeId) é obrigatório.' });
+        const { storeId, amount } = req.body;
+        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para faturamento.' });
 
         try {
-            const session = await stripe.checkout.sessions.create({
-                payment_method_types: ['card'], 
-                line_items: [{ price: 'price_1T4gNo6iD1OCwvLcVlQ9q2hW', quantity: 1 }],
-                mode: 'subscription',
-                success_url: `${req.headers.origin}/admin?fatura=paga`,
-                cancel_url: `${req.headers.origin}/admin?fatura=cancelada`,
-                client_reference_id: storeId,
-                subscription_data: { metadata: { storeId: storeId, type: 'velo_pro_subscription' } }
+            // Usa o Token Principal da Plataforma (Conta do Diego)
+            const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
+
+            const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    items: [
+                        {
+                            title: `Fatura Mensal - Velo Delivery (${storeId})`,
+                            quantity: 1,
+                            unit_price: Number(amount),
+                            currency_id: "BRL"
+                        }
+                    ],
+                    back_urls: {
+                        success: `${req.headers.origin}/admin?fatura=paga`,
+                        failure: `${req.headers.origin}/admin?fatura=cancelada`,
+                        pending: `${req.headers.origin}/admin?fatura=pendente`
+                    },
+                    auto_return: "approved",
+                    external_reference: `fatura_saas_${storeId}`, // Marcador para o Webhook identificar depois
+                    statement_descriptor: "VELO SAAS",
+                    payment_methods: {
+                        excluded_payment_types: [{ id: "ticket" }] // Removemos boleto para ser instantâneo
+                    }
+                })
             });
-            return res.status(200).json({ url: session.url });
+
+            const data = await mpResponse.json();
+
+            if (!mpResponse.ok) {
+                console.error("Erro ao gerar fatura MP:", data);
+                return res.status(400).json({ error: "Erro ao gerar pagamento da fatura." });
+            }
+
+            return res.status(200).json({ url: data.init_point });
         } catch (error) {
-            console.error('Erro ao criar sessão:', error);
+            console.error('Erro no faturamento SaaS:', error);
             return res.status(500).json({ error: error.message });
         }
     }

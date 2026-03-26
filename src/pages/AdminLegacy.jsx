@@ -191,13 +191,13 @@ export default function Admin() {
             // Em localhost (desenvolvimento) bate relativo. Em produção, força o domínio principal para evitar erros de subdomínio.
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             const apiUrl = isLocal 
-                ? '/api/checkout-pro' 
-                : 'https://app.velodelivery.com.br/api/checkout-pro';
+                ? '/api/pay-subscription-mp' 
+                : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: storeId })
+                body: JSON.stringify({ storeId: storeId, amount: invoiceData.total })
             });
             
             const data = await response.json();
@@ -3051,8 +3051,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
 
-                                <button onClick={handleAssinarPro} className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-purple-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-        💳 Assinar com Cartão
+                                <button onClick={handleAssinarPro} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+        💳 Pagar Fatura (PIX / Cartão)
     </button>
                             </div>
 
