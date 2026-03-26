@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone } from 'lucide-react';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -17,6 +17,25 @@ export default function AdminChat() {
     const [loadingSend, setLoadingSend] = useState(false);
     const [replyingTo, setReplyingTo] = useState(null); 
     const [addressBook, setAddressBook] = useState({}); // NOVO: Agenda de Contatos Inteligente
+    
+    // --- NOVO: ESTADOS DO PERFIL DO CLIENTE (CRM) ---
+    const [showContactInfo, setShowContactInfo] = useState(false);
+    const [customersData, setCustomersData] = useState({});
+    const [contactForm, setContactForm] = useState({ name: '', email: '', notes: '' });
+
+    // --- NOVO: BUSCA OS CONTATOS SALVOS MANUALMENTE (CRM) ---
+    useEffect(() => {
+        if (!storeId) return;
+        const q = query(collection(db, 'customers'), where('storeId', '==', storeId));
+        const unsub = onSnapshot(q, (snapshot) => {
+            const data = {};
+            snapshot.forEach(doc => {
+                data[doc.data().phone] = doc.data();
+            });
+            setCustomersData(data);
+        });
+        return () => unsub();
+    }, [storeId]);
     
     // --- ESTADOS PARA ÁUDIO E ARQUIVOS ---
     const [isRecording, setIsRecording] = useState(false);
@@ -126,13 +145,45 @@ export default function AdminChat() {
     
     const activeMessages = activeChat ? chats[activeChat]?.msgs || [] : [];
 
-    // Marca como lido ao abrir o chat
+   // Marca como lido ao abrir o chat
     const handleOpenChat = async (phone) => {
         setActiveChat(phone);
+        
+        // Popula o formulário do painel lateral com os dados salvos
+        setContactForm({
+            name: customersData[phone]?.name || addressBook[phone] || chats[phone]?.pushName || '',
+            email: customersData[phone]?.email || '',
+            notes: customersData[phone]?.notes || ''
+        });
+
         const unreadMsgs = chats[phone].msgs.filter(m => m.status === 'unread' && m.direction !== 'outbound');
         
         for (const msg of unreadMsgs) {
             await updateDoc(doc(db, 'whatsapp_inbound', msg.id), { status: 'read' });
+        }
+    };
+
+    // Helper para o nome do cliente (Prioridade: 1. Agenda CRM, 2. Pedidos, 3. Nome do WhatsApp)
+    const getDisplayName = (phone) => {
+        return customersData[phone]?.name || addressBook[phone] || chats[phone]?.pushName || `+${phone}`;
+    };
+
+    // Função para salvar dados do cliente no banco
+    const handleSaveCustomer = async () => {
+        if (!activeChat || !storeId) return;
+        try {
+            await setDoc(doc(db, 'customers', `${storeId}_${activeChat}`), {
+                storeId: storeId,
+                phone: activeChat,
+                name: contactForm.name,
+                email: contactForm.email,
+                notes: contactForm.notes,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            alert("✅ Dados do cliente salvos com sucesso!");
+        } catch (e) {
+            console.error("Erro ao salvar cliente:", e);
+            alert("Erro ao salvar os dados do contato.");
         }
     };
 // --- FUNÇÕES DE MÍDIA (ÁUDIO E IMAGEM) ---
@@ -361,8 +412,7 @@ export default function AdminChat() {
                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="flex justify-between items-center mb-1">
                                         <span className="font-semibold text-gray-800 text-sm truncate">
-                                            {/* Puxa o nome do Pedido primeiro, depois o do Whats, se não tiver nenhum, mostra o número */}
-                                            {addressBook[chat.phone] || chat.pushName || `+${chat.phone}`}
+                                            {getDisplayName(chat.phone)}
                                         </span>
                                         <span className={`text-[11px] ${chat.unreadCount > 0 ? 'text-[#25d366] font-bold' : 'text-gray-400'}`}>
                                             {timeString}
@@ -391,20 +441,35 @@ export default function AdminChat() {
                 <div className="absolute inset-0 z-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")', backgroundSize: '120px' }}></div>
 
                 {activeChat ? (
-                    <>
-                        {/* Header do Chat */}
-                        <div className="h-16 px-4 bg-[#f0f2f5] border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white">
-                                    <User size={24} />
+                    <div className="flex flex-1 overflow-hidden w-full h-full z-10 relative">
+                        {/* COLUNA DO CHAT */}
+                        <div className="flex-1 flex flex-col relative bg-[#efeae2]">
+                            {/* Header do Chat */}
+                            <div className="h-16 px-4 bg-[#f0f2f5] border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
+                                <div 
+                                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-200 p-2 rounded-xl transition-colors"
+                                    onClick={() => {
+                                        setContactForm({
+                                            name: getDisplayName(activeChat) !== `+${activeChat}` ? getDisplayName(activeChat) : '',
+                                            email: customersData[activeChat]?.email || '',
+                                            notes: customersData[activeChat]?.notes || ''
+                                        });
+                                        setShowContactInfo(!showContactInfo);
+                                    }}
+                                    title="Ver dados do contato"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white shadow-sm">
+                                        <User size={24} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-gray-800 text-sm">
+                                            {getDisplayName(activeChat)}
+                                        </span>
+                                        <span className="text-xs text-gray-500 cursor-pointer flex items-center gap-1 hover:text-blue-500">
+                                            {`+${activeChat}`} <Info size={12}/>
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col">
-                                    <span className="font-semibold text-gray-800 text-sm">
-                                        {addressBook[activeChat] || chats[activeChat]?.pushName || `+${activeChat}`}
-                                    </span>
-                                    <span className="text-xs text-gray-500">{`+${activeChat}`}</span>
-                                </div>
-                            </div>
                             
                             <button 
                                 onClick={handleEndSession}
@@ -566,10 +631,78 @@ export default function AdminChat() {
                                     title="Gravar Áudio"
                                 >
                                     <Mic size={24} />
-                                </button>
+                               </button>
                             )}
                         </div>
-                    </>
+                        </div>
+
+                        {/* --- COLUNA DE INFORMAÇÕES DO CONTATO (SIDEBAR DIREITA CRM) --- */}
+                        {showContactInfo && (
+                            <div className="w-[320px] bg-white border-l border-gray-200 flex flex-col z-20 shrink-0 shadow-2xl animate-in slide-in-from-right-8">
+                                <div className="h-16 px-4 bg-[#f0f2f5] flex items-center gap-4 border-b border-gray-200 shrink-0">
+                                    <button onClick={() => setShowContactInfo(false)} className="text-gray-500 hover:text-gray-700">
+                                        <X size={20} />
+                                    </button>
+                                    <span className="font-bold text-gray-700">Dados do Contato</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50">
+                                    <div className="flex flex-col items-center text-center">
+                                        <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 mb-4 shadow-inner">
+                                            <User size={48} />
+                                        </div>
+                                        <h3 className="font-black text-xl text-slate-800 leading-tight">{getDisplayName(activeChat)}</h3>
+                                        <p className="text-sm font-bold text-slate-400 mt-1 flex items-center gap-1 justify-center">
+                                            <Phone size={14}/> +{activeChat}
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                        <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                                            <Edit3 size={14}/> Editar Perfil
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Nome / Apelido</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Nome do Cliente"
+                                                    value={contactForm.name}
+                                                    onChange={e => setContactForm({...contactForm, name: e.target.value})}
+                                                    className="w-full p-3 bg-slate-50 rounded-xl border-none outline-none font-bold text-sm focus:ring-2 ring-blue-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">E-mail</label>
+                                                <input 
+                                                    type="email" 
+                                                    placeholder="cliente@email.com"
+                                                    value={contactForm.email}
+                                                    onChange={e => setContactForm({...contactForm, email: e.target.value})}
+                                                    className="w-full p-3 bg-slate-50 rounded-xl border-none outline-none font-bold text-sm focus:ring-2 ring-blue-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Anotações Internas (Ex: Chato, Endereço)</label>
+                                                <textarea 
+                                                    rows="3"
+                                                    placeholder="Preferências, endereço, observações..."
+                                                    value={contactForm.notes}
+                                                    onChange={e => setContactForm({...contactForm, notes: e.target.value})}
+                                                    className="w-full p-3 bg-slate-50 rounded-xl border-none outline-none font-medium text-sm focus:ring-2 ring-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={handleSaveCustomer}
+                                            className="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-md hover:bg-blue-700 transition-all active:scale-95 flex justify-center items-center gap-2 mt-2"
+                                        >
+                                            <Save size={16}/> Salvar Contato
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center z-10 p-8">
                         <div className="w-64 mb-6 opacity-30">
