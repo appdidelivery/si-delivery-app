@@ -140,9 +140,9 @@ export default async function handler(req, res) {
                         }
                     ],
                     back_urls: {
-                        success: `${req.headers.origin}/admin?fatura=paga`,
-                        failure: `${req.headers.origin}/admin?fatura=cancelada`,
-                        pending: `${req.headers.origin}/admin?fatura=pendente`
+                        success: `${req.headers.origin || `https://${req.headers.host}`}/admin?fatura=paga`,
+                        failure: `${req.headers.origin || `https://${req.headers.host}`}/admin?fatura=cancelada`,
+                        pending: `${req.headers.origin || `https://${req.headers.host}`}/admin?fatura=pendente`
                     },
                     auto_return: "approved",
                     external_reference: `fatura_saas_${storeId}`, // Marcador para o Webhook identificar depois
