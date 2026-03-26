@@ -4772,10 +4772,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         });
                                         
                                         if (!verifyRes.ok) {
-    const errorData = await verifyRes.json();
-    alert(`❌ Aviso da Meta: ${errorData.error?.message || 'Verifique seu Token.'}`);
-    // return;  <-- COMENTE ESTA LINHA COM DUAS BARRAS (//) PARA NÃO TRAVAR O SALVAMENTO
-}
+                                            const errorData = await verifyRes.json();
+                                            alert(`❌ Erro de Autenticação na Meta: ${errorData.error?.message || 'Verifique seu Token Permanente e ID do Telefone.'}`);
+                                            return; // Trava o salvamento para evitar falsos "Conectados"
+                                        }
                                     }
 
                                     // Salva no Firebase Firestore dentro do documento 'settings' do lojista
