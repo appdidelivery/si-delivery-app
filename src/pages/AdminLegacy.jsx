@@ -5085,7 +5085,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <h4 className="text-xs font-black text-green-800 uppercase mb-2">📢 Disparo em Massa (Base VIP)</h4>
                                                     <p className="text-[10px] text-green-700 mb-3">Envie um Template aprovado na Meta.</p>
                                                     <input type="text" placeholder="Nome do Template (ex: promo_fds)" className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-green-200 mb-3 focus:ring-2 ring-green-400" value={integrationForm.broadcastTemplate || ''} onChange={e => setIntegrationForm({...integrationForm, broadcastTemplate: e.target.value.trim()})} />
-                                                    <button type="button" onClick={async () => {
+                                                   <button type="button" onClick={async () => {
                                                         if(!integrationForm.broadcastTemplate) return alert("Digite o nome exato do Template!");
                                                         if(window.confirm(`Disparar o template '${integrationForm.broadcastTemplate}' para toda a base?`)){
                                                             try {
@@ -5100,6 +5100,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     }} className="w-full bg-green-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-green-700 active:scale-95 transition-all">
                                                         ▶️ Iniciar Disparo
                                                     </button>
+                                                </div>
+
+                                                {/* --- Sincronizar Perfil Comercial --- */}
+                                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 mt-6">
+                                                    <h4 className="text-xs font-black text-blue-800 uppercase mb-2">🏪 Sincronizar Perfil do WhatsApp</h4>
+                                                    <p className="text-[10px] text-blue-700 mb-3">Envia os dados da sua loja (Endereço, Descrição, Site) preenchidos no Velo direto para o perfil do WhatsApp.</p>
+                                                    <button type="button" onClick={async () => {
+                                                        if(!integrationForm.phoneNumberId || !integrationForm.apiToken) return alert("Salve as credenciais primeiro!");
+                                                        if(window.confirm("Atualizar o WhatsApp com Endereço, Slogan e Site cadastrados aqui no Velo?")){
+                                                            try {
+                                                                const res = await fetch('/api/whatsapp-send', {
+                                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ 
+                                                                        action: 'update_profile', 
+                                                                        storeId: storeId,
+                                                                        address: storeStatus.address,
+                                                                        description: storeStatus.slogan || 'Atendimento automatizado Velo Delivery',
+                                                                        email: storeStatus.ownerEmail || '',
+                                                                        website: `https://${storeId}.velodelivery.com.br`
+                                                                    })
+                                                                });
+                                                                if(res.ok) alert("✅ Perfil do WhatsApp atualizado! (Lembrete: A Foto da Loja deve ser trocada direto no painel da Meta).");
+                                                                else alert("❌ Erro ao atualizar perfil na Meta.");
+                                                            } catch(e) { alert("Erro de conexão com o servidor."); }
+                                                        }
+                                                    }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-blue-700 active:scale-95 transition-all">
+                                                        🔄 Enviar Dados para o WhatsApp
+                                                    </button>
+                                                    <p className="text-[9px] text-blue-500 mt-2 font-bold text-center">Para alterar a Logo, acesse o WhatsApp Manager na Meta.</p>
                                                 </div>
                                             </>
                                         )}

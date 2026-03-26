@@ -511,7 +511,38 @@ export default async function handler(req, res) {
                 await Promise.allSettled(sendPromises);
                 return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
             }
-
+// --- INÍCIO: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
+            if (action === 'update_profile') {
+                const { address, description, email, website } = req.body;
+                
+                try {
+                    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/whatsapp_business_profile`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${apiToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            messaging_product: "whatsapp",
+                            address: address || "",
+                            description: description || "",
+                            email: email || "",
+                            websites: [website || ""]
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if(!response.ok) {
+                        console.error("❌ Falha na API Meta [update_profile]:", data);
+                        return res.status(400).json({ error: 'Falha ao atualizar perfil na Meta', details: data });
+                    }
+                    return res.status(200).json({ success: true });
+                } catch(e) {
+                    console.error("❌ Erro interno [update_profile]:", e);
+                    return res.status(500).json({ error: 'Erro de conexão com a Meta' });
+                }
+            }
+            // --- FIM: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
             // --- INÍCIO: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
             if (action === 'chat_reply') {
                 if (!toPhone || !dynamicParams?.text) return res.status(400).json({ error: 'Telefone e texto são obrigatórios' });
