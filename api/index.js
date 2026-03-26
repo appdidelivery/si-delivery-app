@@ -692,12 +692,15 @@ export default async function handler(req, res) {
                                             await db.collection('whatsapp_inbound').add({
                                                 storeId: storeId,
                                                 phoneNumberId: phoneNumberId,
-                                                from: 'bot', // Marca que foi o sistema que enviou
+                                                // O SEGREDO ESTÁ AQUI: Usar o telefone do cliente para agrupar na conversa certa
+                                                from: message.from, 
                                                 to: message.from,
+                                                phone: message.from, // Garantia extra dependendo da versão do seu AdminChat
                                                 text: replyText,
+                                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
                                                 receivedAt: admin.firestore.FieldValue.serverTimestamp(),
                                                 status: 'read',
-                                                isOutbound: true // Flag para o AdminChat saber que é balão verde
+                                                isOutbound: true // É isso aqui que avisa o painel para pintar o balão de verde e jogar pra direita
                                             });
                                         } catch(e) {
                                             console.error("Erro ao gravar log do bot", e);
