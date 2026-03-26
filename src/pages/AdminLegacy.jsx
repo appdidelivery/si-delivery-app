@@ -1638,6 +1638,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             return totalProfit + orderProfit;
                         }, 0);
 
+                    // --- NOVO: CÁLCULOS DE HISTÓRICO FINANCEIRO (7, 30, 180 E 365 DIAS) ---
+                    const nowMs = Date.now();
+                    const dayMs = 24 * 60 * 60 * 1000;
+                    
+                    const calculateFinancials = (days) => {
+                        const cutoff = nowMs - (days * dayMs);
+                        return orders
+                            .filter(o => o.status !== 'canceled' && o.createdAt && o.createdAt.toMillis() >= cutoff)
+                            .reduce((acc, order) => {
+                                acc.revenue += (Number(order.total) || 0);
+                                const orderProfit = (order.items || []).reduce((itemAcc, item) => {
+                                    return itemAcc + ((Number(item.price) || 0) - (Number(item.costPrice) || 0)) * (Number(item.quantity) || 0);
+                                }, 0);
+                                acc.profit += orderProfit;
+                                return acc;
+                            }, { revenue: 0, profit: 0 });
+                    };
+
+                    const fin7 = calculateFinancials(7);
+                    const fin30 = calculateFinancials(30);
+                    const fin180 = calculateFinancials(180);
+                    const fin365 = calculateFinancials(365);
+
                     return (
                         <div className="space-y-8">
                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1733,12 +1756,44 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <p className="text-3xl font-black text-green-600 italic">{storefrontOrdersCount}</p>
                                         <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Pedidos (Loja)</p>
                                     </div>
-                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
+                                   <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 text-center flex flex-col justify-center">
                                         <div className="flex justify-center mb-2"><PlusCircle size={32} className="text-blue-500"/></div>
                                         <p className="text-3xl font-black text-blue-600 italic">{manualOrdersCount}</p>
                                         <p className="text-slate-400 font-bold text-[10px] uppercase mt-1">Pedidos (Manual)</p>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* --- NOVO: DESEMPENHO FINANCEIRO ESTENDIDO --- */}
+                            <div className="pt-8 mt-8 border-t border-slate-100">
+                                <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 text-slate-800 flex items-center gap-2">
+                                    <Landmark size={24} className="text-emerald-500"/> Histórico Financeiro
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {[
+                                        { title: 'Últimos 7 Dias', data: fin7 },
+                                        { title: 'Últimos 30 Dias', data: fin30 },
+                                        { title: 'Últimos 6 Meses', data: fin180 },
+                                        { title: 'Último Ano', data: fin365 }
+                                    ].map((period, idx) => (
+                                        <div key={idx} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group hover:shadow-md transition-all">
+                                            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-4">{period.title}</p>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Vendas (Faturamento)</p>
+                                                    <p className="text-2xl font-black text-slate-800 italic truncate">R$ {period.data.revenue.toFixed(2)}</p>
+                                                </div>
+                                                <div className="pt-3 border-t border-slate-50">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Lucro Estimado</p>
+                                                    <p className="text-xl font-black text-emerald-500 italic truncate">R$ {period.data.profit.toFixed(2)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">
+                                    * O Lucro Estimado é calculado apenas com base nos produtos que possuem o campo "Custo (R$)" preenchido no estoque.
+                                </p>
                             </div>
                         </div>
                     );
