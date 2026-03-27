@@ -8,7 +8,7 @@ import {
 import {
     ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -533,6 +533,10 @@ export default function Admin() {
     // Produtos
     const[isModalOpen, setIsModalOpen] = useState(false);
     const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
+    // --- NOVO: ESTADOS PARA COPIAR COMPLEMENTOS ---
+    const [isCopyComplementModalOpen, setIsCopyComplementModalOpen] = useState(false);
+    const [complementToCopy, setComplementToCopy] = useState(null);
+    const [productsToApplyComplement, setProductsToApplyComplement] = useState([]);
     const [termoIA, setTermoIA] = useState('');
     // PASSO 1: Atualização do Estado do Formulário (form)
     const[form, setForm] = useState({ 
@@ -3193,8 +3197,55 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <Landmark size={20}/> 🤝 Integrar Mercado Pago
                                     </button>
                                 </div>
-                            )}
+                           )}
                         </div>
+
+                        {/* --- NOVO CARD: CONTROLE DE MEIOS DE PAGAMENTO (ENTREGA E BALCÃO) --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
+                            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                                <div className="bg-slate-50 p-3 rounded-2xl text-slate-600"><CreditCard size={24} /></div>
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase text-slate-800 italic leading-none">Opções de Pagamento</h3>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">O que o cliente verá na tela de finalizar o pedido?</p>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {[
+                                    { id: 'pix', label: '💠 PIX Automático (Chave da Loja)' },
+                                    { id: 'cardDelivery', label: '💳 Cartão na Entrega (Motoboy)' },
+                                    { id: 'cashDelivery', label: '💵 Dinheiro na Entrega (Motoboy)' },
+                                    { id: 'cardPickup', label: '💳 Cartão na Retirada (Balcão)' },
+                                    { id: 'cashPickup', label: '💵 Dinheiro na Retirada (Balcão)' },
+                                ].map(pm => {
+                                    // Padrão: Se o logista nunca mexeu, tudo vem ativado como 'true'
+                                    const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
+                                    return (
+                                        <label key={pm.id} className={`flex items-center justify-between p-5 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60 hover:opacity-100'}`}>
+                                            <span className={`font-black uppercase tracking-tight text-sm ${isActive ? 'text-blue-800' : 'text-slate-500'}`}>{pm.label}</span>
+                                            <div className="relative">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={isActive} 
+                                                    onChange={async (e) => {
+                                                        // Puxa as regras atuais ou usa o padrão tudo ligado
+                                                        const currentPayments = storeStatus.acceptedPayments || { pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                                        const newPayments = { ...currentPayments, [pm.id]: e.target.checked };
+                                                        
+                                                        // Atualiza Tela
+                                                        setStoreStatus(prev => ({...prev, acceptedPayments: newPayments}));
+                                                        // Salva no Banco de Dados
+                                                        await updateDoc(doc(db, "stores", storeId), { acceptedPayments: newPayments }, { merge: true });
+                                                    }}
+                                                    className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
+                                                />
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Card da Fatura */}
                             <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
@@ -4314,12 +4365,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     
                                     {(form.complements ||[]).map((cat, catIndex) => (
                                         <div key={cat.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 relative animate-in fade-in slide-in-from-top-2">
-                                            {/* Botão de Excluir Grupo */}
-                                            <button type="button" onClick={() => {
-                                                const newComps = [...form.complements];
-                                                newComps.splice(catIndex, 1);
-                                                setForm(prev => ({ ...prev, complements: newComps }));
-                                            }} className="absolute top-4 right-4 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                            {/* Ações do Grupo (Copiar e Excluir) */}
+                                            <div className="absolute top-4 right-4 flex items-center gap-2">
+                                                <button type="button" onClick={() => {
+                                                    setComplementToCopy(cat);
+                                                    setProductsToApplyComplement([]);
+                                                    setIsCopyComplementModalOpen(true);
+                                                }} className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg flex items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all">
+                                                    <Copy size={14}/> Copiar
+                                                </button>
+                                                <button type="button" onClick={() => {
+                                                    const newComps = [...form.complements];
+                                                    newComps.splice(catIndex, 1);
+                                                    setForm(prev => ({ ...prev, complements: newComps }));
+                                                }} className="text-red-400 p-1.5 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all">
+                                                    <Trash2 size={16}/>
+                                                </button>
+                                            </div>
                                             
                                             {/* Nome do Grupo */}
                                             <input type="text" placeholder="Nome do Grupo (Ex: Escolha o Molho, Ponto da Carne)" className="w-11/12 p-3 bg-white rounded-xl font-bold border border-slate-100 mb-3 text-sm outline-none focus:ring-2 ring-purple-200" value={cat.name} onChange={(e) => {
@@ -4409,7 +4471,71 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     {imageFile && (<button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload'}</button>)}
                                 </div>
                                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
-                            </form>
+                           </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* --- NOVO: MODAL DE COPIAR COMPLEMENTOS PARA OUTROS PRODUTOS --- */}
+            <AnimatePresence>
+                {isCopyComplementModalOpen && complementToCopy && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl relative max-h-[80vh] flex flex-col">
+                            <button onClick={() => setIsCopyComplementModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2">Duplicar Complemento</h2>
+                            <p className="text-xs font-bold text-blue-600 bg-blue-50 p-3 rounded-xl mb-6 truncate border border-blue-100">
+                                📋 {complementToCopy.name} ({complementToCopy.options.length} opções)
+                            </p>
+                            
+                            <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Aplicar em quais produtos?</p>
+                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2 mb-6">
+                                {products.filter(p => p.id !== editingId).map(p => {
+                                    const isSelected = productsToApplyComplement.includes(p.id);
+                                    return (
+                                        <label key={p.id} className={`flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-400' : 'bg-slate-50 border-transparent hover:bg-slate-100'}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isSelected} 
+                                                onChange={(e) => {
+                                                    if(e.target.checked) setProductsToApplyComplement([...productsToApplyComplement, p.id]);
+                                                    else setProductsToApplyComplement(productsToApplyComplement.filter(id => id !== p.id));
+                                                }} 
+                                                className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer flex-shrink-0"
+                                            />
+                                            {p.imageUrl && <img src={p.imageUrl} className="w-8 h-8 object-cover rounded-lg bg-white" />}
+                                            <span className="font-bold text-slate-700 text-sm truncate flex-1">{p.name}</span>
+                                        </label>
+                                    );
+                                })}
+                                {products.length <= 1 && <p className="text-xs text-center text-slate-400 italic py-4">Você precisa ter mais produtos cadastrados.</p>}
+                            </div>
+
+                            <button 
+                                onClick={async () => {
+                                    if(productsToApplyComplement.length === 0) return alert("Selecione pelo menos um produto na lista!");
+                                    try {
+                                        const batchPromises = productsToApplyComplement.map(async (pid) => {
+                                            const productToUpdate = products.find(p => p.id === pid);
+                                            if(productToUpdate) {
+                                                const existingComplements = productToUpdate.complements || [];
+                                                // Gera um ID novo para o grupo não dar conflito
+                                                const newComplement = { ...complementToCopy, id: Date.now().toString() + Math.random().toString(36).substring(2, 5) };
+                                                await updateDoc(doc(db, "products", pid), { complements: [...existingComplements, newComplement] });
+                                            }
+                                        });
+                                        await Promise.all(batchPromises);
+                                        setIsCopyComplementModalOpen(false);
+                                        alert("✅ Complemento copiado com sucesso para os produtos selecionados!");
+                                    } catch (error) {
+                                        alert("Erro ao copiar complemento.");
+                                    }
+                                }}
+                                className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest active:scale-95 transition-all shadow-xl"
+                            >
+                                Confirmar e Salvar Cópias
+                            </button>
                         </motion.div>
                     </motion.div>
                 )}
