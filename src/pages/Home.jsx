@@ -1372,12 +1372,54 @@ if (window.fbq) {
           return;
       }
 
-     if (customer.payment === 'cartao' || customer.payment === 'pix') {
+     // ======================================================================
+      // FLUXO DE PAGAMENTO ONLINE (VELOPAY, STRIPE OU MERCADO PAGO)
+      // ======================================================================
+      if (['cartao', 'pix', 'online', 'velopay_pix'].includes(customer.payment)) {
+          
+          // 1. Prioridade Máxima: Se escolheu Pix Nativo do VeloPay
+          if (customer.payment === 'velopay_pix') {
+              try {
+                  const response = await fetch('/api/velopay-pix', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          storeId: storeId,
+                          orderId: orderId,
+                          totalAmount: finalTotal
+                      })
+                  });
+
+                  const data = await response.json();
+                  
+                  if (!response.ok) {
+                      throw new Error(data.error || "Erro ao gerar Pix Nativo");
+                  }
+
+                  // Salva os dados brutos da intenção no Firebase para a tela de Acompanhamento puxar o QR Code
+                  await setDoc(newOrderRef, { ...orderData, paymentIntentId: data.txid, velopayStatus: 'waiting_payment' });
+
+                  localStorage.setItem('activeOrderId', orderId);
+                  setActiveOrderId(orderId);
+                  setCart([]); setShowCheckout(false);
+                  
+                  // Redireciona para a tela de acompanhamento (onde faremos o QR Code aparecer)
+                  window.location.href = `/track/${orderId}?payment=pix_pending`;
+                  return;
+
+              } catch (err) {
+                  alert(`Erro VeloPay: ${err.message}`);
+                  setIsFinalizing(false);
+                  return;
+              }
+          }
+
+          // 2. Fluxo Antigo: Mercado Pago ou Stripe (Para Cartão de Crédito)
           const hasStripe = storeSettings?.stripeConnectId;
           const hasMP = marketingSettings?.integrations?.mercadopago?.accessToken;
 
           if (!hasStripe && !hasMP) {
-              alert("⚠️ Esta loja ainda não configurou pagamentos online. Escolha a opção 'Dinheiro'.");
+              alert("⚠️ Esta loja ainda não configurou pagamentos de cartão online.");
               setIsFinalizing(false); 
               return;
           }
@@ -1576,9 +1618,9 @@ if (window.fbq) {
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Próxima Recompensa</p>
-                <p className="text-xs font-bold text-purple-200 max-w-[150px] leading-tight truncate">
+              <div className="text-right flex-1 ml-4 flex flex-col items-end">
+                <p className="text-[9px] font-bold text-slate-500 uppercase mb-1 whitespace-nowrap">Próxima Recompensa</p>
+                <p className="text-[10px] font-bold text-purple-200 leading-snug whitespace-normal break-words max-w-[200px] md:max-w-[300px]">
                   {marketingSettings.loyaltyReward || 'Prêmio Surpresa'}
                 </p>
               </div>
@@ -1597,6 +1639,7 @@ if (window.fbq) {
         {marketingSettings.promoActive && 
          marketingSettings.promoBannerUrls && 
          marketingSettings.promoBannerUrls.length > 0 && 
+         (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
          (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>

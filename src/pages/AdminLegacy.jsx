@@ -432,6 +432,11 @@ export default function Admin() {
     const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
     const [rouletteSlices, setRouletteSlices] = useState([]);
     
+    // --- NOVO: ESTADOS DO VELOPAY ONBOARDING ---
+    const [veloPayForm, setVeloPayForm] = useState({
+        legalName: '', document: '', phone: '', pixKey: ''
+    });
+    const [isSubmittingVeloPay, setIsSubmittingVeloPay] = useState(false);
     // --- NOVO: ESTADOS DAS MISSÕES VIP ---
     const [vipMissions, setVipMissions] = useState([]);
     const [activeReviewTab, setActiveReviewTab] = useState('missions'); // Controla Aba Prints vs Avaliações
@@ -998,7 +1003,9 @@ const handleGenerateProductCopy = async () => {
     if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
         if (!order.cashbackAwarded) {
             try {
-                const cashbackEarned = (Number(order.total) || 0) * 0.02; // Fração de 2%
+                // Puxa a % configurada (se não tiver, usa 2% como padrão seguro)
+                const percent = Number(settings.gamification.cashbackPercent || 2) / 100;
+                const cashbackEarned = (Number(order.total) || 0) * percent;
                 if (cashbackEarned > 0) {
                     const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
                     const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
@@ -2793,17 +2800,42 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
-                                    {/* NOVO: CAMPO DE AGENDAMENTO (DESATIVAÇÃO AUTOMÁTICA) */}
-                                    <div className={`p-4 rounded-2xl mb-6 border ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
-                                        <label className={`text-[10px] font-black uppercase tracking-widest mb-2 block ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            ⏱️ Desativar automaticamente em: (Opcional)
-                                        </label>
-                                        <input 
-                                            type="datetime-local" 
-                                            value={settings.promoExpiresAt || ''} 
-                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { promoExpiresAt: e.target.value }, { merge: true })}
-                                            className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`}
-                                        />
+                                    {/* --- CAMPOS DE AGENDAMENTO (INÍCIO E FIM) --- */}
+                                    <div className={`p-4 rounded-2xl mb-6 border transition-all ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                            ⏱️ Agendamento Automático (Opcional)
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Inicia em:</label>
+                                                <input 
+                                                    type="datetime-local" 
+                                                    value={settings.promoStartsAt || ''} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { promoStartsAt: e.target.value }, { merge: true })}
+                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Termina em:</label>
+                                                <input 
+                                                    type="datetime-local" 
+                                                    value={settings.promoExpiresAt || ''} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { promoExpiresAt: e.target.value }, { merge: true })}
+                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Feedback visual inteligente para o Lojista */}
+                                        {settings.promoActive && (settings.promoStartsAt || settings.promoExpiresAt) && (() => {
+                                            const now = new Date();
+                                            const start = settings.promoStartsAt ? new Date(settings.promoStartsAt) : null;
+                                            const end = settings.promoExpiresAt ? new Date(settings.promoExpiresAt) : null;
+                                            
+                                            if (start && now < start) return <p className="text-xs text-yellow-200 font-bold mt-3 flex items-center gap-1">⏳ Promoção agendada. Entrará no ar automaticamente.</p>;
+                                            if (end && now > end) return <p className="text-xs text-red-200 font-bold mt-3 flex items-center gap-1">❌ Promoção já expirada (Não visível para o cliente).</p>;
+                                            return <p className="text-xs text-green-200 font-black mt-3 flex items-center gap-1">✅ Promoção no ar agora!</p>;
+                                        })()}
                                     </div>
 
                                     <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-5 lg:py-6 rounded-2xl lg:rounded-[2rem] font-black uppercase tracking-widest text-lg shadow-xl ${settings.promoActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-orange-600 text-white hover:bg-orange-700'} transition-all active:scale-95`}>
@@ -2962,22 +2994,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         {/* Cashback */}
-                                        <div className="flex items-start justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
-                                            <div className="flex items-start gap-3">
-                                                <div className="bg-green-500/20 p-2 rounded-xl text-green-400 mt-1"><Wallet size={20}/></div>
-                                                <div className="pr-4">
-                                                    <p className="font-black text-white text-sm uppercase">Carteira de Cashback</p>
-                                                    <p className="text-[10px] text-slate-400 font-bold">Cliente usa saldo acumulado na compra.</p>
-                                                    {settings.gamification?.cashback && (
-                                                        <div className="mt-3 bg-green-900/30 p-3 rounded-xl border border-green-800/50">
-                                                            <p className="text-[10px] text-green-400 font-bold leading-relaxed">
-                                                                💡 <strong className="text-white">Automação Ativa:</strong> Toda vez que você marcar um pedido como "✅ Entregue", o sistema irá depositar automaticamente <strong>2% do valor</strong> na Carteira Digital atrelada ao WhatsApp do cliente.
-                                                            </p>
-                                                        </div>
-                                                    )}
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-green-500/20 p-2 rounded-xl text-green-400 mt-1"><Wallet size={20}/></div>
+                                                    <div className="pr-4">
+                                                        <p className="font-black text-white text-sm uppercase">Carteira de Cashback</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Cliente usa saldo acumulado na compra.</p>
+                                                    </div>
                                                 </div>
+                                                <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
                                             </div>
-                                            <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
+
+                                            {settings.gamification?.cashback && (
+                                                <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase flex justify-between items-end">
+                                                        Porcentagem de Retorno (%)
+                                                        <span className="text-green-400 font-black text-xs">{settings.gamification?.cashbackPercent || 2}%</span>
+                                                    </label>
+                                                    <input 
+                                                        type="range" 
+                                                        min="1" max="20" step="1"
+                                                        value={settings.gamification?.cashbackPercent || 2} 
+                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashbackPercent: Number(e.target.value) } }, { merge: true })}
+                                                        className="w-full mt-2 accent-green-500 cursor-pointer"
+                                                    />
+                                                    <div className="mt-3 bg-green-900/30 p-3 rounded-xl border border-green-800/50">
+                                                        <p className="text-[10px] text-green-400 font-bold leading-relaxed">
+                                                            💡 <strong className="text-white">Automação Ativa:</strong> Ao marcar o pedido como "✅ Entregue", o sistema irá depositar <strong>{settings.gamification?.cashbackPercent || 2}% do valor</strong> na Carteira Digital do cliente.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Tiers VIP */}
@@ -2992,16 +3040,44 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <input type="checkbox" className="w-5 h-5 accent-orange-500 cursor-pointer" checked={settings.gamification?.tiers || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, tiers: e.target.checked } }, { merge: true })} />
                                         </div>
 
-                                        {/* Indique e Ganhe */}
-                                        <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400"><Share2 size={20}/></div>
-                                                <div>
-                                                    <p className="font-black text-white text-sm uppercase">Indique e Ganhe</p>
-                                                    <p className="text-[10px] text-slate-400 font-bold">Link único para o cliente convidar amigos.</p>
+                                       {/* Indique e Ganhe */}
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400 mt-1"><Share2 size={20}/></div>
+                                                    <div className="pr-4">
+                                                        <p className="font-black text-white text-sm uppercase">Indique e Ganhe</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Link único para o cliente convidar amigos.</p>
+                                                    </div>
                                                 </div>
+                                                <input type="checkbox" className="w-5 h-5 accent-blue-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.referral || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referral: e.target.checked } }, { merge: true })} />
                                             </div>
-                                            <input type="checkbox" className="w-5 h-5 accent-blue-500 cursor-pointer" checked={settings.gamification?.referral || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referral: e.target.checked } }, { merge: true })} />
+                                            
+                                            {/* Configurações da Indicação (Só aparece se estiver ativo) */}
+                                            {settings.gamification?.referral && (
+                                                <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-4 animate-in fade-in">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Pontos p/ Indicação</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Ex: 50" 
+                                                            value={settings.gamification?.referralPoints || ''} 
+                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referralPoints: Number(e.target.value) } }, { merge: true })}
+                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-blue-500 text-sm"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Limite de Convites</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="0 = Ilimitado" 
+                                                            value={settings.gamification?.referralLimit || ''} 
+                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referralLimit: Number(e.target.value) } }, { merge: true })}
+                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-blue-500 text-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Selos (Badges) */}
@@ -3125,7 +3201,122 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     )}
 </div>
                         </div>
+{/* --- DESTAQUE: VELOPAY NATIVO --- */}
+                        <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
+                            <div className="absolute -top-24 -right-24 bg-blue-500 w-64 h-64 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
+                            
+                            <div className="flex items-center justify-between mb-6 relative z-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-500 p-3 rounded-2xl text-white shadow-lg"><Landmark size={28}/></div>
+                                    <div>
+                                        <h3 className="text-2xl font-black uppercase text-white italic leading-none">VeloPay <span className="text-blue-400">Bank</span></h3>
+                                        <p className="text-xs font-medium text-slate-300 mt-1">Sua conta digital nativa (As menores taxas do Brasil).</p>
+                                    </div>
+                                </div>
+                                <div className="hidden md:flex bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest border border-slate-700 items-center gap-1 shadow-inner">
+                                    <ShieldCheck size={12} className="text-blue-400"/> Efí Bank
+                                </div>
+                            </div>
 
+                            {!storeStatus.velopayStatus || storeStatus.velopayStatus === 'unconfigured' ? (
+                                <div className="relative z-10 bg-white/5 border border-white/10 p-6 md:p-8 rounded-[2rem] backdrop-blur-md">
+                                    <h4 className="text-white font-black uppercase tracking-widest text-sm mb-6 border-b border-white/10 pb-4">Ativar Recebimento Nativo</h4>
+                                    <form onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        setIsSubmittingVeloPay(true);
+                                        // Simulação de delay de envio
+                                        setTimeout(async () => {
+                                            await updateDoc(doc(db, "stores", storeId), {
+                                                velopayStatus: 'pending_review',
+                                                velopayData: veloPayForm
+                                            }, { merge: true });
+                                            setIsSubmittingVeloPay(false);
+                                            alert("📄 Documentação enviada! Em breve sua conta VeloPay será ativada pela Efí Bank.");
+                                        }, 1500);
+                                    }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        
+                                        <div className="col-span-1 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">Razão Social / Nome Completo</label>
+                                            <input 
+                                                type="text" required
+                                                value={veloPayForm.legalName} onChange={e => setVeloPayForm({...veloPayForm, legalName: e.target.value})}
+                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
+                                                placeholder="Conforme documento oficial" 
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">CPF ou CNPJ</label>
+                                            <input 
+                                                type="text" required
+                                                value={veloPayForm.document} onChange={e => setVeloPayForm({...veloPayForm, document: e.target.value})}
+                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
+                                                placeholder="Apenas números" 
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">WhatsApp de Contato</label>
+                                            <input 
+                                                type="tel" required
+                                                value={veloPayForm.phone} onChange={e => setVeloPayForm({...veloPayForm, phone: e.target.value})}
+                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
+                                                placeholder="(DD) 90000-0000" 
+                                            />
+                                        </div>
+
+                                        <div className="col-span-1 md:col-span-2 pt-4 mt-2 border-t border-slate-700">
+                                            <h3 className="text-xs font-black uppercase tracking-widest text-white mb-1">Dados de Saque (Recebimento)</h3>
+                                        </div>
+
+                                        <div className="col-span-1 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">Chave PIX Recebedora</label>
+                                            <div className="relative">
+                                                <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400" size={18} />
+                                                <input 
+                                                    type="text" required
+                                                    value={veloPayForm.pixKey} onChange={e => setVeloPayForm({...veloPayForm, pixKey: e.target.value})}
+                                                    className="w-full p-4 pl-12 bg-green-900/20 text-green-100 rounded-2xl font-black border border-green-800/50 focus:ring-2 ring-green-500 outline-none transition-all placeholder-green-700/50" 
+                                                    placeholder="Sua chave PIX cadastrada no CNPJ/CPF acima" 
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="col-span-1 md:col-span-2 mt-4">
+                                            <button 
+                                                type="submit"
+                                                disabled={isSubmittingVeloPay}
+                                                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-900/50 hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                            >
+                                                {isSubmittingVeloPay ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
+                                                {isSubmittingVeloPay ? 'Enviando Dados Seguros...' : 'Solicitar Ativação VeloPay'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            ) : storeStatus.velopayStatus === 'pending_review' ? (
+                                <div className="relative z-10 bg-orange-500/10 border border-orange-500/20 p-8 rounded-3xl backdrop-blur-md text-center">
+                                    <Loader2 className="animate-spin text-orange-400 mx-auto mb-4" size={32} />
+                                    <h4 className="text-orange-400 font-black uppercase tracking-widest mb-2">Conta em Análise</h4>
+                                    <p className="text-orange-200/70 text-sm font-medium">Sua documentação foi enviada com segurança para a Efí Bank. Em breve o Pix Nativo estará liberado.</p>
+                                </div>
+                            ) : (
+                                /* Conta Ativa - Dashboard Interno */
+                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Disponível (Pix)</p>
+                                        <h2 className="text-4xl font-black italic text-white mb-4">R$ 0,00</h2>
+                                        <button className="w-full bg-white text-slate-900 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                            Transferir Saldo
+                                        </button>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
+                                        <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
+                                        <p className="text-slate-300 text-xs font-medium">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         {/* NOVO CARD: STRIPE CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
                             <div className="flex items-center gap-2 mb-6">
@@ -3589,22 +3780,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
                                 </div>
                                 </div>
-                                {/* NOVO CAMPO: GOOGLE ANALYTICS */}
-<div className="mt-4 border-t border-slate-100 pt-4">
-    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
-        <TrendingUp size={14} className="text-blue-500"/> ID de Rastreamento (Google Analytics 4)
-    </label>
-    <input 
-        type="text" 
-        placeholder="Ex: G-XXXXXXXXXX" 
-        value={storeStatus.gaTrackingId || ''} 
-        onChange={(e) => updateDoc(doc(db, "stores", storeId), { gaTrackingId: e.target.value.toUpperCase().trim() }, { merge: true })} 
-        className="w-full p-5 bg-blue-50/50 text-blue-800 rounded-2xl font-black border border-blue-100 placeholder-blue-300 outline-none focus:ring-2 ring-blue-400 uppercase" 
-    />
-    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">
-        Opcional: Cole seu código G- do Analytics. Os relatórios completos de origem de tráfego, cidades e eventos aparecerão direto no seu painel oficial do Google.
-    </p>
-</div>
+                                
                             </div>
                             {/* --- NOVO BLOCO: LOCALIZAÇÃO E REGRAS --- */}
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">

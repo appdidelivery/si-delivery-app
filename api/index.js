@@ -1230,7 +1230,142 @@ export default async function handler(req, res) {
             return res.status(500).send('Erro interno');
         }
     }
+// ------------------------------------------------------------------------
+    // 17. VELOPAY: GERAR PIX DINÂMICO (EFÍ BANK)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/velopay-pix') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeId, orderId, totalAmount } = req.body;
+
+        if (!storeId || !orderId || !totalAmount) {
+            return res.status(400).json({ error: 'Dados insuficientes para gerar o Pix.' });
+        }
+
+        try {
+            // 1. Validar se a loja tem o VeloPay ativo no Firestore
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            if (!storeDoc.exists) return res.status(404).json({ error: 'Loja não encontrada.' });
+            
+            const storeData = storeDoc.data();
+            
+            // Verifica o status do VeloPay (Para testes, vamos permitir mesmo pending)
+            if (!storeData.velopayStatus || storeData.velopayStatus === 'unconfigured') {
+                return res.status(403).json({ error: 'O VeloPay não está ativo para esta loja.' });
+            }
+
+            // AQUI ENTRA A LÓGICA DE SPLIT E CHAMADA À API DA EFÍ
+            // ====================================================================
+            // TODO: (Fase 2 - Pós Aprovação Efí)
+            // 1. Ler os dados do certificado .p12 e as chaves Client ID/Secret.
+            // 2. Autenticar na Efí e obter o Access Token.
+            // 3. Montar o payload da cobrança definindo o split (taxa da Velo vs. valor do Lojista).
+            // 4. Chamar o endpoint da Efí para gerar a cobrança (txid).
+            // 5. Chamar o endpoint da Efí para obter o QR Code (loc/id).
+            // ====================================================================
+
+            // --- MOCK TEMPORÁRIO (Para testar o fluxo no Frontend) ---
+            console.log(`[VeloPay] Simulação de geração de Pix para o pedido ${orderId} (Loja: ${storeId}) no valor de R$ ${totalAmount}`);
+            
+            // Simulamos um delay de rede de 1 segundo
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Simulamos o retorno que a Efí nos dará no futuro
+            const mockEfiResponse = {
+                qrcode: "https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B", // QR Code genérico
+                imagemQrcode: "00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B", // O famoso "Copia e Cola"
+                txid: `velopay${orderId.replace(/[^a-zA-Z0-9]/g, '')}${Date.now()}` // ID único da transação na Efí
+            };
+
+            // Salva a intenção de pagamento no Firebase para podermos atualizar quando o Webhook bater
+            await db.collection('orders').doc(orderId).set({
+                paymentIntentId: mockEfiResponse.txid, // Guarda o ID da Efí
+                velopayStatus: 'waiting_payment'
+            }, { merge: true });
+
+            return res.status(200).json(mockEfiResponse);
+
+        } catch (error) {
+            console.error('❌ Erro VeloPay Pix:', error);
+            return res.status(500).json({ error: 'Erro interno ao gerar cobrança VeloPay.' });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/velopay-webhook') {
+        // A Efí vai bater aqui quando o Pix for pago
+        if (req.method !== 'POST') return res.status(405).end();
+
+        try {
+            // A API da Efí envia os dados no corpo da requisição
+            const pixDataList = req.body.pix; 
+            
+            // Pode ser que a Efí mande vários pagamentos num único webhook
+            if (pixDataList && Array.isArray(pixDataList)) {
+                for (const pix of pixDataList) {
+                    const txid = pix.txid; // O ID único que gerámos na rota anterior
+                    const valorPago = pix.valor; // Valor efetivamente pago
+
+                    console.log(`[VeloPay Webhook] Pagamento confirmado! TXID: ${txid} | Valor: R$ ${valorPago}`);
+
+                    // 1. Procura o pedido no Firestore que tem este txid
+                    const ordersRef = db.collection('orders');
+                    const q = await ordersRef.where('paymentIntentId', '==', txid).limit(1).get();
+
+                    if (!q.empty) {
+                        const orderDoc = q.docs[0];
+                        const orderData = orderDoc.data();
+                        
+                        // 2. Evita processar em duplicado
+                        if (orderData.paymentStatus !== 'paid') {
+                            const storeId = orderData.storeId;
+                            const batch = db.batch();
+                            
+                            // Atualiza o pedido
+                            batch.update(orderDoc.ref, {
+                                paymentStatus: 'paid',
+                                status: 'preparing', // Manda para a cozinha
+                                paidAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            // Atualiza as estatísticas do lojista (Opcional, depende da tua métrica)
+                            const statsRef = db.collection("stats").doc(storeId);
+                            batch.set(statsRef, {
+                                faturamentoTotal: admin.firestore.FieldValue.increment(Number(valorPago)),
+                                pedidosPagos: admin.firestore.FieldValue.increment(1)
+                            }, { merge: true });
+
+                            await batch.commit();
+                            console.log(`✅ [VeloPay] Pedido ${orderDoc.id} atualizado para PAGO!`);
+                            
+                            // AQUI PODEMOS ADICIONAR O DISPARO DO WHATSAPP AVISANDO O CLIENTE/LOJISTA
+                        }
+                    } else {
+                        console.warn(`[VeloPay] TXID ${txid} não encontrado em nenhum pedido.`);
+                    }
+                }
+            } else if (req.body.acao === 'teste') {
+                // A Efí envia um ping de teste quando configuramos o Webhook no painel deles
+                console.log("[VeloPay] Recebido ping de validação do Webhook da Efí.");
+            }
+
+            // Devemos sempre responder 200 OK rapidamente para a Efí
+            return res.status(200).json({ received: true });
+            
+        } catch (error) {
+            console.error('❌ Erro no Webhook VeloPay:', error);
+            // Mesmo com erro interno, devolvemos 200 para a Efí não tentar reenviar freneticamente
+            return res.status(200).send('Erro processado'); 
+        }
+    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================

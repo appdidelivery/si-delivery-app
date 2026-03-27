@@ -1,9 +1,8 @@
-// --- START OF FILE src/pages/Tracking.jsx ---
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../../src/services/firebase'; 
-import { doc, onSnapshot, updateDoc, increment, getDoc } from 'firebase/firestore'; // Adicionado getDoc aqui
-import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2, ExternalLink, Award, Copy } from 'lucide-react';
+import { doc, onSnapshot, updateDoc, increment, getDoc } from 'firebase/firestore';
+import { CheckCircle2, Clock, Truck, PackageCheck, ChevronLeft, Star, Loader2, ExternalLink, Award, Copy, QrCode } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { enviarAvaliacao } from '../../src/services/reviewService';
 
@@ -13,9 +12,9 @@ export default function Tracking() {
   const [loading, setLoading] = useState(true);
 
   const [rating, setRating] = useState(0);
-  const[hoverRating, setHoverRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
-  const[isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
   const [storeData, setStoreData] = useState(null);
 
@@ -53,16 +52,15 @@ export default function Tracking() {
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 3000);
 
-      // Marca no pedido que o cliente clicou para avaliar (você pode usar isso pra dar os pontos depois via Cloud Function)
+      // Marca no pedido que o cliente clicou para avaliar
       await updateDoc(doc(db, "orders", orderId), { googleReviewClicked: true });
 
-      // Abre o link DINÂMICO da loja correta após 1 segundo (dá tempo do usuário ler que copiou)
+      // Abre o link DINÂMICO da loja correta após 1 segundo
       setTimeout(() => {
         window.open(linkAvaliacao, '_blank');
       }, 1000);
 
     } catch (err) {
-      // Se o navegador do cara bloquear o "copiar", abre o link do Google direto de qualquer forma
       console.warn("Navegador bloqueou a cópia automática. Abrindo Google...", err);
       window.open(linkAvaliacao, '_blank');
     }
@@ -131,91 +129,161 @@ export default function Tracking() {
         <ChevronLeft size={16}/> Voltar para Loja
       </Link>
 
-      <motion.div initial={{y: 20, opacity:0}} animate={{y:0, opacity:1}} className="bg-white rounded-[3rem] p-8 shadow-2xl max-w-md mx-auto border border-white">
-        <h2 className="text-3xl font-black text-slate-900 italic tracking-tighter mb-2 uppercase">Status do Pedido</h2>
-        <p className="text-slate-400 font-bold text-xs uppercase mb-10 tracking-widest">ID: #{orderId.slice(0,8)}</p>
-
-        <div className="space-y-10 relative">
-          <div className="absolute left-[21px] top-2 bottom-2 w-0.5 bg-slate-100 -z-10"></div>
-          {steps.map((step, idx) => (
-            <div key={step.id} className={`flex items-center gap-6 transition-all ${idx <= currentIdx ? 'opacity-100' : 'opacity-20'}`}>
-              <div className={`p-3 rounded-2xl shadow-lg ${idx <= currentIdx ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                {step.icon}
-              </div>
-              <div>
-                <p className={`font-black text-lg leading-none ${idx <= currentIdx ? 'text-slate-900' : 'text-slate-400'}`}>{step.label}</p>
-                {idx === currentIdx && <p className="text-[10px] font-bold text-blue-600 uppercase mt-1 animate-pulse">Acontecendo agora</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ÁREA DE AVALIAÇÃO (VIP + GOOGLE) */}
-        {order.status === 'completed' && (
-          <div className="mt-10 border-t border-slate-100 pt-8 space-y-6">
-            
-            {/* MISSÃO GOOGLE */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-[2rem] border-2 border-yellow-200 shadow-sm relative overflow-hidden">
-              <div className="absolute -right-4 -top-4 opacity-10"><Award size={100}/></div>
-              
-              <h3 className="text-yellow-800 font-black italic tracking-tighter text-xl leading-tight mb-2 flex items-center gap-2 relative z-10">
-                <Star className="fill-yellow-500 text-yellow-500" size={24}/> MISSÃO VIP
-              </h3>
-              
-              <p className="text-yellow-900 text-sm font-medium mb-4 relative z-10">
-                Ganhe <b>+150 Pontos</b> instantâneos avaliando nossa entrega no Google! 
-                <br/><br/>
-                <span className="bg-white p-2 rounded-lg text-xs font-bold border border-yellow-200 block text-center">
-                  💡 Dica: Ao clicar, copiaremos o texto <b>"Comprei {order?.items?.[0]?.name || "aqui"}..."</b>. Cole lá para nos ajudar!
-                </span>
-              </p>
-
-              <button 
-                onClick={handleGoogleReview}
-                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 uppercase text-xs tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 relative z-10"
-              >
-                {copiedText ? <><CheckCircle2 size={18}/> TEXTO COPIADO! ABRINDO...</> : <><ExternalLink size={18}/> AVALIAR NO GOOGLE</>}
-              </button>
-            </motion.div>
-
-            {/* AVALIAÇÃO INTERNA */}
-            {order.hasBeenReviewed ? (
-              <div className="bg-slate-100 p-6 rounded-[2rem] text-slate-500 text-center font-bold text-sm">
-                Sua avaliação interna já foi recebida. Obrigado!
-              </div>
-            ) : (
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
-                <h3 className="text-slate-800 font-black text-sm uppercase tracking-widest mb-4 text-center">Feedback Interno Rápido</h3>
+      <motion.div initial={{y: 20, opacity:0}} animate={{y:0, opacity:1}} className="bg-white rounded-[3rem] p-8 shadow-2xl max-w-md mx-auto border border-white overflow-hidden relative">
+        
+        {/* ========================================================================= */}
+        {/* TELA DE COBRANÇA VELOPAY (APARECE SE ESTIVER AGUARDANDO PAGAMENTO DO PIX) */}
+        {/* ========================================================================= */}
+        {order.paymentMethod === 'velopay_pix' && order.velopayStatus === 'waiting_payment' && order.paymentStatus !== 'paid' ? (
+            <div className="text-center">
+                <div className="absolute -top-32 -left-32 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
                 
-                <div className="flex justify-center gap-2 mb-4">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button 
-                      key={star} 
-                      onClick={() => setRating(star)} 
-                      onMouseEnter={() => setHoverRating(star)}
-                      onMouseLeave={() => setHoverRating(0)}
-                    >
-                      <Star size={32} className={`cursor-pointer transition-all ${(hoverRating || rating) >= star ? 'text-blue-500 fill-current' : 'text-slate-200'}`} />
-                    </button>
+                <div className="bg-slate-900 text-white p-3 rounded-2xl mb-6 inline-flex items-center justify-center gap-2 shadow-lg">
+                    <QrCode size={20} className="text-blue-400"/>
+                    <span className="font-black uppercase tracking-widest text-[10px]">Pagamento Seguro (VeloPay)</span>
+                </div>
+
+                <h2 className="text-3xl font-black text-slate-900 italic tracking-tighter mb-2 uppercase leading-none">
+                    Falta Pouco!
+                </h2>
+                <p className="text-slate-500 font-bold text-sm mb-8 leading-tight">
+                    Realize o pagamento via Pix para seu pedido ser enviado à cozinha.
+                </p>
+
+                <div className="bg-white p-4 rounded-[2rem] border-4 border-slate-100 shadow-inner inline-block mb-6 relative">
+                    <img 
+                        src="https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B" 
+                        alt="QR Code Pix" 
+                        className="w-48 h-48 object-contain"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent pointer-events-none"></div>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-8 relative">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Valor do Pedido</p>
+                    <p className="text-4xl font-black text-slate-900 italic">R$ {Number(order.total || 0).toFixed(2)}</p>
+                </div>
+
+                <button 
+                    onClick={async () => {
+                        const mockPayloadPix = "00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B";
+                        try {
+                            await navigator.clipboard.writeText(mockPayloadPix);
+                            setCopiedText(true);
+                            setTimeout(() => setCopiedText(false), 3000);
+                        } catch(e) {
+                            alert("Erro ao copiar. Tente selecionar o texto manualmente.");
+                        }
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[2rem] shadow-xl uppercase text-sm tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 relative z-10"
+                >
+                    {copiedText ? <><CheckCircle2 size={20}/> Código Copiado!</> : <><Copy size={20}/> Copiar Código Pix</>}
+                </button>
+                
+                <p className="text-[10px] font-bold text-slate-400 mt-6 flex items-center justify-center gap-1 animate-pulse">
+                    <Loader2 size={12} className="animate-spin" /> Aguardando confirmação do banco...
+                </p>
+            </div>
+        ) : (
+        /* ========================================================================= */
+        /* TELA NORMAL DE RASTREIO (APARECE SE JÁ FOI PAGO OU É PAGAMENTO NA ENTREGA) */
+        /* ========================================================================= */
+            <>
+                <h2 className="text-3xl font-black text-slate-900 italic tracking-tighter mb-2 uppercase">Status do Pedido</h2>
+                <div className="flex items-center justify-between mb-10">
+                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">ID: #{orderId.slice(0,8)}</p>
+                    
+                    {/* Badge de Sucesso se foi pago via VeloPay */}
+                    {order.paymentMethod === 'velopay_pix' && order.paymentStatus === 'paid' && (
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                            <CheckCircle2 size={12}/> Pix Confirmado
+                        </span>
+                    )}
+                </div>
+
+                <div className="space-y-10 relative">
+                  <div className="absolute left-[21px] top-2 bottom-2 w-0.5 bg-slate-100 -z-10"></div>
+                  {steps.map((step, idx) => (
+                    <div key={step.id} className={`flex items-center gap-6 transition-all ${idx <= currentIdx ? 'opacity-100' : 'opacity-20'}`}>
+                      <div className={`p-3 rounded-2xl shadow-lg ${idx <= currentIdx ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        {step.icon}
+                      </div>
+                      <div>
+                        <p className={`font-black text-lg leading-none ${idx <= currentIdx ? 'text-slate-900' : 'text-slate-400'}`}>{step.label}</p>
+                        {idx === currentIdx && <p className="text-[10px] font-bold text-blue-600 uppercase mt-1 animate-pulse">Acontecendo agora</p>}
+                      </div>
+                    </div>
                   ))}
                 </div>
-                <textarea
-                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm focus:ring-2 focus:ring-blue-400 outline-none mb-4 font-medium"
-                    rows="2"
-                    placeholder="Deixe um comentário..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                />
-                <button 
-                  onClick={handleSendReview} 
-                  disabled={isSubmitting}
-                  className="w-full bg-slate-900 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
-                >
-                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Enviar Feedback'}
-                </button>
-              </div>
-            )}
-          </div>
+
+                {/* ÁREA DE AVALIAÇÃO (VIP + GOOGLE) */}
+                {order.status === 'completed' && (
+                  <div className="mt-10 border-t border-slate-100 pt-8 space-y-6">
+                    
+                    {/* MISSÃO GOOGLE */}
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-[2rem] border-2 border-yellow-200 shadow-sm relative overflow-hidden">
+                      <div className="absolute -right-4 -top-4 opacity-10"><Award size={100}/></div>
+                      
+                      <h3 className="text-yellow-800 font-black italic tracking-tighter text-xl leading-tight mb-2 flex items-center gap-2 relative z-10">
+                        <Star className="fill-yellow-500 text-yellow-500" size={24}/> MISSÃO VIP
+                      </h3>
+                      
+                      <p className="text-yellow-900 text-sm font-medium mb-4 relative z-10">
+                        Ganhe <b>+150 Pontos</b> instantâneos avaliando nossa entrega no Google! 
+                        <br/><br/>
+                        <span className="bg-white p-2 rounded-lg text-xs font-bold border border-yellow-200 block text-center">
+                          💡 Dica: Ao clicar, copiaremos o texto <b>"Comprei {order?.items?.[0]?.name || "aqui"}..."</b>. Cole lá para nos ajudar!
+                        </span>
+                      </p>
+
+                      <button 
+                        onClick={handleGoogleReview}
+                        className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 uppercase text-xs tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 relative z-10"
+                      >
+                        {copiedText ? <><CheckCircle2 size={18}/> TEXTO COPIADO! ABRINDO...</> : <><ExternalLink size={18}/> AVALIAR NO GOOGLE</>}
+                      </button>
+                    </motion.div>
+
+                    {/* AVALIAÇÃO INTERNA */}
+                    {order.hasBeenReviewed ? (
+                      <div className="bg-slate-100 p-6 rounded-[2rem] text-slate-500 text-center font-bold text-sm">
+                        Sua avaliação interna já foi recebida. Obrigado!
+                      </div>
+                    ) : (
+                      <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
+                        <h3 className="text-slate-800 font-black text-sm uppercase tracking-widest mb-4 text-center">Feedback Interno Rápido</h3>
+                        
+                        <div className="flex justify-center gap-2 mb-4">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button 
+                              key={star} 
+                              onClick={() => setRating(star)} 
+                              onMouseEnter={() => setHoverRating(star)}
+                              onMouseLeave={() => setHoverRating(0)}
+                            >
+                              <Star size={32} className={`cursor-pointer transition-all ${(hoverRating || rating) >= star ? 'text-blue-500 fill-current' : 'text-slate-200'}`} />
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                            className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm focus:ring-2 focus:ring-blue-400 outline-none mb-4 font-medium"
+                            rows="2"
+                            placeholder="Deixe um comentário..."
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                        />
+                        <button 
+                          onClick={handleSendReview} 
+                          disabled={isSubmitting}
+                          className="w-full bg-slate-900 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                        >
+                          {isSubmitting ? <Loader2 className="animate-spin" /> : 'Enviar Feedback'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+            </>
         )}
       </motion.div>
     </div>
