@@ -1233,7 +1233,7 @@ export default async function handler(req, res) {
         }
     }
 // ------------------------------------------------------------------------
-    // 17. VELOPAY: GERAR PIX DINÂMICO (EFÍ BANK)
+    // 17. VELOPAY: GERAR PIX DINÂMICO (EFÍ BANK REAL)
     // ------------------------------------------------------------------------
     else if (path === '/api/velopay-pix') {
         res.setHeader('Access-Control-Allow-Credentials', true);
@@ -1251,51 +1251,50 @@ export default async function handler(req, res) {
         }
 
         try {
-            // 1. Validar se a loja tem o VeloPay ativo no Firestore
             const storeDoc = await db.collection('stores').doc(storeId).get();
             if (!storeDoc.exists) return res.status(404).json({ error: 'Loja não encontrada.' });
             
-            const storeData = storeDoc.data();
-            
-            // Verifica o status do VeloPay (Para testes, vamos permitir mesmo pending)
-            if (!storeData.velopayStatus || storeData.velopayStatus === 'unconfigured') {
-                return res.status(403).json({ error: 'O VeloPay não está ativo para esta loja.' });
-            }
-
-            // AQUI ENTRA A LÓGICA DE SPLIT E CHAMADA À API DA EFÍ
             // ====================================================================
-            // TODO: (Fase 2 - Pós Aprovação Efí)
-            // 1. Ler os dados do certificado .p12 e as chaves Client ID/Secret.
-            // 2. Autenticar na Efí e obter o Access Token.
-            // 3. Montar o payload da cobrança definindo o split (taxa da Velo vs. valor do Lojista).
-            // 4. Chamar o endpoint da Efí para gerar a cobrança (txid).
-            // 5. Chamar o endpoint da Efí para obter o QR Code (loc/id).
+            // INTEGRAÇÃO REAL COM A EFÍ BANK
             // ====================================================================
-
-            // --- MOCK TEMPORÁRIO (Para testar o fluxo no Frontend) ---
-            console.log(`[VeloPay] Simulação de geração de Pix para o pedido ${orderId} (Loja: ${storeId}) no valor de R$ ${totalAmount}`);
-            
-            // Simulamos um delay de rede de 1 segundo
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // Simulamos o retorno que a Efí nos dará no futuro
-            const mockEfiResponse = {
-                qrcode: "https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B", // QR Code genérico
-                imagemQrcode: "00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B", // O famoso "Copia e Cola"
-                txid: `velopay${orderId.replace(/[^a-zA-Z0-9]/g, '')}${Date.now()}` // ID único da transação na Efí
+            const efiOptions = {
+                sandbox: false, // Modo Produção
+                client_id: process.env.EFI_CLIENT_ID,
+                client_secret: process.env.EFI_CLIENT_SECRET,
+                pix_cert: path.join(process.cwd(), 'api', 'certs', 'certificado-producao.p12') 
             };
 
-            // Salva a intenção de pagamento no Firebase para podermos atualizar quando o Webhook bater
+            const gerencianet = new Gerencianet(efiOptions);
+
+            const body = {
+                calendario: { expiracao: 3600 },
+                valor: { original: Number(totalAmount).toFixed(2) },
+                chave: process.env.EFI_PIX_KEY,
+                solicitacaoPagador: `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`
+            };
+
+            console.log('⏳ [VeloPay Real] Solicitando Pix à Efí Bank...');
+            
+            // 1. Gera a cobrança instantânea
+            const cobResponse = await gerencianet.pixCreateImmediateCharge([], body);
+            
+            // 2. Pega a imagem do QR Code
+            const qrCodeResponse = await gerencianet.pixGenerateQRCode({ id: cobResponse.loc.id });
+
+            // 3. Salva no Firebase para a tela do cliente conseguir puxar!
             await db.collection('orders').doc(orderId).set({
-                paymentIntentId: mockEfiResponse.txid, // Guarda o ID da Efí
-                velopayStatus: 'waiting_payment'
+                paymentIntentId: cobResponse.txid,
+                velopayStatus: 'waiting_payment',
+                pixQrCodeUrl: qrCodeResponse.imagemQrcode,
+                pixCopiaECola: qrCodeResponse.qrcode
             }, { merge: true });
 
-            return res.status(200).json(mockEfiResponse);
+            console.log('✅ [VeloPay Real] Pix Gerado com Sucesso!');
+            return res.status(200).json({ success: true, txid: cobResponse.txid });
 
         } catch (error) {
-            console.error('❌ Erro VeloPay Pix:', error);
-            return res.status(500).json({ error: 'Erro interno ao gerar cobrança VeloPay.' });
+            console.error('❌ Erro VeloPay Pix Real:', error);
+            return res.status(500).json({ error: 'Erro interno ao comunicar com a Efí.' });
         }
     }
 
