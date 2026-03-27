@@ -2131,25 +2131,37 @@ if (window.fbq) {
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                           <div>
                             <div className="grid grid-cols-2 gap-2 mt-2">
-                              {(() => {
-                                // Puxa as regras configuradas pelo lojista (se não existir, o padrão é tudo true)
+                             {(() => {
+                                // Puxa as regras configuradas pelo lojista
                                 const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                 
-                                // Verifica se tem gateway (Stripe ou Mercado Pago) conectado
-                                const hasGateway = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
+                                // Verifica gateways conectadas
+                                const hasVeloPay = storeSettings?.velopayStatus === 'active';
+                                const hasStripeOrMP = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
+                                const hasGateway = hasVeloPay || hasStripeOrMP;
 
                                 // Cria a lista base de todos os métodos possíveis
                                 let allMethods = [
-                                    { id: 'online', name: 'PAGAR NO APP', icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false },
-                                    { id: 'offline_pix', name: 'PIX (CHAVE DA LOJA)', icon: <QrCode size={20}/>, showIf: pmConfig.pix !== false },
+                                    { id: 'velopay_pix', name: 'PIX NATIVO VELO', icon: <QrCode size={20}/>, showIf: hasVeloPay && pmConfig.online !== false, isPremium: true },
+                                    { id: 'online', name: 'CARTÃO DE CRÉDITO', icon: <CreditCard size={20}/>, showIf: hasStripeOrMP && pmConfig.online !== false },
+                                    { id: 'offline_pix', name: 'PIX (CHAVE DA LOJA)', icon: <QrCode size={20}/>, showIf: !hasVeloPay && pmConfig.pix !== false },
                                     { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: pmConfig.cardDelivery !== false },
                                     { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: pmConfig.cashDelivery !== false },
                                 ];
 
-                                // Filtra apenas os métodos que têm permissão (showIf = true)
                                 return allMethods.filter(m => m.showIf).map(m => (
-                                  <button key={m.id} onClick={() => setCustomer({...customer, payment: m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment === m.id ? `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}` : 'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                                      {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center leading-tight px-1">{m.name}</span>
+                                  <button 
+                                      key={m.id} 
+                                      onClick={() => setCustomer({...customer, payment: m.id})} 
+                                      className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all relative overflow-hidden ${
+                                          customer.payment === m.id 
+                                            ? (m.isPremium ? 'bg-blue-600 border-blue-600 text-white shadow-md' : `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`) 
+                                            : (m.isPremium ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100' : 'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100')
+                                      }`}
+                                  >
+                                      {m.isPremium && <div className="absolute -top-6 -right-6 w-12 h-12 bg-white/20 rounded-full blur-md pointer-events-none"></div>}
+                                      {m.icon} 
+                                      <span className="text-[9px] font-black uppercase mt-1 text-center leading-tight px-1 z-10">{m.name}</span>
                                   </button>
                                 ));
                               })()}
