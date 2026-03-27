@@ -311,10 +311,28 @@ export default async function handler(req, res) {
             }
 
             if (feedType === 'service') {
-                const serviceFeed = { data: [{ "@type": "Service", "serviceId": `srv_delivery_${storeId}`, "merchantId": storeId, "serviceType": "DELIVERY" }] };
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                return res.status(200).send(JSON.stringify(serviceFeed));
-            }
+                // Monta o link dinâmico da loja baseado no padrão do Velo
+                // Ex: https://csi.velodelivery.com.br
+                const storeUrl = `https://${storeId}.velodelivery.com.br`; 
+
+                const serviceFeed = { 
+                    data: [{ 
+                        "@type": "Service", 
+                        "serviceId": `srv_delivery_${storeId}`, 
+                        "merchantId": storeId, 
+                        "serviceType": "DELIVERY",
+                        // --- INÍCIO: AJUSTE PLANO B (REDIRECT) ---
+                        // Dita para o Google enviar o cliente para o site da loja, não para o checkout nativo.
+                        "orderUrl": { 
+                            "@type": "OrderUrl", 
+                            "url": storeUrl // Redireciona para o site oficial (ex: https://csi.velodelivery.com.br)
+                        }
+                        // --- FIM: AJUSTE PLANO B (REDIRECT) ---
+                    }] 
+                };
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                return res.status(200).send(JSON.stringify(serviceFeed));
+            }
 
             const productsSnapshot = await db.collection('products').where('storeId', '==', storeId).get();
             let googleOrderFeed = { data: [] };
