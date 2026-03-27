@@ -2084,20 +2084,28 @@ if (window.fbq) {
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                           <div>
                             <div className="grid grid-cols-2 gap-2 mt-2">
-                              {((storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken) ?[ 
-                                {id:'pix', name:'PIX ONLINE', icon: <QrCode size={20}/>}, 
-                                {id:'cartao', name:'CARTÃO ONLINE', icon: <CreditCard size={20}/>}, 
-                                {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}, 
-                                {id:'offline_credit_card', name:'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>} 
-                              ] :[
-                                {id:'offline_pix', name:'PIX (NA ENTREGA)', icon: <QrCode size={20}/>}, 
-                                {id:'offline_credit_card', name:'CARTÃO (MAQUININHA)', icon: <CreditCard size={20}/>}, 
-                                {id:'dinheiro', name:'DINHEIRO', icon: <Banknote size={20}/>}
-                              ]).map(m => (
+                              {(() => {
+                                // Puxa as regras configuradas pelo lojista (se não existir, o padrão é tudo true)
+                                const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                
+                                // Verifica se tem gateway (Stripe ou Mercado Pago) conectado
+                                const hasGateway = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
+
+                                // Cria a lista base de todos os métodos possíveis
+                                let allMethods = [
+                                    { id: 'online', name: 'PAGAR NO APP', icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false },
+                                    { id: 'offline_pix', name: 'PIX (CHAVE DA LOJA)', icon: <QrCode size={20}/>, showIf: pmConfig.pix !== false },
+                                    { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: pmConfig.cardDelivery !== false },
+                                    { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: pmConfig.cashDelivery !== false },
+                                ];
+
+                                // Filtra apenas os métodos que têm permissão (showIf = true)
+                                return allMethods.filter(m => m.showIf).map(m => (
                                   <button key={m.id} onClick={() => setCustomer({...customer, payment: m.id})} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${customer.payment === m.id ? `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}` : 'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                                      {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center">{m.name}</span>
+                                      {m.icon} <span className="text-[9px] font-black uppercase mt-1 text-center leading-tight px-1">{m.name}</span>
                                   </button>
-                              ))}
+                                ));
+                              })()}
                             </div>
                             {customer.payment === 'dinheiro' && (
                                 <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
