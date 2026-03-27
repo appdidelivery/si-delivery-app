@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2 } from 'lucide-react';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -23,19 +23,38 @@ export default function AdminChat() {
     const [customersData, setCustomersData] = useState({});
     const [contactForm, setContactForm] = useState({ name: '', email: '', notes: '' });
 
-    // --- NOVO: BUSCA OS CONTATOS SALVOS MANUALMENTE (CRM) ---
-    useEffect(() => {
-        if (!storeId) return;
-        const q = query(collection(db, 'customers'), where('storeId', '==', storeId));
-        const unsub = onSnapshot(q, (snapshot) => {
-            const data = {};
-            snapshot.forEach(doc => {
-                data[doc.data().phone] = doc.data();
+    // --- ESTADOS DO PERFIL DA LOJA (ESTILO WPP WEB) ---
+    const [showStoreProfile, setShowStoreProfile] = useState(false);
+    const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+    const [storeProfileForm, setStoreProfileForm] = useState({
+        description: store?.slogan || 'Atendimento automatizado',
+        address: store?.address || '',
+        email: store?.ownerEmail || '',
+        website: `https://${storeId}.velodelivery.com.br`
+    });
+
+    const handleUpdateStoreProfile = async () => {
+        setIsUpdatingProfile(true);
+        try {
+            const res = await fetch('/api/whatsapp-send', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'update_profile', 
+                    storeId: storeId,
+                    ...storeProfileForm
+                })
             });
-            setCustomersData(data);
-        });
-        return () => unsub();
-    }, [storeId]);
+            if(res.ok) {
+                alert("✅ Perfil Comercial atualizado no WhatsApp!");
+            } else {
+                alert("❌ Erro ao atualizar perfil. Verifique as credenciais.");
+            }
+        } catch(e) {
+            alert("Erro de conexão com o servidor.");
+        } finally {
+            setIsUpdatingProfile(false);
+        }
+    };
     
     // --- ESTADOS PARA ÁUDIO E ARQUIVOS ---
     const [isRecording, setIsRecording] = useState(false);
@@ -369,14 +388,100 @@ export default function AdminChat() {
     return (
         <div className="flex h-[750px] border border-slate-200 rounded-2xl bg-[#f0f2f5] overflow-hidden shadow-lg">
             {/* Sidebar: Lista de Contatos */}
-            <div className="w-[35%] max-w-[400px] min-w-[300px] border-r border-gray-200 bg-white flex flex-col">
-                {/* Header Sidebar */}
+            <div className="w-[35%] max-w-[400px] min-w-[300px] border-r border-gray-200 bg-white flex flex-col relative overflow-hidden">
+                
+                {/* Header Sidebar (Gatilhos) */}
                 <div className="h-16 px-4 bg-[#f0f2f5] flex items-center justify-between border-b border-gray-200 shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white overflow-hidden">
-                        <User size={24} />
+                    <div 
+                        className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setShowStoreProfile(true)}
+                        title="Editar Perfil da Loja"
+                    >
+                        {store?.storeLogoUrl ? <img src={store.storeLogoUrl} className="w-full h-full object-cover" /> : <Store size={20} />}
                     </div>
-                    <div className="flex items-center gap-4 text-gray-500">
-                        <MoreVertical size={20} className="cursor-pointer" />
+                    <div className="flex items-center gap-2 text-gray-500">
+                        <button onClick={() => setShowStoreProfile(true)} className="p-2 hover:bg-gray-200 rounded-full transition-colors" title="Configurações do Perfil">
+                            <MoreVertical size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* --- MENU DESLIZANTE: PERFIL DA LOJA (WPP WEB STYLE) --- */}
+                <div className={`absolute inset-0 bg-[#f0f2f5] z-30 flex flex-col transition-transform duration-300 ${showStoreProfile ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <div className="h-28 bg-[#008069] text-white flex items-end px-6 pb-4 shrink-0 shadow-md gap-6">
+                        <button onClick={() => setShowStoreProfile(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors mb-1">
+                            <ArrowLeft size={24} />
+                        </button>
+                        <h2 className="text-xl font-bold">Perfil Comercial</h2>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#f0f2f5]">
+                        <div className="bg-white p-6 flex flex-col items-center justify-center shadow-sm mb-2">
+                            <div 
+                                className="w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 overflow-hidden mb-4 relative group cursor-pointer shadow-md" 
+                                onClick={() => window.open('https://business.facebook.com/wa/manage/phone-numbers/', '_blank')}
+                            >
+                                {store?.storeLogoUrl ? <img src={store.storeLogoUrl} className="w-full h-full object-cover" /> : <Store size={64} />}
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="text-white text-xs font-bold text-center px-2">MUDAR FOTO<br/>NA META</span>
+                                </div>
+                            </div>
+                            <h3 className="font-black text-xl text-slate-800">{store?.name || 'Sua Loja'}</h3>
+                        </div>
+
+                        <div className="bg-white p-5 shadow-sm mb-2 space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-[#008069] mb-1 block">Recado / Slogan</label>
+                                <textarea 
+                                    rows="2"
+                                    className="w-full border-b-2 border-gray-200 focus:border-[#008069] outline-none text-sm text-gray-700 resize-none py-1 bg-transparent transition-colors"
+                                    value={storeProfileForm.description}
+                                    onChange={(e) => setStoreProfileForm({...storeProfileForm, description: e.target.value})}
+                                    placeholder="Ex: Atendimento das 18h às 23h"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-[#008069] mb-1 block">Endereço</label>
+                                <input 
+                                    type="text"
+                                    className="w-full border-b-2 border-gray-200 focus:border-[#008069] outline-none text-sm text-gray-700 py-1 bg-transparent transition-colors"
+                                    value={storeProfileForm.address}
+                                    onChange={(e) => setStoreProfileForm({...storeProfileForm, address: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-[#008069] mb-1 block">E-mail de Contato</label>
+                                <input 
+                                    type="email"
+                                    className="w-full border-b-2 border-gray-200 focus:border-[#008069] outline-none text-sm text-gray-700 py-1 bg-transparent transition-colors"
+                                    value={storeProfileForm.email}
+                                    onChange={(e) => setStoreProfileForm({...storeProfileForm, email: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-[#008069] mb-1 block">Site</label>
+                                <input 
+                                    type="text"
+                                    className="w-full border-b-2 border-gray-200 focus:border-[#008069] outline-none text-sm text-gray-700 py-1 bg-transparent transition-colors"
+                                    value={storeProfileForm.website}
+                                    onChange={(e) => setStoreProfileForm({...storeProfileForm, website: e.target.value})}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            <button 
+                                onClick={handleUpdateStoreProfile}
+                                disabled={isUpdatingProfile}
+                                className="w-full bg-[#008069] text-white py-3.5 rounded-full font-bold uppercase tracking-widest text-xs shadow-md hover:bg-[#016d5a] transition-all flex items-center justify-center gap-2 disabled:opacity-70 active:scale-95"
+                            >
+                                {isUpdatingProfile ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                {isUpdatingProfile ? 'Salvando...' : 'Salvar Perfil'}
+                            </button>
+                            <p className="text-center text-[10px] text-gray-400 mt-4">
+                                O nome da empresa e a foto oficial devem ser alterados diretamente no portal da Meta por questões de segurança.
+                            </p>
+                        </div>
                     </div>
                 </div>
                 
