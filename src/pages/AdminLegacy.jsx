@@ -2453,20 +2453,44 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 )}
                                 
-                                <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none cursor-pointer outline-none focus:ring-2 ring-blue-500 text-slate-700 shadow-inner" value={manualCustomer.payment} onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}>
-                                    <option value="pix">
-                                        PIX (Chave da Loja)
-                                    </option>
-                                    <option value="cartao">
-                                        {manualCustomer.deliveryMethod === 'delivery' ? '💳 Cartão (Levar Maquininha com Motoboy)' : '💳 Cartão (Maquininha no Balcão)'}
-                                    </option>
-                                    <option value="dinheiro">
-                                        {manualCustomer.deliveryMethod === 'delivery' ? '💵 Dinheiro (Pagar na Entrega)' : '💵 Dinheiro (Pagar no Caixa)'}
-                                    </option>
-                                    {settings?.integrations?.mercadopago?.accessToken && (
-                                        <option value="link_mp">🔗 Enviar Link Mercado Pago (WhatsApp)</option>
-                                    )}
-                                </select>
+                                {(() => {
+                                    // 1. Puxa as regras de pagamento do banco (ou assume tudo ligado como padrão)
+                                    const pmConfig = storeStatus.acceptedPayments || { pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                    // 2. Verifica se a chave lá em cima está marcada como "Entrega" ou "Balcão"
+                                    const isDelivery = manualCustomer.deliveryMethod === 'delivery';
+
+                                    return (
+                                        <select 
+                                            className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none cursor-pointer outline-none focus:ring-2 ring-blue-500 text-slate-700 shadow-inner" 
+                                            value={manualCustomer.payment} 
+                                            onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
+                                        >
+                                            {/* Opção PIX (Geral para ambos os métodos manuais) */}
+                                            {pmConfig.pix !== false && (
+                                                <option value="pix">💠 PIX (Chave da Loja)</option>
+                                            )}
+
+                                            {/* Lógica se estiver marcado como ENTREGA */}
+                                            {isDelivery ? (
+                                                <>
+                                                    {pmConfig.cardDelivery !== false && <option value="cartao">💳 Cartão (Levar Maquininha com Motoboy)</option>}
+                                                    {pmConfig.cashDelivery !== false && <option value="dinheiro">💵 Dinheiro (Pagar na Entrega)</option>}
+                                                </>
+                                            ) : (
+                                            /* Lógica se estiver marcado como BALCÃO / RETIRADA */
+                                                <>
+                                                    {pmConfig.cardPickup !== false && <option value="cartao">💳 Cartão (Maquininha no Balcão)</option>}
+                                                    {pmConfig.cashPickup !== false && <option value="dinheiro">💵 Dinheiro (Pagar no Caixa)</option>}
+                                                </>
+                                            )}
+
+                                            {/* Link do Mercado Pago via WhatsApp (Sempre aparece se tiver a integração) */}
+                                            {settings?.integrations?.mercadopago?.accessToken && (
+                                                <option value="link_mp">🔗 Enviar Link Mercado Pago (WhatsApp)</option>
+                                            )}
+                                        </select>
+                                    );
+                                })()}
                                 
                                 {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
                                 
