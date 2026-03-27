@@ -182,15 +182,42 @@ export default function AdminChat() {
         }
     };
 
-    // Helper para o nome do cliente (Prioridade: 1. Agenda CRM, 2. Pedidos, 3. Nome do WhatsApp)
+    // Helper para o nome do cliente (Blindado)
     const getDisplayName = (phone) => {
-        return customersData[phone]?.name || addressBook[phone] || chats[phone]?.pushName || `+${phone}`;
+        // 1º Prioridade: O nome salvo manualmente pelo lojista no CRM
+        const crmName = customersData[phone]?.name;
+        if (crmName && crmName.trim() !== '') return crmName;
+        
+        // 2º Prioridade: O nome que o cliente digitou no site ao fazer um pedido
+        const addressBookName = addressBook[phone];
+        if (addressBookName && addressBookName.trim() !== '') return addressBookName;
+
+        // 3º Prioridade: O nome público do perfil do WhatsApp do cliente
+        const pushName = chats[phone]?.pushName;
+        if (pushName && pushName.trim() !== '') return pushName;
+
+        // 4º Falback: Se não tiver nada, mostra o número
+        return `+${phone}`;
     };
 
-    // Função para salvar dados do cliente no banco
+   // Função para salvar dados do cliente no banco (Com Atualização Otimista)
     const handleSaveCustomer = async () => {
         if (!activeChat || !storeId) return;
+        
+        // 1. Atualiza a tela NA HORA (Optimistic Update) para o lojista não ter que esperar o banco
+        setCustomersData(prev => ({
+            ...prev,
+            [activeChat]: {
+                ...prev[activeChat],
+                phone: activeChat,
+                name: contactForm.name,
+                email: contactForm.email,
+                notes: contactForm.notes
+            }
+        }));
+
         try {
+            // 2. Salva no banco de dados em background
             await setDoc(doc(db, 'customers', `${storeId}_${activeChat}`), {
                 storeId: storeId,
                 phone: activeChat,
@@ -202,7 +229,7 @@ export default function AdminChat() {
             alert("✅ Dados do cliente salvos com sucesso!");
         } catch (e) {
             console.error("Erro ao salvar cliente:", e);
-            alert("Erro ao salvar os dados do contato.");
+            alert("Erro ao salvar os dados do contato. Verifique sua conexão.");
         }
     };
 // --- FUNÇÕES DE MÍDIA (ÁUDIO E IMAGEM) ---
