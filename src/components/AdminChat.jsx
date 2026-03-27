@@ -192,7 +192,7 @@ export default function AdminChat() {
         const addressBookName = addressBook[phone];
         if (addressBookName && addressBookName.trim() !== '') return addressBookName;
 
-        // 3º Prioridade: O nome público do perfil do WhatsApp do cliente
+        // 3º Prioridade: O nome público do perfil do WhatsApp att do cliente
         const pushName = chats[phone]?.pushName;
         if (pushName && pushName.trim() !== '') return pushName;
 
