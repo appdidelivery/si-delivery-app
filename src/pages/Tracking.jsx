@@ -151,11 +151,17 @@ export default function Tracking() {
                 </p>
 
                 <div className="bg-white p-4 rounded-[2rem] border-4 border-slate-100 shadow-inner inline-block mb-6 relative">
-                    <img 
-                        src={order.pixQrCodeUrl} 
-                        alt="QR Code Pix" 
-                        className="w-48 h-48 object-contain"
-                    />
+                    {order.pixQrCodeUrl ? (
+                        <img 
+                            src={order.pixQrCodeUrl.startsWith('http') || order.pixQrCodeUrl.startsWith('data:') ? order.pixQrCodeUrl : `data:image/png;base64,${order.pixQrCodeUrl}`} 
+                            alt="QR Code Pix" 
+                            className="w-48 h-48 object-contain"
+                        />
+                    ) : (
+                        <div className="w-48 h-48 flex items-center justify-center bg-slate-50 rounded-2xl animate-pulse">
+                            <Loader2 className="animate-spin text-slate-300" size={32} />
+                        </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent pointer-events-none"></div>
                 </div>
 
@@ -167,6 +173,7 @@ export default function Tracking() {
                 <button 
                     onClick={async () => {
                         try {
+                            // Usa a variável real que veio do Firebase (originada da Efí)
                             await navigator.clipboard.writeText(order.pixCopiaECola);
                             setCopiedText(true);
                             setTimeout(() => setCopiedText(false), 3000);
