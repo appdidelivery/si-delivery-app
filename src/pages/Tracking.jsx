@@ -152,7 +152,7 @@ export default function Tracking() {
 
                 <div className="bg-white p-4 rounded-[2rem] border-4 border-slate-100 shadow-inner inline-block mb-6 relative">
                     <img 
-                        src="https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B" 
+                        src={order.pixQrCodeUrl} 
                         alt="QR Code Pix" 
                         className="w-48 h-48 object-contain"
                     />
@@ -166,9 +166,8 @@ export default function Tracking() {
 
                 <button 
                     onClick={async () => {
-                        const mockPayloadPix = "00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426655440000520400005303986540510.005802BR5913Velo Delivery6009Sao Paulo62070503***63041A2B";
                         try {
-                            await navigator.clipboard.writeText(mockPayloadPix);
+                            await navigator.clipboard.writeText(order.pixCopiaECola);
                             setCopiedText(true);
                             setTimeout(() => setCopiedText(false), 3000);
                         } catch(e) {

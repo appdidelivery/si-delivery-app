@@ -1,5 +1,7 @@
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
+import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
+import path from 'path'; // <-- ADICIONADO AQUI
 // Ajuste o caminho se a pasta lib for diferente!
 import { sendWhatsAppNotification } from '../lib/evolution.js';
 
