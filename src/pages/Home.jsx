@@ -1382,9 +1382,13 @@ if (window.fbq) {
       // ======================================================================
       if (['cartao', 'pix', 'online', 'velopay_pix'].includes(customer.payment)) {
           
-          // 1. Prioridade Máxima: Se escolheu Pix Nativo do VeloPay
+         // 1. Prioridade Máxima: Se escolheu Pix Nativo do VeloPay
           if (customer.payment === 'velopay_pix') {
               try {
+                  // 🚨 CORREÇÃO: Salva a base do pedido ANTES de chamar a Vercel, 
+                  // assim a Vercel pode injetar o QR Code sem ser apagada depois!
+                  await setDoc(newOrderRef, { ...orderData, velopayStatus: 'processing' });
+
                   const response = await fetch('/api/velopay-pix', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -1401,14 +1405,11 @@ if (window.fbq) {
                       throw new Error(data.error || "Erro ao gerar Pix Nativo");
                   }
 
-                  // Salva os dados brutos da intenção no Firebase para a tela de Acompanhamento puxar o QR Code
-                  await setDoc(newOrderRef, { ...orderData, paymentIntentId: data.txid, velopayStatus: 'waiting_payment' });
-
+                  // Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
                   setCart([]); setShowCheckout(false);
                   
-                  // Redireciona para a tela de acompanhamento (onde faremos o QR Code aparecer)
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
 
