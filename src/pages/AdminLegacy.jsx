@@ -1565,12 +1565,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
     
-   // --- NOVA LÓGICA DE UX PARA SEO / LOGÍSTICA ---
+  // --- NOVA LÓGICA DE UX PARA SEO / LOGÍSTICA ---
     const isFoodCategory = (categoryName) => {
         if (!categoryName) return true; 
         const convenienceKeywords =['bebida', 'bebidas', 'energético', 'energetico', 'cerveja', 'cervejas', 'chopp', 'destilado', 'destilados', 'vodka', 'gin', 'água', 'agua', 'suco', 'sucos', 'refrigerante', 'snack', 'snacks', 'bomboniere', 'conveniência', 'conveniencia', 'gelo', 'tabacaria', 'cigarro', 'vape', 'doce', 'doces', 'chocolate', 'padaria', 'mercado', 'empório', 'adega'];
         const normalizedCategory = categoryName.toLowerCase().trim();
         return !convenienceKeywords.some(keyword => normalizedCategory.includes(keyword));
+    };
+
+    // --- NOVA LÓGICA DE BADGES (BOLINHAS DE NOTIFICAÇÃO) ---
+    const getBadgeCount = (menuId) => {
+        switch (menuId) {
+            case 'orders':
+                // Bolinha de Novos Pedidos (Pendentes)
+                return orders.filter(o => o.status === 'pending').length;
+            case 'abandoned':
+                // Bolinha de Carrinhos Abandonados
+                return abandonedCarts.length;
+            case 'customers':
+                // Bolinha de Missões/Avaliações Pendentes
+                return vipMissions.filter(m => m.status === 'pending').length;
+            case 'products':
+                // Bolinha de Estoque Crítico
+                return products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length;
+            default:
+                return 0;
+        }
     };
 
     return (
@@ -1582,11 +1602,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
                 <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
-                    {allNavItems.map(item => (
-                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-                                {item.icon} {item.name}
+                    {allNavItems.map(item => {
+                        const badgeCount = getBadgeCount(item.id);
+                        return (
+                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
+                                <div className="flex items-center gap-3">
+                                    {item.icon} {item.name}
+                                </div>
+                                {badgeCount > 0 && (
+                                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md">
+                                        {badgeCount > 99 ? '99+' : badgeCount}
+                                    </span>
+                                )}
                             </button>
-                        ))}
+                        );
+                    })}
                 </nav>
                 {/* Versão do App na barra lateral do desktop */}
                 {/* Versão do App na barra lateral do desktop */}
@@ -3900,12 +3930,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </button>
                 </div>
                 {/* Botões de Navegação */}
-                <div className="flex justify-around overflow-x-auto whitespace-nowrap p-2">
-                    {allNavItems.map(item => (
-                        <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center px-2 py-1 rounded-lg flex-shrink-0 ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
-                            {item.mobileIcon} <span className="text-[10px] font-bold">{item.name}</span>
-                        </button>
-                    ))}
+                <div className="flex justify-around overflow-x-auto whitespace-nowrap p-2 gap-2">
+                    {allNavItems.map(item => {
+                        const badgeCount = getBadgeCount(item.id);
+                        return (
+                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center relative px-3 py-1 rounded-lg flex-shrink-0 ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
+                                <div className="relative">
+                                    {item.mobileIcon}
+                                    {badgeCount > 0 && (
+                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black border border-white animate-pulse">
+                                            {badgeCount > 99 ? '99+' : badgeCount}
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-[9px] font-bold mt-1">{item.name}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </nav>
 
