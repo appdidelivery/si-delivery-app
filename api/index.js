@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
-import path from 'path'; // <-- ADICIONADO AQUI
+import pathModule from 'path';
 // Ajuste o caminho se a pasta lib for diferente!
 import { sendWhatsAppNotification } from '../lib/evolution.js';
 
@@ -1257,11 +1257,11 @@ export default async function handler(req, res) {
             // ====================================================================
             // INTEGRAÇÃO REAL COM A EFÍ BANK
             // ====================================================================
-            const efiOptions = {
+           const efiOptions = {
                 sandbox: false, // Modo Produção
                 client_id: process.env.EFI_CLIENT_ID,
                 client_secret: process.env.EFI_CLIENT_SECRET,
-                pix_cert: path.join(process.cwd(), 'api', 'certs', 'certificado-producao.p12') 
+                pix_cert: pathModule.join(process.cwd(), 'api', 'certs', 'certificado-producao.p12') 
             };
 
             const gerencianet = new Gerencianet(efiOptions);
