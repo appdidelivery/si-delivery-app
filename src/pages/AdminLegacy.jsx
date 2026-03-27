@@ -5218,6 +5218,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         </div>
                                                         <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoLoyalty || false} onChange={e => setIntegrationForm({...integrationForm, autoLoyalty: e.target.checked})} />
                                                     </label>
+
+                                                    {/* Mensagem de Ausência (Fora do Horário) */}
+                                                    <label className="flex items-center justify-between cursor-pointer pt-3 border-t border-slate-200">
+                                                        <div className="pr-4">
+                                                            <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><Clock size={12} className="text-orange-500"/> Mensagem de Ausência</p>
+                                                            <p className="text-[9px] text-slate-500 leading-tight mt-1">Responde sozinho quando a loja está fechada.</p>
+                                                        </div>
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoAwayMessage || false} onChange={e => setIntegrationForm({...integrationForm, autoAwayMessage: e.target.checked})} />
+                                                    </label>
+
+                                                    {integrationForm.autoAwayMessage && (
+                                                        <div className="space-y-3 animate-in fade-in pt-2 pb-2">
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Texto de Loja Fechada</label>
+                                                                <textarea rows="2" placeholder="Ex: Olá! No momento estamos fechados. Nosso horário de atendimento é..." className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none focus:ring-2 ring-blue-500" value={integrationForm.awayMessageText || ''} onChange={e => setIntegrationForm({...integrationForm, awayMessageText: e.target.value})} />
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Chatbot */}

@@ -668,39 +668,48 @@ export default async function handler(req, res) {
                                         botPaused = sessionSnap.data().botPaused || false;
                                     }
 
-                                    // 3. LÓGICA DO BOT (Só executa se token existe, bot ativado na loja E bot NÃO estiver pausado)
-                                    // CORREÇÃO AQUI: Previne crash caso settingsSnap retorne vazio
+                                    // 3. LÓGICA DO BOT (Menu e Mensagem de Ausência)
                                     let waSettings = {};
                                     if (!settingsSnap.empty) {
                                         waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
                                     }
                                     
-                                    if (apiToken && waSettings.botEnabled && !botPaused) {
+                                    if (apiToken && !botPaused) {
                                         const incomingText = messageText.trim().toLowerCase();
                                         let replyText = "";
+                                        let shouldRespond = false;
 
-                                        // Textos personalizados pelo lojista (com fallbacks se ele deixar em branco)
-                                        const greeting = waSettings.botGreeting || "Olá! 👋 Sou o assistente virtual da loja.\n\nComo posso te ajudar hoje?\n*Digite o número da opção desejada:*";
-                                        const opt1 = waSettings.botOption1 || "Fazer um Pedido (Ver Cardápio)";
-                                        const opt2 = waSettings.botOption2 || "Falar com um Atendente";
+                                        // Busca o documento da Loja para saber se está Aberta ou Fechada
+                                        const storeDoc = await db.collection('stores').doc(storeId).get();
+                                        const isStoreOpen = storeDoc.exists ? (storeDoc.data().isOpen !== false) : true;
 
-                                       // Árvore de decisão
-                                        if (incomingText === "1") {
-                                            replyText = `Acesse nosso cardápio digital e faça seu pedido rapidinho por aqui:\n\n👉 ${storeDomain}`;
-                                        } else if (incomingText === "2") {
-                                            replyText = "Certo! Já chamei um de nossos atendentes. Por favor, aguarde um instante que já vamos te responder por aqui mesmo.";
-                                            
-                                            // 🚨 TRANBORDO PARA HUMANO: Pausa o bot para este cliente
-                                            await sessionRef.set({
-                                                storeId: storeId,
-                                                phone: message.from,
-                                                botPaused: true,
-                                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                            }, { merge: true });
+                                        // REGRA 1: LOJA FECHADA (Mensagem de Ausência)
+                                        if (!isStoreOpen && waSettings.autoAwayMessage) {
+                                            replyText = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
+                                            shouldRespond = true;
+                                        } 
+                                        // REGRA 2: LOJA ABERTA E BOT DE MENU ATIVO
+                                        else if (isStoreOpen && waSettings.botEnabled) {
+                                            const greeting = waSettings.botGreeting || "Olá! 👋 Sou o assistente virtual da loja.\n\nComo posso te ajudar hoje?\n*Digite o número da opção desejada:*";
+                                            const opt1 = waSettings.botOption1 || "Fazer um Pedido (Ver Cardápio)";
+                                            const opt2 = waSettings.botOption2 || "Falar com um Atendente";
 
-                                        } else {
-                                            // Monta o menu dinâmico
-                                            replyText = `${greeting}\n\n*1* - ${opt1}\n*2* - ${opt2}`;
+                                            if (incomingText === "1") {
+                                                replyText = `Acesse nosso cardápio digital e faça seu pedido rapidinho por aqui:\n\n👉 ${storeDomain}`;
+                                            } else if (incomingText === "2") {
+                                                replyText = "Certo! Já chamei um de nossos atendentes. Por favor, aguarde um instante que já vamos te responder por aqui mesmo.";
+                                                
+                                                await sessionRef.set({
+                                                    storeId: storeId,
+                                                    phone: message.from,
+                                                    botPaused: true,
+                                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                }, { merge: true });
+
+                                            } else {
+                                                replyText = `${greeting}\n\n*1* - ${opt1}\n*2* - ${opt2}`;
+                                            }
+                                            shouldRespond = true;
                                         }
 
                                         // 4. Dispara a resposta automática usando o token específico da loja
