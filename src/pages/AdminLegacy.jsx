@@ -3212,7 +3212,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { id: 'pix', label: '💠 PIX Automático (Chave da Loja)' },
+                                    { id: 'online', label: '🌐 Pagamento Online no App (Cartão/Pix Rápido)' },
+                                    { id: 'pix', label: '💠 PIX Manual (Copia e Cola da Loja)' },
                                     { id: 'cardDelivery', label: '💳 Cartão na Entrega (Motoboy)' },
                                     { id: 'cashDelivery', label: '💵 Dinheiro na Entrega (Motoboy)' },
                                     { id: 'cardPickup', label: '💳 Cartão na Retirada (Balcão)' },
@@ -3229,7 +3230,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     checked={isActive} 
                                                     onChange={async (e) => {
                                                         // Puxa as regras atuais ou usa o padrão tudo ligado
-                                                        const currentPayments = storeStatus.acceptedPayments || { pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                                        const currentPayments = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                                         const newPayments = { ...currentPayments, [pm.id]: e.target.checked };
                                                         
                                                         // Atualiza Tela
