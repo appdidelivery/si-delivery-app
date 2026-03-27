@@ -1866,9 +1866,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     const firstName = cart.customerName ? cart.customerName.split(' ')[0] : 'Cliente';
                                     
+                                  // Identifica se a loja é de bebidas (default/drinks) ou comida
+                                    const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
+                                    const gatilhoDesejo = isBebida ? 'Bateu aquela sede? 🍻' : 'Bateu aquela fome? 🍔';
+
                                     const msg30min = `Olá ${firstName}! Tudo bem? Vi que você começou um pedido na *${storeStatus.name}* mas não finalizou. Aconteceu algum erro no site ou faltou alguma coisa? Se precisar de ajuda, estou por aqui! 😊`;
                                     
-                                    const msg1hora = `Oi ${firstName}! Bateu aquela fome? 🍔 Vi que seu carrinho está te esperando. Finalize seu pedido agora e ganhe 5% OFF usando o cupom *VOLTA5*! \n👉 https://${storeId}.velodelivery.com.br`;
+                                    const msg1hora = `Oi ${firstName}! ${gatilhoDesejo} Vi que seu carrinho na *${storeStatus.name}* está te esperando. Finalize seu pedido agora e ganhe 5% OFF usando o cupom *VOLTA5*! \n👉 https://${storeId}.velodelivery.com.br`;
                                     
                                     const msg24horas = `Última chance, ${firstName}! 🚨 Seu carrinho na *${storeStatus.name}* vai expirar. Para fechar agora, criamos um cupom muito especial pra você com 10% OFF, use: *VOLTA10* no app. Aproveite! \n👉 https://${storeId}.velodelivery.com.br`;
 

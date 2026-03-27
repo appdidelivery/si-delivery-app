@@ -2601,7 +2601,34 @@ if (window.fbq) {
                           <ExternalLink size={16}/> Abrir Página do Google
                       </a>
                   )}
-                  <button onClick={() => { navigator.clipboard.writeText("Excelente atendimento e qualidade! Recomendo muito a loja."); alert("Texto copiado!"); }} className="w-full flex justify-center items-center gap-2 bg-slate-100 text-slate-700 p-4 rounded-2xl font-black text-xs uppercase hover:bg-slate-200">
+                  <button onClick={() => { 
+                      // 1. Puxa os dados dinâmicos da loja e do cliente
+                      const lojaNome = storeSettings.name || 'loja';
+                      let produtoNome = 'meu pedido';
+                      
+                      // 2. Tenta descobrir o que ele comprou por último
+                      if (lastOrders && lastOrders.length > 0 && lastOrders[0].items && lastOrders[0].items.length > 0) {
+                          produtoNome = lastOrders[0].items[0].name;
+                      }
+
+                      // 3. Define a característica com base no nicho
+                      const isDrink = ['default', 'drinks'].includes(storeSettings.storeNiche);
+                      const qualidade = isDrink ? 'trincando de gelada' : 'super rápido e quentinho';
+
+                      // 4. Cria um banco de templates de alta conversão para o Google alternar
+                      const templates = [
+                          `Excelente atendimento! Pedi ${produtoNome} na ${lojaNome} e chegou ${qualidade}. Recomendo muito! ⭐️⭐️⭐️⭐️⭐️`,
+                          `A ${lojaNome} é top! O pedido de ${produtoNome} chegou muito rápido e o atendimento foi excelente. Já virei cliente fiel!`,
+                          `Melhor delivery da região! Pedi ${produtoNome} e fiquei impressionado com a agilidade. Recomendo a ${lojaNome} pra todo mundo!`,
+                          `Atendimento excepcional na ${lojaNome}. O ${produtoNome} veio perfeito e a entrega foi super rápida. Recomendo demais!`
+                      ];
+                      
+                      // 5. Sorteia um dos textos aleatoriamente para nunca repetir
+                      const reviewDinamico = templates[Math.floor(Math.random() * templates.length)];
+                      
+                      navigator.clipboard.writeText(reviewDinamico); 
+                      alert("Texto inteligente copiado! Cole no Google para ganhar seus pontos e nos ajudar. 🚀"); 
+                  }} className="w-full flex justify-center items-center gap-2 bg-slate-100 text-slate-700 p-4 rounded-2xl font-black text-xs uppercase hover:bg-slate-200">
                       Copiar Texto Sugerido
                   </button>
                   {missionModal.type === 'google_photo' && lastOrders.length > 0 && lastOrders[0].items[0]?.imageUrl && (
