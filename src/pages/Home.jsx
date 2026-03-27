@@ -338,7 +338,7 @@ export default function Home() {
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const [customer, setCustomer] = useState({
-    name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery'
+    name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery'
   });
   const[showLastOrders, setShowLastOrders] = useState(false);
   const[lastOrders, setLastOrders] = useState([]);
@@ -359,8 +359,9 @@ export default function Home() {
   useEffect(() => {
     const savedCustomer = localStorage.getItem('veloCustomerData');
     if (savedCustomer) {
-      // O "prev =>" garante que o método de pagamento padrão não seja apagado pela memória
-      setCustomer(prev => ({ ...prev, ...JSON.parse(savedCustomer) }));
+      const parsedCustomer = JSON.parse(savedCustomer);
+      delete parsedCustomer.payment; // 🚨 BLINDAGEM: Nunca puxa o pagamento antigo do cache
+      setCustomer(prev => ({ ...prev, ...parsedCustomer, payment: '' }));
     } else {
       const savedPhone = localStorage.getItem('customerPhone');
       if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
