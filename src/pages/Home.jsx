@@ -338,7 +338,7 @@ export default function Home() {
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const [customer, setCustomer] = useState({
-    name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: ''
+    name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery'
   });
   const[showLastOrders, setShowLastOrders] = useState(false);
   const[lastOrders, setLastOrders] = useState([]);
@@ -1167,8 +1167,9 @@ export default function Home() {
   const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
   const freeShippingThreshold = Number(storeSettings.freeShippingThreshold || 0);
   const isFreeShipping = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
-  // Zera o frete automaticamente se o Modo Garçom estiver ativo
-  const finalShippingFee = (isFreeShipping || isWaiterMode) ? 0 : Number(shippingFee || 0);
+  const isPickup = customer.deliveryMethod === 'pickup';
+  // Zera o frete se for Modo Garçom ou Retirada na Loja
+  const finalShippingFee = (isFreeShipping || isWaiterMode || isPickup) ? 0 : Number(shippingFee || 0);
   
   const baseTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
   // Cálculo do Cashback dinâmico: Não pode abater mais do que o total do pedido.
@@ -1221,12 +1222,15 @@ export default function Home() {
         return alert("Por favor, selecione uma forma de pagamento para continuar.");
     }
     
-    // Validação condicional: Garçom x Delivery Padrão
+   // Validação condicional: Garçom x Delivery Padrão x Retirada
+    const isPickup = customer.deliveryMethod === 'pickup';
+    
     if (isWaiterMode) {
         if (!customer.name || !tableNumber) return alert("Preencha o nome do cliente e o número da mesa.");
     } else {
-        if (!customer.name || !customer.email || !customer.cep || !customer.street || !customer.number || !customer.phone) return alert("Preencha todos os dados, incluindo seu e-mail.");
-        if (shippingFee === null) return alert("Frete não calculado.");
+        if (!customer.name || !customer.email || !customer.phone) return alert("Preencha seu nome, email e WhatsApp.");
+        if (!isPickup && (!customer.cep || !customer.street || !customer.number)) return alert("Preencha o endereço de entrega completo.");
+        if (!isPickup && shippingFee === null) return alert("Frete não calculado. Verifique se sua região é atendida.");
         if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
     }
 
@@ -1257,22 +1261,22 @@ export default function Home() {
       // No modo Garçom, força o envio direto e ignora a Stripe para não travar
       const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix'].includes(customer.payment);
 
-      const orderData = {
+     const orderData = {
         customerName: customer.name || "", 
-        customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (fullAddress || ""), 
+        customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
         paymentMethod: customer.payment || "", 
         paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
         items: sanitizedCart,
         subtotal: subtotal || 0, 
-        shippingFee: isWaiterMode ? 0 : (shippingFee || 0), 
+        shippingFee: (isWaiterMode || isPickup) ? 0 : (shippingFee || 0), 
         total: finalTotal || 0, 
         status: 'pending', 
         createdAt: serverTimestamp(),
         storeId: storeId || "",
-        // Adicionando as TAGs para o Modo Garçom:
-        tipo: isWaiterMode ? "local" : "delivery",
+        // Adicionando as TAGs para o Modo Garçom e Retirada:
+        tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
         mesa: isWaiterMode ? tableNumber : null,
         waiterName: isWaiterMode ? waiterName : null,
         // Gamificação Info:
@@ -2082,17 +2086,39 @@ if (window.fbq) {
                         </>
                     ) : (
                         <>
-                            <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
+                           <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
                             <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
-                            <div className="relative">
-                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
-                              {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
+                            
+                            <div className="flex gap-2 mb-3 mt-2">
+                                <button 
+                                    type="button"
+                                    onClick={() => handleCustomerChange('deliveryMethod', 'delivery')}
+                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod !== 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                >
+                                    🛵 Entrega
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => handleCustomerChange('deliveryMethod', 'pickup')}
+                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                >
+                                    🏪 Retirar na Loja
+                                </button>
                             </div>
-                            {customer.street && (
-                              <>
-                                  <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
-                              </>
+
+                            {customer.deliveryMethod !== 'pickup' && (
+                                <div className="animate-in fade-in slide-in-from-top-2">
+                                    <div className="relative">
+                                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
+                                      {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
+                                    </div>
+                                    {customer.street && (
+                                      <>
+                                          <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
+                                          <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
+                                      </>
+                                    )}
+                                </div>
                             )}
                         </>
                     )}
@@ -2174,11 +2200,11 @@ if (window.fbq) {
                   )}
 
                   <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-                     {!isWaiterMode && (
+                    {!isWaiterMode && (
                           <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
                               <span>Frete</span>
-                              <span className={isFreeShipping ? "text-green-600 font-black" : ""}>
-                                  {shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'}
+                              <span className={(isFreeShipping || customer.deliveryMethod === 'pickup') ? "text-green-600 font-black" : ""}>
+                                  {customer.deliveryMethod === 'pickup' ? "GRÁTIS (Retirada)" : (shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--')}
                               </span>
                           </div>
                       )}
