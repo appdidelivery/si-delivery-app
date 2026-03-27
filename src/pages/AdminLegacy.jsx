@@ -3717,20 +3717,52 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                             
                                             {dayConfig.open && (
-                                                <div className="flex items-center gap-2 flex-1 w-full">
-                                                    <input 
-                                                        type="time" 
-                                                        value={dayConfig.start} 
-                                                        onChange={(e) => handleScheduleChange(day.id, 'start', e.target.value)}
-                                                        className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
-                                                    />
-                                                    <span className="font-bold text-slate-300">até</span>
-                                                    <input 
-                                                        type="time" 
-                                                        value={dayConfig.end} 
-                                                        onChange={(e) => handleScheduleChange(day.id, 'end', e.target.value)}
-                                                        className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
-                                                    />
+                                                <div className="flex flex-col gap-2 flex-1 w-full">
+                                                    {/* Primeiro Turno */}
+                                                    <div className="flex items-center gap-2 w-full">
+                                                        <input 
+                                                            type="time" 
+                                                            value={dayConfig.start || ''} 
+                                                            onChange={(e) => handleScheduleChange(day.id, 'start', e.target.value)}
+                                                            className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
+                                                        />
+                                                        <span className="font-bold text-slate-300">até</span>
+                                                        <input 
+                                                            type="time" 
+                                                            value={dayConfig.end || ''} 
+                                                            onChange={(e) => handleScheduleChange(day.id, 'end', e.target.value)}
+                                                            className="p-3 bg-slate-100 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-blue-200"
+                                                        />
+                                                        {/* Botão de Adicionar/Remover 2º Turno */}
+                                                        <button 
+                                                            onClick={() => handleScheduleChange(day.id, 'splitShift', !dayConfig.splitShift)} 
+                                                            className={`p-3 rounded-xl transition-all flex items-center justify-center flex-shrink-0 ${dayConfig.splitShift ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`} 
+                                                            title={dayConfig.splitShift ? "Remover 2º Turno" : "Adicionar 2º Turno (Ex: Almoço e Janta)"}
+                                                        >
+                                                            {dayConfig.splitShift ? <MinusSquare size={18}/> : <PlusSquare size={18}/>}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Segundo Turno (Visível apenas se o botão de + for clicado) */}
+                                                    {dayConfig.splitShift && (
+                                                        <div className="flex items-center gap-2 w-full animate-in fade-in slide-in-from-top-1">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase w-4 text-center">E</span>
+                                                            <input 
+                                                                type="time" 
+                                                                value={dayConfig.start2 || ''} 
+                                                                onChange={(e) => handleScheduleChange(day.id, 'start2', e.target.value)}
+                                                                className="p-3 bg-orange-50 text-orange-700 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-orange-200"
+                                                            />
+                                                            <span className="font-bold text-slate-300">até</span>
+                                                            <input 
+                                                                type="time" 
+                                                                value={dayConfig.end2 || ''} 
+                                                                onChange={(e) => handleScheduleChange(day.id, 'end2', e.target.value)}
+                                                                className="p-3 bg-orange-50 text-orange-700 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-orange-200"
+                                                            />
+                                                            <div className="w-[42px] flex-shrink-0"></div> {/* Espaçador para manter alinhamento simétrico */}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

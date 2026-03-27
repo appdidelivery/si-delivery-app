@@ -879,52 +879,56 @@ export default function Home() {
             const todayConfig = data.schedule[todayDayId];
             const yesterdayConfig = data.schedule[yesterdayDayId];
 
-            let isOpenToday = false;
+           let isOpenToday = false;
             let isOpenFromYesterday = false;
 
-            // 2. VERIFICA O TURNO DE HOJE (Ex: 09:00 às 23:59 ou 18:00 às 04:00 de amanhã)
+            // --- NOVO: MOTOR INTELIGENTE DE CÁLCULO DE TURNOS FRACIONADOS ---
+            const checkShift = (startStr, endStr) => {
+                if (!startStr || !endStr) return { isOpenToday: false, isOvernightFromYesterday: false };
+                const [sH, sM] = startStr.split(':').map(Number);
+                const [eH, eM] = endStr.split(':').map(Number);
+                const sTime = sH * 60 + sM;
+                const eTime = eH * 60 + eM;
+
+                let openToday = false;
+                let overnightYest = false;
+
+                if (eTime <= sTime) { 
+                    // Vira a madrugada (Ex: 18:00 às 04:00)
+                    if (currentTime >= sTime) openToday = true; // Ainda é hoje à noite
+                    if (currentTime < eTime) overnightYest = true; // Já passou da meia-noite
+                } else { 
+                    // Turno Normal no mesmo dia (Ex: 10:00 às 14:00)
+                    if (currentTime >= sTime && currentTime < eTime) openToday = true;
+                }
+                return { openToday, overnightYest };
+            };
+
+            // 2. VERIFICA OS TURNOS DE HOJE
             if (todayConfig && todayConfig.open) {
-                const [openHourToday, openMinuteToday] = (todayConfig.start || '00:00').split(':').map(Number);
-                const [closeHourToday, closeMinuteToday] = (todayConfig.end || '23:59').split(':').map(Number);
+                // Checa o Turno 1
+                const shift1 = checkShift(todayConfig.start || '00:00', todayConfig.end || '23:59');
+                if (shift1.openToday) isOpenToday = true;
                 
-                const openTimeToday = openHourToday * 60 + openMinuteToday;
-                const closeTimeToday = closeHourToday * 60 + closeMinuteToday;
-
-                // Lógica de hoje: Se fechar *antes* de abrir, significa que vira a noite.
-                if (closeTimeToday <= openTimeToday) {
-                    // OVERNIGHT: Para a loja estar aberta HOJE com o turno de HOJE, basta a hora atual ser maior que a hora de abertura.
-                    // (Ex: Abriu 18:00 e vai até 04:00 amanhã. Agora são 21h. 21h >= 18h).
-                    if (currentTime >= openTimeToday) {
-                        isOpenToday = true;
-                    }
-                } else {
-                    // TURNO NORMAL: Abre e fecha no mesmo dia (Ex: 08:00 às 22:00)
-                    if (currentTime >= openTimeToday && currentTime < closeTimeToday) {
-                        isOpenToday = true;
-                    }
+                // Checa o Turno 2 (Se o lojista ativou)
+                if (todayConfig.splitShift) {
+                    const shift2 = checkShift(todayConfig.start2 || '00:00', todayConfig.end2 || '23:59');
+                    if (shift2.openToday) isOpenToday = true;
                 }
             }
 
-            // 3. VERIFICA A MADRUGADA DO TURNO DE ONTEM (A Mágica acontece aqui)
-            // Precisamos saber se ontem teve um turno que invadiu a madrugada de hoje.
+            // 3. VERIFICA SE ALGUM TURNO DE ONTEM INVADIU A MADRUGADA DE HOJE
             if (yesterdayConfig && yesterdayConfig.open) {
-                const [openHourYest, openMinuteYest] = (yesterdayConfig.start || '00:00').split(':').map(Number);
-                const [closeHourYest, closeMinuteYest] = (yesterdayConfig.end || '23:59').split(':').map(Number);
-                
-                const openTimeYest = openHourYest * 60 + openMinuteYest;
-                const closeTimeYest = closeHourYest * 60 + closeMinuteYest;
+                const shift1Yest = checkShift(yesterdayConfig.start || '00:00', yesterdayConfig.end || '23:59');
+                if (shift1Yest.overnightYest) isOpenFromYesterday = true;
 
-                // Se ontem era um turno overnight (ex: abriu 18h de sábado e vai até as 04h de domingo)
-                if (closeTimeYest <= openTimeYest) {
-                    // Para a loja estar aberta devido ao turno de ontem, a hora de HOJE (domingo na madrugada) 
-                    // tem que ser MENOR que a hora de fechamento (04h). (Ex: Agora é 02:00. 02:00 < 04:00)
-                    if (currentTime < closeTimeYest) {
-                        isOpenFromYesterday = true;
-                    }
+                if (yesterdayConfig.splitShift) {
+                    const shift2Yest = checkShift(yesterdayConfig.start2 || '00:00', yesterdayConfig.end2 || '23:59');
+                    if (shift2Yest.overnightYest) isOpenFromYesterday = true;
                 }
             }
 
-            // A loja está aberta se o turno de hoje a abrir, ou se a madrugada do turno de ontem a manter aberta.
+            // A loja está aberta se qualquer um dos turnos validar como positivo.
             finalStatus = isOpenToday || isOpenFromYesterday;
 
         } else if (data.isOpen === false) {
