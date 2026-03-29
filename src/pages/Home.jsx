@@ -1470,7 +1470,11 @@ if (window.fbq) {
               // --------------------------------------------------
 
               // O Cliente fechou a compra online! Removemos dos abandonados
-              try { await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); } catch(e){}
+              try { 
+    const vId = localStorage.getItem('veloVisitorId');
+    if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
+    if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); 
+} catch(e){}
               
               localStorage.setItem('activeOrderId', orderId);
               setActiveOrderId(orderId);
