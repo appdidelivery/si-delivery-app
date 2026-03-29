@@ -387,28 +387,30 @@ export default function Home() {
           localStorage.setItem('veloVisitorId', visitorId);
       }
 
-      // Salva assim que adicionar 1 item no carrinho OU se digitar o WhatsApp
-      if (cart.length > 0 || phoneStr.length >= 10) {
-          const saveAbandonedCart = async () => {
-              try {
-                  // Usa o telefone como ID (se existir), senão usa o ID do visitante
-                  const cartId = `cart_${storeId}_${visitorId}`; // MANTÉM A CHAVE ÚNICA DO INÍCIO AO FIM
-                  
-                  await setDoc(doc(db, "abandoned_carts", cartId), {
-                      storeId: storeId,
-                      customerName: customer?.name || "Visitante (Sem nome)",
-                      customerPhone: customer?.phone || "",
-                      items: cart,
-                      subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
-                      lastUpdated: serverTimestamp(),
-                      status: 'abandoned'
-                  }, { merge: true }); // merge: true atualiza sem apagar os dados existentes
-              } catch (e) { console.error("Erro ao salvar carrinho abandonado:", e); }
-          };
-          // Espera 2 segundos sem digitar para não sobrecarregar o banco
-          const timeout = setTimeout(saveAbandonedCart, 2000);
-          return () => clearTimeout(timeout);
-      }
+      const timeout = setTimeout(async () => {
+          const cartId = `cart_${storeId}_${visitorId}`; 
+          
+          // 🚨 SE O CARRINHO ESTIVER VAZIO, APAGA DO BANCO (Evita os R$ 0.00)
+          if (cart.length === 0) {
+              try { await deleteDoc(doc(db, "abandoned_carts", cartId)); } catch(e){}
+              return;
+          }
+
+          // Se tiver itens, salva as informações
+          try {
+              await setDoc(doc(db, "abandoned_carts", cartId), {
+                  storeId: storeId,
+                  customerName: customer?.name || "Visitante (Sem nome)",
+                  customerPhone: customer?.phone || "",
+                  items: cart,
+                  subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
+                  lastUpdated: serverTimestamp(),
+                  status: 'abandoned'
+              }, { merge: true }); 
+          } catch (e) { console.error("Erro ao salvar carrinho abandonado:", e); }
+      }, 2000);
+
+      return () => clearTimeout(timeout);
   }, [cart, customer.phone, customer.name, storeId]);
      
   const[marketingSettings, setMarketingSettings] = useState({
