@@ -336,6 +336,7 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('all'); 
   const [showCheckout, setShowCheckout] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const submitLock = useRef(false); // Trava Síncrona Anti-Duplicação
 
   const [customer, setCustomer] = useState({
     name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery'
@@ -391,7 +392,7 @@ export default function Home() {
           const saveAbandonedCart = async () => {
               try {
                   // Usa o telefone como ID (se existir), senão usa o ID do visitante
-                  const cartId = phoneStr.length >= 10 ? `cart_${storeId}_${phoneStr}` : `cart_${storeId}_${visitorId}`;
+                  const cartId = `cart_${storeId}_${visitorId}`; // MANTÉM A CHAVE ÚNICA DO INÍCIO AO FIM
                   
                   await setDoc(doc(db, "abandoned_carts", cartId), {
                       storeId: storeId,
@@ -1251,6 +1252,8 @@ export default function Home() {
         return alert("Por favor, selecione uma das formas de pagamento disponíveis abaixo para a entrega.");
     }
 
+    if (submitLock.current) return; // Bloqueia toques duplos imediatamente
+    submitLock.current = true;
     setIsFinalizing(true); 
     const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
     
@@ -1322,8 +1325,12 @@ if (window.fbq) {
           }
           // --------------------------------------------------
 
-          // O Cliente fechou a compra! Removemos dos abandonados
-          try { await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); } catch(e){}
+          // O Cliente fechou a compra online! Removemos dos abandonados
+              try { 
+                  const vId = localStorage.getItem('veloVisitorId');
+                  if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
+                  if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); 
+              } catch(e){}
           
           if (appliedCoupon) {
             await updateDoc(doc(db, "coupons", appliedCoupon.id), { currentUsage: (appliedCoupon.currentUsage || 0) + 1 });
@@ -1413,9 +1420,9 @@ if (window.fbq) {
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
 
-              } catch (err) {
+             } catch (err) {
                   alert(`Erro VeloPay: ${err.message}`);
-                  setIsFinalizing(false);
+                  setIsFinalizing(false); submitLock.current = false;
                   return;
               }
           }
@@ -1471,14 +1478,14 @@ if (window.fbq) {
               window.location.href = data.url;
           } else {
               alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
-              setIsFinalizing(false); 
+              setIsFinalizing(false); submitLock.current = false;
           }
       }
 
     } catch (e) {
         alert("Erro ao processar. Tente novamente.");
         console.error("Erro ao finalizar pedido:", e);
-        setIsFinalizing(false); 
+        setIsFinalizing(false); submitLock.current = false;
     }
   };
 
