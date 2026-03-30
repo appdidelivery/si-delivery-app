@@ -3467,7 +3467,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
                                     <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
-                                    <p className="font-black text-3xl italic text-slate-800 leading-none">3,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
+                                    <p className="font-black text-3xl italic text-slate-800 leading-none">5,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
                                     <p className="text-[10px] font-bold text-slate-400 mt-2">Recebimento padrão em 30 dias (D+30).</p>
                                 </div>
                                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
@@ -3544,10 +3544,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
                                     <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
                                     <div className="flex items-end gap-2">
-                                        <p className="font-black text-3xl italic text-blue-800 leading-none">3,99%</p>
-                                        <p className="text-xs text-blue-500 font-bold pb-1">a 4,99%</p>
+                                        <p className="font-black text-3xl italic text-blue-800 leading-none">5,49%</p>
                                     </div>
-                                    <p className="text-[10px] font-bold text-blue-500 mt-2">Taxa varia conforme o prazo configurado (D+30 a D+0).</p>
+                                    <p className="text-[10px] font-bold text-blue-500 mt-2">Recebimento padrão da plataforma (D+30).</p>
                                 </div>
                             </div>
                             
