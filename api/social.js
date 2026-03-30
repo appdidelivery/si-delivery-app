@@ -1,4 +1,15 @@
 // api/social.js
+// Função para ler a URL do produto corretamente
+const generateSlug = (text) => {
+    if (!text) return '';
+    return text.toString().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9 -]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+/, '').replace(/-+$/, '');
+};
+
 export default async function handler(req, res) {
     // 1. Identifica a loja pelo subdomínio (ex: meudelivery)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
@@ -32,7 +43,7 @@ export default async function handler(req, res) {
                 let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
                 
                 // GARANTIA WHATSAPP: Valida se a imagem é um link absoluto, exigência do WhatsApp
-                if (fetchedImage) {
+               if (fetchedImage) {
                     if (fetchedImage.startsWith('http')) {
                         image = fetchedImage;
                     } else {
@@ -40,6 +51,57 @@ export default async function handler(req, res) {
                     }
                 }
             }
+
+            // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
+            const isProductPage = req.url.includes('/p/');
+            if (isProductPage) {
+                const productSlug = req.url.split('/p/')[1].split('?')[0];
+                
+                const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+                const queryBody = {
+                    structuredQuery: {
+                        from: [{ collectionId: "products" }],
+                        where: {
+                            fieldFilter: {
+                                field: { fieldPath: "storeId" },
+                                op: "EQUAL",
+                                value: { stringValue: storeId }
+                            }
+                        }
+                    }
+                };
+
+                const prodRes = await fetch(queryUrl, {
+                    method: 'POST',
+                    body: JSON.stringify(queryBody)
+                });
+
+                if (prodRes.ok) {
+                    const productsData = await prodRes.json();
+                    
+                    for (const item of productsData) {
+                        if (item.document && item.document.fields) {
+                            const pName = item.document.fields.name?.stringValue || '';
+                            
+                            // Se achou o produto correspondente ao link
+                            if (generateSlug(pName) === productSlug) {
+                                const pDesc = item.document.fields.description?.stringValue || '';
+                                const pImg = item.document.fields.imageUrl?.stringValue || '';
+
+                                // Sobrescreve a capa do WhatsApp com a Foto e Título do Produto!
+                                const storeName = title; // Guarda o nome da loja
+                                title = `${pName} | ${storeName}`; 
+                                description = pDesc || `Compre ${pName} online e receba rápido!`;
+                                if (pImg) image = pImg;
+                                
+                                break; // Achou o produto, pode parar a busca
+                            }
+                        }
+                    }
+                }
+            }
+            // --- FIM: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
+
         }
     } catch (error) {
         console.error(`Erro ao buscar dados da loja ${storeId} para o WhatsApp:`, error);
