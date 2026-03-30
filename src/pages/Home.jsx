@@ -150,6 +150,33 @@ export default function Home() {
   const { productSlug } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+// =======================================================================
+  // SDK EFÍ PAY: Carrega o script anti-fraude apenas na tela de checkout
+  // =======================================================================
+  useEffect(() => {
+      // Substitua pelo seu Identificador de Conta
+      const efiAccountId = import.meta.env.VITE_EFI_ACCOUNT_IDENTIFIER || '16118a513a9c71e7b0a08e62aec546a8'; 
+      
+      if (!document.getElementById('efi-sdk')) {
+          const script = document.createElement('script');
+          const v = parseInt(Math.random() * 1000000);
+          
+          script.type = 'text/javascript';
+          script.async = false;
+          script.id = 'efi-sdk';
+          script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
+          
+          document.head.appendChild(script);
+          
+          window.$gn = {
+              validForm: true,
+              processed: false,
+              done: {},
+              ready: function(fn) { window.$gn.done = fn; }
+          };
+          console.log("💳 SDK Anti-fraude da Efí carregado com sucesso!");
+      }
+  }, []);
 
   const generateSlug = (text) => {
     return text.toString().toLowerCase()
@@ -339,7 +366,8 @@ export default function Home() {
   const submitLock = useRef(false); // Trava Síncrona Anti-Duplicação
 
   const [customer, setCustomer] = useState({
-    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery'
+    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery',
+    city: '', state: '', cpf: '', birthDate: '', cardNumber: '', cardExpiration: '', cardCvv: ''
   });
   const [useSavedAddress, setUseSavedAddress] = useState(false);
   const[showLastOrders, setShowLastOrders] = useState(false);
@@ -1008,7 +1036,7 @@ export default function Home() {
         const data = await response.json();
         if (data.erro) throw new Error("CEP não encontrado.");
         
-        setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro}));
+        setCustomer(c => ({...c, street: data.logradouro, neighborhood: data.bairro, city: data.localidade, state: data.uf}));
         
         const storeLat = storeSettings?.lat;
         const storeLng = storeSettings?.lng;
@@ -1434,7 +1462,101 @@ if (window.fbq) {
                   return;
               }
           }
+// 2. NOVA PRIORIDADE: VeloPay Cartão de Crédito Nativo
+          const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
+          
+         if (customer.payment === 'velopay_credit' && window.$gn) {
+              try {
+                  if (!customer.cpf || !customer.cardNumber || !customer.cardExpiration || !customer.cardCvv || !customer.birthDate) {
+                      throw new Error("Preencha todos os dados do cartão, CPF e Data de Nascimento.");
+                  }
 
+                  const [month, year] = customer.cardExpiration.split('/');
+                  if (!month || !year || year.length !== 4) {
+                      throw new Error("A validade deve ser no formato MM/AAAA (Ex: 12/2029).");
+                  }
+
+                  // Descobre a bandeira do cartão automaticamente
+                  const getBrand = (n) => {
+                      const num = n.replace(/\D/g, '');
+                      if (/^4/.test(num)) return 'visa';
+                      if (/^5[1-5]/.test(num)) return 'mastercard';
+                      if (/^3[47]/.test(num)) return 'amex';
+                      if (/^(50|5[6-9]|6)/.test(num)) return 'elo';
+                      if (/^3841/.test(num)) return 'hipercard';
+                      return 'visa'; 
+                  };
+
+                  // A MÁGICA: Pede para a Efí criptografar o cartão e devolver o Token seguro
+                  const paymentToken = await new Promise((resolve, reject) => {
+                      window.$gn.ready(function(checkout) {
+                          checkout.getPaymentToken({
+                              brand: getBrand(customer.cardNumber),
+                              number: customer.cardNumber.replace(/\D/g, ''),
+                              cvv: customer.cardCvv,
+                              expiration_month: month,
+                              expiration_year: year
+                          }, function(error, response) {
+                              if (error) reject(new Error(error.error_description || "Cartão inválido, verifique os dados."));
+                              else resolve(response.data.payment_token);
+                          });
+                      });
+                  });
+
+                  // Salva o pedido inicial
+                  await setDoc(newOrderRef, { ...orderData, velopayStatus: 'processing' });
+
+                  // Envia pro seu Backend (Vercel) fazer a cobrança na Efí
+                  const creditResponse = await fetch('/api/velopay-credit', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          paymentToken,
+                          orderId,
+                          total: finalTotal,
+                          customer: {
+                              name: customer.name,
+                              cpf: customer.cpf,
+                              phone: customer.phone,
+                              birthDate: customer.birthDate
+                          },
+                          billingAddress: {
+                              street: customer.street,
+                              number: customer.number,
+                              neighborhood: customer.neighborhood,
+                              zipcode: customer.cep,
+                              city: customer.city || 'Cidade',
+                              state: customer.state || 'SP'
+                          }
+                      })
+                  });
+                  
+                  const creditData = await creditResponse.json();
+                  if (!creditResponse.ok || !creditData.success) {
+                      throw new Error(creditData.details || creditData.error || "Pagamento recusado pelo banco.");
+                  }
+
+                  // SUCESSO! Muda para Pago, desconta cashback e vai pra tela de acompanhamento!
+                  await updateDoc(newOrderRef, { paymentStatus: 'paid', status: 'preparing' });
+                  
+                  if (cashbackDiscount > 0) {
+                      const cleanPhone = customer.phone.replace(/\D/g, '');
+                      try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+                  }
+                  
+                  localStorage.setItem('activeOrderId', orderId);
+                  setActiveOrderId(orderId);
+                  setCart([]); setShowCheckout(false);
+                  
+                  window.location.href = `/track/${orderId}?payment=success`;
+                  return;
+
+              } catch (err) {
+                  alert(`Erro no Cartão: ${err.message}`);
+                  setIsFinalizing(false); submitLock.current = false;
+                  return;
+              }
+          }
           // 2. Fluxo Antigo: Mercado Pago ou Stripe (Para Cartão de Crédito)
           const hasStripe = storeSettings?.stripeConnectId;
           const hasMP = marketingSettings?.integrations?.mercadopago?.accessToken;
@@ -2210,15 +2332,20 @@ if (window.fbq) {
                              {(() => {
                                     const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     
-                                    // 🚨 SEGURANÇA: Só libera o PIX se estiver exatamente como 'active' no banco
+                                   // 🚨 SEGURANÇA: Lê as chaves do banco de dados
                                     const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
+                                    const hasVeloPayCredit = storeSettings?.velopayCreditStatus === 'active';
                                     const hasStripeOrMP = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
                                     
                                     let allMethods =[
-                                        // VeloPay amarrado à chave PIX do painel do lojista
+                                        // VeloPay Pix e Cartão (Nativos)
                                         { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPay && pmConfig.pix !== false, isPremium: true },
-                                        { id: 'online', name: 'CARTÃO DE CRÉDITO', icon: <CreditCard size={20}/>, showIf: hasStripeOrMP && pmConfig.online !== false },
-                                        // 🚨 O PIX OFFLINE ANTIGO FOI REMOVIDO PARA FORÇAR O QR CODE
+                                        { id: 'velopay_credit', name: 'CARTÃO (VELOPAY)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit, isPremium: true },
+                                        
+                                        // Gateways Antigos (Stripe / Mercado Pago)
+                                        { id: 'online', name: 'CARTÃO (STRIPE/MP)', icon: <CreditCard size={20}/>, showIf: hasStripeOrMP && pmConfig.online !== false },
+                                        
+                                        // Pagamentos na Entrega
                                         { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: pmConfig.cardDelivery !== false },
                                         { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: pmConfig.cashDelivery !== false },
                                     ];
@@ -2242,6 +2369,24 @@ if (window.fbq) {
                             </div>
                             {customer.payment === 'dinheiro' && (
                                 <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
+                            )}
+                            
+                            {customer.payment === 'velopay_credit' && (
+                                <div className="mt-4 p-5 bg-blue-50/50 rounded-[2rem] border border-blue-100 animate-in fade-in slide-in-from-top-2 shadow-inner">
+                                    <p className="font-black text-[10px] uppercase tracking-widest text-blue-800 mb-3 flex items-center gap-2"><CreditCard size={14}/> Pagamento Seguro (VeloPay)</p>
+                                    <input type="text" placeholder="CPF do Titular (Apenas Números)" maxLength="14" className="w-full p-4 bg-white rounded-xl font-bold mb-2 shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500" value={customer.cpf} onChange={e => setCustomer({...customer, cpf: e.target.value})} />
+                                    <div className="flex gap-2 mb-2">
+                                        <div className="flex-1 relative">
+                                            <label className="absolute -top-2 left-3 bg-white px-1 text-[9px] font-black text-slate-400 uppercase rounded-sm z-10">Data de Nascimento</label>
+                                            <input type="date" className="w-full p-4 bg-white rounded-xl font-bold shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-slate-600" value={customer.birthDate} onChange={e => setCustomer({...customer, birthDate: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <input type="text" placeholder="Número do Cartão (Sem Espaços)" maxLength="19" className="w-full p-4 bg-white rounded-xl font-bold mb-2 shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 tracking-widest" value={customer.cardNumber} onChange={e => setCustomer({...customer, cardNumber: e.target.value})} />
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="Validade (MM/AAAA)" maxLength="7" className="flex-1 p-4 bg-white rounded-xl font-bold shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-center" value={customer.cardExpiration} onChange={e => setCustomer({...customer, cardExpiration: e.target.value})} />
+                                        <input type="text" placeholder="CVV" maxLength="4" className="w-24 p-4 bg-white rounded-xl font-bold shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-center" value={customer.cardCvv} onChange={e => setCustomer({...customer, cardCvv: e.target.value})} />
+                                    </div>
+                                </div>
                             )}
                           </div>
                       </>

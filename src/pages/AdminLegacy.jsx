@@ -2370,6 +2370,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <ImageIcon size={16}/> Ver Print Enviado
                                                     </button>
                                                 )}
+                                                {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
+                                                {(order.paymentStatus === 'pending' || order.paymentStatus === 'pending_on_delivery') && (
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const chavePix = store?.velopayPixKey || store?.pixKey || 'Chave não cadastrada';
+                                                            const msg = `Olá ${order.customerName.split(' ')[0]}! Aqui é da ${store?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(order.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
+                                                            
+                                                            window.open(`https://wa.me/${(order.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                            
+                                                            // Muda o status automaticamente para evitar cobrar duas vezes
+                                                            await updateDoc(doc(db, "orders", order.id), { 
+                                                                paymentStatus: 'aguardando_pix' 
+                                                            });
+                                                        }}
+                                                        className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center ml-2"
+                                                        title="Cobrar PIX no WhatsApp"
+                                                    >
+                                                        <QrCode size={18}/>
+                                                    </button>
+                                                )}
                                             </div>
                                             <div className="flex gap-2 mt-auto">
                                                 <button onClick={() => handleMissionAction(m, 'rejected')} className="flex-1 bg-red-50 text-red-600 p-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-all border border-red-100">
@@ -3206,6 +3226,106 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             {!storeStatus.velopayStatus || storeStatus.velopayStatus === 'unconfigured' ? (
                                 <div className="relative z-10 bg-white/5 border border-white/10 p-6 md:p-8 rounded-[2rem] backdrop-blur-md">
+                                    {/* ========================================== */}
+                                {/* DASHBOARD DE TAXAS E TOGGLE CARTÃO VELOPAY */}
+                                {/* ========================================== */}
+                                <div className="mb-10 bg-slate-900/50 rounded-[2rem] border border-white/10 p-6 shadow-inner animate-in fade-in zoom-in">
+                                    <h3 className="text-white font-black uppercase text-xs tracking-widest mb-5 flex items-center gap-2">
+                                        <Wallet size={16} className="text-blue-400"/> Taxas e Condições do VeloPay
+                                    </h3>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* CARD TAXA PIX */}
+                                        <div className="bg-slate-800 p-5 rounded-2xl border border-white/5 relative overflow-hidden flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <span className="text-blue-300 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><QrCode size={14}/> PIX NATIVO</span>
+                                                    <span className="bg-green-500/20 text-green-400 text-[9px] px-2 py-1 rounded-md font-black uppercase tracking-widest border border-green-500/30">Ativo Padrão</span>
+                                                </div>
+                                                
+                                                {/* MENU DE ESCOLHA DO PLANO PIX */}
+                                                <div className="flex justify-between items-end mb-2 mt-4">
+                                                    <p className="text-slate-400 text-[10px] font-bold uppercase">Taxa Aplicada</p>
+                                                    <select 
+                                                        disabled={store?.velopayStatus !== 'active'}
+                                                        className={`bg-slate-900 text-blue-400 text-[10px] font-black uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none ${store?.velopayStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                        value={store?.velopayPixPlan || 'd0'}
+                                                        onChange={async (e) => {
+                                                            await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value });
+                                                        }}
+                                                    >
+                                                        <option value="d0">Mesmo Dia (D+0)</option>
+                                                        <option value="d7">Semanal (D+7)</option>
+                                                        <option value="d30">Mensal (D+30)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="flex items-end gap-1 mt-3">
+                                                    <p className="text-white font-black text-3xl italic leading-none">
+                                                        {store?.velopayPixPlan === 'd30' ? '0,99%' : store?.velopayPixPlan === 'd7' ? '1,59%' : '1,99%'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center text-blue-300">
+                                                <span>Recebimento {store?.velopayPixPlan === 'd30' ? 'em 30 dias' : store?.velopayPixPlan === 'd7' ? 'em 7 dias' : 'imediato'}.</span>
+                                            </p>
+                                        </div>
+
+                                        {/* CARD TAXA CARTÃO E TOGGLE (Opcional) */}
+                                        <div className={`p-5 rounded-2xl border relative overflow-hidden transition-all duration-300 flex flex-col justify-between ${store?.velopayCreditStatus === 'active' ? 'bg-blue-900/30 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-slate-800 border-white/5'}`}>
+                                            <div>
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <span className={`${store?.velopayCreditStatus === 'active' ? 'text-blue-400' : 'text-slate-400'} font-black text-[10px] uppercase tracking-widest flex items-center gap-1 transition-colors`}><CreditCard size={14}/> CARTÃO DE CRÉDITO</span>
+                                                    
+                                                    {/* CHAVE DE LIGAR/DESLIGAR CARTÃO */}
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            disabled={store?.velopayStatus !== 'active'}
+                                                            className="sr-only peer disabled:cursor-not-allowed"
+                                                            checked={store?.velopayCreditStatus === 'active'}
+                                                            onChange={async (e) => {
+                                                                if (store?.velopayStatus !== 'active') return alert("Ative sua conta VeloPay primeiro!");
+                                                                const newVal = e.target.checked ? 'active' : 'inactive';
+                                                                await updateDoc(doc(db, "stores", storeId), { velopayCreditStatus: newVal });
+                                                            }}
+                                                        />
+                                                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                                                    </label>
+                                                </div>
+                                                
+                                                {/* MENU DE ESCOLHA DO PLANO */}
+                                                <div className="flex justify-between items-end mb-2 mt-4">
+                                                    <p className="text-slate-400 text-[10px] font-bold uppercase">Taxa Aplicada</p>
+                                                    <select 
+                                                        disabled={store?.velopayStatus !== 'active'}
+                                                        className={`bg-slate-900 text-blue-400 text-[10px] font-black uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none ${store?.velopayStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                        value={store?.velopayCreditPlan || 'd30'}
+                                                        onChange={async (e) => {
+                                                            await updateDoc(doc(db, "stores", storeId), { velopayCreditPlan: e.target.value });
+                                                        }}
+                                                    >
+                                                        <option value="d30">Mensal (D+30)</option>
+                                                        <option value="d14">Quinzenal (D+14)</option>
+                                                        <option value="d1">Dia Seguinte (D+1)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="flex items-end gap-1 mt-3">
+                                                    <p className={`font-black text-3xl italic leading-none transition-colors ${store?.velopayCreditStatus === 'active' ? 'text-white' : 'text-slate-500'}`}>
+                                                        {store?.velopayCreditPlan === 'd1' ? '6,49%' : store?.velopayCreditPlan === 'd14' ? '5,49%' : '4,99%'}
+                                                    </p>
+                                                    <span className="text-xs font-bold text-slate-500 mb-1">+ R$ 0,39</span>
+                                                </div>
+                                            </div>
+                                            <p className={`text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center transition-colors ${store?.velopayCreditStatus === 'active' ? 'text-blue-300' : 'text-slate-500'}`}>
+                                                <span>Recebimento em {store?.velopayCreditPlan === 'd1' ? '1 dia' : store?.velopayCreditPlan === 'd14' ? '14 dias' : '30 dias'}.</span>
+                                                {store?.velopayCreditStatus === 'active' && <span>Ativado ✅</span>}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* ========================================== */}
                                     <h4 className="text-white font-black uppercase tracking-widest text-sm mb-6 border-b border-white/10 pb-4">Ativar Recebimento Nativo</h4>
                                     <form onSubmit={async (e) => {
                                         e.preventDefault();
@@ -3307,6 +3427,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
                         </div>
+                        
                         {/* NOVO CARD: STRIPE CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
                             <div className="flex items-center gap-2 mb-6">
@@ -3417,12 +3538,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { id: 'online', label: '🌐 Pagamento Online no App (Cartão/Pix Rápido)' },
-                                    { id: 'pix', label: '💠 PIX Manual (Copia e Cola da Loja)' },
-                                    { id: 'cardDelivery', label: '💳 Cartão na Entrega (Motoboy)' },
-                                    { id: 'cashDelivery', label: '💵 Dinheiro na Entrega (Motoboy)' },
-                                    { id: 'cardPickup', label: '💳 Cartão na Retirada (Balcão)' },
-                                    { id: 'cashPickup', label: '💵 Dinheiro na Retirada (Balcão)' },
+                                    { id: 'pix', label: '✅ VELOPAY PIX (AUTOMÁTICO NA TELA)', icon: <QrCode size={18} /> },
+            { id: 'online', label: '✅ VELOPAY CARTÃO (DIRETO NO APP)', icon: <CreditCard size={18} /> },
+            { id: 'offline_pix', label: 'PIX MANUAL (COPIA E COLA ANTIGO)', icon: <QrCode size={18} /> },
+            { id: 'cardDelivery', label: 'CARTÃO NA ENTREGA (MOTOBOY)', icon: <CreditCard size={18} /> },
+            { id: 'cashDelivery', label: 'DINHEIRO NA ENTREGA (MOTOBOY)', icon: <Banknote size={18} /> },
+            { id: 'cardPickup', label: 'CARTÃO NA RETIRADA (BALCÃO)', icon: <CreditCard size={18} /> },
+            { id: 'cashPickup', label: 'DINHEIRO NA RETIRADA (BALCÃO)', icon: <Banknote size={18} /> },
                                 ].map(pm => {
                                     // Padrão: Se o logista nunca mexeu, tudo vem ativado como 'true'
                                     const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 

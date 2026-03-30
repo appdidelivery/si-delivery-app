@@ -1305,6 +1305,80 @@ export default async function handler(req, res) {
             });
         }
     }
+    // ------------------------------------------------------------------------
+    // 17.7 VELOPAY: COBRANÇA CARTÃO DE CRÉDITO
+    // ------------------------------------------------------------------------
+    else if (path === '/api/velopay-credit') {
+        if (req.method !== 'POST') return res.status(405).end();
+        try {
+            const { paymentToken, orderId, total, customer, billingAddress } = req.body;
+
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+            const efiOptions = {
+                sandbox: false, // Mude para true se for testar sem gastar
+                client_id: process.env.EFI_CLIENT_ID,
+                client_secret: process.env.EFI_CLIENT_SECRET,
+                pix_cert: certPath 
+            };
+            const gerencianet = new Gerencianet(efiOptions);
+
+            // 1. O Formato exato que a Efí exige para o cliente
+            const efiCustomer = {
+                name: customer.name,
+                cpf: customer.cpf.replace(/\D/g, ''),
+                phone_number: customer.phone.replace(/\D/g, ''),
+                email: customer.email || "cliente@velodelivery.com.br",
+                birth_date: customer.birthDate // Formato YYYY-MM-DD
+            };
+
+            // 2. O Formato exato do endereço de cobrança
+            const efiBilling = {
+                street: billingAddress.street,
+                number: billingAddress.number,
+                neighborhood: billingAddress.neighborhood,
+                zipcode: billingAddress.zipcode.replace(/\D/g, ''),
+                city: billingAddress.city,
+                state: billingAddress.state
+            };
+
+            // 3. Montando a Cobrança (OneStepCharge)
+            const chargeBody = {
+                items: [{
+                    name: `Pedido #${orderId.slice(0, 6).toUpperCase()}`,
+                    value: parseInt(Number(total) * 100), // Efí trabalha com centavos (R$ 10,00 = 1000)
+                    amount: 1
+                }],
+                payment: {
+                    credit_card: {
+                        installments: 1, // Vamos fixar em 1x por enquanto
+                        payment_token: paymentToken,
+                        billing_address: efiBilling,
+                        customer: efiCustomer
+                    }
+                }
+            };
+
+            console.log(`💳 [VeloPay Credit] Processando cartão do pedido: ${orderId}`);
+            const efiResponse = await gerencianet.createOneStepCharge({}, chargeBody);
+
+            // Verifica se a cobrança foi aceita
+            if (efiResponse.code === 200 && efiResponse.data) {
+                const status = efiResponse.data.status; // Pode ser 'approved', 'authorized', 'declined'
+                
+                return res.status(200).json({ 
+                    success: true, 
+                    chargeId: efiResponse.data.charge_id,
+                    status: status
+                });
+            } else {
+                throw new Error("A Efí recusou a transação ou retornou erro.");
+            }
+
+        } catch (error) {
+            console.error('❌ Erro VeloPay Credit:', error?.response || error);
+            return res.status(500).json({ error: 'Erro ao processar cartão', details: error?.response?.error_description || error.message });
+        }
+    }
 // ------------------------------------------------------------------------
     // 17.5 VELOPAY: REGISTRAR WEBHOOK NA EFÍ (RODE APENAS UMA VEZ)
     // ------------------------------------------------------------------------
