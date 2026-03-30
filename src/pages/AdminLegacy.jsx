@@ -126,18 +126,18 @@ const DAYS_OF_WEEK =[
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
     { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
     { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
     { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
     { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
     { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
-    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
     { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
     { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
     { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
     { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
-    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
-    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
+    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
+    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
 ];
 
 export default function Admin() {
@@ -1612,23 +1612,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <p className="text-[10px] font-bold text-blue-600 uppercase text-center">{storeStatus.name}</p>
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
-                <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
-                    {allNavItems.map(item => {
-                        const badgeCount = getBadgeCount(item.id);
-                        return (
-                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all relative ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-                                <div className="flex items-center gap-3">
-                                    {item.icon} {item.name}
-                                </div>
-                                {badgeCount > 0 && (
-                                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md">
-                                        {badgeCount > 99 ? '99+' : badgeCount}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
-                </nav>
+               <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
+    {allNavItems.map(item => {
+        const badgeCount = getBadgeCount(item.id);
+        const isManual = item.id === 'manual';
+        return (
+            <button 
+                key={item.id} 
+                onClick={() => setActiveTab(item.id)} 
+                className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all relative ${
+                    isManual 
+                    ? 'bg-blue-600 text-white shadow-xl hover:bg-blue-700 hover:-translate-y-1 my-3' 
+                    : activeTab === item.id 
+                        ? 'bg-blue-600 text-white shadow-lg' 
+                        : 'text-slate-400 hover:bg-slate-50'
+                }`}
+            >
+                <div className="flex items-center gap-3 text-left overflow-hidden w-full">
+                    <div className="flex-shrink-0">{item.icon}</div>
+                    <span className="truncate whitespace-nowrap">{item.name}</span>
+                </div>
+                {badgeCount > 0 && (
+                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md flex-shrink-0">
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                )}
+            </button>
+        );
+    })}
+</nav>
                 {/* Versão do App na barra lateral do desktop */}
                 {/* Versão do App na barra lateral do desktop */}
                 <div className="mt-4 flex flex-col items-center gap-2">

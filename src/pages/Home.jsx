@@ -339,8 +339,9 @@ export default function Home() {
   const submitLock = useRef(false); // Trava Síncrona Anti-Duplicação
 
   const [customer, setCustomer] = useState({
-    name: '', email: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery'
+    name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery'
   });
+  const [useSavedAddress, setUseSavedAddress] = useState(false);
   const[showLastOrders, setShowLastOrders] = useState(false);
   const[lastOrders, setLastOrders] = useState([]);
 
@@ -363,6 +364,11 @@ export default function Home() {
       const parsedCustomer = JSON.parse(savedCustomer);
       delete parsedCustomer.payment; // 🚨 BLINDAGEM: Nunca puxa o pagamento antigo do cache
       setCustomer(prev => ({ ...prev, ...parsedCustomer, payment: '' }));
+      
+      // Ativa o One-Click se já tiver endereço e nome salvos
+      if (parsedCustomer.street && parsedCustomer.name) {
+          setUseSavedAddress(true);
+      }
     } else {
       const savedPhone = localStorage.getItem('customerPhone');
       if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
@@ -1232,7 +1238,7 @@ export default function Home() {
     if (isWaiterMode) {
         if (!customer.name || !tableNumber) return alert("Preencha o nome do cliente e o número da mesa.");
     } else {
-        if (!customer.name || !customer.email || !customer.phone) return alert("Preencha seu nome, email e WhatsApp.");
+        if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
         if (!isPickup && (!customer.cep || !customer.street || !customer.number)) return alert("Preencha o endereço de entrega completo.");
         if (!isPickup && shippingFee === null) return alert("Frete não calculado. Verifique se sua região é atendida.");
         if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
@@ -2087,7 +2093,74 @@ if (window.fbq) {
                     ))}
                   </div>
 
-                  <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes:</p>
+                  <div>
+                    {useSavedAddress && customer.deliveryMethod !== 'pickup' ? (
+                        <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 mb-4 shadow-sm relative">
+                            <h3 className="text-xl font-black text-blue-900 mb-1">Olá, {customer.name.split(' ')[0]}! 👋</h3>
+                            <p className="text-xs font-bold text-blue-700 mb-4 leading-relaxed">
+                                Entregar em: <br/>
+                                <span className="font-medium">{customer.street}, {customer.number} - {customer.neighborhood}</span>
+                            </p>
+                            <button 
+                                type="button" 
+                                onClick={() => setUseSavedAddress(false)} 
+                                className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-white px-4 py-2 rounded-xl shadow-sm border border-blue-100 active:scale-95 transition-all"
+                            >
+                                Alterar Dados
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="animate-in fade-in slide-in-from-top-2">
+                            <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
+                            
+                            {isWaiterMode ? (
+                                <>
+                                    <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                    <div className="bg-yellow-50 p-4 rounded-[2rem] border border-yellow-200 mb-3">
+                                        <label className="text-xs font-black uppercase text-yellow-700 ml-2 mb-1 block">Número da Mesa *</label>
+                                        <input type="number" placeholder="Ex: 12" className="w-full p-4 bg-white rounded-xl font-black text-xl text-center shadow-inner border-none outline-none focus:ring-2 ring-yellow-400" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                    
+                                    <div className="flex gap-2 mb-3 mt-2">
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleCustomerChange('deliveryMethod', 'delivery')}
+                                            className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod !== 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                        >
+                                            🛵 Entrega
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleCustomerChange('deliveryMethod', 'pickup')}
+                                            className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                        >
+                                            🏪 Retirar na Loja
+                                        </button>
+                                    </div>
+
+                                    {customer.deliveryMethod !== 'pickup' && (
+                                        <div className="animate-in fade-in slide-in-from-top-2">
+                                            <div className="relative">
+                                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
+                                              {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
+                                            </div>
+                                            {customer.street && (
+                                              <>
+                                                  <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
+                                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
+                                              </>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+                  </div>
                   <div>
                     <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
                     
@@ -2101,7 +2174,6 @@ if (window.fbq) {
                         </>
                     ) : (
                         <>
-                           <input type="email" placeholder="Seu E-mail (Para recibo seguro)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.email} onChange={e => handleCustomerChange('email', e.target.value)} />
                             <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                             
                             <div className="flex gap-2 mb-3 mt-2">

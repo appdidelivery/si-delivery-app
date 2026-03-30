@@ -231,19 +231,36 @@ export default function SEO({ title, description, image, productData }) {
         };
     }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin]);
 
-    // O HELMET CUIDA APENAS DO SOCIAL (META TAGS)
+    // O HELMET CUIDA AGORA DE TODAS AS META TAGS (SEO, SOCIAL, CANONICAL E TWITTER)
     return (
         <Helmet>
             <title>{finalTitle}</title>
             <meta name="description" content={finalDesc} />
+            <link rel="canonical" href={baseUrl} />
             {store?.primaryColor && <meta name="theme-color" content={store.primaryColor} />}
 
+            {/* OPEN GRAPH (FACEBOOK, WHATSAPP, LINKEDIN) */}
             <meta property="og:type" content={productData ? "product" : "website"} />
             <meta property="og:title" content={finalTitle} />
             <meta property="og:description" content={finalDesc} />
             <meta property="og:image" content={productData ? (productData.imageUrl || finalImage) : finalImage} />
             <meta property="og:url" content={currentUrl} />
             <meta property="og:site_name" content={siteName} />
+
+            {/* TWITTER CARDS (MUITO IMPORTANTE PARA PREVIEWS ATUAIS) */}
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content={finalTitle} />
+            <meta name="twitter:description" content={finalDesc} />
+            <meta name="twitter:image" content={productData ? (productData.imageUrl || finalImage) : finalImage} />
+
+            {/* TAGS ESPECÍFICAS DE E-COMMERCE (PRODUTO) */}
+            {productData && (
+                <>
+                    <meta property="product:price:amount" content={Number(productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0)).toFixed(2)} />
+                    <meta property="product:price:currency" content="BRL" />
+                    <meta property="product:availability" content={(productData.stock === undefined || Number(productData.stock) > 0) ? "instock" : "oos"} />
+                </>
+            )}
         </Helmet>
     );
 }
