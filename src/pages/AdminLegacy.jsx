@@ -2473,10 +2473,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 )}
                                 
                                 {(() => {
-                                    // 1. Puxa as regras de pagamento do banco (ou assume tudo ligado como padrão)
-                                    const pmConfig = storeStatus.acceptedPayments || { pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
-                                    // 2. Verifica se a chave lá em cima está marcada como "Entrega" ou "Balcão"
+                                    const pmConfig = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     const isDelivery = manualCustomer.deliveryMethod === 'delivery';
+                                    
+                                    // ✅ AGORA ACEITA TANTO "active" QUANTO O SEU BOOLEANO true
+                                    const hasVeloPay = storeStatus?.velopayStatus === 'active' || storeStatus?.velopayStatus === true;
 
                                     return (
                                         <select 
@@ -2484,26 +2485,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             value={manualCustomer.payment} 
                                             onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
                                         >
-                                            {/* Opção PIX (Geral para ambos os métodos manuais) */}
-                                            {pmConfig.pix !== false && (
-                                                <option value="pix">💠 PIX (Chave da Loja)</option>
+                                            {hasVeloPay && pmConfig.pix !== false && (
+                                                <option value="velopay_pix">💠 PIX NATIVO (QR CODE NA TELA)</option>
+                                            )}
+                                            {!hasVeloPay && pmConfig.pix !== false && (
+                                                <option value="offline_pix">💠 PIX OFFLINE (CHAVE DA LOJA)</option>
                                             )}
 
-                                            {/* Lógica se estiver marcado como ENTREGA */}
                                             {isDelivery ? (
                                                 <>
-                                                    {pmConfig.cardDelivery !== false && <option value="cartao">💳 Cartão (Levar Maquininha com Motoboy)</option>}
-                                                    {pmConfig.cashDelivery !== false && <option value="dinheiro">💵 Dinheiro (Pagar na Entrega)</option>}
+                                                    {pmConfig.cardDelivery !== false && <option value="cartao">💳 Cartão na Entrega (Motoboy)</option>}
+                                                    {pmConfig.cashDelivery !== false && <option value="dinheiro">💵 Dinheiro na Entrega (Motoboy)</option>}
                                                 </>
                                             ) : (
-                                            /* Lógica se estiver marcado como BALCÃO / RETIRADA */
                                                 <>
-                                                    {pmConfig.cardPickup !== false && <option value="cartao">💳 Cartão (Maquininha no Balcão)</option>}
-                                                    {pmConfig.cashPickup !== false && <option value="dinheiro">💵 Dinheiro (Pagar no Caixa)</option>}
+                                                    {pmConfig.cardPickup !== false && <option value="cartao">💳 Cartão na Retirada (Balcão)</option>}
+                                                    {pmConfig.cashPickup !== false && <option value="dinheiro">💵 Dinheiro na Retirada (Balcão)</option>}
                                                 </>
                                             )}
 
-                                            {/* Link do Mercado Pago via WhatsApp (Sempre aparece se tiver a integração) */}
                                             {settings?.integrations?.mercadopago?.accessToken && (
                                                 <option value="link_mp">🔗 Enviar Link Mercado Pago (WhatsApp)</option>
                                             )}
