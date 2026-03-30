@@ -2091,9 +2091,7 @@ if (window.fbq) {
                         </div>
                       </div>
                     ))}
-                  </div>
-
-                  {/* INÍCIO DA ÁREA DE DETALHES LIMPA */}
+                  </div> 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes de Entrega:</p>
                   
                   <div className="mb-6">
@@ -2119,7 +2117,7 @@ if (window.fbq) {
                                     onClick={() => setUseSavedAddress(false)} 
                                     className="text-xs font-black uppercase tracking-widest text-slate-500 bg-white px-4 py-4 rounded-xl shadow-sm border border-slate-200 active:scale-95 transition-all"
                                 >
-                                    Alterar
+                                    Alterar Dados
                                 </button>
                             </div>
                         </div>
@@ -2175,7 +2173,6 @@ if (window.fbq) {
                         </div>
                     )}
                   </div>
-                  {/* FIM DA ÁREA DE DETALHES LIMPA */}
 
                   {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
                   {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
