@@ -950,8 +950,8 @@ export default async function handler(req, res) {
             const totalPedidoRaw = subtotal + Number(shippingFee || 0) - Number(discountAmount || 0);
             const totalPedidoCents = Math.max(100, Math.round(totalPedidoRaw * 100)); // Mínimo de R$ 1,00
             
-            // Taxa Velo (2%)
-            const PLATFORM_FEE_PERCENT = 0.02; 
+            // Taxa Velo (5.99% Stripe - Desconto TOTAL do lojista)
+            const PLATFORM_FEE_PERCENT = 0.0599; 
             const application_fee_amount = Math.round(totalPedidoCents * PLATFORM_FEE_PERCENT);
 
             // 5. Cria a Sessão de Checkout na Stripe roteando para a conta Connect
@@ -1110,8 +1110,9 @@ export default async function handler(req, res) {
                 }
             }
 
-            // 4. Calcula a comissão da Velo (2% de taxa de plataforma)
-            const marketplaceFee = Number((totalPedido * 0.02).toFixed(2));
+           // 4. Calcula a comissão da Velo no MP (1.50% de spread líquido)
+            // Somado à taxa padrão do MP (~3.99%), o lojista pagará um total de ~5.49%
+            const marketplaceFee = Number((totalPedido * 0.015).toFixed(2));
 
             // 5. Cria a Preferência de Pagamento na API do Mercado Pago
             const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
