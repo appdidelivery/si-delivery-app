@@ -2546,7 +2546,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
-                                    {/* CAMPO DE CUPOM E DESCONTO 1MANUAL */}
+                                    {/* CAMPO DE CUPOM E DESCONTO 11MANUAL */}
                                     <div className="flex items-center gap-2 mb-4 border-b border-dashed border-slate-200 pb-4 mt-4">
                                         <input 
                                             type="text" 
