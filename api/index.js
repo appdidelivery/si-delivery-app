@@ -1233,6 +1233,7 @@ export default async function handler(req, res) {
         }
     }
 // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // 17. VELOPAY: GERAR PIX DINÂMICO (EFÍ BANK REAL)
     // ------------------------------------------------------------------------
     else if (path === '/api/velopay-pix') {
@@ -1251,17 +1252,18 @@ export default async function handler(req, res) {
         }
 
         try {
-            const storeDoc = await db.collection('stores').doc(storeId).get();
-            if (!storeDoc.exists) return res.status(404).json({ error: 'Loja não encontrada.' });
-            
+            // Garante o caminho absoluto independente de onde o node está rodando
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+            console.log('🔍 [VeloPay] Caminho do certificado:', certPath);
+
             // ====================================================================
             // INTEGRAÇÃO REAL COM A EFÍ BANK
             // ====================================================================
-           const efiOptions = {
-                sandbox: false, // Modo Produção
+            const efiOptions = {
+                sandbox: false, // false = MODO PRODUÇÃO (Requer chaves de produção no .env)
                 client_id: process.env.EFI_CLIENT_ID,
                 client_secret: process.env.EFI_CLIENT_SECRET,
-                pix_cert: pathModule.join(process.cwd(), 'api', 'certs', 'certificado-producao.p12') 
+                pix_cert: certPath 
             };
 
             const gerencianet = new Gerencianet(efiOptions);
@@ -1269,19 +1271,20 @@ export default async function handler(req, res) {
             const body = {
                 calendario: { expiracao: 3600 },
                 valor: { original: Number(totalAmount).toFixed(2) },
-                chave: process.env.EFI_PIX_KEY,
+                chave: process.env.EFI_PIX_KEY, // A chave cadastrada na Efí
                 solicitacaoPagador: `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`
             };
 
-            console.log('⏳ [VeloPay Real] Solicitando Pix à Efí Bank...');
+            console.log('⏳ [VeloPay] Solicitando Pix à Efí...', body);
             
             // 1. Gera a cobrança instantânea
             const cobResponse = await gerencianet.pixCreateImmediateCharge([], body);
+            console.log('✅ [VeloPay] Cobrança criada! TXID:', cobResponse.txid);
             
             // 2. Pega a imagem do QR Code
             const qrCodeResponse = await gerencianet.pixGenerateQRCode({ id: cobResponse.loc.id });
 
-            // 3. Salva no Firebase para a tela do cliente conseguir puxar!
+            // 3. Salva no Firebase para a tela do cliente puxar
             await db.collection('orders').doc(orderId).set({
                 paymentIntentId: cobResponse.txid,
                 velopayStatus: 'waiting_payment',
@@ -1289,12 +1292,17 @@ export default async function handler(req, res) {
                 pixCopiaECola: qrCodeResponse.qrcode
             }, { merge: true });
 
-            console.log('✅ [VeloPay Real] Pix Gerado com Sucesso!');
             return res.status(200).json({ success: true, txid: cobResponse.txid });
 
         } catch (error) {
-            console.error('❌ Erro VeloPay Pix Real:', error);
-            return res.status(500).json({ error: 'Erro interno ao comunicar com a Efí.' });
+            // Captura EXATAMENTE o que a Efí está reclamando (Erro de Auth, Certificado, Chave Pix, etc)
+            const efiError = error.response || error.message || error;
+            console.error('❌ Erro VeloPay Pix Real:', JSON.stringify(efiError, null, 2));
+            
+            return res.status(500).json({ 
+                error: 'Erro interno ao comunicar com a Efí.', 
+                details: efiError
+            });
         }
     }
 

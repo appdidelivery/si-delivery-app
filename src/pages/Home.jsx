@@ -2093,29 +2093,43 @@ if (window.fbq) {
                     ))}
                   </div>
 
-                  <div>
-                    {useSavedAddress && customer.deliveryMethod !== 'pickup' ? (
-                        <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 mb-4 shadow-sm relative">
-                            <h3 className="text-xl font-black text-blue-900 mb-1">Olá, {customer.name.split(' ')[0]}! 👋</h3>
-                            <p className="text-xs font-bold text-blue-700 mb-4 leading-relaxed">
-                                Entregar em: <br/>
-                                <span className="font-medium">{customer.street}, {customer.number} - {customer.neighborhood}</span>
+                  {/* INÍCIO DA ÁREA DE DETALHES LIMPA */}
+                  <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes de Entrega:</p>
+                  
+                  <div className="mb-6">
+                    {useSavedAddress && customer.deliveryMethod !== 'pickup' && !isWaiterMode ? (
+                        <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 shadow-sm relative animate-in fade-in zoom-in-95">
+                            <h3 className="text-2xl font-black text-blue-900 mb-2 tracking-tighter italic">Olá, {customer.name.split(' ')[0]}! 👋</h3>
+                            <p className="text-sm font-bold text-blue-700 mb-5 leading-relaxed">
+                                Entregar neste endereço?<br/>
+                                <span className="font-black text-blue-900">{customer.street}, {customer.number}</span>
+                                {customer.neighborhood && <span className="font-medium text-blue-800"> - {customer.neighborhood}</span>}
                             </p>
-                            <button 
-                                type="button" 
-                                onClick={() => setUseSavedAddress(false)} 
-                                className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-white px-4 py-2 rounded-xl shadow-sm border border-blue-100 active:scale-95 transition-all"
-                            >
-                                Alterar Dados
-                            </button>
+                            
+                            <div className="flex gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="flex-1 bg-blue-600 text-white text-xs font-black uppercase tracking-widest py-4 rounded-xl shadow-md active:scale-95 transition-all"
+                                >
+                                    ✅ Sim, Entregar Aqui
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setUseSavedAddress(false)} 
+                                    className="text-xs font-black uppercase tracking-widest text-slate-500 bg-white px-4 py-4 rounded-xl shadow-sm border border-slate-200 active:scale-95 transition-all"
+                                >
+                                    Alterar
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-top-2">
-                            <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
+                            <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
                             
                             {isWaiterMode ? (
                                 <>
-                                    <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                    <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     <div className="bg-yellow-50 p-4 rounded-[2rem] border border-yellow-200 mb-3">
                                         <label className="text-xs font-black uppercase text-yellow-700 ml-2 mb-1 block">Número da Mesa *</label>
                                         <input type="number" placeholder="Ex: 12" className="w-full p-4 bg-white rounded-xl font-black text-xl text-center shadow-inner border-none outline-none focus:ring-2 ring-yellow-400" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
@@ -2123,7 +2137,7 @@ if (window.fbq) {
                                 </>
                             ) : (
                                 <>
-                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     
                                     <div className="flex gap-2 mb-3 mt-2">
                                         <button 
@@ -2145,13 +2159,13 @@ if (window.fbq) {
                                     {customer.deliveryMethod !== 'pickup' && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
                                             <div className="relative">
-                                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
+                                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
                                               {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
                                             </div>
                                             {customer.street && (
                                               <>
                                                   <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
+                                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
                                               </>
                                             )}
                                         </div>
@@ -2161,58 +2175,10 @@ if (window.fbq) {
                         </div>
                     )}
                   </div>
-                  <div>
-                    <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
-                    
-                    {isWaiterMode ? (
-                        <>
-                            <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
-                            <div className="bg-yellow-50 p-4 rounded-[2rem] border border-yellow-200 mb-3">
-                                <label className="text-xs font-black uppercase text-yellow-700 ml-2 mb-1 block">Número da Mesa *</label>
-                                <input type="number" placeholder="Ex: 12" className="w-full p-4 bg-white rounded-xl font-black text-xl text-center shadow-inner border-none outline-none focus:ring-2 ring-yellow-400" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
-                            
-                            <div className="flex gap-2 mb-3 mt-2">
-                                <button 
-                                    type="button"
-                                    onClick={() => handleCustomerChange('deliveryMethod', 'delivery')}
-                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod !== 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                >
-                                    🛵 Entrega
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick={() => handleCustomerChange('deliveryMethod', 'pickup')}
-                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                >
-                                    🏪 Retirar na Loja
-                                </button>
-                            </div>
+                  {/* FIM DA ÁREA DE DETALHES LIMPA */}
 
-                            {customer.deliveryMethod !== 'pickup' && (
-                                <div className="animate-in fade-in slide-in-from-top-2">
-                                    <div className="relative">
-                                      <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
-                                      {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
-                                    </div>
-                                    {customer.street && (
-                                      <>
-                                          <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                                          <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
-                                      </>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    )}
-                  </div>
-
-                  {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center">{cepError}</p>}
-                  {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center`}>{deliveryAreaMessage}</p>}
+                  {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
+                  {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
@@ -2242,19 +2208,14 @@ if (window.fbq) {
                   {!isWaiterMode && (
                       <>
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
-                          <div>
+                          <div id="area-pagamento">
                             <div className="grid grid-cols-2 gap-2 mt-2">
                              {(() => {
-                                // Puxa as regras configuradas pelo lojista
                                 const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
-                                
-                                // Verifica gateways conectadas
                                 const hasVeloPay = storeSettings?.velopayStatus === 'active';
                                 const hasStripeOrMP = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
-                                const hasGateway = hasVeloPay || hasStripeOrMP;
-
-                                // Cria a lista base de todos os métodos possíveis
-                                let allMethods = [
+                                
+                                let allMethods =[
                                     { id: 'velopay_pix', name: 'PIX NATIVO VELO', icon: <QrCode size={20}/>, showIf: hasVeloPay && pmConfig.online !== false, isPremium: true },
                                     { id: 'online', name: 'CARTÃO DE CRÉDITO', icon: <CreditCard size={20}/>, showIf: hasStripeOrMP && pmConfig.online !== false },
                                     { id: 'offline_pix', name: 'PIX (CHAVE DA LOJA)', icon: <QrCode size={20}/>, showIf: !hasVeloPay && pmConfig.pix !== false },
@@ -2297,7 +2258,6 @@ if (window.fbq) {
                       )}
                       {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
                       
-                      {/* TOGGLE DA CARTEIRA DE CASHBACK NO CHECKOUT */}
                       {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && (
                           <label className="flex items-center justify-between bg-green-500/10 p-3 rounded-xl border border-green-500/20 cursor-pointer my-3 hover:bg-green-500/20 transition-all">
                               <div className="flex items-center gap-2">
