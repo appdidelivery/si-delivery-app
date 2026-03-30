@@ -39,6 +39,22 @@ import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou e
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
+// Estados do VeloPay
+    const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+    const [withdrawPlan, setWithdrawPlan] = useState('d0');
+    const [isProcessingWithdraw, setIsProcessingWithdraw] = useState(false);
+    const [velopayBalance, setVelopayBalance] = useState(0);
+    useEffect(() => {
+        if (!storeId) return;
+        // Puxa o saldo da carteira da loja (O mesmo lugar onde cai a grana do polling)
+        const unsubBalance = onSnapshot(doc(db, "stats", storeId), (docSnap) => {
+            if (docSnap.exists()) {
+                // Aqui vamos ler o saldo disponível exclusivo do VeloPay
+                setVelopayBalance(docSnap.data().velopayBalance || 0);
+            }
+        });
+        return () => unsubBalance();
+    }, [storeId]);
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
 // --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM KM) ---
@@ -3336,9 +3352,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
                                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Disponível (Pix)</p>
-                                        <h2 className="text-4xl font-black italic text-white mb-4">R$ 0,00</h2>
-                                        <button className="w-full bg-white text-slate-900 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">
-                                            Transferir Saldo
+                                        <h2 className="text-4xl font-black italic text-white mb-4">R$ {velopayBalance.toFixed(2)}</h2>
+                                        <button 
+                                            onClick={() => setIsWithdrawModalOpen(true)}
+                                            disabled={velopayBalance <= 0}
+                                            className="w-full bg-white text-slate-900 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {velopayBalance <= 0 ? 'Sem Saldo' : 'Transferir Saldo'}
                                         </button>
                                     </div>
                                     <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
@@ -5931,6 +5951,75 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {isWithdrawModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 shadow-2xl relative">
+                            <button onClick={() => setIsWithdrawModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-red-500"><X size={24}/></button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Banknote className="text-green-500"/> Sacar Saldo
+                            </h2>
+                            <p className="text-sm font-bold text-slate-500 mb-6">Escolha o prazo de recebimento. O valor será enviado para sua chave PIX cadastrada.</p>
+
+                            <div className="bg-slate-50 p-4 rounded-2xl mb-6 text-center border border-slate-200">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Saldo a Sacar</p>
+                                <p className="text-4xl font-black text-slate-800 italic">R$ {velopayBalance.toFixed(2)}</p>
+                            </div>
+
+                            <div className="space-y-3 mb-6">
+                                {[
+                                    { id: 'd0', title: 'Na Hora (D+0)', tax: 3.99, desc: 'Receba agora mesmo.' },
+                                    { id: 'd7', title: 'Em 7 Dias (D+7)', tax: 2.49, desc: 'Recebimento semanal.' },
+                                    { id: 'd30', title: 'Em 30 Dias (D+30)', tax: 1.49, desc: 'Menor taxa do mercado.' }
+                                ].map(plan => {
+                                    const isSelected = withdrawPlan === plan.id;
+                                    const taxaReais = (velopayBalance * (plan.tax / 100));
+                                    const liquido = velopayBalance - taxaReais;
+
+                                    return (
+                                        <label key={plan.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-600 bg-blue-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <input 
+                                                    type="radio" 
+                                                    name="withdrawPlan" 
+                                                    checked={isSelected}
+                                                    onChange={() => setWithdrawPlan(plan.id)}
+                                                    className="w-5 h-5 accent-blue-600"
+                                                />
+                                                <div>
+                                                    <p className="font-black text-slate-800 uppercase text-sm leading-none">{plan.title}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 mt-1">{plan.desc} (Taxa: {plan.tax}%)</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-bold text-red-500">- R$ {taxaReais.toFixed(2)}</p>
+                                                <p className="font-black text-blue-600">R$ {liquido.toFixed(2)}</p>
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+
+                            <button 
+                                onClick={async () => {
+                                    setIsProcessingWithdraw(true);
+                                    // AQUI VAI ENTRAR A NOSSA ROTA DA API DE SAQUE
+                                    setTimeout(() => {
+                                        alert("Funcionalidade de Saque será ativada no próximo passo!");
+                                        setIsProcessingWithdraw(false);
+                                        setIsWithdrawModalOpen(false);
+                                    }, 1000);
+                                }}
+                                disabled={isProcessingWithdraw}
+                                className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isProcessingWithdraw ? <Loader2 className="animate-spin" size={20}/> : 'Confirmar Saque'}
+                            </button>
                         </motion.div>
                     </motion.div>
                 )}
