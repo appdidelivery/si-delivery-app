@@ -796,8 +796,15 @@ export default function Admin() {
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (file) => {
         if (!file) throw new Error("Selecione um arquivo primeiro!");
+        
+        // NOVO: Sanitização do nome do arquivo
+        const ext = file.name.split('.').pop();
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+        const safeFile = new File([file], `${sanitizedName}.${ext}`, { type: file.type });
+
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', safeFile);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
         if (!response.ok) throw new Error('Falha no upload.');
@@ -834,12 +841,33 @@ const handleGenerateProductCopy = async () => {
     }
 };
     const handleProductImageUpload = async () => {
+        if (!imageFile) return alert("Selecione uma imagem primeiro!");
+        
+        // NOVO: Validação de formato
+        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+        if (!validTypes.includes(imageFile.type)) {
+            setUploadError('Formato inválido. Use .jpg, .png ou .webp');
+            return alert("Formato de imagem inválido! Por favor, selecione arquivos .jpg, .jpeg, .png ou .webp.");
+        }
+
+        // NOVO: Limite de tamanho (2MB)
+        const MAX_SIZE_MB = 2;
+        if (imageFile.size > MAX_SIZE_MB * 1024 * 1024) {
+            setUploadError(`Imagem muito grande. O limite máximo é ${MAX_SIZE_MB}MB.`);
+            return alert(`A imagem excede o tamanho máximo de ${MAX_SIZE_MB}MB. Por favor, comprima e tente novamente.`);
+        }
+
         setUploading(true); setUploadError('');
         try {
             const url = await uploadImageToCloudinary(imageFile);
-            setForm(prev => ({ ...prev, imageUrl: url }));
+            setForm(prev => ({ ...prev, imageUrl: url })); // Só salva se o upload der certo
             setImageFile(null);
-        } catch (error) { console.error(error); setUploadError('Erro ao enviar imagem.'); } 
+            alert("Imagem anexada com sucesso!");
+        } catch (error) { 
+            console.error(error); 
+            setUploadError('Erro ao enviar imagem. O link não foi salvo.'); 
+            alert('Falha ao enviar a imagem para o servidor. Tente novamente.');
+        } 
         finally { setUploading(false); }
     };
 
@@ -2224,7 +2252,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 p.category.toLowerCase().includes(productSearch.toLowerCase())
                             ).map(p => (                                
                                 <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
-                                    <img src={p.imageUrl} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" />
+                                    <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
                                     <div className="flex-1">
                                         <p className="font-bold text-slate-800 leading-tight mb-1">{p.name}</p>
                                         {/* PASSO 4: Exibição dos novos preços na listagem */}
@@ -2528,7 +2556,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             >
                                                 <div className="flex justify-between items-start gap-1 mb-2">
                                                     {p.imageUrl ? (
-                                                        <img src={p.imageUrl} className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded-xl bg-slate-50 shrink-0" />
+                                                        <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded-xl bg-slate-50 shrink-0" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
                                                     ) : (
                                                         <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 shrink-0"><Package size={20}/></div>
                                                     )}
@@ -3434,6 +3462,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <Landmark size={24} className="text-blue-600"/>
                                 <h3 className="text-2xl font-black uppercase text-slate-800 italic">Recebimento de Vendas <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(Stripe Connect)</span></h3>
                             </div>
+
+                            {/* --- INFO DE TAXAS STRIPE --- */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
+                                    <p className="font-black text-3xl italic text-slate-800 leading-none">3,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-2">Recebimento padrão em 30 dias (D+30).</p>
+                                </div>
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><QrCode size={14}/> PIX STRIPE</p>
+                                    <p className="font-black text-3xl italic text-slate-800 leading-none">1,19%</p>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-2">Liquidação na conta conectada.</p>
+                                </div>
+                            </div>
                             
                             {storeStatus.stripeConnectId ? (
                                 <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
@@ -3485,11 +3527,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
                         </div>
-{/* NOVO CARD: MERCADO PAGO CONNECT */}
+                       {/* NOVO CARD: MERCADO PAGO CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
                             <div className="flex items-center gap-2 mb-6">
                                 <Landmark size={24} className="text-blue-600"/>
                                 <h3 className="text-2xl font-black uppercase text-slate-800 italic">Recebimento via Mercado Pago <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(PIX e Cartão)</span></h3>
+                            </div>
+
+                            {/* --- INFO DE TAXAS MERCADO PAGO --- */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
+                                    <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><QrCode size={14}/> PIX MERCADO PAGO</p>
+                                    <p className="font-black text-3xl italic text-blue-800 leading-none">0,99%</p>
+                                    <p className="text-[10px] font-bold text-blue-500 mt-2">Recebimento na hora.</p>
+                                </div>
+                                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
+                                    <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
+                                    <div className="flex items-end gap-2">
+                                        <p className="font-black text-3xl italic text-blue-800 leading-none">3,99%</p>
+                                        <p className="text-xs text-blue-500 font-bold pb-1">a 4,99%</p>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-blue-500 mt-2">Taxa varia conforme o prazo configurado (D+30 a D+0).</p>
+                                </div>
                             </div>
                             
                             {settings?.integrations?.mercadopago?.accessToken ? (
@@ -4789,7 +4848,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                                 {/* --- FIM: CRIADOR DE COMPLEMENTOS --- */}
                                 <div className="space-y-3 pt-6 border-t border-slate-100">
-                                    <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
+                                    <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
                                     <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-all">
                                         <div className="flex items-center gap-3">
                                             {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} 
