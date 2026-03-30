@@ -2023,21 +2023,41 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         {orders.map(o => (
                             <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
                                 <div className="flex flex-col flex-1">
-                                    <div className="flex items-center gap-3 mb-1">
+                                   <div className="flex items-center gap-3 mb-1 flex-wrap">
                                         <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
-{(() => {
-    const isOnline = ['stripe', 'cartao', 'pix'].includes(o.paymentMethod);
-    if (isOnline) {
-        if (o.paymentStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO</span>;
-        if (o.paymentStatus === 'failed') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
-        return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">⏳ PENDENTE</span>;
-    }
-    return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGTO NA ENTREGA</span>;
-})()}
-{o.tipo === 'local' && (
-    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
-)}
-<span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                        
+                                        {/* 1. STATUS DE PAGAMENTO SEPARADO */}
+                                        {/* 1. STATUS DE PAGAMENTO SEPARADO */}
+                                        {(() => {
+                                            const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'link_mp'].includes(o.paymentMethod);
+                                            const pStatus = o.paymentStatus || 'pending';
+                                            
+                                            if (isOnline) {
+                                                if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO ONLINE</span>;
+                                                if (pStatus === 'failed') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
+                                                return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse">⏳ AGUARDANDO PAGTO</span>;
+                                            }
+                                            if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
+                                            return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
+                                        })()}
+
+                                        {/* 2. STATUS DO PEDIDO (COZINHA/ENTREGA) */}
+                                        {(() => {
+                                            const statusMap = {
+                                                pending: { label: 'Novo Pedido', color: 'bg-red-500 text-white animate-pulse shadow-md' },
+                                                preparing: { label: 'Preparando', color: 'bg-orange-400 text-white' },
+                                                delivery: { label: 'Saiu p/ Entrega', color: 'bg-blue-500 text-white' },
+                                                completed: { label: 'Concluído', color: 'bg-green-500 text-white' },
+                                                canceled: { label: 'Cancelado', color: 'bg-slate-800 text-white' }
+                                            };
+                                            const s = statusMap[o.status] || statusMap.pending;
+                                            return <span className={`${s.color} px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider`}>{s.label}</span>;
+                                        })()}
+
+                                        {o.tipo === 'local' && (
+                                            <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
+                                        )}
+                                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                     </div>
                                     <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
                                         {o.customerName} 
@@ -2100,14 +2120,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </button>
                                         <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
                                         <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                        <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer ${o.status === 'paid' ? 'bg-green-500 text-white' : 'bg-blue-50 text-blue-800'}`}>
-                                            <option value="pending">⏳ Pendente</option>
-                                            <option value="preparing">👨‍🍳 Preparando</option>
-                                            <option value="delivery">🏍️ Em Rota</option>
-                                            <option value="completed">✅ Entregue</option>
-                                            <option value="paid">✅ Pago (Mesa/Balcão)</option>
-                                            <option value="canceled">❌ Cancelado</option>
-                                        </select>
+                                        <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
+    <option value="pending">⏳ Novo Pedido</option>
+    <option value="preparing">👨‍🍳 Preparando</option>
+    <option value="delivery">🏍️ Saiu p/ Entrega</option>
+    <option value="completed">✅ Concluído</option>
+    <option value="canceled">❌ Cancelado</option>
+</select>
                                     </div>
                                 </div>
                             </div>
@@ -5028,7 +5047,31 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <label className="block text-xs font-bold text-slate-400 ml-2">Status do Pedido</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Cozinha / Entrega</label>
+                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-blue-500" value={editingOrderData.status || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, status: e.target.value})}>
+                                            <option value="pending">⏳ Novo / Pendente</option>
+                                            <option value="preparing">👨‍🍳 Preparando</option>
+                                            <option value="delivery">🏍️ Saiu p/ Entrega</option>
+                                            <option value="completed">✅ Concluído / Entregue</option>
+                                            <option value="canceled">❌ Cancelado</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Status do Pagamento</label>
+                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-green-500" value={editingOrderData.paymentStatus || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, paymentStatus: e.target.value})}>
+                                            <option value="pending">⏳ Aguardando Pagto</option>
+                                            <option value="pending_on_delivery">🏠 Pagar na Entrega</option>
+                                            <option value="paid">✅ Pago (Confirmado)</option>
+                                            <option value="failed">❌ Recusado</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1 md:col-span-2">
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Observação</label>
+                                        <input type="text" placeholder="Observações do pedido" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.observation || ''} onChange={e => setEditingOrderData({...editingOrderData, observation: e.target.value})} />
+                                    </div>
+                                </div>
                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={editingOrderData.status || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, status: e.target.value})}>
                                             <option value="pending">⏳ Pendente</option>
                                             <option value="preparing">👨‍🍳 Preparando</option>
