@@ -2211,7 +2211,7 @@ if (window.fbq) {
                                     const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     
                                     // 🚨 SEGURANÇA: Só libera o PIX se estiver exatamente como 'active' no banco
-                                    const hasVeloPay = storeSettings?.velopayStatus === 'active';
+                                    const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
                                     const hasStripeOrMP = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
                                     
                                     let allMethods =[
