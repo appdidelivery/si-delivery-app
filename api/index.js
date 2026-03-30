@@ -1335,6 +1335,65 @@ export default async function handler(req, res) {
         }
     }
     // ------------------------------------------------------------------------
+    // 17.6 VELOPAY: VERIFICADOR DE STATUS MANUAL (POLLING)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/velopay-status') {
+        if (req.method !== 'POST') return res.status(405).end();
+        try {
+            const { txid, orderId } = req.body;
+            if (!txid || !orderId) return res.status(400).json({ error: 'Dados insuficientes' });
+
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+            const efiOptions = {
+                sandbox: false,
+                client_id: process.env.EFI_CLIENT_ID,
+                client_secret: process.env.EFI_CLIENT_SECRET,
+                pix_cert: certPath 
+            };
+            const gerencianet = new Gerencianet(efiOptions);
+
+            // Pergunta para a Efí o status oficial desse QR Code
+            const statusPix = await gerencianet.pixDetailCharge({ txid });
+
+            if (statusPix.status === 'CONCLUIDA') {
+                // O cliente pagou! Vamos atualizar o Firebase
+                const orderRef = db.collection('orders').doc(orderId);
+                const orderDoc = await orderRef.get();
+                
+                if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
+                    const storeId = orderDoc.data().storeId;
+                    const valorPago = orderDoc.data().total;
+
+                    const batch = db.batch();
+                    
+                    // Muda os 2 status de uma vez: Pagamento e Cozinha!
+                    batch.update(orderRef, {
+                        paymentStatus: 'paid',
+                        status: 'preparing', 
+                        paidAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // Soma na grana do painel do Lojista
+                    const statsRef = db.collection("stats").doc(storeId);
+                    batch.set(statsRef, {
+                        faturamentoTotal: admin.firestore.FieldValue.increment(Number(valorPago)),
+                        pedidosPagos: admin.firestore.FieldValue.increment(1)
+                    }, { merge: true });
+
+                    await batch.commit();
+                    console.log(`✅ [VeloPay Polling] Pedido ${orderId} atualizado para PAGO!`);
+                }
+                return res.status(200).json({ paid: true });
+            }
+
+            return res.status(200).json({ paid: false, status: statusPix.status });
+
+        } catch (error) {
+            console.error('Erro no Polling VeloPay:', error);
+            return res.status(500).json({ error: 'Erro ao consultar Efí' });
+        }
+    }
+    // ------------------------------------------------------------------------
     // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK)
     // ------------------------------------------------------------------------
     else if (path === '/api/velopay-webhook') {

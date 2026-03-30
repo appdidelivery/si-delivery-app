@@ -101,7 +101,41 @@ export default function Tracking() {
       setIsSubmitting(false);
     }
   };
+// =========================================================================
+  // MOTOR DE BUSCA DO PIX (POLLING): Pergunta pra API se o PIX foi pago a cada 5s
+  // =========================================================================
+  useEffect(() => {
+      // Só ativa o motor se a forma de pagamento for VeloPay, se ainda não estiver pago, e se existir o ID da transação (txid)
+      if (order?.paymentMethod === 'velopay_pix' && order?.paymentStatus !== 'paid' && order?.paymentIntentId) {
+          
+          const interval = setInterval(async () => {
+              try {
+                  console.log("🔍 [Tracking] Verificando status do Pix na Efí...");
+                  const res = await fetch('/api/velopay-status', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                          txid: order.paymentIntentId, 
+                          orderId: order.id 
+                      })
+                  });
+                  
+                  const data = await res.json();
+                  
+                  if (data.paid) {
+                      console.log("✅ [Tracking] O PIX foi pago! A tela vai atualizar sozinha agora.");
+                      // Se a API avisar que pagou, o banco já atualizou. 
+                      // O onSnapshot do Firebase lá em cima vai detectar e mudar a tela sozinho!
+                      clearInterval(interval); 
+                  }
+              } catch (e) { 
+                  console.error("❌ [Tracking] Erro ao buscar status do Pix:", e); 
+              }
+          }, 5000); // 5000ms = 5 segundos
 
+          return () => clearInterval(interval); // Limpa o motor se o cliente fechar o App
+      }
+  }, [order?.paymentStatus, order?.paymentMethod, order?.paymentIntentId, order?.id]);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
