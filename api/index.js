@@ -1305,7 +1305,35 @@ export default async function handler(req, res) {
             });
         }
     }
+// ------------------------------------------------------------------------
+    // 17.5 VELOPAY: REGISTRAR WEBHOOK NA EFÍ (RODE APENAS UMA VEZ)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/register-webhook') {
+        try {
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+            const efiOptions = {
+                sandbox: false,
+                client_id: process.env.EFI_CLIENT_ID,
+                client_secret: process.env.EFI_CLIENT_SECRET,
+                pix_cert: certPath 
+            };
+            const gerencianet = new Gerencianet(efiOptions);
 
+            // Pega o domínio principal que está rodando a Vercel dinamicamente
+            const webhookUrl = `https://${req.headers.host}/api/velopay-webhook`;
+
+            await gerencianet.pixConfigWebhook(
+                { chave: process.env.EFI_PIX_KEY }, // A chave pix do seu .env
+                { webhookUrl: webhookUrl }
+            );
+
+            return res.status(200).send(`✅ SUCESSO! A Efí agora vai avisar os pagamentos na URL: ${webhookUrl}`);
+        } catch (error) {
+            const efiError = error.response || error.message || error;
+            console.error('Erro ao registrar Webhook:', efiError);
+            return res.status(500).send(`❌ Erro ao registrar Webhook: ${JSON.stringify(efiError)}`);
+        }
+    }
     // ------------------------------------------------------------------------
     // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK)
     // ------------------------------------------------------------------------
