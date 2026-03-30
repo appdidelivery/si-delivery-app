@@ -6,7 +6,7 @@ import {
     addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment
 } from 'firebase/firestore';
 import {
-    ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
+    Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
     CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy,
 } from 'lucide-react';
@@ -775,21 +775,21 @@ export default function Admin() {
 
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        // NOVO: Escuta a versão e changelog global do sistema
+       // NOVO: Escuta a versão e changelog global do sistema
         const unsubSystem = onSnapshot(doc(db, "system", "updates"), (d) => {
-            // Puxa o saldo da carteira da loja (VeloPay)
+            if (d.exists()) setSystemUpdate({ version: d.data().version, log: d.data().log || [] });
+        });
+
+        // NOVO: MOTOR DO SALDO VELOPAY
         const unsubBalance = onSnapshot(doc(db, "stats", storeId), (docSnap) => {
             if (docSnap.exists()) {
                 setVelopayBalance(docSnap.data().velopayBalance || 0);
             }
         });
-            if (d.exists()) setSystemUpdate({ version: d.data().version, log: d.data().log || [] });
-        });
 
         return () => { 
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubBalance();
-
         };
     },[storeId]);
     
@@ -2441,380 +2441,322 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </div>
                 )}
                 
-                {/* ✅ ABA MANUAL CORRIGIDA E REFEITA */}
+                {/* ✅ NOVO PDV (FRENTE DE CAIXA RÁPIDA) */}
                 {activeTab === 'manual' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                        {/* --- COLUNA ESQUERDA: DADOS DO CLIENTE --- */}
-                        <div className="space-y-6">
-                            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Novo Pedido Manual</h1>
-                            <div className="bg-white p-8 rounded-[3rem] shadow-sm space-y-4 border border-slate-100">
-                                {/* MODO DE ENTREGA / RETIRADA */}
-                                <div className="flex gap-4 mb-4 bg-slate-50 p-2 rounded-2xl">
-                                    <button 
-                                        type="button"
-                                        onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery' }); }}
-                                        className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}
-                                    >
-                                        🛵 Entrega
-                                    </button>
-                                    <button 
-                                        type="button"
-                                        onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup' }); setManualShippingFee(0); }}
-                                        className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}
-                                    >
-                                        🏪 Retirada / Balcão
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Nome do Cliente (Opcional no Balcão)</label>
-                                        <input type="text" placeholder="Nome Completo" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.name} onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 ml-2">WhatsApp (Opcional)</label>
-                                        <input type="tel" placeholder="(DDD + Número)" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.phone} onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} />
-                                    </div>
-                                </div>
-                                
-                                {manualCustomer.deliveryMethod === 'delivery' && (
-                                    <div className="animate-in fade-in slide-in-from-top-2 space-y-4 mt-4">
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-400 ml-2">CEP (Opcional - Busca Automática)</label>
-                                            <input
-                                                type="text"
-                                                placeholder="00000-000"
-                                                className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none"
-                                                value={manualCep}
-                                                onChange={e => setManualCep(e.target.value)}
-                                                onBlur={handleManualCepSearch}
-                                                maxLength="9"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-400 ml-2">Endereço Completo (Livre digitação)</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Rua, Número, Bairro" 
-                                                className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" 
-                                                value={manualCustomer.address} 
-                                                onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} 
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {(() => {
-                                    const pmConfig = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
-                                    const isDelivery = manualCustomer.deliveryMethod === 'delivery';
-                                    
-                                    // ✅ AGORA ACEITA TANTO "active" QUANTO O SEU BOOLEANO true
-                                    const hasVeloPay = storeStatus?.velopayStatus === 'active' || storeStatus?.velopayStatus === true;
-
-                                    return (
-                                        <select 
-                                            className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none cursor-pointer outline-none focus:ring-2 ring-blue-500 text-slate-700 shadow-inner" 
-                                            value={manualCustomer.payment} 
-                                            onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
-                                        >
-                                            {hasVeloPay && pmConfig.pix !== false && (
-                                                <option value="velopay_pix">💠 PIX NATIVO (QR CODE NA TELA)</option>
-                                            )}
-                                            {!hasVeloPay && pmConfig.pix !== false && (
-                                                <option value="offline_pix">💠 PIX OFFLINE (CHAVE DA LOJA)</option>
-                                            )}
-
-                                            {isDelivery ? (
-                                                <>
-                                                    {pmConfig.cardDelivery !== false && <option value="cartao">💳 Cartão na Entrega (Motoboy)</option>}
-                                                    {pmConfig.cashDelivery !== false && <option value="dinheiro">💵 Dinheiro na Entrega (Motoboy)</option>}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    {pmConfig.cardPickup !== false && <option value="cartao">💳 Cartão na Retirada (Balcão)</option>}
-                                                    {pmConfig.cashPickup !== false && <option value="dinheiro">💵 Dinheiro na Retirada (Balcão)</option>}
-                                                </>
-                                            )}
-
-                                            {settings?.integrations?.mercadopago?.accessToken && (
-                                                <option value="link_mp">🔗 Enviar Link Mercado Pago (WhatsApp)</option>
-                                            )}
-                                        </select>
-                                    );
-                                })()}
-                                
-                                {manualCustomer.payment === 'dinheiro' && <input type="text" placeholder="Troco para qual valor?" className="w-full p-4 bg-slate-50 rounded-xl font-bold border-none" value={manualCustomer.changeFor} onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} />}
-                                
-                                <div className="pt-6 border-t border-slate-100">
-                                    {manualCart.length === 0 ? (
-                                        <p className="text-center text-slate-400 font-bold text-sm py-4">Nenhum produto selecionado.</p>
-                                    ) : (
-                                        manualCart.map(i => (
-                                            <div key={i.id} className="flex justify-between items-center mb-2 font-bold text-slate-600 text-sm bg-slate-50 p-2 rounded-lg">
-                                                <span>{i.quantity}x {i.name}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <span>R$ {(i.price * i.quantity).toFixed(2)}</span>
-                                                    <button onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
-                                                </div>
-                                                {i.observation && (
-                <div className="text-xs text-orange-600 font-bold bg-orange-50 p-1.5 rounded-lg mt-1 border border-orange-100">
-                    ⚠️ Obs: {i.observation}
-                </div>
-            )}
-                                            </div>
-                                        ))
-                                    )}
-                                    
-                                    <div className="flex justify-between mb-2 font-bold text-blue-600 text-sm border-t border-dashed pt-4 mt-2">
-                                        <span>Taxa de Entrega:</span>
-                                        <span>R$ {manualShippingFee.toFixed(2)}</span>
-                                    </div>
-                                    
-                                    <div className="flex justify-between items-center mb-2 font-bold text-orange-500 text-sm">
-                                        <span>Taxa Adicional (Ex: Extra):</span>
-                                        <div className="flex items-center gap-1">
-                                            <span>R$</span>
-                                            <input type="number" step="0.01" className="w-20 p-1 text-right bg-orange-50 border border-orange-200 rounded-md outline-none focus:ring-2 ring-orange-300" placeholder="0.00" value={manualExtraFee} onChange={e => setManualExtraFee(Number(e.target.value) || 0)} />
-                                        </div>
-                                    </div>
-
-                                    {/* CAMPO DE CUPOM E DESCONTO 11MANUAL */}
-                                    <div className="flex items-center gap-2 mb-4 border-b border-dashed border-slate-200 pb-4 mt-4">
-                                        <input 
-                                            type="text" 
-                                            placeholder="Cupom de Desconto" 
-                                            className="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-sm uppercase outline-none" 
-                                            value={manualCouponCode} 
-                                            onChange={e => setManualCouponCode(e.target.value)} 
-                                        />
-                                        <button 
-                                            type="button"
-                                            onClick={() => {
-                                                if (!manualCouponCode) return setManualDiscountAmount(0);
-                                                const coupon = coupons.find(c => c.code.toUpperCase() === manualCouponCode.toUpperCase() && c.active);
-                                                if (!coupon) return alert("Cupom inválido ou inativo.");
-                                                
-                                                const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
-                                                if (coupon.minimumOrderValue > subtotal) return alert(`Pedido mínimo para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}`);
-                                                
-                                                let calcDiscount = 0;
-                                                if (coupon.type === 'percentage') calcDiscount = subtotal * (coupon.value / 100);
-                                                else if (coupon.type === 'fixed_amount') calcDiscount = coupon.value;
-                                                
-                                                setManualDiscountAmount(calcDiscount);
-                                                alert("Cupom aplicado com sucesso!");
-                                            }}
-                                            className="bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs uppercase"
-                                        >
-                                            Aplicar
+                    <div className="flex flex-col xl:flex-row gap-6 h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        
+                        {/* COLUNA ESQUERDA: CATÁLOGO PDV */}
+                        <div className="flex-1 flex flex-col bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+                            {/* Cabeçalho de Busca e Categorias */}
+                            <div className="p-6 border-b border-slate-100 bg-slate-50 space-y-4">
+                                <h2 className="text-3xl font-black italic uppercase text-slate-800 flex items-center gap-2">
+                                    <Store size={28} className="text-blue-600"/> Frente de Caixa (PDV)
+                                </h2>
+                                <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar produto por nome ou código..." 
+                                        className="w-full p-4 pl-12 bg-white border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-blue-500 transition-all shadow-sm"
+                                        value={productSearch}
+                                        onChange={(e) => setProductSearch(e.target.value)}
+                                    />
+                                    {productSearch && (
+                                        <button onClick={() => setProductSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                                            <X size={20}/>
                                         </button>
-                                    </div>
-                                    
-                                    {manualDiscountAmount > 0 && (
-                                        <div className="flex justify-between mb-2 font-bold text-green-500 text-sm">
-                                            <span>Desconto:</span>
-                                            <span>- R$ {manualDiscountAmount.toFixed(2)}</span>
-                                        </div>
                                     )}
+                                </div>
+                                {/* Filtro Rápido de Categorias */}
+                                <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
+                                    <button onClick={() => setProductSearch('')} className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase whitespace-nowrap shadow-md">Todas</button>
+                                    {categories.map(c => (
+                                        <button key={c.id} onClick={() => setProductSearch(c.name)} className="px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 whitespace-nowrap transition-all">
+                                            {c.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
-                                    <div className="text-3xl font-black text-slate-900 mt-4 italic">
-                                        Total R$ {Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + manualShippingFee + Number(manualExtraFee) - manualDiscountAmount)).toFixed(2)}
-                                    </div>
-                                    
-                                    <button onClick={async () => {
-                                        if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
-                                        if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
-                                        
-                                        const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
-                                        const extraFeeNum = Number(manualExtraFee) || 0;
-                                        const discountNum = Number(manualDiscountAmount) || 0;
-                                        const finalTotal = Math.max(0, subtotal + manualShippingFee + extraFeeNum - discountNum);
-                                        
-                                        const isPickup = manualCustomer.deliveryMethod === 'pickup';
-                                        const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
-                                        const finalName = manualCustomer.name || 'Cliente Balcão';
-
-                                        // Dados do vendedor logado
-                                        const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
-                                        const sellerEmail = auth.currentUser?.email || 'owner';
-
-                                       const isMpLink = manualCustomer.payment === 'link_mp';
-
-                                        const newOrderDoc = await addDoc(collection(db, "orders"), { 
-                                            ...manualCustomer, 
-                                            customerName: finalName, 
-                                            customerAddress: finalAddress, 
-                                            customerPhone: manualCustomer.phone || '', 
-                                            items: manualCart,
-                                            subtotal: subtotal,
-                                            shippingFee: isPickup ? 0 : manualShippingFee,
-                                            extraFee: extraFeeNum,
-                                            discountAmount: discountNum,
-                                            couponCode: manualCouponCode,
-                                            total: finalTotal, 
-                                            status: (isPickup && !isMpLink) ? 'completed' : 'pending', 
-                                            paymentStatus: isMpLink ? 'pending' : 'pending_on_delivery',
-                                            tipo: isPickup ? 'local' : 'delivery',
-                                            createdAt: serverTimestamp(), 
-                                            customerChangeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : '', 
-                                            storeId: storeId,
-                                            source: 'manual',
-                                            vendedor: sellerName,
-                                            sellerEmail: sellerEmail 
-                                        });
-
-                                        let mpCheckoutUrl = '';
-                                        
-                                        // Se escolheu Link de Pagamento, gera o Link na API
-                                        if (isMpLink) {
-                                            try {
-                                                const resMp = await fetch('/api/create-mp-checkout', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({
-                                                        items: manualCart.map(i => ({...i, price: i.price})), 
-                                                        storeId: storeId,
-                                                        orderId: newOrderDoc.id,
-                                                        customerEmail: 'cliente@balcao.com',
-                                                        shippingFee: isPickup ? 0 : manualShippingFee + extraFeeNum,
-                                                        discountAmount: discountNum,
-                                                        successUrl: `https://${window.location.host}/track/${newOrderDoc.id}`,
-                                                        cancelUrl: `https://${window.location.host}/track/${newOrderDoc.id}`
-                                                    })
-                                                });
-                                                const dataMp = await resMp.json();
-                                                if (dataMp.url) mpCheckoutUrl = dataMp.url;
-                                            } catch (err) {
-                                                console.error("Erro ao gerar link MP:", err);
-                                            }
-                                        }
-
-                                        // --- INTEGRAÇÃO WHATSAPP API: Envio de Recibo ou Link de Pagamento ---
-                                        if (manualCustomer.phone) {
-                                            const cleanPhone = String(manualCustomer.phone).replace(/\D/g, '');
-                                            if (cleanPhone.length >= 10) {
-                                                const itemsText = manualCart.map(i => `🔸 ${i.quantity}x ${i.name} - R$ ${(i.price * i.quantity).toFixed(2)}`).join('\n');
-                                                let msgRecibo = `🧾 *PEDIDO REGISTRADO - ${storeStatus.name || 'Loja'}*\n\nOlá ${finalName.split(' ')[0]}!\n\n*Resumo:*\n${itemsText}\n\n*Taxa/Extra:* R$ ${(manualShippingFee + extraFeeNum).toFixed(2)}\n*Desconto:* - R$ ${discountNum.toFixed(2)}\n*TOTAL:* R$ ${finalTotal.toFixed(2)}\n`;
-
-                                                if (isMpLink && mpCheckoutUrl) {
-                                                    msgRecibo += `\n💳 *PAGAMENTO ONLINE (PIX/Cartão):*\n👉 Acesse este link para pagar: ${mpCheckoutUrl}\n\n_O seu pedido irá para a cozinha automaticamente após a confirmação do pagamento!_`;
-                                                } else {
-                                                    msgRecibo += `\n🔗 *Acompanhe seu pedido aqui:*\n👉 https://${window.location.host}/track/${newOrderDoc.id}`;
-                                                }
-
-                                                // Se tem API conectada, envia via robô
-                                                if (settings?.integrations?.whatsapp?.apiToken) {
-                                                    fetch('/api/whatsapp-send', {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({
-                                                            action: 'chat_reply',
-                                                            storeId: storeId,
-                                                            toPhone: cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`,
-                                                            dynamicParams: { text: msgRecibo }
-                                                        })
-                                                    }).catch(() => console.log("Erro silencioso ao enviar WhatsApp"));
-                                                } 
-                                                // Se não tem API mas gerou link MP, força abertura manual do WhatsApp pro lojista mandar o link
-                                                else if (isMpLink) {
-                                                    window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msgRecibo)}`, '_blank');
-                                                }
-                                            }
-                                        }
-                                        // ---------------------------------------------------------
-                                        
-                                        setManualCart([]);
-                                        setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery' }); 
-                                        setManualCep('');
-                                        setManualShippingFee(0);
-                                        setManualExtraFee(0);
-                                        setManualCouponCode('');
-                                        setManualDiscountAmount(0);
-                                        alert("Pedido Lançado com Sucesso!");
-                                    }} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase mt-6 shadow-xl hover:bg-blue-700 transition-all">
-                                        Confirmar Pedido
-                                    </button>
+                            {/* Grade de Produtos */}
+                            <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {products.filter(p => 
+                                        p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
+                                        p.category.toLowerCase().includes(productSearch.toLowerCase())
+                                    ).map(p => {
+                                        const isOutOfStock = p.stock !== undefined && Number(p.stock) <= 0;
+                                        return (
+                                            <div 
+                                                key={p.id} 
+                                                onClick={() => {
+                                                    if (isOutOfStock) return;
+                                                    const ex = manualCart.find(it => it.id === p.id);
+                                                    if (ex) {
+                                                        if (ex.quantity >= Number(p.stock)) return alert(`Estoque máximo: ${p.stock}`);
+                                                        setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
+                                                    } else {
+                                                        const productToAdd = { 
+                                                            ...p, 
+                                                            quantity: 1, 
+                                                            price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
+                                                        };
+                                                        setManualCart([...manualCart, productToAdd]);
+                                                    }
+                                                }}
+                                                className={`bg-white rounded-3xl p-4 border-2 transition-all flex flex-col justify-between h-44 group select-none ${isOutOfStock ? 'border-slate-100 opacity-50 cursor-not-allowed grayscale' : 'border-transparent hover:border-blue-400 cursor-pointer shadow-sm hover:shadow-md active:scale-95'}`}
+                                            >
+                                                <div className="flex justify-between items-start gap-1 mb-2">
+                                                    {p.imageUrl ? (
+                                                        <img src={p.imageUrl} className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded-xl bg-slate-50 shrink-0" />
+                                                    ) : (
+                                                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300 shrink-0"><Package size={20}/></div>
+                                                    )}
+                                                    <span className={`text-[8px] sm:text-[9px] font-black px-1.5 py-1 rounded-md whitespace-nowrap shrink-0 ${isOutOfStock ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {isOutOfStock ? 'Esgotado' : `Estoque: ${p.stock || '∞'}`}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-700 text-xs leading-tight line-clamp-2 mb-1">{p.name}</p>
+                                                    <p className="font-black text-blue-600 text-sm">R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>
 
-                        {/* --- COLUNA DIREITA: SELEÇÃO DE PRODUTOS --- */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 h-fit sticky top-6">
-                            <h2 className="text-xl font-black uppercase mb-6 text-slate-300">Adicionar Produtos</h2>
-                            <div className="mb-4 relative">
-                                <input 
-                                    type="text" 
-                                    placeholder="Filtrar produtos..." 
-                                    className="w-full p-3 pl-10 bg-slate-50 rounded-xl font-bold text-sm"
-                                    onChange={(e) => {
-                                        const term = e.target.value.toLowerCase();
-                                        document.querySelectorAll('.manual-product-item').forEach(el => {
-                                            const name = el.getAttribute('data-name').toLowerCase();
-                                            el.style.display = name.includes(term) ? 'flex' : 'none';
-                                        });
-                                    }}
-                                />
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                        {/* COLUNA DIREITA: O TICKET / COMANDA (CARRINHO) */}
+                        <div className="w-full xl:w-[450px] flex flex-col bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex-shrink-0 relative">
+                            {/* Topo do Ticket */}
+                            <div className="p-6 border-b border-slate-100 bg-slate-900 text-white">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-black italic uppercase tracking-tighter text-2xl">Comanda</h3>
+                                    <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-blue-200">{manualCart.reduce((a, b) => a + b.quantity, 0)} Itens</span>
+                                </div>
+                                {/* Toggle Balcão / Delivery */}
+                                <div className="flex bg-slate-800 rounded-xl p-1">
+                                    <button 
+                                        onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup' }); setManualShippingFee(0); }}
+                                        className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        🏪 Balcão/Mesa
+                                    </button>
+                                    <button 
+                                        onClick={() => setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery' })}
+                                        className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        🛵 Delivery
+                                    </button>
+                                </div>
                             </div>
-                            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                {products.map(p => {
-                                    // 1. Verifica se o estoque é zero ou inválido
-                                    const isOutOfStock = p.stock === undefined || Number(p.stock) <= 0;
 
-                                    return (
-                                        <button 
-                                            key={p.id} 
-                                            data-name={p.name}
-                                            disabled={isOutOfStock} // 2. Desativa o botão nativamente
-                                            className={`manual-product-item w-full p-4 rounded-2xl flex justify-between items-center transition-all border group ${
-                                                isOutOfStock 
-                                                ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed' // Visual de esgotado
-                                                : 'bg-slate-50 hover:bg-blue-50 border-transparent hover:border-blue-200' // Visual normal
-                                            }`}
-                                            onClick={() => {
-                                                if (isOutOfStock) return; // Trava extra de segurança
-
-                                                const ex = manualCart.find(it => it.id === p.id);
-                                                if (ex) {
-                                                    // 3. Trava de quantidade máxima baseada no estoque
-                                                    if (ex.quantity >= Number(p.stock)) {
-                                                        return alert(`⚠️ Estoque máximo atingido! Restam apenas ${p.stock} unid. de ${p.name}.`);
-                                                    }
-                                                    setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
-                                                } else {
-                                                    // PASSO 5 (continuação): Salvar o costPrice no item do carrinho
-                                                    const productToAdd = { 
-                                                        ...p, 
-                                                        quantity: 1, 
-                                                        // Usar preço promocional se houver, senão o normal
-                                                        price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
-                                                    };
-                                                    setManualCart([...manualCart, productToAdd]);
-                                                }
-                                            }} 
-                                        >
-                                            <div className="flex items-center gap-3 text-left">
-                                                {p.imageUrl && <img src={p.imageUrl} className={`w-8 h-8 object-contain rounded-md bg-white ${isOutOfStock ? 'grayscale' : ''}`}/>}
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-700 leading-tight">{p.name}</span>
-                                                    {/* 4. Exibição da TAG Esgotado ou da Quantidade */}
-                                                    {isOutOfStock ? (
-                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-0.5">Esgotado</span>
-                                                    ) : (
-                                                        <span className="text-[10px] font-bold text-slate-400">Estoque: {p.stock}</span>
-                                                    )}
+                            {/* Área de Itens (Scroll) */}
+                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50">
+                                {manualCart.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-4 opacity-50">
+                                        <ShoppingCart size={64} />
+                                        <p className="text-sm font-bold uppercase tracking-widest">Caixa Livre</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {manualCart.map(i => (
+                                            <div key={i.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-2">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-black text-slate-700 text-xs flex-1 pr-2 leading-tight">{i.name}</span>
+                                                    <span className="font-black text-blue-600 text-sm whitespace-nowrap">R$ {(i.price * i.quantity).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-2">
+                                                    {/* Botoes de Quantidade */}
+                                                    <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                                                        <button onClick={() => {
+                                                            if (i.quantity <= 1) setManualCart(manualCart.filter(item => item.id !== i.id));
+                                                            else setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: item.quantity - 1 } : item));
+                                                        }} className="w-6 h-6 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-500 hover:text-red-500 font-bold active:scale-95">-</button>
+                                                        <span className="font-black text-slate-800 text-xs w-4 text-center">{i.quantity}</span>
+                                                        <button onClick={() => {
+                                                            if (i.quantity >= Number(i.stock)) return alert('Estoque máximo atingido!');
+                                                            setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: item.quantity + 1 } : item));
+                                                        }} className="w-6 h-6 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-500 hover:text-blue-600 font-bold active:scale-95">+</button>
+                                                    </div>
+                                                    <button onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-600 px-2 py-1 rounded-lg transition-all"><Trash2 size={16}/></button>
                                                 </div>
                                             </div>
-                                            <span className={`px-3 py-1 rounded-xl text-[10px] font-black transition-transform ${
-                                                isOutOfStock 
-                                                ? 'bg-slate-300 text-white' // Cor cinza para o preço se esgotado
-                                                : p.promotionalPrice > 0 ? 'bg-orange-500 text-white group-hover:scale-110' : 'bg-blue-600 text-white group-hover:scale-110'
-                                            }`}>
-                                                R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}
-                                            </span>
-                                        </button>
-                                    ); 
-                                })}
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Área de Cliente (Condicional) e Totais (Fixa no rodapé) */}
+                            <div className="p-6 border-t border-slate-100 bg-white">
+                               {/* Acordeão de Cliente/Entrega (Só aparece se tiver item) */}
+                                {manualCart.length > 0 && (
+                                    <div className="mb-6 space-y-3">
+                                        {/* LINHA 1: NOME E MESA / WHATSAPP */}
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                placeholder={manualCustomer.deliveryMethod === 'pickup' ? "Nome do Cliente (Opcional)" : "Nome do Cliente *"} 
+                                                className="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                value={manualCustomer.name || ''} 
+                                                onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} 
+                                            />
+                                            {manualCustomer.deliveryMethod === 'pickup' && (
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Mesa/Comanda (Ex: 05)" 
+                                                    className="w-40 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100 text-center" 
+                                                    value={manualCustomer.mesa || ''} 
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, mesa: e.target.value })} 
+                                                />
+                                            )}
+                                            {manualCustomer.deliveryMethod === 'delivery' && (
+                                                <input 
+                                                    type="tel" 
+                                                    placeholder="WhatsApp" 
+                                                    className="w-32 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                    value={manualCustomer.phone || ''} 
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} 
+                                                />
+                                            )}
+                                        </div>
+                                        
+                                        {/* LINHA 2: ENDEREÇO E FRETE (SÓ DELIVERY) */}
+                                        {manualCustomer.deliveryMethod === 'delivery' && (
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Endereço Completo *" 
+                                                    className="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                    value={manualCustomer.address || ''} 
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, address: e.target.value })} 
+                                                />
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="Frete R$" 
+                                                    className="w-24 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 text-center border border-slate-100" 
+                                                    value={manualShippingFee || ''} 
+                                                    onChange={e => setManualShippingFee(Number(e.target.value))} 
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* LINHA 3: FORMA DE PAGAMENTO E TROCO */}
+                                        <div className="flex gap-2">
+                                            <select 
+                                                className="flex-1 p-4 bg-blue-50 text-blue-800 rounded-xl font-black text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-blue-100" 
+                                                value={manualCustomer.payment || 'pix'} 
+                                                onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
+                                            >
+                                                <option value="pix">💠 PIX</option>
+                                                <option value="cartao">💳 Cartão (Maquininha)</option>
+                                                <option value="dinheiro">💵 Dinheiro (Espécie)</option>
+                                            </select>
+
+                                            {/* SÓ MOSTRA O CAMPO DE TROCO SE FOR DINHEIRO */}
+                                            {manualCustomer.payment === 'dinheiro' && (
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="Troco p/ R$?" 
+                                                    className="w-32 p-4 bg-green-50 text-green-800 rounded-xl font-black text-xs outline-none focus:ring-2 ring-green-500 text-center border border-green-100 placeholder:text-green-300" 
+                                                    value={manualCustomer.changeFor || ''} 
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} 
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* LINHA 4: CONTROLE DE STATUS (COZINHA E PAGAMENTO) */}
+                                        <div className="flex gap-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
+                                            <div className="flex-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cozinha</label>
+                                                <select 
+                                                    className="w-full bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer"
+                                                    value={manualCustomer.status || 'preparing'}
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, status: e.target.value })}
+                                                >
+                                                    <option value="preparing">👨‍🍳 Mandar p/ Preparo</option>
+                                                    <option value="completed">✅ Entregar na Hora</option>
+                                                </select>
+                                            </div>
+                                            <div className="w-px bg-slate-200 mx-2"></div>
+                                            <div className="flex-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Caixa</label>
+                                                <select 
+                                                    className="w-full bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer"
+                                                    value={manualCustomer.paymentStatus || 'pending'}
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, paymentStatus: e.target.value })}
+                                                >
+                                                    <option value="pending">⏳ Deixar Pendente</option>
+                                                    <option value="paid">✅ Já Recebido (Pago)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Resumo Final */}
+                                <div className="flex justify-between items-end mb-6 pt-2 border-t border-dashed border-slate-200">
+                                    <span className="font-black text-slate-400 uppercase tracking-widest text-xs">Total A Pagar</span>
+                                    <span className="text-4xl font-black text-slate-900 italic leading-none">
+                                        R$ {Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0))).toFixed(2)}
+                                    </span>
+                                </div>
+
+                                <button 
+                                    onClick={async () => {
+                                        if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
+                                        if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
+                                        
+                                        const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
+                                        const finalTotal = Math.max(0, subtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0));
+                                        
+                                        const isPickup = manualCustomer.deliveryMethod === 'pickup';
+                                        const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
+                                        const finalName = manualCustomer.name || 'Cliente Avulso (Balcão)';
+
+                                        const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+                                        const sellerEmail = auth.currentUser?.email || 'owner';
+
+                                        try {
+                                            await addDoc(collection(db, "orders"), { 
+                                                ...manualCustomer, 
+                                                customerName: finalName, 
+                                                customerAddress: finalAddress, 
+                                                customerPhone: manualCustomer.phone || '', 
+                                                items: manualCart,
+                                                subtotal: subtotal,
+                                                shippingFee: isPickup ? 0 : manualShippingFee,
+                                                extraFee: 0,
+                                                discountAmount: 0,
+                                                couponCode: '',
+                                                total: finalTotal,
+                                                // 🚨 ATENÇÃO: Agora o status respeita o que o caixa escolheu!
+                                                status: manualCustomer.status || 'preparing',
+                                                paymentStatus: manualCustomer.paymentStatus || 'pending',
+                                                changeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : null,
+                                                tipo: isPickup ? 'local' : 'delivery',
+                                                createdAt: serverTimestamp(), 
+                                                storeId: storeId,
+                                                source: 'manual_pdv',
+                                                vendedor: sellerName,
+                                                sellerEmail: sellerEmail 
+                                            });
+
+                                            setManualCart([]);
+                                            setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'pickup', mesa: '', status: 'preparing', paymentStatus: 'pending' }); 
+                                            setManualShippingFee(0);
+                                            alert("✅ Comanda lançada com sucesso!");
+                                        } catch (e) {
+                                            alert("Erro ao lançar venda no PDV.");
+                                            console.error(e);
+                                        }
+                                    }} 
+                                    disabled={manualCart.length === 0}
+                                    className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Lançar Pedido {manualCart.length > 0 ? `(R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0))).toFixed(2)})` : ''}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -5038,7 +4980,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                                 <div className="space-y-1">
                                     <label className="block text-xs font-bold text-slate-400 ml-2">WhatsApp</label>
-                                    <input type="tel" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerPhone || ''} onChange={e => setEditingOrderData({...editingOrderData, customerPhone: e.target.value})} required />
+                                    <input type="tel" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.customerPhone || ''} onChange={e => setEditingOrderData({...editingOrderData, customerPhone: e.target.value})}  />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
