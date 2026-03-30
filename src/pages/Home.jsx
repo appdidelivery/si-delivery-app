@@ -2210,15 +2210,15 @@ if (window.fbq) {
                              {(() => {
                                     const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     
-                                    // 🚨 VeloPay só é considerado ativo se o status for exatamente 'active'
+                                    // 🚨 SEGURANÇA: Só libera o PIX se estiver exatamente como 'active' no banco
                                     const hasVeloPay = storeSettings?.velopayStatus === 'active';
                                     const hasStripeOrMP = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
                                     
                                     let allMethods =[
-                                        // O PIX NATIVO só aparece se o VeloPay estiver 100% ativo no Firebase E o lojista não o desativou
+                                        // VeloPay amarrado à chave PIX do painel do lojista
                                         { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPay && pmConfig.pix !== false, isPremium: true },
                                         { id: 'online', name: 'CARTÃO DE CRÉDITO', icon: <CreditCard size={20}/>, showIf: hasStripeOrMP && pmConfig.online !== false },
-                                        // 🚨 O PIX OFFLINE FOI REMOVIDO PARA RESPEITAR SUA REGRA
+                                        // 🚨 O PIX OFFLINE ANTIGO FOI REMOVIDO PARA FORÇAR O QR CODE
                                         { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: pmConfig.cardDelivery !== false },
                                         { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: pmConfig.cashDelivery !== false },
                                     ];
