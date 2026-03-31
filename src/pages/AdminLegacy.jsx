@@ -1120,8 +1120,34 @@ const handleGenerateProductCopy = async () => {
                     customerName: mission.customerName,
                     rating: mission.rating,
                     comment: mission.comment || 'Avaliação via Clube VIP',
-                    createdAt: serverTimestamp()
+                    createdAt: serverTimestamp(),
+                    productId: mission.productId || null,
+                    productName: mission.productName || null
                 });
+
+                // 🚀 MOTOR SEO: Atualiza a média de estrelas direto no Produto!
+                // Tenta achar o produto pelo ID ou pelo Nome exato que veio da avaliação
+                let targetProduct = null;
+                if (mission.productId) {
+                    targetProduct = products.find(p => p.id === mission.productId);
+                } else if (mission.productName) {
+                    targetProduct = products.find(p => p.name === mission.productName);
+                }
+
+                if (targetProduct) {
+                    const currentCount = Number(targetProduct.reviewCount) || 0;
+                    const currentRating = Number(targetProduct.ratingValue) || 0;
+                    
+                    const newCount = currentCount + 1;
+                    // Fórmula da Média Ponderada: ((Média Atual * Quantidade Atual) + Nova Nota) / Nova Quantidade
+                    const newRating = ((currentRating * currentCount) + Number(mission.rating)) / newCount;
+
+                    const productRef = doc(db, "products", targetProduct.id);
+                    await updateDoc(productRef, {
+                        reviewCount: newCount,
+                        ratingValue: Number(newRating.toFixed(1)) // Arredonda para 1 casa decimal (Ex: 4.8)
+                    });
+                }
             }
 
             // Atualiza a missão e credita os pontos (pointsAwarded)
@@ -1130,7 +1156,7 @@ const handleGenerateProductCopy = async () => {
                 pointsAwarded: action === 'approved' ? mission.pointsExpected : 0,
                 resolvedAt: serverTimestamp()
             });
-            alert(`Missão ${action === 'approved' ? 'Aprovada! Pontos creditados.' : 'Recusada.'}`);
+            alert(`Missão ${action === 'approved' ? 'Aprovada! Pontos creditados e média do produto atualizada.' : 'Recusada.'}`);
         } catch (error) {
             alert("Erro ao processar a missão.");
             console.error(error);
@@ -2227,8 +2253,52 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                           <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            <div className="flex gap-4">
+                                {/* BOTÃO DE SINCRONIZAÇÃO RETROATIVA DE AVALIAÇÕES REAIS */}
+                                <button onClick={async () => {
+                                    if(!window.confirm("Deseja recalcular as notas de todos os produtos com base no histórico de avaliações reais recebidas?")) return;
+                                    try {
+                                        const ratingsMap = {};
+                                        
+                                        // Varre todas as avaliações já feitas na loja
+                                        reviewsList.forEach(r => {
+                                            let pId = r.productId;
+                                            
+                                            // Fallback: se a avaliação antiga não salvou o ID, tenta achar pelo Nome exato
+                                            if(!pId && r.productName) {
+                                                const found = products.find(p => p.name === r.productName);
+                                                if(found) pId = found.id;
+                                            }
+                                            
+                                            // Agrupa as notas e conta quantas vezes o produto foi avaliado
+                                            if(pId && r.rating) {
+                                                if(!ratingsMap[pId]) ratingsMap[pId] = { sum: 0, count: 0 };
+                                                ratingsMap[pId].sum += Number(r.rating);
+                                                ratingsMap[pId].count += 1;
+                                            }
+                                        });
+
+                                        // Atualiza o banco de dados (Firebase) com a média real de cada produto
+                                        const batchPromises = Object.keys(ratingsMap).map(pId => {
+                                            const avg = ratingsMap[pId].sum / ratingsMap[pId].count;
+                                            return updateDoc(doc(db, "products", pId), {
+                                                ratingValue: Number(avg.toFixed(1)),
+                                                reviewCount: ratingsMap[pId].count
+                                            });
+                                        });
+
+                                        await Promise.all(batchPromises);
+                                        alert(`✅ Mágica Feita! ${batchPromises.length} produtos foram atualizados com as notas e históricos reais para o Google.`);
+                                    } catch(e) {
+                                        alert("Erro ao sincronizar notas: " + e.message);
+                                    }
+                                }} className="bg-green-500 text-white px-6 py-4 rounded-2xl font-black shadow-xl shadow-green-100 flex items-center gap-2 hover:bg-green-600 active:scale-95 transition-all uppercase tracking-widest text-sm">
+                                    ⭐ Puxar Notas Antigas
+                                </button>
+
+                                {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', ratingValue: '', reviewCount: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                            </div>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
                         <div className="mb-6 mt-6 relative">

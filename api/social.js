@@ -91,15 +91,31 @@ export default async function handler(req, res) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pImg = item.document.fields.imageUrl?.stringValue || '';
                                 
-                                // Extração dos novos dados (Preço, Promoção, GTIN, Marca)
+                                // Extração dos dados base (Preço, Promoção, GTIN, Marca)
                                 const pPrice = item.document.fields.price?.numberValue || item.document.fields.price?.integerValue || 0;
                                 const pPromoPrice = item.document.fields.promoPrice?.numberValue || item.document.fields.promoPrice?.integerValue || 0;
                                 const pBrand = item.document.fields.brand?.stringValue || title; 
                                 const pGtin = item.document.fields.gtin?.stringValue || '';
                                 const pIsPromo = item.document.fields.isPromo?.booleanValue || (pPromoPrice > 0);
-                                
-                                // Define qual preço o robô deve ler
                                 const finalPrice = pIsPromo && pPromoPrice > 0 ? pPromoPrice : pPrice;
+
+                                // Extração dos dados SEO (Comida, Tempo, Logística)
+                                const pPrepTime = item.document.fields.prepTime?.integerValue || item.document.fields.prepTime?.numberValue || null;
+                                const pCalories = item.document.fields.calories?.integerValue || item.document.fields.calories?.numberValue || null;
+                                const pDeliveryTime = item.document.fields.deliveryLeadTime?.integerValue || item.document.fields.deliveryLeadTime?.numberValue || null;
+                                
+                                // Extração dos dados de Review (Estrelas do Google)
+                                const pRatingValue = item.document.fields.ratingValue?.numberValue || item.document.fields.ratingValue?.integerValue || null;
+                                const pReviewCount = item.document.fields.reviewCount?.integerValue || item.document.fields.reviewCount?.numberValue || null;
+
+                                // Lógica para extrair as Dietas (suitableForDiet)
+                                let pDietSchema = "";
+                                if (item.document.fields.suitableForDiet && item.document.fields.suitableForDiet.arrayValue && item.document.fields.suitableForDiet.arrayValue.values) {
+                                    const dietArray = item.document.fields.suitableForDiet.arrayValue.values.map(v => `"${v.stringValue}"`);
+                                    if (dietArray.length > 0) {
+                                        pDietSchema = `"suitableForDiet": [${dietArray.join(', ')}],`;
+                                    }
+                                }
 
                                 // Sobrescreve a capa e título global pela do produto
                                 const storeName = title; 
@@ -117,20 +133,24 @@ export default async function handler(req, res) {
         ${pGtin ? `<meta property="product:gtin" content="${pGtin}" />` : ''}
                                 `;
 
-                                // Monta o Schema de Produto (SEO para Google)
+                                // Lógica de Inteligência SEO: É Comida ou Produto Genérico?
+                                const isFoodItem = pPrepTime !== null || pCalories !== null || pDietSchema !== "";
+                                const schemaType = isFoodItem ? "MenuItem" : "Product";
+
+                                // Monta o Schema Misto Perfeito (SEO para Google com Reviews)
                                 productSchema = `
         <script type="application/ld+json">
         {
           "@context": "https://schema.org/",
-          "@type": "Product",
+          "@type": "${schemaType}",
           "name": "${pName}",
           "image": "${image}",
           "description": "${description}",
-          "brand": {
-            "@type": "Brand",
-            "name": "${pBrand}"
-          },
+          ${!isFoodItem ? `"brand": { "@type": "Brand", "name": "${pBrand}" },` : ''}
           ${pGtin ? `"gtin13": "${pGtin}",` : ''}
+          ${pDietSchema}
+          ${pCalories ? `"nutrition": { "@type": "NutritionInformation", "calories": "${pCalories} calories" },` : ''}
+          ${pRatingValue && pReviewCount ? `"aggregateRating": { "@type": "AggregateRating", "ratingValue": "${pRatingValue}", "reviewCount": "${pReviewCount}" },` : ''}
           "offers": {
             "@type": "Offer",
             "url": "https://${host}${req.url}",
@@ -138,6 +158,7 @@ export default async function handler(req, res) {
             "price": "${finalPrice}",
             "availability": "https://schema.org/InStock",
             "itemCondition": "https://schema.org/NewCondition"
+            ${pDeliveryTime ? `,"deliveryLeadTime": { "@type": "QuantitativeValue", "value": "${pDeliveryTime}", "unitCode": "MIN" }` : ''}
           }
         }
         </script>
