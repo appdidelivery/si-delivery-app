@@ -54,20 +54,21 @@ export default async function handler(req, res) {
 
            // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
             let productSchema = "";
+            let productMetaTags = "";
             
-            // 🚨 SUPER EXTRATOR DE URL (Blinda contra Rewrites da Vercel)
-            // A Vercel esconde a URL original no req.url, então puxamos do x-invoke-path
-            const requestUrl = req.headers['x-invoke-path'] || req.headers['x-now-route-matches'] || req.url || '';
+            // 🚨 SUPER EXTRATOR DE URL V2 (Limpa o Rewrite e os rastreadores do Facebook/WhatsApp)
+            let requestUrl = req.url || '';
+            if (req.query && req.query.route) {
+                requestUrl = String(req.query.route);
+            } else if (requestUrl.includes('route=')) {
+                requestUrl = decodeURIComponent(requestUrl.split('route=')[1].split('&')[0]);
+            }
+            
             const isProductPage = requestUrl.includes('/p/');
-            
-            // Tags de rastreamento para podermos ver no Depurador do Facebook o que a Vercel está recebendo
-            let productMetaTags = `
-        <meta property="velo:debug_url" content="${requestUrl}" />
-            `;
-            
             if (isProductPage) {
-                const productSlug = requestUrl.split('/p/')[1].split('?')[0].replace(/\/$/, '');
-                productMetaTags += `\n        <meta property="velo:debug_slug" content="${productSlug}" />`;
+                // Isola o que vem depois de /p/ e corta QUALQUER lixo grudado (?v=7, &fbclid, #id, etc)
+                const rawSlug = requestUrl.split('/p/')[1];
+                const productSlug = rawSlug.split('?')[0].split('&')[0].split('#')[0].replace(/\/$/, '');
                 
                 // Função para limpar 100% os hífens e comparar só as letras e números (Fuzzy Match à prova de erros)
                 const fuzzyMatch = (s1, s2) => {
