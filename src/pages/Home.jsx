@@ -1837,6 +1837,34 @@ if (window.fbq) {
         productData={selectedProduct} 
     />
     <AgeGate enabled={storeSettings?.ageGateEnabled} />
+    {/* --- INÍCIO: MÚLTIPLAS TARJAS PROMOCIONAIS (SMART BANNERS) --- */}
+        <AnimatePresence>
+            {marketingSettings?.promoActive && marketingSettings?.smartBanners && marketingSettings.smartBanners.map((banner, index) => {
+                if (!banner.topBarText || !isWithinRecurringSchedule(banner.recurringDay, banner.recurringStart, banner.recurringEnd)) return null;
+                
+                return (
+                    <motion.div key={index} initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className={`${banner.topBarColor || 'bg-red-600'} text-white p-3 text-center flex flex-col items-center justify-center relative z-50 shadow-md`}>
+                        <div className="flex items-center justify-center gap-2">
+                            <Flame size={16} className="animate-pulse" />
+                            <p className="text-[11px] font-black uppercase tracking-widest leading-none">
+                                {banner.topBarText}
+                            </p>
+                            <Flame size={16} className="animate-pulse" />
+                        </div>
+                        {banner.topBarCoupon && (
+                            <button onClick={() => {
+                                navigator.clipboard.writeText(banner.topBarCoupon);
+                                setCouponCode(banner.topBarCoupon);
+                                alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
+                            }} className="mt-2 bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-1 border border-white/30 backdrop-blur-sm cursor-pointer active:scale-95">
+                                <Copy size={10} /> Copiar Cupom: {banner.topBarCoupon}
+                            </button>
+                        )}
+                    </motion.div>
+                );
+            })}
+        </AnimatePresence>
+        {/* --- FIM: MÚLTIPLAS TARJAS PROMOCIONAIS --- */}
 
     <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
         <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>

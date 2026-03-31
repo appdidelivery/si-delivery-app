@@ -2904,95 +2904,112 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
-                                    {/* --- CAMPOS DE AGENDAMENTO E RECORRÊNCIA --- */}
-                                    <div className={`p-4 rounded-2xl mb-6 border transition-all ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
-                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            ⏱️ Regras de Exibição (Opcional)
-                                        </p>
+                                    {/* --- MÚLTIPLAS TARJAS (SMART BANNERS) --- */}
+                                    <div className="space-y-4 mb-6">
+                                        {(settings.smartBanners || []).map((banner, index) => (
+                                            <div key={index} className={`p-4 rounded-2xl border transition-all relative ${settings.promoActive ? 'bg-orange-600/50 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
+                                                <button onClick={async () => {
+                                                    const newBanners = [...(settings.smartBanners || [])];
+                                                    newBanners.splice(index, 1);
+                                                    await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                }} className={`absolute top-4 right-4 p-2 rounded-xl transition-all ${settings.promoActive ? 'bg-orange-500 text-white hover:bg-red-500' : 'bg-white text-slate-400 hover:text-red-500 hover:bg-red-50'}`}>
+                                                    <Trash2 size={16} />
+                                                </button>
+                                                
+                                                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                                    ⏱️ Regras de Exibição (Tarja {index + 1})
+                                                </p>
+                                                {/* Recorrência */}
+                                                <div className="grid grid-cols-3 gap-2 mb-4 pb-4 border-b border-white/20">
+                                                    <div>
+                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Repete Quando?</label>
+                                                        <select value={banner.recurringDay || 'all'} onChange={async (e) => {
+                                                            const newBanners = [...(settings.smartBanners || [])];
+                                                            newBanners[index].recurringDay = e.target.value;
+                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                                                            <option value="all">Todos os Dias</option>
+                                                            <option value="1">Toda Segunda</option>
+                                                            <option value="2">Toda Terça</option>
+                                                            <option value="3">Toda Quarta</option>
+                                                            <option value="4">Toda Quinta</option>
+                                                            <option value="5">Toda Sexta</option>
+                                                            <option value="6">Todo Sábado</option>
+                                                            <option value="0">Todo Domingo</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Início</label>
+                                                        <input type="time" value={banner.recurringStart || ''} onChange={async (e) => {
+                                                            const newBanners = [...(settings.smartBanners || [])];
+                                                            newBanners[index].recurringStart = e.target.value;
+                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                                    </div>
+                                                    <div>
+                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Fim</label>
+                                                        <input type="time" value={banner.recurringEnd || ''} onChange={async (e) => {
+                                                            const newBanners = [...(settings.smartBanners || [])];
+                                                            newBanners[index].recurringEnd = e.target.value;
+                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                                    </div>
+                                                </div>
+
+                                                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 mt-4 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                                    <Tags size={14}/> Dados da Tarja (Estilo iFood)
+                                                </p>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Frase de Destaque</label>
+                                                        <input type="text" placeholder="Ex: TERÇA EM DOBRO! 2º Lanche com 50% OFF" value={banner.topBarText || ''} onChange={async (e) => {
+                                                            const newBanners = [...(settings.smartBanners || [])];
+                                                            newBanners[index].topBarText = e.target.value;
+                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`} />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Código do Cupom</label>
+                                                            <input type="text" placeholder="Ex: TERCA50" value={banner.topBarCoupon || ''} onChange={async (e) => {
+                                                                const newBanners = [...(settings.smartBanners || [])];
+                                                                newBanners[index].topBarCoupon = e.target.value.toUpperCase();
+                                                                await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                            }} className={`w-full p-3 rounded-xl font-black uppercase outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-yellow-300 border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`} />
+                                                        </div>
+                                                        <div>
+                                                            <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Cor da Tarja</label>
+                                                            <select value={banner.topBarColor || 'bg-red-600'} onChange={async (e) => {
+                                                                const newBanners = [...(settings.smartBanners || [])];
+                                                                newBanners[index].topBarColor = e.target.value;
+                                                                await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                            }} className={`w-full p-3 rounded-xl font-bold outline-none text-sm cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                                                                <option value="bg-red-600">🔴 Vermelho</option>
+                                                                <option value="bg-blue-600">🔵 Azul</option>
+                                                                <option value="bg-green-600">🟢 Verde</option>
+                                                                <option value="bg-purple-600">🟣 Roxo</option>
+                                                                <option value="bg-slate-900">⚫ Preto</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                         
-                                        {/* Recorrência Semanal */}
-                                        <div className="grid grid-cols-3 gap-2 mb-4 pb-4 border-b border-white/20">
-                                            <div>
-                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Repete Quando?</label>
-                                                <select 
-                                                    value={settings.promoRecurringDay || 'all'} 
-                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { promoRecurringDay: e.target.value }, { merge: true })}
-                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}
-                                                >
-                                                    <option value="all">Todos os Dias</option>
-                                                    <option value="1">Toda Segunda</option>
-                                                    <option value="2">Toda Terça</option>
-                                                    <option value="3">Toda Quarta</option>
-                                                    <option value="4">Toda Quinta</option>
-                                                    <option value="5">Toda Sexta</option>
-                                                    <option value="6">Todo Sábado</option>
-                                                    <option value="0">Todo Domingo</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Início</label>
-                                                <input type="time" value={settings.promoRecurringStart || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoRecurringStart: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
-                                            </div>
-                                            <div>
-                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Fim</label>
-                                                <input type="time" value={settings.promoRecurringEnd || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoRecurringEnd: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
-                                            </div>
-                                        </div>
-
-                                        <p className={`text-[10px] font-bold uppercase mb-2 ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Ou Data Fixa Absoluta (Desativa a repetição)</p>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <input type="datetime-local" value={settings.promoStartsAt || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoStartsAt: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
-                                            <input type="datetime-local" value={settings.promoExpiresAt || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoExpiresAt: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
-                                        </div>
-                                    </div>
-
-                                    {/* --- NOVO: CONFIGURAÇÃO DA TARJA NO TOPO (SMART BANNER) --- */}
-                                    <div className={`p-4 rounded-2xl mb-6 border transition-all animate-in fade-in ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
-                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            <Tags size={14}/> Tarja no Topo da Loja (Estilo iFood)
-                                        </p>
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Frase de Destaque</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Ex: TERÇA EM DOBRO! 2º Lanche com 50% OFF" 
-                                                    value={settings.topBarText || ''} 
-                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { topBarText: e.target.value }, { merge: true })}
-                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Código do Cupom</label>
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Ex: TERCA50" 
-                                                        value={settings.topBarCoupon || ''} 
-                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { topBarCoupon: e.target.value.toUpperCase() }, { merge: true })}
-                                                        className={`w-full p-3 rounded-xl font-black uppercase outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-yellow-300 border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Cor da Tarja</label>
-                                                    <select 
-                                                        value={settings.topBarColor || 'bg-red-600'} 
-                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { topBarColor: e.target.value }, { merge: true })}
-                                                        className={`w-full p-3 rounded-xl font-bold outline-none text-sm cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}
-                                                    >
-                                                        <option value="bg-red-600">🔴 Vermelho (Urgência)</option>
-                                                        <option value="bg-blue-600">🔵 Azul (Destaque)</option>
-                                                        <option value="bg-green-600">🟢 Verde (Oferta)</option>
-                                                        <option value="bg-purple-600">🟣 Roxo (Exclusivo)</option>
-                                                        <option value="bg-slate-900">⚫ Preto (Premium)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        {(settings.smartBanners || []).length < 5 && (
+                                            <button onClick={async () => {
+                                                const newBanners = [...(settings.smartBanners || []), {
+                                                    recurringDay: 'all', recurringStart: '', recurringEnd: '', topBarText: '', topBarCoupon: '', topBarColor: 'bg-red-600'
+                                                }];
+                                                await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                            }} className={`w-full p-4 rounded-2xl border-2 border-dashed font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 ${settings.promoActive ? 'border-orange-300 text-orange-100 hover:bg-orange-600' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                                                <Plus size={16} /> Adicionar Nova Tarja ({5 - (settings.smartBanners || []).length} restantes)
+                                            </button>
+                                        )}
                                     </div>
 
                                     <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-5 lg:py-6 rounded-2xl lg:rounded-[2rem] font-black uppercase tracking-widest text-lg shadow-xl ${settings.promoActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-orange-600 text-white hover:bg-orange-700'} transition-all active:scale-95`}>
-                                        {settings.promoActive ? 'Encerrar Oferta' : 'Lançar Promoção'}
+                                        {settings.promoActive ? 'Desativar Visibilidade (Ocultar Todas)' : 'Ativar Visibilidade (Ligar Tarjas)'}
                                     </button>
                                     
                                     {/* EXIBIÇÃO DE BANNERS ATIVOS */}
@@ -3253,7 +3270,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="bg-white p-6 lg:p-10 rounded-3xl lg:rounded-[4rem] shadow-sm border border-slate-100 space-y-6 mt-6">
                             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                                 <h2 className="text-2xl lg:text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>
-                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm">+ NOVO CUPOM</button>
+                               <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true, recurringDay: 'all', recurringStart: '', recurringEnd: '' }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm">+ NOVO CUPOM</button>
                             </div>
                             <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                                 {coupons.map(c => (
