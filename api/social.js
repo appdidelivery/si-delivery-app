@@ -53,6 +53,9 @@ export default async function handler(req, res) {
             }
 
             // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
+            let productSchema = "";
+            let productMetaTags = "";
+            
             const isProductPage = req.url.includes('/p/');
             if (isProductPage) {
                 const productSlug = req.url.split('/p/')[1].split('?')[0];
@@ -87,14 +90,60 @@ export default async function handler(req, res) {
                             if (generateSlug(pName) === productSlug) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pImg = item.document.fields.imageUrl?.stringValue || '';
+                                
+                                // Extração dos novos dados (Preço, Promoção, GTIN, Marca)
+                                const pPrice = item.document.fields.price?.numberValue || item.document.fields.price?.integerValue || 0;
+                                const pPromoPrice = item.document.fields.promoPrice?.numberValue || item.document.fields.promoPrice?.integerValue || 0;
+                                const pBrand = item.document.fields.brand?.stringValue || title; 
+                                const pGtin = item.document.fields.gtin?.stringValue || '';
+                                const pIsPromo = item.document.fields.isPromo?.booleanValue || (pPromoPrice > 0);
+                                
+                                // Define qual preço o robô deve ler
+                                const finalPrice = pIsPromo && pPromoPrice > 0 ? pPromoPrice : pPrice;
 
-                                // Sobrescreve a capa do WhatsApp com a Foto e Título do Produto!
-                                const storeName = title; // Guarda o nome da loja
+                                // Sobrescreve a capa e título global pela do produto
+                                const storeName = title; 
                                 title = `${pName} | ${storeName}`; 
-                                description = pDesc || `Compre ${pName} online e receba rápido!`;
+                                description = pDesc || `Compre ${pName} online na ${storeName}!`;
                                 if (pImg) image = pImg;
                                 
-                                break; // Achou o produto, pode parar a busca
+                                // Monta as Tags Open Graph exclusivas de Produto (WhatsApp/Facebook)
+                                productMetaTags = `
+        <meta property="product:brand" content="${pBrand}" />
+        <meta property="product:availability" content="in stock" />
+        <meta property="product:condition" content="new" />
+        <meta property="product:price:amount" content="${finalPrice}" />
+        <meta property="product:price:currency" content="BRL" />
+        ${pGtin ? `<meta property="product:gtin" content="${pGtin}" />` : ''}
+                                `;
+
+                                // Monta o Schema de Produto (SEO para Google)
+                                productSchema = `
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org/",
+          "@type": "Product",
+          "name": "${pName}",
+          "image": "${image}",
+          "description": "${description}",
+          "brand": {
+            "@type": "Brand",
+            "name": "${pBrand}"
+          },
+          ${pGtin ? `"gtin13": "${pGtin}",` : ''}
+          "offers": {
+            "@type": "Offer",
+            "url": "https://${host}${req.url}",
+            "priceCurrency": "BRL",
+            "price": "${finalPrice}",
+            "availability": "https://schema.org/InStock",
+            "itemCondition": "https://schema.org/NewCondition"
+          }
+        }
+        </script>
+                                `;
+                                
+                                break; // Achou o produto, encerra o loop
                             }
                         }
                     }
@@ -122,12 +171,15 @@ export default async function handler(req, res) {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:url" content="https://${host}${req.url}" />
-        <meta property="og:type" content="website" />
+        <meta property="og:type" content="${isProductPage ? 'product' : 'website'}" />
+        ${productMetaTags}
         
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${description}" />
         <meta name="twitter:image" content="${image}" />
+        
+        ${productSchema}
     </head>
     <body>
         <h1>${title}</h1>
