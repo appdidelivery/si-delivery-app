@@ -1,3 +1,5 @@
+// api/social.js
+// Função para ler a URL do produto corretamente
 const generateSlug = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase()
@@ -9,25 +11,27 @@ const generateSlug = (text) => {
 };
 
 export default async function handler(req, res) {
+    // 1. Identifica a loja pelo subdomínio (ex: meudelivery)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const storeId = host.split('.')[0]; 
 
+    // 2. Fallback: Se der erro, mostra os dados padrão da Velo
     let title = "Velo Delivery | O seu app de entregas";
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
-    let image = "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"; 
+    let image = "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"; // Coloque uma logo genérica válida aqui
 
-    // 🚨 SUPER EXTRATOR DE URL V3 (Blinda contra Vercel e limpa lixo de tracking)
+    // 🚨 SUPER EXTRATOR DE URL V3 (Blinda contra Vercel e limpa tracking do Facebook)
     let requestUrl = req.url || '';
     if (req.query && req.query.route) {
         requestUrl = String(req.query.route);
     } else if (requestUrl.includes('route=')) {
         requestUrl = decodeURIComponent(requestUrl.split('route=')[1].split('&')[0]);
     }
-    
-    // URL limpa para resolver a ausência do "og:url" que o Facebook reclamou
     const finalCleanUrl = `https://${host}${requestUrl.split('?')[0]}`;
 
     try {
+        // 3. Busca os dados no Firebase via REST API
+        // Certifique-se que VITE_FIREBASE_PROJECT_ID está cadastrado nas Environment Variables da Vercel!
         const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
         const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
         
@@ -36,11 +40,18 @@ export default async function handler(req, res) {
         if (response.ok) {
             const data = await response.json();
 
+            // 4. A CORREÇÃO ESTÁ AQUI: Tudo agora é lido da raiz do documento!
             if (data && data.fields) {
+                // Pega o nome
                 title = data.fields.name?.stringValue || title;
+
+                // Tenta pegar o slogan, se não tiver, tenta a mensagem de aviso
                 description = data.fields.slogan?.stringValue || data.fields.message?.stringValue || description;
+
+                // Tenta pegar a storeLogoUrl (novo padrão) ou logoUrl (padrão antigo)
                 let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
                 
+                // GARANTIA WHATSAPP: Valida se a imagem é um link absoluto, exigência do WhatsApp
                if (fetchedImage) {
                     if (fetchedImage.startsWith('http')) {
                         image = fetchedImage;
@@ -50,7 +61,7 @@ export default async function handler(req, res) {
                 }
             }
 
-            // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
+           // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
             let productSchema = "";
             let productMetaTags = "";
             
@@ -87,9 +98,9 @@ export default async function handler(req, res) {
                             const generatedSlug = generateSlug(pName);
                             const savedSlug = item.document.fields.slug?.stringValue || '';
                             
-                            // 🚨 MATCH BLINDADO: Se a URL contiver o nome gerado (mesmo que tenha "delivery-em-casa" no final), ele aceita!
+                            // 🚨 MATCH BLINDADO: Tolera variações na URL (ex: -delivery-em-casa)
                             const isMatch = productSlug === generatedSlug || 
-                                            productSlug === savedSlug ||
+                                            (savedSlug !== '' && productSlug === savedSlug) ||
                                             productSlug.includes(generatedSlug) || 
                                             generatedSlug.includes(productSlug);
                             
@@ -187,20 +198,20 @@ export default async function handler(req, res) {
         <meta property="og:image" content="${image}" />
         <meta property="og:image:secure_url" content="${image}" />
         <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
+       <meta property="og:image:height" content="630" />
         
         <meta property="og:url" content="${finalCleanUrl}" />
         <meta property="fb:app_id" content="966242223397117" />
         
         <meta property="og:type" content="${isProductPage ? 'product' : 'website'}" />
-        ${productMetaTags ? productMetaTags : ''}
+        ${productMetaTags}
         
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${description}" />
         <meta name="twitter:image" content="${image}" />
         
-        ${productSchema ? productSchema : ''}
+        ${productSchema}
     </head>
     <body>
         <h1>${title}</h1>
@@ -210,6 +221,7 @@ export default async function handler(req, res) {
     </html>
     `;
 
+    // 6. Configura o cache na Vercel (Cache de 1 hora)
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.status(200).send(html);
