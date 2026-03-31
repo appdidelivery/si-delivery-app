@@ -1024,6 +1024,51 @@ export default function Home() {
     }
   },[storeSettings.storeLogoUrl, storeSettings.name]); 
 
+  // --- INÍCIO: INJEÇÃO DINÂMICA DE FONTE (GOOGLE FONTS) ---
+  useEffect(() => {
+      let fontToLoad = null; 
+      
+      if (storeSettings?.storeFont === 'custom' && storeSettings?.customFont) {
+          fontToLoad = storeSettings.customFont;
+      } else if (storeSettings?.storeFont && storeSettings?.storeFont !== 'default') {
+          const predefinedFonts = {
+              'modern': 'Montserrat',
+              'robust': 'Oswald',
+              'elegant': 'Playfair Display'
+          };
+          fontToLoad = predefinedFonts[storeSettings.storeFont];
+      }
+
+      if (fontToLoad) {
+          const fontUrl = `https://fonts.googleapis.com/css2?family=${fontToLoad.replace(/\s+/g, '+')}:wght@300;400;500;700;900&display=swap`;
+          
+          let linkElement = document.getElementById('velo-dynamic-font');
+          if (!linkElement) {
+              linkElement = document.createElement('link');
+              linkElement.id = 'velo-dynamic-font';
+              linkElement.rel = 'stylesheet';
+              document.head.appendChild(linkElement);
+          }
+          linkElement.href = fontUrl;
+      }
+  }, [storeSettings?.storeFont, storeSettings?.customFont]);
+
+  // Função auxiliar para aplicar no Style inline da vitrine
+  const getDynamicFontFamily = () => {
+      // Se for a opção Padrão ou lojas antigas sem configuração, não injeta CSS extra (deixa o Tailwind agir)
+      if (!storeSettings?.storeFont || storeSettings?.storeFont === 'default') return undefined;
+      
+      if (storeSettings?.storeFont === 'custom' && storeSettings?.customFont) return `"${storeSettings.customFont}", sans-serif`;
+      
+      const fonts = {
+          'modern': '"Montserrat", sans-serif',
+          'robust': '"Oswald", sans-serif',
+          'elegant': '"Playfair Display", serif'
+      };
+      return fonts[storeSettings?.storeFont];
+  };
+  // --- FIM: INJEÇÃO DINÂMICA DE FONTE ---
+
   useEffect(() => {
     const cep = customer.cep.replace(/\D/g, '');
     if (cep.length !== 8) { setCepError(''); return; }
@@ -1690,7 +1735,10 @@ if (window.fbq) {
  return (
   <div 
     className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
-    style={storeSettings?.storeNiche === 'custom' && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {}}
+    style={{
+        ...(getDynamicFontFamily() ? { fontFamily: getDynamicFontFamily() } : {}),
+        ...(storeSettings?.storeNiche === 'custom' && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {})
+    }}
   >
     {storeSettings?.storeNiche === 'custom' && storeSettings.customBackgroundUrl && (
         <div 

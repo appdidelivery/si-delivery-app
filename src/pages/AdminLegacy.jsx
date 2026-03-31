@@ -3958,8 +3958,56 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         )}
     </AnimatePresence>
 </div>
+
+{/* --- NOVO SELETOR DE TIPOGRAFIA (FONTE DA LOJA) --- */}
+<div className="mt-8 pt-8 border-t border-slate-100">
+    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-4">✍️ Tipografia da Loja (Estilo da Fonte)</label>
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+       {[
+            { id: 'default', label: 'Padrão', font: 'Sistema', desc: 'Original do App' },
+            { id: 'modern', label: 'Moderna', font: 'Montserrat', desc: 'Conveniência / Tech' },
+            { id: 'robust', label: 'Robusta', font: 'Oswald', desc: 'Burger / Carnes' },
+            { id: 'elegant', label: 'Elegante', font: 'Playfair Display', desc: 'Adega / Vinhos' },
+            { id: 'custom', label: 'Personalizado', font: 'Aa', desc: 'Google Fonts' }
+        ].map(tipografia => (
+            <button
+                key={tipografia.id}
+                onClick={() => updateDoc(doc(db, "stores", storeId), { storeFont: tipografia.id }, { merge: true })}
+                className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${storeStatus.storeFont === tipografia.id || (!storeStatus.storeFont && tipografia.id === 'default') ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}
+            >
+                <span className="text-2xl font-black text-slate-700" style={{ fontFamily: tipografia.font !== 'Aa' ? tipografia.font : 'inherit' }}>{tipografia.font}</span>
+                <div className="text-center">
+                    <span className="text-[10px] font-black uppercase block">{tipografia.label}</span>
+                    <span className="text-[8px] text-slate-500 font-bold">{tipografia.desc}</span>
+                </div>
+            </button>
+        ))}
+    </div>
+
+    <AnimatePresence>
+        {storeStatus.storeFont === 'custom' && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-6 p-6 bg-slate-50 border border-slate-200 rounded-3xl overflow-hidden">
+                <h4 className="text-sm font-black text-slate-700 uppercase mb-4">🔤 Nome da Fonte (Google Fonts)</h4>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-2">Digite o nome exato de qualquer fonte gratuita do Google Fonts (Ex: Roboto, Poppins, Lato)</label>
+                    <input 
+                        type="text" 
+                        value={storeStatus.customFont || ''}
+                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { customFont: e.target.value }, { merge: true })}
+                        className="w-full p-4 bg-white rounded-2xl font-bold border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-slate-700"
+                        placeholder="Ex: Poppins"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-2 font-bold">
+                        O sistema fará o download da fonte automaticamente para a loja do cliente. Verifique o nome exato no site <a href="https://fonts.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">fonts.google.com</a>.
+                    </p>
+                </div>
+            </motion.div>
+        )}
+    </AnimatePresence>
+</div>
+
                         {/* 2. Informações e Mensagem */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Dados da Loja</h2>
                             <div className="space-y-4">
                                 <div>
