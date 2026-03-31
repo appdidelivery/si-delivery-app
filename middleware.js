@@ -7,6 +7,13 @@ export const config = {
 
 export default async function middleware(request) {
   const url = new URL(request.url);
+  
+  // 🚨 CORREDOR EXCLUSIVO PARA PRODUTOS (Risco Zero para a Loja)
+  // Se for página de produto, o middleware não injeta a loja e deixa o api/social assumir o SEO.
+  if (url.pathname.includes('/p/')) {
+      return; 
+  }
+
   const host = request.headers.get('host') || '';
   
   // 1. Descobre a loja pela URL
