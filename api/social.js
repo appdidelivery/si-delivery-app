@@ -112,20 +112,20 @@ export default async function handler(req, res) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pImg = item.document.fields.imageUrl?.stringValue || '';
                                 
-                                // Extração de Preço
-                                const pPrice = item.document.fields.price?.numberValue || item.document.fields.price?.integerValue || 0;
-                                const pPromoPrice = item.document.fields.promoPrice?.numberValue || item.document.fields.promoPrice?.integerValue || 0;
+                               // Extração de Preço (Corrigido para doubleValue do Firebase)
+                                const pPrice = item.document.fields.price?.doubleValue || item.document.fields.price?.integerValue || 0;
+                                const pPromoPrice = item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
                                 const pBrand = item.document.fields.brand?.stringValue || title; 
                                 const pGtin = item.document.fields.gtin?.stringValue || '';
                                 const pIsPromo = item.document.fields.isPromo?.booleanValue || (pPromoPrice > 0);
                                 const finalPrice = pIsPromo && pPromoPrice > 0 ? pPromoPrice : pPrice;
 
                                 // Extração SEO
-                                const pPrepTime = item.document.fields.prepTime?.integerValue || item.document.fields.prepTime?.numberValue || null;
-                                const pCalories = item.document.fields.calories?.integerValue || item.document.fields.calories?.numberValue || null;
-                                const pDeliveryTime = item.document.fields.deliveryLeadTime?.integerValue || item.document.fields.deliveryLeadTime?.numberValue || null;
-                                const pRatingValue = item.document.fields.ratingValue?.numberValue || item.document.fields.ratingValue?.integerValue || null;
-                                const pReviewCount = item.document.fields.reviewCount?.integerValue || item.document.fields.reviewCount?.numberValue || null;
+                                const pPrepTime = item.document.fields.prepTime?.integerValue || item.document.fields.prepTime?.doubleValue || null;
+                                const pCalories = item.document.fields.calories?.integerValue || item.document.fields.calories?.doubleValue || null;
+                                const pDeliveryTime = item.document.fields.deliveryLeadTime?.integerValue || item.document.fields.deliveryLeadTime?.doubleValue || null;
+                                const pRatingValue = item.document.fields.ratingValue?.doubleValue || item.document.fields.ratingValue?.integerValue || null;
+                                const pReviewCount = item.document.fields.reviewCount?.integerValue || item.document.fields.reviewCount?.doubleValue || null;
 
                                 let pDietSchema = "";
                                 if (item.document.fields.suitableForDiet && item.document.fields.suitableForDiet.arrayValue && item.document.fields.suitableForDiet.arrayValue.values) {
