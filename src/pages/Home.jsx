@@ -1522,7 +1522,7 @@ if (window.fbq) {
           
           localStorage.setItem('activeOrderId', orderId);
           setActiveOrderId(orderId);
-          setCart([]); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
+          setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
           setIsFinalizing(false); 
 
           // BLINDAGEM MODO GARÇOM: Não envia WhatsApp, não abre roleta, não muda de tela. Apenas zera o carrinho.
@@ -1573,7 +1573,7 @@ if (window.fbq) {
                   // Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  setCart([]); setShowCheckout(false);
+                  setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                   
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
@@ -1668,7 +1668,7 @@ if (window.fbq) {
                   
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  setCart([]); setShowCheckout(false);
+                  setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                   
                   window.location.href = `/track/${orderId}?payment=success`;
                   return;
@@ -1730,7 +1730,7 @@ if (window.fbq) {
               
               localStorage.setItem('activeOrderId', orderId);
               setActiveOrderId(orderId);
-              setCart([]); setShowCheckout(false);
+              setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
               window.location.href = data.url;
           } else {
               alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
