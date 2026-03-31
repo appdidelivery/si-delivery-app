@@ -2297,7 +2297,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </button>
 
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', ratingValue: '', reviewCount: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                             </div>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
@@ -2343,7 +2343,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '' }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '' }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -4602,7 +4602,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     suitableForDiet: isFood ? (form.suitableForDiet || []) :[],
                                     deliveryLeadTime: form.deliveryLeadTime ? parseInt(form.deliveryLeadTime) : '',
                                     variations: form.variations ? form.variations.split(',').map(v => v.trim()).filter(v => v) :[],
-                                    storeId: storeId 
+                                    removables: form.removables ? form.removables.split(',').map(v => v.trim()).filter(v => v) :[],
+                                    storeId: storeId
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
                                 setIsModalOpen(false); setImageFile(null);
@@ -4741,6 +4742,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         onChange={e => setForm({ ...form, variations: e.target.value })} 
                                     />
                                     <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Opcional. Se preenchido, o cliente será obrigado a escolher uma opção.</p>
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100 mt-4">
+                                    <label className="text-xs font-black text-red-500 uppercase tracking-widest flex items-center gap-2 mb-1 ml-2">
+                                        <MinusSquare size={14}/> O que pode ser removido? (Separado por vírgula)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ex: Alface, Tomate, Milho, Maionese" 
+                                        className="w-full p-6 bg-red-50 text-red-800 rounded-3xl outline-none font-bold border-none mt-1 focus:ring-2 ring-red-300 transition-all placeholder-red-300" 
+                                        value={form.removables || ''} 
+                                        onChange={e => setForm({ ...form, removables: e.target.value })} 
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Cria uma lista para o cliente marcar o que deseja TIRAR do lanche.</p>
                                 </div>
 
                                {/* --- INÍCIO: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}

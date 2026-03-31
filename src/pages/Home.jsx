@@ -206,12 +206,14 @@ export default function Home() {
   const[selectedOptions, setSelectedOptions] = useState({}); 
   const [itemObservation, setItemObservation] = useState(''); 
   const [selectedVariation, setSelectedVariation] = useState(''); // NOVO: Estado da Variação
+  const [selectedRemovals, setSelectedRemovals] = useState([]); // NOVO: Estado dos Ingredientes Removidos
 
   const handleOpenProduct = (p) => {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
       setSelectedVariation(''); // Reseta a variação sempre que abrir um item novo
+      setSelectedRemovals([]); // Reseta os ingredientes removidos
       const slug = generateSlug(p.name);
       navigate(`/p/${slug}`, { replace: true });
   };
@@ -326,13 +328,15 @@ export default function Home() {
           }
       }
       
-      const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}-${selectedVariation}`;
+      const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}-${selectedVariation}-${selectedRemovals.join('-')}`;
       const optionsText = Object.values(selectedOptions).flat().map(o => o.name).join(', ');
       
       // Concatena a Variação Simples + Nome + Complementos
       let cartName = selectedProduct.name;
       if (selectedVariation) cartName += ` - Sabor/Tipo: ${selectedVariation}`;
       if (optionsText) cartName += ` (${optionsText})`;
+      if (selectedRemovals.length > 0) cartName += ` (Sem: ${selectedRemovals.join(', ')})`;
+      
       const itemToAdd = {
           ...selectedProduct,
           cartItemId: customId,
@@ -2772,11 +2776,40 @@ if (window.fbq) {
                     </div>
                 )}
 
+                {selectedProduct.removables && selectedProduct.removables.length > 0 && (
+                    <div className="border-t border-slate-100 pt-4 mt-4">
+                        <h4 className="font-black text-slate-800 text-sm uppercase mb-3 flex items-center justify-between">
+                            Deseja Remover Algo? <span className="bg-slate-200 text-slate-500 text-[10px] px-2 py-1 rounded-md">Opcional</span>
+                        </h4>
+                        <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            {selectedProduct.removables.map((itemToRemove, idx) => {
+                                const isSelected = selectedRemovals.includes(itemToRemove);
+                                return (
+                                    <label key={idx} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? `border-red-400 bg-red-50/50` : 'border-transparent bg-white hover:border-slate-200'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedRemovals([...selectedRemovals, itemToRemove]);
+                                                    else setSelectedRemovals(selectedRemovals.filter(i => i !== itemToRemove));
+                                                }}
+                                                className="accent-red-500 w-5 h-5 cursor-pointer rounded"
+                                            />
+                                            <span className={`text-sm font-bold ${isSelected ? 'text-red-500 line-through' : 'text-slate-600'}`}>Remover {itemToRemove}</span>
+                                        </div>
+                                    </label>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 <div className="mt-4 pt-4 border-t border-slate-100">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alguma observação?</label>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alguma observação extra?</label>
                     <textarea 
                         rows="2" 
-                        placeholder="Ex: Tirar cebola, maionese à parte..." 
+                        placeholder="Ex: Maionese à parte..." 
                         className={`w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 ring-${currentTheme.ringColor} transition-all`}
                         value={itemObservation}
                         onChange={(e) => setItemObservation(e.target.value)}
