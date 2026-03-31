@@ -2904,42 +2904,91 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
-                                    {/* --- CAMPOS DE AGENDAMENTO (INÍCIO E FIM) --- */}
+                                    {/* --- CAMPOS DE AGENDAMENTO E RECORRÊNCIA --- */}
                                     <div className={`p-4 rounded-2xl mb-6 border transition-all ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
                                         <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
-                                            ⏱️ Agendamento Automático (Opcional)
+                                            ⏱️ Regras de Exibição (Opcional)
                                         </p>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        
+                                        {/* Recorrência Semanal */}
+                                        <div className="grid grid-cols-3 gap-2 mb-4 pb-4 border-b border-white/20">
                                             <div>
-                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Inicia em:</label>
-                                                <input 
-                                                    type="datetime-local" 
-                                                    value={settings.promoStartsAt || ''} 
-                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { promoStartsAt: e.target.value }, { merge: true })}
-                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
-                                                />
+                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Repete Quando?</label>
+                                                <select 
+                                                    value={settings.promoRecurringDay || 'all'} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { promoRecurringDay: e.target.value }, { merge: true })}
+                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}
+                                                >
+                                                    <option value="all">Todos os Dias</option>
+                                                    <option value="1">Toda Segunda</option>
+                                                    <option value="2">Toda Terça</option>
+                                                    <option value="3">Toda Quarta</option>
+                                                    <option value="4">Toda Quinta</option>
+                                                    <option value="5">Toda Sexta</option>
+                                                    <option value="6">Todo Sábado</option>
+                                                    <option value="0">Todo Domingo</option>
+                                                </select>
                                             </div>
                                             <div>
-                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Termina em:</label>
-                                                <input 
-                                                    type="datetime-local" 
-                                                    value={settings.promoExpiresAt || ''} 
-                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { promoExpiresAt: e.target.value }, { merge: true })}
-                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
-                                                />
+                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Início</label>
+                                                <input type="time" value={settings.promoRecurringStart || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoRecurringStart: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                            </div>
+                                            <div>
+                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Fim</label>
+                                                <input type="time" value={settings.promoRecurringEnd || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoRecurringEnd: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
                                             </div>
                                         </div>
-                                        
-                                        {/* Feedback visual inteligente para o Lojista */}
-                                        {settings.promoActive && (settings.promoStartsAt || settings.promoExpiresAt) && (() => {
-                                            const now = new Date();
-                                            const start = settings.promoStartsAt ? new Date(settings.promoStartsAt) : null;
-                                            const end = settings.promoExpiresAt ? new Date(settings.promoExpiresAt) : null;
-                                            
-                                            if (start && now < start) return <p className="text-xs text-yellow-200 font-bold mt-3 flex items-center gap-1">⏳ Promoção agendada. Entrará no ar automaticamente.</p>;
-                                            if (end && now > end) return <p className="text-xs text-red-200 font-bold mt-3 flex items-center gap-1">❌ Promoção já expirada (Não visível para o cliente).</p>;
-                                            return <p className="text-xs text-green-200 font-black mt-3 flex items-center gap-1">✅ Promoção no ar agora!</p>;
-                                        })()}
+
+                                        <p className={`text-[10px] font-bold uppercase mb-2 ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Ou Data Fixa Absoluta (Desativa a repetição)</p>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <input type="datetime-local" value={settings.promoStartsAt || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoStartsAt: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                            <input type="datetime-local" value={settings.promoExpiresAt || ''} onChange={(e) => setDoc(doc(db, "settings", storeId), { promoExpiresAt: e.target.value }, { merge: true })} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                        </div>
+                                    </div>
+
+                                    {/* --- NOVO: CONFIGURAÇÃO DA TARJA NO TOPO (SMART BANNER) --- */}
+                                    <div className={`p-4 rounded-2xl mb-6 border transition-all animate-in fade-in ${settings.promoActive ? 'bg-orange-600 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                            <Tags size={14}/> Tarja no Topo da Loja (Estilo iFood)
+                                        </p>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Frase de Destaque</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ex: TERÇA EM DOBRO! 2º Lanche com 50% OFF" 
+                                                    value={settings.topBarText || ''} 
+                                                    onChange={(e) => setDoc(doc(db, "settings", storeId), { topBarText: e.target.value }, { merge: true })}
+                                                    className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Código do Cupom</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Ex: TERCA50" 
+                                                        value={settings.topBarCoupon || ''} 
+                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { topBarCoupon: e.target.value.toUpperCase() }, { merge: true })}
+                                                        className={`w-full p-3 rounded-xl font-black uppercase outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-yellow-300 border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Cor da Tarja</label>
+                                                    <select 
+                                                        value={settings.topBarColor || 'bg-red-600'} 
+                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { topBarColor: e.target.value }, { merge: true })}
+                                                        className={`w-full p-3 rounded-xl font-bold outline-none text-sm cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}
+                                                    >
+                                                        <option value="bg-red-600">🔴 Vermelho (Urgência)</option>
+                                                        <option value="bg-blue-600">🔵 Azul (Destaque)</option>
+                                                        <option value="bg-green-600">🟢 Verde (Oferta)</option>
+                                                        <option value="bg-purple-600">🟣 Roxo (Exclusivo)</option>
+                                                        <option value="bg-slate-900">⚫ Preto (Premium)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-5 lg:py-6 rounded-2xl lg:rounded-[2rem] font-black uppercase tracking-widest text-lg shadow-xl ${settings.promoActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-orange-600 text-white hover:bg-orange-700'} transition-all active:scale-95`}>
@@ -5159,6 +5208,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     ...couponForm, 
                                     code: couponForm.code.toUpperCase(),
                                     storeId: storeId,
+                                    recurringDay: couponForm.recurringDay || 'all',
+                                    recurringStart: couponForm.recurringStart || null,
+                                    recurringEnd: couponForm.recurringEnd || null,
                                     value: Number(couponForm.value), 
                                     minimumOrderValue: Number(couponForm.minimumOrderValue || 0),
                                     usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null, 
@@ -5186,28 +5238,80 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <input type="text" placeholder="Ex: PROMO10" className="w-full p-5 bg-slate-50 rounded-2xl font-bold uppercase" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
                                     </div>
                                     <div className="flex gap-2 items-end">
-                                        <div className="space-y-1 w-1/3">
-                                            <label className="text-xs font-bold text-slate-400 ml-2">Tipo</label>
-                                            <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
-                                                <option value="percentage">%</option>
-                                                <option value="fixed_amount">R$</option>
+                                        <div className="space-y-1 w-1/2">
+                                            <label className="text-xs font-bold text-slate-400 ml-2">Tipo de Desconto</label>
+                                            <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-blue-500" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
+                                                <option value="percentage">% (Porcentagem)</option>
+                                                <option value="fixed_amount">R$ (Valor Fixo)</option>
+                                                <option value="bogo_50">🔥 2º Item c/ 50% OFF</option>
                                             </select>
                                         </div>
                                         <div className="space-y-1 flex-1">
-                                            <label className="text-xs font-bold text-slate-400 ml-2">Valor do Desconto</label>
-                                            <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required />
+                                            <label className="text-xs font-bold text-slate-400 ml-2">Valor (Deixe 0 se for 2º Item)</label>
+                                            <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required={couponForm.type !== 'bogo_50'} disabled={couponForm.type === 'bogo_50'} />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* --- NOVO: PRODUTOS ELEGÍVEIS PARA O CUPOM --- */}
+                                <div className="p-4 border border-slate-100 rounded-3xl space-y-3 bg-slate-50/50">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Itens Válidos para este Cupom</label>
+                                        <span className="text-[9px] bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-bold">Vazio = Vale para a Loja Toda</span>
+                                    </div>
+                                    <div className="max-h-32 overflow-y-auto custom-scrollbar border border-slate-200 rounded-2xl p-2 bg-white flex flex-col gap-1">
+                                        {products.map(p => {
+                                            const isSelected = (couponForm.applicableProducts || []).includes(p.id);
+                                            return (
+                                                <label key={p.id} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'}`}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            const current = couponForm.applicableProducts || [];
+                                                            if (e.target.checked) {
+                                                                setCouponForm({ ...couponForm, applicableProducts: [...current, p.id] });
+                                                            } else {
+                                                                setCouponForm({ ...couponForm, applicableProducts: current.filter(id => id !== p.id) });
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                                                    />
+                                                    <span className="text-xs font-bold text-slate-700">{p.name}</span>
+                                                </label>
+                                            );
+                                        })}
+                                        {products.length === 0 && <p className="text-xs text-center text-slate-400 italic">Cadastre produtos primeiro.</p>}
+                                    </div>
+                                </div>
+
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="block text-xs font-bold text-slate-400 ml-2">Pedido Mínimo (R$)</label>
                                         <input type="number" placeholder="0.00" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={couponForm.minimumOrderValue} onChange={e => setCouponForm({...couponForm, minimumOrderValue: e.target.value})} />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="block text-xs font-bold text-slate-400 ml-2">Data de Validade</label>
+                                        <label className="block text-xs font-bold text-slate-400 ml-2">Data Limite Final (Opcional)</label>
                                         <input type="date" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-slate-600" value={couponForm.expirationDate || ''} onChange={e => setCouponForm({...couponForm, expirationDate: e.target.value})} />
+                                    </div>
+                                </div>
+
+                                {/* --- NOVO: RECORRÊNCIA DO CUPOM --- */}
+                                <div className="p-4 border border-orange-100 rounded-3xl space-y-3 bg-orange-50/50">
+                                    <p className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1"><Clock size={12}/> Recorrência (Ativação Automática)</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <select value={couponForm.recurringDay || 'all'} onChange={(e) => setCouponForm({...couponForm, recurringDay: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer">
+                                            <option value="all">Todos os Dias</option>
+                                            <option value="1">Só Segunda</option>
+                                            <option value="2">Só Terça</option>
+                                            <option value="3">Só Quarta</option>
+                                            <option value="4">Só Quinta</option>
+                                            <option value="5">Só Sexta</option>
+                                            <option value="6">Só Sábado</option>
+                                            <option value="0">Só Domingo</option>
+                                        </select>
+                                        <input type="time" placeholder="Início" value={couponForm.recurringStart || ''} onChange={(e) => setCouponForm({...couponForm, recurringStart: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none" />
+                                        <input type="time" placeholder="Fim" value={couponForm.recurringEnd || ''} onChange={(e) => setCouponForm({...couponForm, recurringEnd: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none" />
                                     </div>
                                 </div>
 

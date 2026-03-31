@@ -145,7 +145,30 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
     return R * c; // Distância em KM
 };
+// --- FUNÇÃO PARA CHECAR DIAS E HORÁRIOS DE PROMOÇÕES ---
+const isWithinRecurringSchedule = (recurringDay, startTime, endTime) => {
+    const now = new Date();
+    
+    // Verifica o dia da semana
+    if (recurringDay && recurringDay !== 'all') {
+        const currentDay = now.getDay().toString(); // 0 = Domingo, 1 = Segunda...
+        if (currentDay !== recurringDay) return false;
+    }
 
+    // Verifica o horário
+    if (startTime && endTime) {
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startParts = startTime.split(':');
+        const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+        
+        const endParts = endTime.split(':');
+        const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+
+        if (currentMinutes < startMinutes || currentMinutes > endMinutes) return false;
+    }
+    
+    return true; // Passou em todas as validações
+};
 export default function Home() {
   const { productSlug } = useParams();
   const navigate = useNavigate();
@@ -1263,14 +1286,24 @@ export default function Home() {
   const cashbackDiscount = (marketingSettings?.gamification?.cashback && useCashback) ? Math.min(cashbackBalance, baseTotal) : 0;
   const finalTotal = baseTotal - cashbackDiscount;
 
-  const applyCoupon = async () => {
+  const applyCoupon = async (autoCode = null) => {
+    const codeToUse = typeof autoCode === 'string' ? autoCode : couponCode;
+    
     setCouponError(''); setDiscountAmount(0); setAppliedCoupon(null);
-    if (!couponCode) { setCouponError('Por favor, digite um código de cupom.'); return; }
-    const coupon = availableCoupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+    if (!codeToUse) { setCouponError('Por favor, digite um código de cupom.'); return; }
+    
+    const coupon = availableCoupons.find(c => c.code.toUpperCase() === codeToUse.toUpperCase());
     if (!coupon) { setCouponError('Cupom inválido ou não encontrado.'); return; }
     if (!coupon.active) { setCouponError('Este cupom não está ativo.'); return; }
+    
     const now = new Date();
-    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) { setCouponError('Este cupom expirou.'); return; }
+    if (coupon.expirationDate && new Date(coupon.expirationDate) < now) { setCouponError('Este cupom expirou pela data limite.'); return; }
+
+    // NOVO: Validação de Recorrência (Dia/Hora)
+    if (!isWithinRecurringSchedule(coupon.recurringDay, coupon.recurringStart, coupon.recurringEnd)) {
+        setCouponError('Este cupom não está disponível neste dia/horário.'); 
+        return; 
+    }
     if (coupon.usageLimit && coupon.currentUsage >= coupon.usageLimit) { setCouponError('Este cupom atingiu o limite máximo de usos.'); return; }
 
     if (coupon.userUsageLimit) {
@@ -1294,10 +1327,48 @@ export default function Home() {
     if (coupon.minimumOrderValue > subtotal) { setCouponError(`Valor mínimo do pedido para este cupom é R$ ${coupon.minimumOrderValue.toFixed(2)}.`); return; }
 
     let calculatedDiscount = 0;
-    if (coupon.type === 'percentage') { calculatedDiscount = subtotal * (coupon.value / 100);
-    } else if (coupon.type === 'fixed_amount') { calculatedDiscount = coupon.value; }
 
-    setAppliedCoupon(coupon); setDiscountAmount(calculatedDiscount); setCouponError('Cupom aplicado com sucesso!');
+    // 1. Isola os itens do carrinho que têm direito ao cupom
+    const eligibleItems = cart.filter(item => 
+        !coupon.applicableProducts || 
+        coupon.applicableProducts.length === 0 || 
+        coupon.applicableProducts.includes(item.id)
+    );
+
+    const eligibleSubtotal = eligibleItems.reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
+
+    // Se o cliente tentar usar o cupom em itens que não participam da promoção
+    if (eligibleSubtotal === 0 && coupon.applicableProducts?.length > 0) {
+        setCouponError('Este cupom não é válido para os itens atuais no seu carrinho.');
+        return;
+    }
+
+    // 2. Calcula baseado no Tipo de Cupom
+    if (coupon.type === 'percentage') { 
+        calculatedDiscount = eligibleSubtotal * (coupon.value / 100);
+    } 
+    else if (coupon.type === 'fixed_amount') { 
+        // Desconto fixo nunca pode ser maior que o subtotal dos itens elegíveis
+        calculatedDiscount = Math.min(coupon.value, eligibleSubtotal); 
+    } 
+    else if (coupon.type === 'bogo_50') {
+        // LÓGICA DO 2º ITEM COM 50% OFF (Compre 1, o 2º igual sai pela metade)
+        eligibleItems.forEach(item => {
+            // Verifica quantos "pares" do mesmo item o cliente comprou
+            const pares = Math.floor(item.quantity / 2);
+            // Para cada par, 1 item recebe 50% de desconto
+            calculatedDiscount += pares * (item.price * 0.5);
+        });
+
+        if (calculatedDiscount === 0) {
+            setCouponError('Adicione pelo menos 2 unidades do mesmo produto participante para ganhar o 2º com 50% OFF.');
+            return;
+        }
+    }
+
+    setAppliedCoupon(coupon); 
+    setDiscountAmount(calculatedDiscount); 
+    setCouponError('✅ Cupom aplicado com sucesso!');
   };
 
   const finalizeOrder = async () => {
@@ -1841,7 +1912,8 @@ if (window.fbq) {
          marketingSettings.promoBannerUrls && 
          marketingSettings.promoBannerUrls.length > 0 && 
          (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
-         (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && (
+         (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
+         isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
           <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
