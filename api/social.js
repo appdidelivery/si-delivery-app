@@ -20,14 +20,19 @@ export default async function handler(req, res) {
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
     let image = "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"; // Coloque uma logo genérica válida aqui
 
-    // 🚨 SUPER EXTRATOR DE URL V3 (Blinda contra Vercel e limpa tracking do Facebook)
-    let requestUrl = req.url || '';
-    if (req.query && req.query.route) {
-        requestUrl = String(req.query.route);
-    } else if (requestUrl.includes('route=')) {
-        requestUrl = decodeURIComponent(requestUrl.split('route=')[1].split('&')[0]);
+    // 🚨 SUPER EXTRATOR DE URL V4 (Corrige a barra engolida pela Vercel)
+    let rawPath = req.url || '';
+    if (rawPath.includes('route=')) {
+        rawPath = decodeURIComponent(rawPath.split('route=')[1].split('&')[0]);
+    } else if (req.headers['x-forwarded-uri']) {
+        rawPath = req.headers['x-forwarded-uri'];
     }
-    const finalCleanUrl = `https://${host}${requestUrl.split('?')[0]}`;
+
+    // A MÁGICA: Força a barra no início se a Vercel tiver apagado
+    if (!rawPath.startsWith('/')) rawPath = '/' + rawPath;
+
+    // URL limpa para o Facebook não reclamar do og:url
+    const finalCleanUrl = `https://${host}${rawPath.split('?')[0]}`;
 
     try {
         // 3. Busca os dados no Firebase via REST API
@@ -65,9 +70,9 @@ export default async function handler(req, res) {
             let productSchema = "";
             let productMetaTags = "";
             
-            const isProductPage = requestUrl.includes('/p/');
+            const isProductPage = rawPath.includes('/p/');
             if (isProductPage) {
-                const rawSlug = requestUrl.split('/p/')[1];
+                const rawSlug = rawPath.split('/p/')[1];
                 const productSlug = rawSlug.split('?')[0].split('&')[0].split('#')[0].replace(/\/$/, '');
                 
                 const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
