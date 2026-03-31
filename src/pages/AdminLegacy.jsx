@@ -3666,13 +3666,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { id: 'pix', label: '✅ VELOPAY PIX (AUTOMÁTICO NA TELA)', icon: <QrCode size={18} /> },
-            { id: 'online', label: '✅ VELOPAY CARTÃO (DIRETO NO APP)', icon: <CreditCard size={18} /> },
-            { id: 'offline_pix', label: 'PIX MANUAL (COPIA E COLA ANTIGO)', icon: <QrCode size={18} /> },
-            { id: 'cardDelivery', label: 'CARTÃO NA ENTREGA (MOTOBOY)', icon: <CreditCard size={18} /> },
-            { id: 'cashDelivery', label: 'DINHEIRO NA ENTREGA (MOTOBOY)', icon: <Banknote size={18} /> },
-            { id: 'cardPickup', label: 'CARTÃO NA RETIRADA (BALCÃO)', icon: <CreditCard size={18} /> },
-            { id: 'cashPickup', label: 'DINHEIRO NA RETIRADA (BALCÃO)', icon: <Banknote size={18} /> },
+                                    { id: 'online', label: '💳 PAGTO ONLINE (MERCADO PAGO / STRIPE)', icon: <CreditCard size={18} /> },
+                                    { id: 'pix', label: '⚡ PIX NATIVO (VELOPAY / AUTOMÁTICO)', icon: <QrCode size={18} /> },
+                                    { id: 'offline_pix', label: 'PIX MANUAL (COPIA E COLA ANTIGO)', icon: <QrCode size={18} /> },
+                                    { id: 'cardDelivery', label: 'CARTÃO NA ENTREGA (MOTOBOY)', icon: <CreditCard size={18} /> },
+                                    { id: 'cashDelivery', label: 'DINHEIRO NA ENTREGA (MOTOBOY)', icon: <Banknote size={18} /> },
+                                    { id: 'cardPickup', label: 'CARTÃO NA RETIRADA (BALCÃO)', icon: <CreditCard size={18} /> },
+                                    { id: 'cashPickup', label: 'DINHEIRO NA RETIRADA (BALCÃO)', icon: <Banknote size={18} /> },
                                 ].map(pm => {
                                     // Padrão: Se o logista nunca mexeu, tudo vem ativado como 'true'
                                     const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
