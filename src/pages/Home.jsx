@@ -2752,21 +2752,37 @@ if (window.fbq) {
                                         {group.isRequired ? 'Obrigatório' : 'Opcional'} • Máx: {group.maxSelections}
                                     </span>
                                 </div>
-                                <div className="space-y-2">
+                               <div className="space-y-2">
                                     {group.options.map((opt, i) => {
                                         const isSelected = (selectedOptions[group.id] ||[]).some(o => o.name === opt.name);
+                                        // NOVO: Verifica se tem controle de estoque e se acabou
+                                        const isOutOfStock = opt.stock !== undefined && opt.stock !== '' && Number(opt.stock) <= 0;
+
                                         return (
-                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50` : 'border-transparent bg-white hover:border-slate-200'}`}>
+                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 transition-all ${isOutOfStock ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed grayscale' : (isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50 cursor-pointer` : 'border-transparent bg-white hover:border-slate-200 cursor-pointer')}`}>
                                                 <div className="flex items-center gap-3">
                                                     <input 
                                                         type={group.maxSelections === 1 ? 'radio' : 'checkbox'} 
                                                         checked={isSelected}
-                                                        onChange={() => handleOptionToggle(group, opt)}
-                                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer`}
+                                                        disabled={isOutOfStock}
+                                                        onChange={() => !isOutOfStock && handleOptionToggle(group, opt)}
+                                                        className={`${currentTheme.accent} w-4 h-4 ${isOutOfStock ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                                                     />
-                                                    <span className={`text-sm font-bold ${isSelected ? `${currentTheme.darkText}` : 'text-slate-600'}`}>{opt.name}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-sm font-bold ${isSelected ? `${currentTheme.darkText}` : 'text-slate-600'} ${isOutOfStock ? 'line-through' : ''}`}>
+                                                            {opt.name}
+                                                        </span>
+                                                        {/* Tag de Esgotado ou Mostrador de Estoque Limitado */}
+                                                        {isOutOfStock ? (
+                                                            <span className="text-[10px] font-black text-red-500 uppercase mt-0.5 tracking-widest">Esgotado</span>
+                                                        ) : (
+                                                            opt.stock !== undefined && opt.stock !== '' && Number(opt.stock) <= 5 && (
+                                                                <span className="text-[9px] font-bold text-orange-500 uppercase mt-0.5">Restam apenas {opt.stock}</span>
+                                                            )
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? `${currentTheme.text}` : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
+                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? `${currentTheme.text}` : 'text-slate-400'} ${isOutOfStock ? 'line-through' : ''}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
                                             </label>
                                         )
                                     })}

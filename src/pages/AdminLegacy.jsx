@@ -4959,6 +4959,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             newComps[catIndex].options[optIndex].price = parseFloat(e.target.value) || 0;
                                                             setForm(prev => ({ ...prev, complements: newComps }));
                                                         }} />
+                                                        
+                                                        {/* NOVO: CAMPO DE ESTOQUE DA VARIAÇÃO/COMPLEMENTO */}
+                                                        <input type="number" placeholder="Estoque (Opc.)" className="w-28 p-3 bg-white rounded-lg text-xs font-bold border border-slate-100 outline-none text-orange-600" value={opt.stock !== undefined ? opt.stock : ''} onChange={(e) => {
+                                                            const newComps =[...form.complements];
+                                                            // Se deixar vazio, apaga o limite de estoque (infinito)
+                                                            newComps[catIndex].options[optIndex].stock = e.target.value === '' ? '' : parseInt(e.target.value);
+                                                            setForm(prev => ({ ...prev, complements: newComps }));
+                                                        }} />
+
                                                         <button type="button" onClick={() => {
                                                             const newComps = [...form.complements];
                                                             newComps[catIndex].options.splice(optIndex, 1);
