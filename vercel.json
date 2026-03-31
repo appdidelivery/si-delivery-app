@@ -21,7 +21,7 @@
           "value": ".*(WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber).*"
         }
       ],
-      "destination": "/api/social"
+      "destination": "/api/social?route=/$1"
     },
     {
       "source": "/(.*)",
