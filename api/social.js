@@ -85,11 +85,13 @@ export default async function handler(req, res) {
                     for (const item of productsData) {
                         if (item.document && item.document.fields) {
                             const pName = item.document.fields.name?.stringValue || '';
+                            // NOVO: Puxa o slug salvo no banco (se existir), senão, gera pelo nome
+                            const savedSlug = item.document.fields.slug?.stringValue || '';
+                            const finalProductSlugToCompare = savedSlug !== '' ? savedSlug : generateSlug(pName);
                             
-                            // Se achou o produto correspondente ao link
-                            if (generateSlug(pName) === productSlug) {
+                            // Se achou o produto correspondente ao link (por slug salvo ou nome gerado)
+                            if (finalProductSlugToCompare === productSlug || generateSlug(pName) === productSlug) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
-                                const pImg = item.document.fields.imageUrl?.stringValue || '';
                                 
                                 // Extração dos dados base (Preço, Promoção, GTIN, Marca)
                                 const pPrice = item.document.fields.price?.numberValue || item.document.fields.price?.integerValue || 0;
