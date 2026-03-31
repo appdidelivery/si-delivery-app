@@ -157,6 +157,7 @@ export default async function handler(req, res) {
         {
           "@context": "https://schema.org/",
           "@type": "${schemaType}",
+          "@id": "${finalCleanUrl}#product",
           "name": "${pName}",
           "image": "${image}",
           "description": "${description}",
