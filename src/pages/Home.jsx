@@ -1347,8 +1347,8 @@ export default function Home() {
       const newOrderRef = doc(collection(db, "orders"));
       const orderId = newOrderRef.id;
 
-      // No modo Garçom, força o envio direto e ignora a Stripe para não travar
-      const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix'].includes(customer.payment);
+     // No modo Garçom, força o envio direto e ignora o Gateway para não travar
+      const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup'].includes(customer.payment);
 
      const orderData = {
         customerName: customer.name || "", 
@@ -1429,13 +1429,15 @@ if (window.fbq) {
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
           const enderecoMsg = isWaiterMode ? `\n🍽️ *Mesa:* ${tableNumber}` : `\n📍 *Endereço:* ${fullAddress}`;
           
-         let obsMsg = '';
+        let obsMsg = '';
           if (isWaiterMode) {
               obsMsg = `\n💳 *Pagamento:* A combinar no Caixa / Salão`;
-          } else if (customer.payment === 'dinheiro') {
+          } else if (customer.payment === 'dinheiro' || customer.payment === 'cashPickup') {
               obsMsg = `\n💵 *Pagamento:* Dinheiro\n🪙 *Troco para:* ${customer.changeFor || 'Não precisa'}`;
           } else if (customer.payment === 'offline_pix') {
-              obsMsg = `\n📱 *Pagamento:* PIX (Na Entrega / Chave da Loja)`;
+              obsMsg = `\n📱 *Pagamento:* PIX (Copia e Cola / Chave da Loja)`;
+          } else if (customer.payment === 'cardPickup') {
+              obsMsg = `\n💳 *Pagamento:* Cartão (Passar na Retirada no Balcão)`;
           } else {
               obsMsg = `\n💳 *Pagamento:* Cartão na Entrega (Levar maquininha)`;
           }
@@ -2380,26 +2382,39 @@ if (window.fbq) {
                       <>
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
                           <div id="area-pagamento">
-                            <div className="grid grid-cols-2 gap-2 mt-2">
+                           <div className="grid grid-cols-2 gap-2 mt-2">
                              {(() => {
                                     const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     
-                                   // 🚨 SEGURANÇA: Lê as chaves do banco de dados
-                                    const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
+                                    // 🚨 SEGURANÇA: Lê as chaves do banco de dados
+                                    const hasVeloPayPix = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
                                     const hasVeloPayCredit = storeSettings?.velopayCreditStatus === 'active';
-                                    const hasStripeOrMP = !!(storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken);
+                                    const hasStripe = !!storeSettings?.stripeConnectId;
+                                    const hasMP = !!marketingSettings?.integrations?.mercadopago?.accessToken;
+                                    const hasGateway = hasStripe || hasMP;
+                                    const isPickup = customer.deliveryMethod === 'pickup';
+
+                                    // Nomeia o botão dinamicamente com base no que o lojista conectou
+                                    const gatewayName = hasMP ? 'MERCADO PAGO' : (hasStripe ? 'STRIPE' : 'ONLINE');
                                     
                                     let allMethods =[
-                                        // VeloPay Pix e Cartão (Nativos)
-                                        { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPay && pmConfig.pix !== false, isPremium: true },
-                                        { id: 'velopay_credit', name: 'CARTÃO (VELOPAY)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit, isPremium: true },
+                                        // 1. VELOPAY NATIVO
+                                        { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
+                                        { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
                                         
-                                        // Gateways Antigos (Stripe / Mercado Pago)
-                                        { id: 'online', name: 'CARTÃO (STRIPE/MP)', icon: <CreditCard size={20}/>, showIf: hasStripeOrMP && pmConfig.online !== false },
+                                        // 2. GATEWAY EXTERNO (MERCADO PAGO OU STRIPE)
+                                        { id: 'online', name: `${gatewayName} (CARTÃO/PIX)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
                                         
-                                        // Pagamentos na Entrega
-                                        { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: pmConfig.cardDelivery !== false },
-                                        { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: pmConfig.cashDelivery !== false },
+                                        // 3. PIX MANUAL
+                                        { id: 'offline_pix', name: 'PIX (COPIA E COLA)', icon: <QrCode size={20}/>, showIf: pmConfig.offline_pix !== false },
+                                        
+                                        // 4. MÉTODOS DE ENTREGA (Só aparece se for Delivery)
+                                        { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
+                                        { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
+
+                                        // 5. MÉTODOS DE RETIRADA (Só aparece se for Retirada no Balcão)
+                                        { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
+                                        { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
                                     ];
 
                                     return allMethods.filter(m => m.showIf).map(m => (
