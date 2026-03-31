@@ -52,13 +52,28 @@ export default async function handler(req, res) {
                 }
             }
 
-            // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
+           // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
             let productSchema = "";
-            let productMetaTags = "";
             
-            const isProductPage = req.url.includes('/p/');
+            // 🚨 SUPER EXTRATOR DE URL (Blinda contra Rewrites da Vercel)
+            // A Vercel esconde a URL original no req.url, então puxamos do x-invoke-path
+            const requestUrl = req.headers['x-invoke-path'] || req.headers['x-now-route-matches'] || req.url || '';
+            const isProductPage = requestUrl.includes('/p/');
+            
+            // Tags de rastreamento para podermos ver no Depurador do Facebook o que a Vercel está recebendo
+            let productMetaTags = `
+        <meta property="velo:debug_url" content="${requestUrl}" />
+            `;
+            
             if (isProductPage) {
-                const productSlug = req.url.split('/p/')[1].split('?')[0];
+                const productSlug = requestUrl.split('/p/')[1].split('?')[0].replace(/\/$/, '');
+                productMetaTags += `\n        <meta property="velo:debug_slug" content="${productSlug}" />`;
+                
+                // Função para limpar 100% os hífens e comparar só as letras e números (Fuzzy Match à prova de erros)
+                const fuzzyMatch = (s1, s2) => {
+                    if (!s1 || !s2) return false;
+                    return s1.replace(/[^a-z0-9]/g, '') === s2.replace(/[^a-z0-9]/g, '');
+                };
                 
                 const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
                 const queryBody = {
@@ -85,15 +100,14 @@ export default async function handler(req, res) {
                     for (const item of productsData) {
                         if (item.document && item.document.fields) {
                             const pName = item.document.fields.name?.stringValue || '';
-                            // NOVO: Puxa o slug salvo no banco (se existir), senão, gera pelo nome
-                            const savedSlug = item.document.fields.slug?.stringValue || '';
-                            const finalProductSlugToCompare = savedSlug !== '' ? savedSlug : generateSlug(pName);
+                            const pSavedSlug = item.document.fields.slug?.stringValue || '';
                             
-                            // Se achou o produto correspondente ao link (por slug salvo ou nome gerado)
-                            if (finalProductSlugToCompare === productSlug || generateSlug(pName) === productSlug) {
+                            // 🚨 COMPARAÇÃO BLINDADA: Se as letras baterem, ele ignora a formatação de hífens
+                            if (fuzzyMatch(generateSlug(pName), productSlug) || fuzzyMatch(pSavedSlug, productSlug)) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
+                                const pImg = item.document.fields.imageUrl?.stringValue || '';
                                 
-                                // Extração dos dados base (Preço, Promoção, GTIN, Marca)
+                                // Extração dos dados base
                                 const pPrice = item.document.fields.price?.numberValue || item.document.fields.price?.integerValue || 0;
                                 const pPromoPrice = item.document.fields.promoPrice?.numberValue || item.document.fields.promoPrice?.integerValue || 0;
                                 const pBrand = item.document.fields.brand?.stringValue || title; 
@@ -101,16 +115,13 @@ export default async function handler(req, res) {
                                 const pIsPromo = item.document.fields.isPromo?.booleanValue || (pPromoPrice > 0);
                                 const finalPrice = pIsPromo && pPromoPrice > 0 ? pPromoPrice : pPrice;
 
-                                // Extração dos dados SEO (Comida, Tempo, Logística)
+                                // Extração dos dados SEO (Comida e Reviews)
                                 const pPrepTime = item.document.fields.prepTime?.integerValue || item.document.fields.prepTime?.numberValue || null;
                                 const pCalories = item.document.fields.calories?.integerValue || item.document.fields.calories?.numberValue || null;
                                 const pDeliveryTime = item.document.fields.deliveryLeadTime?.integerValue || item.document.fields.deliveryLeadTime?.numberValue || null;
-                                
-                                // Extração dos dados de Review (Estrelas do Google)
                                 const pRatingValue = item.document.fields.ratingValue?.numberValue || item.document.fields.ratingValue?.integerValue || null;
                                 const pReviewCount = item.document.fields.reviewCount?.integerValue || item.document.fields.reviewCount?.numberValue || null;
 
-                                // Lógica para extrair as Dietas (suitableForDiet)
                                 let pDietSchema = "";
                                 if (item.document.fields.suitableForDiet && item.document.fields.suitableForDiet.arrayValue && item.document.fields.suitableForDiet.arrayValue.values) {
                                     const dietArray = item.document.fields.suitableForDiet.arrayValue.values.map(v => `"${v.stringValue}"`);
@@ -119,14 +130,14 @@ export default async function handler(req, res) {
                                     }
                                 }
 
-                                // Sobrescreve a capa e título global pela do produto
+                                // Sobrescreve a capa e título global
                                 const storeName = title; 
                                 title = `${pName} | ${storeName}`; 
                                 description = pDesc || `Compre ${pName} online na ${storeName}!`;
                                 if (pImg) image = pImg;
                                 
-                                // Monta as Tags Open Graph exclusivas de Produto (WhatsApp/Facebook)
-                                productMetaTags = `
+                                // Injeta as Metas de Produto Reais
+                                productMetaTags += `
         <meta property="product:brand" content="${pBrand}" />
         <meta property="product:availability" content="in stock" />
         <meta property="product:condition" content="new" />
@@ -135,11 +146,9 @@ export default async function handler(req, res) {
         ${pGtin ? `<meta property="product:gtin" content="${pGtin}" />` : ''}
                                 `;
 
-                                // Lógica de Inteligência SEO: É Comida ou Produto Genérico?
                                 const isFoodItem = pPrepTime !== null || pCalories !== null || pDietSchema !== "";
                                 const schemaType = isFoodItem ? "MenuItem" : "Product";
 
-                                // Monta o Schema Misto Perfeito (SEO para Google com Reviews)
                                 productSchema = `
         <script type="application/ld+json">
         {
@@ -166,7 +175,7 @@ export default async function handler(req, res) {
         </script>
                                 `;
                                 
-                                break; // Achou o produto, encerra o loop
+                                break; // Achou o produto, encerra
                             }
                         }
                     }
