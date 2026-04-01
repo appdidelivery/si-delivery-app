@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron-automations",
-      "schedule": "*/15 * * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/robots.txt",
