@@ -352,6 +352,14 @@ export default function Admin() {
     // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
+    const [currentTime, setCurrentTime] = useState(new Date()); // NOVO: Relógio interno para os atrasos
+
+    // Faz o relógio "bater" a cada 30 segundos para mudar as cores dos atrasos ao vivo
+    useEffect(() => {
+        const interval = setInterval(() => setCurrentTime(new Date()), 30000); 
+        return () => clearInterval(interval);
+    }, []);
     const [visitasHoje, setVisitasHoje] = useState(0);
     const [orders, setOrders] = useState([]);
     const[abandonedCarts, setAbandonedCarts] = useState([]); // NOVO: Estado dos abandonados
@@ -2088,141 +2096,248 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </div>
                 )}
                 {activeTab === 'orders' && (
-                    <div className="space-y-6">
-                        <h1 className="text-4xl font-black italic uppercase mb-8">Pedidos</h1>
-                        {orders.map(o => (
-                            <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
-                                <div className="flex flex-col flex-1">
-                                   <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
-                                        
-                                        {/* 1. STATUS DE PAGAMENTO SEPARADO */}
-                                        {/* 1. STATUS DE PAGAMENTO SEPARADO */}
-                                        {(() => {
-                                            const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'link_mp'].includes(o.paymentMethod);
-                                            const pStatus = o.paymentStatus || 'pending';
-                                            
-                                            if (isOnline) {
-                                                if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO ONLINE</span>;
-                                                if (pStatus === 'failed') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
-                                                return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse">⏳ AGUARDANDO PAGTO</span>;
-                                            }
-                                            if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
-                                            return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
-                                        })()}
-
-                                        {/* 2. STATUS DO PEDIDO (COZINHA/ENTREGA) */}
-                                        {(() => {
-                                            const statusMap = {
-                                                pending: { label: 'Novo Pedido', color: 'bg-red-500 text-white animate-pulse shadow-md' },
-                                                preparing: { label: 'Preparando', color: 'bg-orange-400 text-white' },
-                                                delivery: { label: 'Saiu p/ Entrega', color: 'bg-blue-500 text-white' },
-                                                completed: { label: 'Concluído', color: 'bg-green-500 text-white' },
-                                                canceled: { label: 'Cancelado', color: 'bg-slate-800 text-white' }
-                                            };
-                                            const s = statusMap[o.status] || statusMap.pending;
-                                            return <span className={`${s.color} px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider`}>{s.label}</span>;
-                                        })()}
-
-                                        {o.tipo === 'local' && (
-                                            <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
-                                        )}
-                                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                                    </div>
-                                    <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
-                                        {o.customerName} 
-                                        {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
-                                        {o.source === 'google_food_marketplace' && <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 Via Google Maps</span>}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 font-medium">
-                                        {o.tipo === 'local' 
-                                            ? `Atendimento no Salão - Mesa ${o.mesa}`
-                                            : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
-                                        }
-                                    </p>
-                                </div>
-                                {/* LISTAGEM SEGURA DE ITENS NO PEDIDO */}
-                <div className="py-3 my-2 border-y border-slate-50 space-y-2">
-                    {o.items && Array.isArray(o.items) ? o.items.map((i, idx) => (
-                        <div key={idx} className="flex flex-col">
-                            <div className="flex justify-between items-start text-sm">
-                                <span className="font-bold text-slate-700">
-                                    {i.quantity}x {i.name}
-                                </span>
-                                <span className="text-slate-400 font-medium">
-                                    R$ {(Number(i.price || 0) * Number(i.quantity || 1)).toFixed(2)}
-                                </span>
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                            <div>
+                                <h1 className="text-4xl font-black italic uppercase text-slate-900">Pedidos</h1>
+                                <p className="text-slate-400 font-bold mt-1 text-sm">Gerencie o fluxo da sua operação.</p>
                             </div>
-                            
-                            {/* MOSTRAR OBSERVAÇÃO COM SEGURANÇA */}
-                            {i.observation && (
-                                <div className="text-[11px] text-orange-600 font-bold bg-orange-50 p-2 rounded-lg mt-1 border border-orange-100 italic leading-tight">
-                                    ↳ Obs: {i.observation}
-                                </div>
-                            )}
+                            <div className="flex bg-slate-200 p-1 rounded-xl w-fit">
+                                <button onClick={() => setOrderViewMode('list')} className={`px-5 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${orderViewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    <List size={16} /> Lista Padrão
+                                </button>
+                                <button onClick={() => setOrderViewMode('grid')} className={`px-5 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${orderViewMode === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    <LayoutDashboard size={16} /> Kanban (PDV)
+                                </button>
+                            </div>
                         </div>
-                    )) : (
-                        <span className="text-xs text-slate-400 italic">Nenhum item encontrado</span>
-                    )}
-                </div>
-                                <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
-                                    <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
-                                    <div className="flex flex-wrap justify-end gap-2 md:gap-3">
-                                        <button 
-                                            onClick={() => {
-                                                
-                                                const initialDataForModal = {
-                                                    ...o, // Começa com os dados originais do pedido
-                                                    paymentMethod: o.paymentMethod || 'pix', // Define um fallback caso o campo não exista
-                                                    items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], // Garante que 'items' é um array
-                                                    shippingFee: o.shippingFee || 0,
-                                                    customerName: o.customerName || '',
-                                                    customerAddress: o.customerAddress || '',
-                                                    customerPhone: o.customerPhone || ''
-                                                };
-                                                setEditingOrderData(initialDataForModal);
-                                                setIsOrderEditModalOpen(true);
-                                            }} 
-                                            className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
-                                            title="Editar Pedido"
-                                        >
-                                            <Edit3 size={20} />
-                                        </button>
-                                        <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
-                                        <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                        
-                                        {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
-                                        {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
-                                            <button 
-                                                onClick={async () => {
-                                                    const chavePix = store?.velopayPixKey || store?.pixKey || 'Chave não cadastrada';
-                                                    const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da ${storeStatus?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
-                                                    
-                                                    window.open(`https://wa.me/55${(o.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-                                                    
-                                                    // Muda o status automaticamente para evitar cobrar duas vezes
-                                                    await updateDoc(doc(db, "orders", o.id), { 
-                                                        paymentStatus: 'aguardando_pix' 
-                                                    });
-                                                }}
-                                                className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
-                                                title="Cobrar PIX no WhatsApp"
-                                            >
-                                                <QrCode size={20}/>
-                                            </button>
-                                        )}
 
-                                        <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
-    <option value="pending">⏳ Novo Pedido</option>
-    <option value="preparing">👨‍🍳 Preparando</option>
-    <option value="delivery">🏍️ Saiu p/ Entrega</option>
-    <option value="completed">✅ Concluído</option>
-    <option value="canceled">❌ Cancelado</option>
-</select>
+                        {orderViewMode === 'list' ? (
+                            <div className="space-y-4">
+                                {orders.map(o => (
+                                    <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
+                                        <div className="flex flex-col flex-1">
+                                           <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
+                                                
+                                                {/* 1. STATUS DE PAGAMENTO SEPARADO */}
+                                                {(() => {
+                                                    const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'link_mp'].includes(o.paymentMethod);
+                                                    const pStatus = o.paymentStatus || 'pending';
+                                                    
+                                                    if (isOnline) {
+                                                        if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO ONLINE</span>;
+                                                        if (pStatus === 'failed') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
+                                                        return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse">⏳ AGUARDANDO PAGTO</span>;
+                                                    }
+                                                    if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
+                                                    return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
+                                                })()}
+
+                                                {/* 2. STATUS DO PEDIDO (COZINHA/ENTREGA) */}
+                                                {(() => {
+                                                    const statusMap = {
+                                                        pending: { label: 'Novo Pedido', color: 'bg-red-500 text-white animate-pulse shadow-md' },
+                                                        preparing: { label: 'Preparando', color: 'bg-orange-400 text-white' },
+                                                        delivery: { label: 'Saiu p/ Entrega', color: 'bg-blue-500 text-white' },
+                                                        completed: { label: 'Concluído', color: 'bg-green-500 text-white' },
+                                                        canceled: { label: 'Cancelado', color: 'bg-slate-800 text-white' }
+                                                    };
+                                                    const s = statusMap[o.status] || statusMap.pending;
+                                                    return <span className={`${s.color} px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider`}>{s.label}</span>;
+                                                })()}
+
+                                                {o.tipo === 'local' && (
+                                                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
+                                                )}
+                                                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                            </div>
+                                            <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
+                                                {o.customerName} 
+                                                {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
+                                                {o.source === 'google_food_marketplace' && <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 Via Google Maps</span>}
+                                            </h3>
+                                            <p className="text-xs text-slate-500 font-medium">
+                                                {o.tipo === 'local' 
+                                                    ? `Atendimento no Salão - Mesa ${o.mesa}`
+                                                    : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
+                                                }
+                                            </p>
+                                        </div>
+                                        {/* LISTAGEM SEGURA DE ITENS NO PEDIDO */}
+                                        <div className="py-3 my-2 border-y border-slate-50 space-y-2">
+                                            {o.items && Array.isArray(o.items) ? o.items.map((i, idx) => (
+                                                <div key={idx} className="flex flex-col">
+                                                    <div className="flex justify-between items-start text-sm">
+                                                        <span className="font-bold text-slate-700">
+                                                            {i.quantity}x {i.name}
+                                                        </span>
+                                                        <span className="text-slate-400 font-medium">
+                                                            R$ {(Number(i.price || 0) * Number(i.quantity || 1)).toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    {/* MOSTRAR OBSERVAÇÃO COM SEGURANÇA */}
+                                                    {i.observation && (
+                                                        <div className="text-[11px] text-orange-600 font-bold bg-orange-50 p-2 rounded-lg mt-1 border border-orange-100 italic leading-tight">
+                                                            ↳ Obs: {i.observation}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )) : (
+                                                <span className="text-xs text-slate-400 italic">Nenhum item encontrado</span>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
+                                            <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
+                                            <div className="flex flex-wrap justify-end gap-2 md:gap-3">
+                                                <button 
+                                                    onClick={() => {
+                                                        const initialDataForModal = {
+                                                            ...o, // Começa com os dados originais do pedido
+                                                            paymentMethod: o.paymentMethod || 'pix', // Define um fallback caso o campo não exista
+                                                            items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], // Garante que 'items' é array
+                                                            shippingFee: o.shippingFee || 0,
+                                                            customerName: o.customerName || '',
+                                                            customerAddress: o.customerAddress || '',
+                                                            customerPhone: o.customerPhone || ''
+                                                        };
+                                                        setEditingOrderData(initialDataForModal);
+                                                        setIsOrderEditModalOpen(true);
+                                                    }} 
+                                                    className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
+                                                    title="Editar Pedido"
+                                                >
+                                                    <Edit3 size={20} />
+                                                </button>
+                                                <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
+                                                <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
+                                                
+                                                {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
+                                                {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const chavePix = store?.velopayPixKey || store?.pixKey || 'Chave não cadastrada';
+                                                            const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da ${storeStatus?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
+                                                            
+                                                            window.open(`https://wa.me/55${(o.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                            
+                                                            // Muda o status automaticamente para evitar cobrar duas vezes
+                                                            await updateDoc(doc(db, "orders", o.id), { 
+                                                                paymentStatus: 'aguardando_pix' 
+                                                            });
+                                                        }}
+                                                        className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
+                                                        title="Cobrar PIX no WhatsApp"
+                                                    >
+                                                        <QrCode size={20}/>
+                                                    </button>
+                                                )}
+
+                                                <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
+                                                    <option value="pending">⏳ Novo Pedido</option>
+                                                    <option value="preparing">👨‍🍳 Preparando</option>
+                                                    <option value="delivery">🏍️ Saiu p/ Entrega</option>
+                                                    <option value="completed">✅ Concluído</option>
+                                                    <option value="canceled">❌ Cancelado</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
-                        ))}
+                        ) : (
+                            /* --- NOVO KANBAN (GRID STYLE) --- */
+                            <div className="flex gap-4 overflow-x-auto pb-6 items-start custom-scrollbar min-h-[calc(100vh-250px)]">
+                                {[
+                                    { id: 'pending', title: '⏳ Novos (Pendentes)', color: 'bg-red-100 text-red-800 border-red-200', next: 'preparing', nextLabel: 'Aceitar (Cozinha)' },
+                                    { id: 'preparing', title: '👨‍🍳 Em Preparo', color: 'bg-orange-100 text-orange-800 border-orange-200', next: 'delivery', nextLabel: 'Despachar (Rota)' },
+                                    { id: 'delivery', title: '🏍️ Em Rota / Retirada', color: 'bg-blue-100 text-blue-800 border-blue-200', next: 'completed', nextLabel: 'Finalizar' }
+                                ].map(col => (
+                                    <div key={col.id} className="w-[340px] flex-shrink-0 bg-slate-100/50 p-4 rounded-[2rem] border border-slate-200 h-full flex flex-col shadow-inner">
+                                        <h3 className={`font-black text-xs uppercase tracking-widest p-4 rounded-xl border mb-4 flex justify-between items-center shadow-sm ${col.color}`}>
+                                            {col.title}
+                                            <span className="bg-white/60 px-2.5 py-1 rounded-md shadow-sm">{orders.filter(o => o.status === col.id).length}</span>
+                                        </h3>
+                                        
+                                        <div className="space-y-4 overflow-y-auto flex-1 custom-scrollbar pr-2 pb-20">
+                                            {orders.filter(o => o.status === col.id).map(o => {
+                                                // --- LÓGICA DO CRONÔMETRO (CORES POR TEMPO) ---
+                                                const date = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt?.seconds * 1000 || Date.now());
+                                                const diffMin = Math.floor((currentTime - date) / 60000);
+                                                
+                                                let timerClass = 'text-green-700 bg-green-100 border-green-200';
+                                                if (diffMin >= 10 && diffMin < 20) timerClass = 'text-orange-700 bg-orange-100 border-orange-200';
+                                                if (diffMin >= 20) timerClass = 'text-white bg-red-500 border-red-600 shadow-md animate-pulse';
+
+                                                return (
+                                                    <div key={o.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative group hover:shadow-md transition-all flex flex-col">
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-200">
+                                                                #{o.id.slice(-5).toUpperCase()}
+                                                            </span>
+                                                            <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border ${timerClass}`}>
+                                                                <Clock size={12} className="inline mr-1 mb-0.5"/>
+                                                                {diffMin} min
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <h4 className="font-black text-slate-800 text-sm leading-tight mb-1 truncate">{o.customerName}</h4>
+                                                        
+                                                        <div className="text-[10px] font-bold text-slate-500 mb-4 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-lg">
+                                                            {o.tipo === 'local' ? (
+                                                                <span className="text-purple-600 flex items-center gap-1"><Utensils size={12}/> Mesa {o.mesa}</span>
+                                                            ) : (
+                                                                <span className="flex items-start gap-1"><MapPin size={12} className="mt-0.5 flex-shrink-0"/> {o.customerAddress?.street || o.customerAddress || 'Retirada no Balcão'}</span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Lista Rápida de Itens */}
+                                                        <div className="mb-4 space-y-1">
+                                                            {o.items?.slice(0, 3).map((i, idx) => (
+                                                                <p key={idx} className="text-xs font-bold text-slate-700 truncate">
+                                                                    <span className="text-blue-500 mr-1">{i.quantity}x</span> {i.name}
+                                                                </p>
+                                                            ))}
+                                                            {o.items?.length > 3 && <p className="text-[10px] text-slate-400 font-bold italic mt-1">+{o.items.length - 3} itens (clique para editar)</p>}
+                                                        </div>
+                                                        
+                                                        {o.observation && (
+                                                            <p className="text-[10px] text-orange-700 bg-orange-50 p-2.5 rounded-xl font-bold mb-4 line-clamp-2 border border-orange-100">
+                                                                Obs: {o.observation}
+                                                            </p>
+                                                        )}
+
+                                                        <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-auto">
+                                                            <div className="flex gap-1">
+                                                                <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
+                                                                <button onClick={() => {
+                                                                    const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };
+                                                                    setEditingOrderData(initialDataForModal);
+                                                                    setIsOrderEditModalOpen(true);
+                                                                }} className="p-2 bg-slate-100 rounded-lg hover:bg-orange-100 text-orange-600 transition-colors" title="Ver Detalhes/Editar"><Edit3 size={16} /></button>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => updateStatusAndNotify(o, col.next)}
+                                                                className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                                                            >
+                                                                {col.nextLabel}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {orders.filter(o => o.status === col.id).length === 0 && (
+                                                <div className="flex flex-col items-center justify-center p-8 opacity-50">
+                                                    <LayoutDashboard size={40} className="text-slate-300 mb-2"/>
+                                                    <p className="text-xs text-center text-slate-500 font-bold uppercase tracking-widest">Nenhum Pedido</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
