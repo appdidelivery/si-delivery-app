@@ -2120,7 +2120,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
                                                 <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
                                                 
-                                                {/* 1. STATUS DE PAGAMENTO SEPARADO */}
+                                                {/* 1. STATUS DEa PAGAMENTO SEPARADO */}
                                                 {(() => {
                                                     const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'link_mp'].includes(o.paymentMethod);
                                                     const pStatus = o.paymentStatus || 'pending';
