@@ -1990,7 +1990,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
                                     const gatilhoDesejo = isBebida ? 'Bateu aquela sede? 🍻' : 'Bateu aquela fome? 🍔';
 
-                                   // TEXTOS AGRESSIVOS DE ALTA CONVERSÃO
+                                   // TEXTOS AGRESSIVOS DE ALTA 1CONVERSÃO
                                     const msg30min = `Fala ${firstName}, tudo bem? Aqui é da *${storeStatus.name}*! 👀\n\nVi que você deixou alguns itens deliciosos no carrinho, mas não finalizou. Deu algum erro na página ou faltou alguma informação? \n\nSe precisar de ajuda para fechar o pedido, me chama aqui!`;
                                     
                                     const msg1hora = `Bateu aquela fome, ${firstName}? 🤤🍔\n\nSeu carrinho na *${storeStatus.name}* está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar agora com *5% OFF*!\n\nUse o cupom: *VOLTA5*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
