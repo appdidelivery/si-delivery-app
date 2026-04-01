@@ -585,14 +585,14 @@ export default function Admin() {
         recommendedIds:[],
         complements:[],
         isChilled: false,
-        // --- NOVOS CAMPOS SEO / LOGÍSTICA ---
         gtin: '',
         brand: '',
         prepTime: '',
         deliveryLeadTime: '',
         calories: '',
         suitableForDiet:[],
-        variations: ''
+        variations: '',
+        isActive: true // <-- NOVO CAMPO ADICIONADO
     });
 
     const [editingId, setEditingId] = useState(null);
@@ -2502,7 +2502,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </button>
 
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                             </div>
                         </div>
                         {/* --- BARRA DE BUSCA --- */}
@@ -2529,7 +2529,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
                                     <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
                                     <div className="flex-1">
-                                        <p className="font-bold text-slate-800 leading-tight mb-1">{p.name}</p>
+                                        <div className="flex items-center gap-2 mb-1">
+    <p className={`font-bold leading-tight ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{p.name}</p>
+    {p.isActive === false && <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-black uppercase border border-slate-200">Pausado</span>}
+</div>
                                         {/* PASSO 4: Exibição dos novos preços na listagem */}
                                         <div className='flex items-end gap-2'>
                                             <p className={`text-blue-600 font-black text-lg ${p.promotionalPrice > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
@@ -2548,7 +2551,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '' }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '', isActive: p.isActive !== false }); setIsModalOpen(true); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -5039,6 +5042,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     deliveryLeadTime: form.deliveryLeadTime ? parseInt(form.deliveryLeadTime) : '',
                                     variations: form.variations ? form.variations.split(',').map(v => v.trim()).filter(v => v) :[],
                                     removables: form.removables ? form.removables.split(',').map(v => v.trim()).filter(v => v) :[],
+                                    isActive: form.isActive !== false,
                                     storeId: storeId
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
@@ -5505,6 +5509,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     {imageFile && (<button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload'}</button>)}
                                 </div>
+                                <label className={`flex items-center justify-between p-6 rounded-3xl border-2 mb-4 cursor-pointer transition-all ${form.isActive ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 opacity-70'}`}>
+    <div className="flex flex-col">
+        <span className={`font-black uppercase text-sm ${form.isActive ? 'text-green-700' : 'text-slate-500'}`}>
+            {form.isActive ? '✅ Produto Visível na Loja' : '🚫 Produto Oculto (Pausado)'}
+        </span>
+        <span className="text-xs font-bold text-slate-400 mt-1">Quando oculto, o item não aparece para o cliente comprar.</span>
+    </div>
+    <input 
+        type="checkbox" 
+        checked={form.isActive} 
+        onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+        className="w-8 h-8 accent-green-600 cursor-pointer"
+    />
+</label>
                                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
                            </form>
                         </motion.div>
