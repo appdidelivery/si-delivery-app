@@ -4141,6 +4141,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
                                     <MapPin size={24}/> Localização e Regras
                                 </h2>
+
+                                {/* --- NOVO: CONTROLE MESTRE DE LOGÍSTICA --- */}
+                                <div className="flex flex-col md:flex-row gap-4 mb-6 pb-6 border-b border-slate-100">
+                                    <label className={`flex-1 flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.deliveryEnabled !== false ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                                        <div>
+                                            <span className={`font-black uppercase tracking-tight text-sm ${storeStatus.deliveryEnabled !== false ? 'text-blue-800' : 'text-slate-500'}`}>🛵 Habilitar Delivery</span>
+                                            <p className="text-[10px] font-bold text-slate-500 mt-1">Aceitar pedidos para entrega.</p>
+                                        </div>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={storeStatus.deliveryEnabled !== false} 
+                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { deliveryEnabled: e.target.checked }, { merge: true })}
+                                            className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
+                                        />
+                                    </label>
+
+                                    <label className={`flex-1 flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.pickupEnabled !== false ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                                        <div>
+                                            <span className={`font-black uppercase tracking-tight text-sm ${storeStatus.pickupEnabled !== false ? 'text-blue-800' : 'text-slate-500'}`}>🏪 Habilitar Retirada</span>
+                                            <p className="text-[10px] font-bold text-slate-500 mt-1">Aceitar pedidos de balcão.</p>
+                                        </div>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={storeStatus.pickupEnabled !== false} 
+                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { pickupEnabled: e.target.checked }, { merge: true })}
+                                            className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
+                                        />
+                                    </label>
+                                </div>
                                 
                                 {/* 1. Endereço Físico (Para o Rodapé) */}
                                 <div>

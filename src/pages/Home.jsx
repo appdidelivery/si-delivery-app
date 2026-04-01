@@ -413,22 +413,44 @@ export default function Home() {
   const [couponError, setCouponError] = useState('');
   const[discountAmount, setDiscountAmount] = useState(0);
 
+  // 🚨 BLINDAGEM MESTRA DE CACHE E LOGÍSTICA
   useEffect(() => {
     const savedCustomer = localStorage.getItem('veloCustomerData');
+    let parsedCustomer = {};
+    
     if (savedCustomer) {
-      const parsedCustomer = JSON.parse(savedCustomer);
-      delete parsedCustomer.payment; // 🚨 BLINDAGEM: Nunca puxa o pagamento antigo do cache
-      setCustomer(prev => ({ ...prev, ...parsedCustomer, payment: '' }));
-      
-      // Ativa o One-Click se já tiver endereço e nome salvos
-      if (parsedCustomer.street && parsedCustomer.name) {
-          setUseSavedAddress(true);
-      }
-    } else {
-      const savedPhone = localStorage.getItem('customerPhone');
-      if (savedPhone) setCustomer(prev => ({ ...prev, phone: savedPhone }));
+        parsedCustomer = JSON.parse(savedCustomer);
+        delete parsedCustomer.payment; // Nunca puxa o pagamento antigo
     }
-  },[]);
+
+    // Validação estrita de regra de negócio do lojista
+    const isDeliveryAllowed = storeSettings?.deliveryEnabled !== false;
+    const isPickupAllowed = storeSettings?.pickupEnabled !== false;
+
+    // Se o cache dele era pickup, mas o lojista desativou pickup, força delivery (e vice-versa)
+    if (parsedCustomer.deliveryMethod === 'pickup' && !isPickupAllowed) {
+        parsedCustomer.deliveryMethod = 'delivery';
+    } else if (parsedCustomer.deliveryMethod === 'delivery' && !isDeliveryAllowed) {
+        parsedCustomer.deliveryMethod = 'pickup';
+    }
+
+    // Se ele nunca comprou, define o padrão baseado no que está ativo na loja
+    if (!parsedCustomer.deliveryMethod) {
+        parsedCustomer.deliveryMethod = isDeliveryAllowed ? 'delivery' : 'pickup';
+    }
+
+    setCustomer(prev => ({ ...prev, ...parsedCustomer, payment: '' }));
+
+    // Ativa o One-Click se já tiver endereço e nome salvos (apenas se for delivery)
+    if (parsedCustomer.street && parsedCustomer.name && parsedCustomer.deliveryMethod === 'delivery') {
+        setUseSavedAddress(true);
+    }
+
+    const savedPhone = localStorage.getItem('customerPhone');
+            if (savedPhone && !parsedCustomer.phone) {
+                setCustomer(prev => ({ ...prev, phone: savedPhone }));
+            }
+          }, [storeSettings?.deliveryEnabled, storeSettings?.pickupEnabled]); // <-- ADICIONE APENAS ESTA LINHA AQUI!
 
   const handleCustomerChange = (field, value) => {
     const updatedCustomer = { ...customer,[field]: value };
@@ -2413,22 +2435,32 @@ if (window.fbq) {
                                 <>
                                     <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     
-                                    <div className="flex gap-2 mb-3 mt-2">
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleCustomerChange('deliveryMethod', 'delivery')}
-                                            className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod !== 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                        >
-                                            🛵 Entrega
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleCustomerChange('deliveryMethod', 'pickup')}
-                                            className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                        >
-                                            🏪 Retirar na Loja
-                                        </button>
-                                    </div>
+                                    {/* CONTROLE INTELIGENTE DE BOTÕES DE ENTREGA/RETIRADA */}
+                                    {((storeSettings?.deliveryEnabled !== false) || (storeSettings?.pickupEnabled !== false)) && (
+                                        <div className="flex gap-2 mb-3 mt-2">
+                                            {storeSettings?.deliveryEnabled !== false && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => handleCustomerChange('deliveryMethod', 'delivery')}
+                                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                                >
+                                                    🛵 Entrega
+                                                </button>
+                                            )}
+                                            {storeSettings?.pickupEnabled !== false && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleCustomerChange('deliveryMethod', 'pickup');
+                                                        setShippingFee(0); // Zera o frete ao clicar em retirada
+                                                    }}
+                                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                                >
+                                                    🏪 Retirar na Loja
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {customer.deliveryMethod !== 'pickup' && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
@@ -2486,7 +2518,6 @@ if (window.fbq) {
                              {(() => {
                                     const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     
-                                    // 🚨 SEGURANÇA: Lê as chaves do banco de dados
                                     const hasVeloPayPix = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
                                     const hasVeloPayCredit = storeSettings?.velopayCreditStatus === 'active';
                                     const hasStripe = !!storeSettings?.stripeConnectId;
@@ -2494,25 +2525,15 @@ if (window.fbq) {
                                     const hasGateway = hasStripe || hasMP;
                                     const isPickup = customer.deliveryMethod === 'pickup';
 
-                                    // Nomeia o botão dinamicamente com base no que o lojista conectou
                                     const gatewayName = hasMP ? 'MERCADO PAGO' : (hasStripe ? 'STRIPE' : 'ONLINE');
                                     
                                     let allMethods =[
-                                        // 1. VELOPAY NATIVO
                                         { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
                                         { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
-                                        
-                                        // 2. GATEWAY EXTERNO (MERCADO PAGO OU STRIPE)
                                         { id: 'online', name: `${gatewayName} (CARTÃO/PIX)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
-                                        
-                                        // 3. PIX MANUAL
                                         { id: 'offline_pix', name: 'PIX (COPIA E COLA)', icon: <QrCode size={20}/>, showIf: pmConfig.offline_pix !== false },
-                                        
-                                        // 4. MÉTODOS DE ENTREGA (Só aparece se for Delivery)
                                         { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
                                         { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
-
-                                        // 5. MÉTODOS DE RETIRADA (Só aparece se for Retirada no Balcão)
                                         { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
                                         { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
                                     ];
@@ -2537,24 +2558,6 @@ if (window.fbq) {
                             {customer.payment === 'dinheiro' && (
                                 <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
                             )}
-                            
-                            {customer.payment === 'velopay_credit' && (
-                                <div className="mt-4 p-5 bg-blue-50/50 rounded-[2rem] border border-blue-100 animate-in fade-in slide-in-from-top-2 shadow-inner">
-                                    <p className="font-black text-[10px] uppercase tracking-widest text-blue-800 mb-3 flex items-center gap-2"><CreditCard size={14}/> Pagamento Seguro (VeloPay)</p>
-                                    <input type="text" placeholder="CPF do Titular (Apenas Números)" maxLength="14" className="w-full p-4 bg-white rounded-xl font-bold mb-2 shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500" value={customer.cpf} onChange={e => setCustomer({...customer, cpf: e.target.value})} />
-                                    <div className="flex gap-2 mb-2">
-                                        <div className="flex-1 relative">
-                                            <label className="absolute -top-2 left-3 bg-white px-1 text-[9px] font-black text-slate-400 uppercase rounded-sm z-10">Data de Nascimento</label>
-                                            <input type="date" className="w-full p-4 bg-white rounded-xl font-bold shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-slate-600" value={customer.birthDate} onChange={e => setCustomer({...customer, birthDate: e.target.value})} />
-                                        </div>
-                                    </div>
-                                    <input type="text" placeholder="Número do Cartão (Sem Espaços)" maxLength="19" className="w-full p-4 bg-white rounded-xl font-bold mb-2 shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 tracking-widest" value={customer.cardNumber} onChange={e => setCustomer({...customer, cardNumber: e.target.value})} />
-                                    <div className="flex gap-2">
-                                        <input type="text" placeholder="Validade (MM/AAAA)" maxLength="7" className="flex-1 p-4 bg-white rounded-xl font-bold shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-center" value={customer.cardExpiration} onChange={e => setCustomer({...customer, cardExpiration: e.target.value})} />
-                                        <input type="text" placeholder="CVV" maxLength="4" className="w-24 p-4 bg-white rounded-xl font-bold shadow-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 text-center" value={customer.cardCvv} onChange={e => setCustomer({...customer, cardCvv: e.target.value})} />
-                                    </div>
-                                </div>
-                            )}
                           </div>
                       </>
                   )}
@@ -2570,19 +2573,6 @@ if (window.fbq) {
                       )}
                       {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
                       
-                      {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && (
-                          <label className="flex items-center justify-between bg-green-500/10 p-3 rounded-xl border border-green-500/20 cursor-pointer my-3 hover:bg-green-500/20 transition-all">
-                              <div className="flex items-center gap-2">
-                                  <Wallet size={18} className="text-green-400" />
-                                  <span className="text-xs font-bold text-green-100">Usar Saldo de Cashback</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <span className="text-sm font-black text-green-400">- R$ {Math.min(cashbackBalance, baseTotal).toFixed(2)}</span>
-                                  <input type="checkbox" checked={useCashback} onChange={e => setUseCashback(e.target.checked)} className="w-5 h-5 accent-green-500 rounded cursor-pointer" />
-                              </div>
-                          </label>
-                      )}
-
                       <div className="flex justify-between text-xl font-black italic mt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
 
@@ -2596,153 +2586,6 @@ if (window.fbq) {
 
                 </>
               )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showLastOrders && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[101] p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
-              <button onClick={() => setShowLastOrders(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32} /></button>
-              <h2 className="text-4xl font-black text-slate-900 mb-6 tracking-tighter italic">SEUS PEDIDOS</h2>
-              {lastOrders.length === 0 ? (
-                <p className="text-center py-10 font-bold text-slate-500">Nenhum pedido encontrado.</p>
-              ) : (
-                <div className="space-y-4">
-                  {lastOrders.map(order => (
-                    <div key={order.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="font-bold text-sm text-slate-700">Pedido #{order.id.substring(0, 6)}</p>
-                      <ul className="list-disc pl-5 text-sm text-slate-600">
-                        {order.items.map(item => (
-                          <li key={item.id}>{item.name} (x{item.quantity})</li>
-                        ))}
-                      </ul>
-                      <div className="flex justify-between items-center mt-4">
-                        <p className={`${currentTheme.text} italic`}>Total: R$ {order.total?.toFixed(2)}</p>
-                        <button onClick={() => repeatOrder(order)} className="bg-orange-600 text-white py-2 px-4 rounded-xl font-bold uppercase text-xs">Repetir Pedido</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showInstallPrompt && (
-            <motion.div
-                initial={{ y: 100, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 100, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className={`fixed bottom-24 left-4 right-4 p-5 bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo.replace(/\d{2,3}/,'700')} text-white shadow-2xl z-[100] rounded-3xl flex items-center justify-between gap-3 border border-white/20`}
-            >
-                <div className="flex items-center gap-3 pr-2">
-                    <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-2xl object-cover border-2 border-white/50 shadow-sm" />
-                    <div>
-                        <p className="font-black text-sm leading-tight">{storeSettings.name}</p>
-                        <p className="text-xs opacity-90 font-medium mt-0.5 leading-tight">Adicione à tela inicial para acesso rápido!</p>
-                    </div>
-                </div>
-                <button
-                    onClick={handleInstallClick}
-                    className={`flex-shrink-0 bg-white ${currentTheme.text} px-5 py-3 rounded-full font-black text-xs uppercase shadow-xl ${currentTheme.hoverLightBg.replace('hover:bg-', 'hover:bg-')} active:scale-95 transition-all`}
-                >
-                    Instalar
-                </button>
-                <button onClick={() => setShowInstallPrompt(false)} className="absolute -top-3 -right-2 bg-slate-900 text-white p-2 rounded-full shadow-xl border-2 border-white hover:bg-slate-800 transition-all z-10">
-                    <X size={20} strokeWidth={3} />
-                </button>
-            </motion.div>
-        )}
-
-        {showiOSInstallMessage && (
-            <motion.div
-                initial={{ y: 100, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 100, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className="fixed bottom-24 left-4 right-4 p-5 bg-gradient-to-r from-purple-600 to-pink-700 text-white shadow-2xl z-[100] rounded-3xl flex items-center justify-between gap-3 border border-white/20"
-            >
-                <div className="flex items-center gap-3 pr-2">
-                    <img src={storeSettings.storeLogoUrl} className="h-12 w-12 rounded-2xl object-cover border-2 border-white/50 shadow-sm" />
-                    <div>
-                        <p className="font-black text-sm leading-tight">Instale nosso App!</p>
-                        <p className="text-xs opacity-90 font-medium mt-0.5 leading-tight">
-                            Toque em <Share size={14} className="inline-block relative -top-0.5 mx-0.5" /> e depois "Adicionar à Tela de Início".
-                        </p>
-                    </div>
-                </div>
-                <button
-                    onClick={handleDismissiOSInstallMessage}
-                    className="flex-shrink-0 bg-white text-purple-600 px-5 py-3 rounded-full font-black text-xs uppercase shadow-xl hover:bg-purple-50 active:scale-95 transition-all"
-                >
-                    Entendi
-                </button>
-                <button onClick={() => setShowiOSInstallMessage(false)} className="absolute -top-3 -right-2 bg-slate-900 text-white p-2 rounded-full shadow-xl border-2 border-white hover:bg-slate-800 transition-all z-10">
-                    <X size={20} strokeWidth={3} />
-                </button>
-            </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showExitModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
-            onClick={() => setShowExitModal(false)} 
-          >
-            <motion.div 
-              initial={{ scale: 0.8, y: 50 }} 
-              animate={{ scale: 1, y: 0 }} 
-              exit={{ scale: 0.8, y: 50 }} 
-              className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center relative shadow-2xl border-4 border-rose-500 overflow-hidden"
-              onClick={(e) => e.stopPropagation()} 
-            >
-              <button onClick={() => setShowExitModal(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all"><X size={20}/></button>
-              
-              <div className="bg-rose-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                <Gift size={40} className="text-rose-600" /> 
-              </div>
-
-              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter leading-none mb-2">
-                {marketingSettings.exitIntentMessage || "Espere! Não vá ainda!"}
-              </h2>
-              <p className="text-slate-500 font-medium text-sm mb-6">
-                Preparamos um presente exclusivo para você finalizar seu pedido agora.
-              </p>
-
-              <div className="bg-slate-100 p-4 rounded-2xl border-2 border-dashed border-slate-300 mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all group" onClick={() => {
-                 navigator.clipboard.writeText(marketingSettings.exitIntentCoupon);
-                 setCouponCode(marketingSettings.exitIntentCoupon); 
-                 alert('Cupom COPIADO! Aproveite.');
-                 setShowExitModal(false);
-                 setShowCheckout(true); 
-              }}>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Seu Cupom</p>
-                <p className={`text-3xl font-black ${currentTheme.text} uppercase tracking-widest group-hover:scale-110 transition-transform`}>
-                  {marketingSettings.exitIntentCoupon || "VOLTA10"}
-                </p>
-                <p className={`text-[9px] ${currentTheme.text.replace(/\d{2,3}/,'400')} font-bold mt-1`}>(Clique para Copiar)</p>
-              </div>
-
-              <button 
-                onClick={() => {
-                  setCouponCode(marketingSettings.exitIntentCoupon);
-                  setShowExitModal(false);
-                  setShowCheckout(true);
-                }}
-                className="w-full py-4 bg-rose-600 text-white rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-rose-700 active:scale-95 transition-all"
-              >
-                Usar Cupom Agora
-              </button>
             </motion.div>
           </motion.div>
         )}

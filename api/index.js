@@ -228,7 +228,7 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------------------
-    // 5. CRON AUTOMATIONS
+    // 5. CRON AUTOMATIONS (ROBÔ DE RESGATE E RETENÇÃO)
     // ------------------------------------------------------------------------
     else if (path === '/api/cron-automations') {
         if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -238,40 +238,49 @@ export default async function handler(req, res) {
             console.log("⏱️ Iniciando Rotina de Automação de Marketing...");
             const batch = db.batch();
             let alertsSent = 0;
-            let reengagementsSent = 0;
             const now = new Date();
-            const thirtyMinsAgo = new Date(now.getTime() - 30 * 60000);
+            const oneHourAgo = new Date(now.getTime() - 60 * 60000); // 1 Hora atrás
             
-            const abandonedQuery = await db.collection("orders").where("status", "==", "pending").where("abandonmentAlertSent", "!=", true).get();
+            // 1. Busca os carrinhos abandonados corretamente na coleção nova
+            const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").where("abandonmentAlertSent", "!=", true).get();
             const abandonedPromises = [];
 
-            abandonedQuery.forEach(doc => {
+            for (const doc of abandonedQuery.docs) {
                 const data = doc.data();
-                if (data.createdAt && data.createdAt.toDate() < thirtyMinsAgo && data.customerPhone) {
-                    const msg = `🛒 *Esqueceu algo na sacola?*\n\nOlá ${data.customerName || 'Cliente'}! Notamos que você iniciou um pedido, mas não finalizou.\n👉 Para finalizar agora: https://${data.storeId}.velodelivery.com.br/track/${doc.id}`;
-                    abandonedPromises.push(sendWhatsAppNotification(data.customerPhone, msg, `Velo_${data.storeId?.toUpperCase()}`));
-                    batch.update(doc.ref, { abandonmentAlertSent: true });
-                    alertsSent++;
+                if (data.lastUpdated && data.lastUpdated.toDate() < oneHourAgo && data.customerPhone) {
+                    const storeId = data.storeId;
+                    
+                    // Puxa o Token da Meta API exato deste Lojista
+                    const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
+                    const waConfig = storeSettingsDoc.data()?.integrations?.whatsapp;
+                    
+                    if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
+                        const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                        let cleanPhone = String(data.customerPhone).replace(/\D/g, '');
+                        if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+
+                        const msg = `🛒 *Esqueceu algo na sacola?*\n\nOlá ${data.customerName || 'Cliente'}! Notamos que você montou um pedido na nossa loja, mas não finalizou.\n\nBateu a dúvida? Se precisar de ajuda, estou por aqui! 😊\n👉 Finalize aqui: https://${storeId}.velodelivery.com.br`;
+                        
+                        abandonedPromises.push(
+                            fetch(GRAPH_API_URL, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msg }
+                                })
+                            })
+                        );
+                        
+                        batch.update(doc.ref, { abandonmentAlertSent: true });
+                        alertsSent++;
+                    }
                 }
-            });
-
-            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60000);
-            const inactiveQuery = await db.collectionGroup("loyalty").where("lastPurchaseDate", "<", admin.firestore.Timestamp.fromDate(sevenDaysAgo)).where("reengagementSent", "!=", true).limit(50).get();
-
-            inactiveQuery.forEach(doc => {
-                const data = doc.data();
-                const phone = doc.ref.parent.parent.id; 
-                const storeId = doc.ref.id;
-                const msg = `🍻 *Saudades de você!*\n\nOi ${data.customerName}! Faz tempo que você não pede uma bebida com a gente.\nPara matar a sede, aqui vai um cupom de *10% OFF* válido para hoje!\nUse: *VOLTA10*\n👉 https://${storeId}.velodelivery.com.br`;
-                abandonedPromises.push(sendWhatsAppNotification(phone, msg, `Velo_${storeId.toUpperCase()}`));
-                batch.update(doc.ref, { reengagementSent: true, reengagementDate: admin.firestore.FieldValue.serverTimestamp() });
-                reengagementsSent++;
-            });
+            }
 
             await Promise.all(abandonedPromises);
-            if (alertsSent > 0 || reengagementsSent > 0) await batch.commit();
+            if (alertsSent > 0) await batch.commit();
 
-            return res.status(200).json({ success: true, alertsSent, reengagementsSent });
+            return res.status(200).json({ success: true, alertsSent });
         } catch (error) {
             console.error('❌ Erro no CRON:', error);
             return res.status(500).json({ error: error.message });
@@ -1166,15 +1175,24 @@ export default async function handler(req, res) {
         if (req.method !== 'POST') return res.status(405).end();
 
         try {
-            const { type, data, action } = req.body;
+            const { type, data, action, user_id } = req.body;
             
             const isPayment = type === 'payment' || action === 'payment.created' || action === 'payment.updated';
 
             if (isPayment && data && data.id) {
                 const paymentId = data.id;
 
+                // MULTI-TENANT: Busca o Access Token exato do Lojista que recebeu o Pix
+                let accessToken = process.env.MP_ACCESS_TOKEN;
+                if (user_id) {
+                    const settingsRef = await db.collection('settings').where('integrations.mercadopago.userId', 'in', [user_id, String(user_id)]).limit(1).get();
+                    if (!settingsRef.empty) {
+                        accessToken = settingsRef.docs[0].data().integrations.mercadopago.accessToken;
+                    }
+                }
+
                 const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-                    headers: { 'Authorization': `Bearer ${process.env.MP_ACCESS_TOKEN}` }
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
 
                 if (mpResponse.ok) {
