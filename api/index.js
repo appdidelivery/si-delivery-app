@@ -241,15 +241,16 @@ export default async function handler(req, res) {
             const now = new Date();
             const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60000); // 30 Minutos atrás
             
-            // 1. Busca os carrinhos abandonados corretamente na coleção nova
-            const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").where("abandonmentAlertSent", "!=", true).get();
+            // Buscamos todos os abandonados e filtramos o envio no loop abaixo
+const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").get();
             const abandonedPromises = [];
 
             for (const doc of abandonedQuery.docs) {
                 const data = doc.data();
                 if (data.lastUpdated && data.lastUpdated.toDate() < thirtyMinutesAgo && data.customerPhone) {
                     const storeId = data.storeId;
-                    
+                    // Se o alerta já foi enviado, pula para o próximo
+if (data.abandonmentAlertSent === true) continue;
                     // Puxa o Token da Meta API exato deste Lojista
                     const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
                     const settingsData = storeSettingsDoc.data() || {};

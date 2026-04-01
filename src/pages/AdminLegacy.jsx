@@ -606,7 +606,7 @@ export default function Admin() {
     const [manualExtraFee, setManualExtraFee] = useState(0);
     // Categorias
     const[isCatModalOpen, setIsCatModalOpen] = useState(false);
-    const [catForm, setCatForm] = useState({ name: '', icon: 'List', order: 0 });
+    const [catForm, setCatForm] = useState({ name: '', icon: 'List', order: 0, isActive: true });
     const [editingCatId, setEditingCatId] = useState(null);
 
     // Banners
@@ -2407,17 +2407,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Categorias</h1>
-                           <button onClick={() => { setEditingCatId(null); setCatForm({ name: '', icon: 'List', order: 0 }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
+                           <button onClick={() => { setEditingCatId(null); setCatForm({ name: '', icon: 'List', order: 0, isActive: true }); setIsCatModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVA CATEGORIA</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {categories.map(c => (
                                 <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
                                     <div className="flex flex-col">
-                                        <span className="font-bold text-lg leading-tight">{c.name}</span>
+                                        <div className="flex items-center gap-2">
+    <span className={`font-bold text-lg leading-tight ${c.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{c.name}</span>
+    {c.isActive === false && <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-black uppercase border border-slate-200">Oculta</span>}
+</div>
                                         <span className="text-xs font-bold text-slate-400 mt-1">Ordem: {c.order || 0}</span>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List', order: c.order || 0 }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
+                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List', order: c.order || 0, isActive: c.isActive !== false }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
@@ -4944,7 +4947,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative">
                             <button onClick={() => setIsCatModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X /></button>
                             <h2 className="text-2xl font-black uppercase mb-6">{editingCatId ? 'Editar' : 'Nova'} Categoria</h2>
-                           <form onSubmit={async (e) => { e.preventDefault(); try { const dataToSave = { ...catForm, order: Number(catForm.order) || 0, storeId: storeId }; if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave); else await addDoc(collection(db, "categories"), dataToSave); setIsCatModalOpen(false); alert("Categoria salva!"); } catch (error) { alert("Erro ao salvar."); } }}>
+                           <form onSubmit={async (e) => { e.preventDefault(); try { const dataToSave = { 
+    ...catForm, 
+    order: Number(catForm.order) || 0, 
+    isActive: catForm.isActive !== false,
+    storeId: storeId 
+}; if (editingCatId) await updateDoc(doc(db, "categories", editingCatId), dataToSave); else await addDoc(collection(db, "categories"), dataToSave); setIsCatModalOpen(false); alert("Categoria salva!"); } catch (error) { alert("Erro ao salvar."); } }}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                     <input type="text" placeholder="Nome da Categoria" className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} required />
                                     <input type="number" placeholder="Ordem (Ex: 1, 2, 3)" className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={catForm.order} onChange={e => setCatForm({ ...catForm, order: e.target.value })} required />
@@ -4964,7 +4972,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         </button>
     ))}
 </div>
-                                <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Salvar</button>
+                                <label className={`flex items-center justify-between p-4 rounded-2xl border-2 mb-4 cursor-pointer transition-all ${catForm.isActive ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 opacity-70'}`}>
+    <div className="flex flex-col">
+        <span className={`font-black uppercase text-xs ${catForm.isActive ? 'text-green-700' : 'text-slate-500'}`}>
+            {catForm.isActive ? '✅ Categoria Ativa' : '🚫 Categoria Oculta'}
+        </span>
+        <span className="text-[10px] font-bold text-slate-400">Clientes não verão categorias ocultas no App.</span>
+    </div>
+    <input 
+        type="checkbox" 
+        checked={catForm.isActive} 
+        onChange={(e) => setCatForm({ ...catForm, isActive: e.target.checked })}
+        className="w-6 h-6 accent-green-600 cursor-pointer"
+    />
+</label>
                             </form>
                         </motion.div>
                     </motion.div>
