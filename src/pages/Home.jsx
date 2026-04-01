@@ -1859,34 +1859,7 @@ if (window.fbq) {
         productData={selectedProduct} 
     />
     <AgeGate enabled={storeSettings?.ageGateEnabled} />
-    {/* --- INÍCIO: MÚLTIPLAS TARJAS PROMOCIONAIS (SMART BANNERS) --- */}
-        <AnimatePresence>
-            {marketingSettings?.promoActive && marketingSettings?.smartBanners && marketingSettings.smartBanners.map((banner, index) => {
-                if (!banner.topBarText || !isWithinRecurringSchedule(banner.recurringDay, banner.recurringStart, banner.recurringEnd)) return null;
-                
-                return (
-                    <motion.div key={index} initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className={`${banner.topBarColor || 'bg-red-600'} text-white p-3 text-center flex flex-col items-center justify-center relative z-50 shadow-md`}>
-                        <div className="flex items-center justify-center gap-2">
-                            <Flame size={16} className="animate-pulse" />
-                            <p className="text-[11px] font-black uppercase tracking-widest leading-none">
-                                {banner.topBarText}
-                            </p>
-                            <Flame size={16} className="animate-pulse" />
-                        </div>
-                        {banner.topBarCoupon && (
-                            <button onClick={() => {
-                                navigator.clipboard.writeText(banner.topBarCoupon);
-                                setCouponCode(banner.topBarCoupon);
-                                alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
-                            }} className="mt-2 bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex items-center gap-1 border border-white/30 backdrop-blur-sm cursor-pointer active:scale-95">
-                                <Copy size={10} /> Copiar Cupom: {banner.topBarCoupon}
-                            </button>
-                        )}
-                    </motion.div>
-                );
-            })}
-        </AnimatePresence>
-        {/* --- FIM: MÚLTIPLAS TARJAS PROMOCIONAIS --- */}
+
 
     <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
         <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>
@@ -1993,7 +1966,56 @@ if (window.fbq) {
       </AnimatePresence>
 
       <div className="p-6">
-        <div className="relative mb-8">
+        
+        {/* --- INÍCIO: NOVO FORMATO DE CUPOM NA VITRINE --- */}
+        <AnimatePresence>
+            {marketingSettings?.promoActive && marketingSettings?.smartBanners && marketingSettings.smartBanners.map((banner, index) => {
+                if (!banner.topBarText || !isWithinRecurringSchedule(banner.recurringDay, banner.recurringStart, banner.recurringEnd)) return null;
+                
+                return (
+                    <motion.div key={index} initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
+                        <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden`}>
+                            
+                            {/* Borda tracejada geral */}
+                            <div className="absolute inset-1 border-[2px] border-dashed border-white/30 rounded-xl pointer-events-none"></div>
+                            
+                            {/* Lado Esquerdo (Ícone) */}
+                            <div className="w-[25%] min-w-[70px] flex items-center justify-center p-3 relative z-10">
+                                <Gift size={32} className="text-white drop-shadow-md animate-pulse" />
+                            </div>
+
+                            {/* Divisor Central com recortes (Ticket Style) */}
+                            <div className="relative w-0 border-l-[2px] border-dashed border-white/40 my-1 z-10">
+                                <div className="absolute -top-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
+                                <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
+                            </div>
+
+                            {/* Lado Direito (Textos e Botão) */}
+                            <div className="flex-1 p-4 pl-6 flex flex-col justify-center z-10">
+                                <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1.5">
+                                    {banner.topBarText}
+                                </p>
+                                {banner.topBarCoupon ? (
+                                    <button onClick={() => {
+                                        navigator.clipboard.writeText(banner.topBarCoupon);
+                                        setCouponCode(banner.topBarCoupon);
+                                        alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
+                                        document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
+                                    }} className="self-start mt-1 bg-white text-slate-800 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-100 flex items-center gap-1 shadow-sm active:scale-95">
+                                        <Copy size={12} /> Copiar: {banner.topBarCoupon}
+                                    </button>
+                                ) : (
+                                    <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">Oferta Especial 🔥</span>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+                );
+            })}
+        </AnimatePresence>
+        {/* --- FIM: NOVO FORMATO DE CUPOM NA VITRINE --- */}
+
+        <div className="relative mb-8 mt-2">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
         </div>
