@@ -2247,7 +2247,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 ))}
                             </div>
                         ) : (
-                            /* --- NOVO KANBAN (GRID STYLE) --- */
+                            /* --- NOVO KANBAN (GRID top     STYLE) --- */
                             <div className="flex gap-4 overflow-x-auto pb-6 items-start custom-scrollbar min-h-[calc(100vh-250px)]">
                                 {[
                                     { id: 'pending', title: '⏳ Novos (Pendentes)', color: 'bg-red-100 text-red-800 border-red-200', next: 'preparing', nextLabel: 'Aceitar (Cozinha)' },
