@@ -239,7 +239,7 @@ export default async function handler(req, res) {
             const batch = db.batch();
             let alertsSent = 0;
             const now = new Date();
-            const oneHourAgo = new Date(now.getTime() - 60 * 60000); // 1 Hora atrás
+            const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60000); // 30 Minutos atrás
             
             // 1. Busca os carrinhos abandonados corretamente na coleção nova
             const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").where("abandonmentAlertSent", "!=", true).get();
@@ -247,19 +247,24 @@ export default async function handler(req, res) {
 
             for (const doc of abandonedQuery.docs) {
                 const data = doc.data();
-                if (data.lastUpdated && data.lastUpdated.toDate() < oneHourAgo && data.customerPhone) {
+                if (data.lastUpdated && data.lastUpdated.toDate() < thirtyMinutesAgo && data.customerPhone) {
                     const storeId = data.storeId;
                     
                     // Puxa o Token da Meta API exato deste Lojista
                     const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
-                    const waConfig = storeSettingsDoc.data()?.integrations?.whatsapp;
+                    const settingsData = storeSettingsDoc.data() || {};
+                    const waConfig = settingsData.integrations?.whatsapp;
                     
                     if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
                         const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
                         let cleanPhone = String(data.customerPhone).replace(/\D/g, '');
                         if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
 
-                        const msg = `🛒 *Esqueceu algo na sacola?*\n\nOlá ${data.customerName || 'Cliente'}! Notamos que você montou um pedido na nossa loja, mas não finalizou.\n\nBateu a dúvida? Se precisar de ajuda, estou por aqui! 😊\n👉 Finalize aqui: https://${storeId}.velodelivery.com.br`;
+                        // Puxa o cupom de exit intent que o lojista cadastrou lá no painel, ou usa um genérico
+                        const cupom = settingsData.exitIntentCoupon || "VOLTA10";
+                        const firstName = data.customerName ? data.customerName.split(' ')[0] : 'Cliente';
+                        
+                        const msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
                         
                         abandonedPromises.push(
                             fetch(GRAPH_API_URL, {
