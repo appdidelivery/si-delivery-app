@@ -3643,20 +3643,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value });
                                                         }}
                                                     >
-                                                        <option value="d0">Mesmo Dia (D+0)</option>
-                                                        <option value="d7">Semanal (D+7)</option>
-                                                        <option value="d30">Mensal (D+30)</option>
+                                                        <option value="d30">Receber em 30 dias</option>
+                                                        <option value="d14">Receber em 15 dias</option>
+                                                        <option value="d1">Receber em 24h (D+1)</option>
                                                     </select>
                                                 </div>
 
                                                 <div className="flex items-end gap-1 mt-3">
                                                     <p className="text-white font-black text-3xl italic leading-none">
-                                                        {store?.velopayPixPlan === 'd30' ? '0,99%' : store?.velopayPixPlan === 'd7' ? '1,59%' : '1,99%'}
-                                                    </p>
+    {store?.velopayPixPlan === 'd30' ? '1,49%' : store?.velopayPixPlan === 'd7' ? '2,00%' : '2,59%'}
+</p>
                                                 </div>
                                             </div>
                                             <p className="text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center text-blue-300">
-                                                <span>Recebimento {store?.velopayPixPlan === 'd30' ? 'em 30 dias' : store?.velopayPixPlan === 'd7' ? 'em 7 dias' : 'imediato'}.</span>
+                                               <span>Saque disponível {store?.velopayPixPlan === 'd30' ? 'em 30 dias' : store?.velopayPixPlan === 'd7' ? 'em 15 dias' : 'no mesmo dia (D+0)'}.</span>
                                             </p>
                                         </div>
 
@@ -3694,21 +3694,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             await updateDoc(doc(db, "stores", storeId), { velopayCreditPlan: e.target.value });
                                                         }}
                                                     >
-                                                        <option value="d30">Mensal (D+30)</option>
-                                                        <option value="d14">Quinzenal (D+14)</option>
-                                                        <option value="d1">Dia Seguinte (D+1)</option>
+                                                        <option value="d30">Receber em 30 dias</option>
+<option value="d14">Receber em 15 dias</option>
+<option value="d1">Receber em 24h (D+1)</option>
                                                     </select>
                                                 </div>
 
                                                 <div className="flex items-end gap-1 mt-3">
                                                     <p className={`font-black text-3xl italic leading-none transition-colors ${store?.velopayCreditStatus === 'active' ? 'text-white' : 'text-slate-500'}`}>
-                                                        {store?.velopayCreditPlan === 'd1' ? '6,49%' : store?.velopayCreditPlan === 'd14' ? '5,49%' : '4,99%'}
-                                                    </p>
+    {store?.velopayCreditPlan === 'd1' ? '5,99%' : store?.velopayCreditPlan === 'd14' ? '5,49%' : '4,99%'}
+</p>
                                                     <span className="text-xs font-bold text-slate-500 mb-1">+ R$ 0,39</span>
                                                 </div>
                                             </div>
                                             <p className={`text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center transition-colors ${store?.velopayCreditStatus === 'active' ? 'text-blue-300' : 'text-slate-500'}`}>
-                                                <span>Recebimento em {store?.velopayCreditPlan === 'd1' ? '1 dia' : store?.velopayCreditPlan === 'd14' ? '14 dias' : '30 dias'}.</span>
+                                                <p className="text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex flex-col gap-1 text-blue-300">
+    <span>Saque disponível {store?.velopayPixPlan === 'd30' ? 'em 30 dias' : store?.velopayPixPlan === 'd7' ? 'em 15 dias' : 'no mesmo dia (D+0)'}.</span>
+    <span className="text-white/50 text-[8px] uppercase">⚠️ Taxa mínima de R$ 1,50 por transação.</span>
+</p>
                                                 {store?.velopayCreditStatus === 'active' && <span>Ativado ✅</span>}
                                             </p>
                                         </div>
@@ -3799,15 +3802,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 /* Conta Ativa - Dashboard Interno */
                                 <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
-    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Disponível (Pix)</p>
-    <h2 className="text-4xl font-black italic text-white mb-4">R$ {velopayBalance.toFixed(2)}</h2>
-    <button 
-        onClick={() => setIsWithdrawModalOpen(true)}
-        disabled={velopayBalance <= 0}
-        className="w-full bg-white text-slate-900 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-        {velopayBalance <= 0 ? 'Sem Saldo' : 'Transferir Saldo'}
-    </button>
+    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Total VeloPay</p>
+<h2 className="text-4xl font-black italic text-white mb-2">R$ {velopayBalance.toFixed(2)}</h2>
+{store?.velopayPixPlan !== 'd0' && (
+    <div className="flex items-center gap-1.5 text-orange-400 mb-4 animate-pulse">
+        <Clock size={12}/>
+        <span className="text-[9px] font-black uppercase tracking-widest">Aguardando Ciclo de Saque ({store?.velopayPixPlan === 'd30' ? 'D+30' : 'D+15'})</span>
+    </div>
+)}
+    <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl mb-6">
+    <p className="text-orange-400 text-xs font-bold flex items-center gap-2">
+        <Shield size={16}/> Atenção: Repasse Manual
+    </p>
+    <p className="text-slate-400 text-[10px] mt-1">
+        Para sua segurança, os pedidos são auditados. Seu saque será enviado para a chave PIX cadastrada ({store?.velopayData?.pixKey}) conforme o prazo do seu plano.
+    </p>
+</div>
+
+<button 
+    disabled={store?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
+    className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
+>
+    {store?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora'}
+</button>
 </div>
                                     <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
                                         <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
