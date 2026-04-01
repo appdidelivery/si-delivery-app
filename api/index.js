@@ -643,8 +643,8 @@ export default async function handler(req, res) {
         }
     }
 
-  // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (MOTOR NLP, AGENDA DE HORÁRIOS E ANTI-SPAM)
+  /// ------------------------------------------------------------------------
+    // 10. WHATSAPP WEBHOOK (BOTÕES DA META E HANDOFF LIMPO)
     // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
@@ -663,56 +663,6 @@ export default async function handler(req, res) {
         if (req.method === 'POST') {
             const body = req.body;
 
-            // Função interna para checar se a loja está aberta AGORA (Fuso do Brasil)
-            const checkIsStoreOpen = (storeData) => {
-                if (storeData.isOpen === false) return false; // Chave Mestra Fechada
-                if (!storeData.schedule) return true; // Sem agenda, assume aberto
-
-                // Pega a hora exata no Brasil (São Paulo)
-                const nowBR = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-                const day = nowBR.getDay(); // 0 = Domingo, 1 = Segunda...
-                const currentHour = nowBR.getHours();
-                const currentMinute = nowBR.getMinutes();
-                const currentTimeInt = currentHour * 60 + currentMinute;
-
-                const daySchedule = storeData.schedule[day];
-                if (!daySchedule || !daySchedule.open) return false;
-
-                const parseTime = (timeStr) => {
-                    if (!timeStr) return null;
-                    const [h, m] = timeStr.split(':').map(Number);
-                    return h * 60 + m;
-                };
-
-                const start1 = parseTime(daySchedule.start);
-                const end1 = parseTime(daySchedule.end);
-
-                let isOpenShift1 = false;
-                if (start1 !== null && end1 !== null) {
-                    // Lógica para horário que vira a madrugada (ex: 18:00 às 02:00)
-                    if (end1 < start1) {
-                        isOpenShift1 = currentTimeInt >= start1 || currentTimeInt <= end1;
-                    } else {
-                        isOpenShift1 = currentTimeInt >= start1 && currentTimeInt <= end1;
-                    }
-                }
-
-                let isOpenShift2 = false;
-                if (daySchedule.splitShift) {
-                    const start2 = parseTime(daySchedule.start2);
-                    const end2 = parseTime(daySchedule.end2);
-                    if (start2 !== null && end2 !== null) {
-                        if (end2 < start2) {
-                            isOpenShift2 = currentTimeInt >= start2 || currentTimeInt <= end2;
-                        } else {
-                            isOpenShift2 = currentTimeInt >= start2 && currentTimeInt <= end2;
-                        }
-                    }
-                }
-
-                return isOpenShift1 || isOpenShift2;
-            };
-
             if (body.object === 'whatsapp_business_account') {
                 try {
                     for (const entry of body.entry) {
@@ -720,54 +670,35 @@ export default async function handler(req, res) {
                             const value = change.value;
                             const phoneNumberId = value.metadata?.phone_number_id;
 
-                            // Ignora notificações de leitura/entrega, foca só em mensagens recebidas
                             if (value.messages && value.messages[0]) {
                                 const message = value.messages[0];
-                                const messageId = message.id;
-
-                                // 1. TRAVA ANTI-DUPLICAÇÃO (Idempotência)
-                                const existingMsg = await db.collection('whatsapp_inbound').where('messageId', '==', messageId).limit(1).get();
-                                if (!existingMsg.empty) continue; 
-
-                                // 2. EXTRAÇÃO DA MENSAGEM
+                                
+                                // 1. Extração segura de texto ou botão
                                 let messageText = '';
                                 let interactivePayload = '';
-                                const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
+                                const isMedia = ['image', 'audio', 'document', 'video'].includes(message.type);
 
                                 if (message.type === 'text') {
                                     messageText = message.text.body;
-                                } else if (message.type === 'interactive') {
-                                    if (message.interactive.type === 'button_reply') {
-                                        messageText = message.interactive.button_reply.title;
-                                        interactivePayload = message.interactive.button_reply.id;
-                                    } else if (message.interactive.type === 'list_reply') {
-                                        messageText = message.interactive.list_reply.title;
-                                        interactivePayload = message.interactive.list_reply.id;
-                                    }
-                                } else if (message.type === 'button') {
-                                    messageText = message.button.text;
-                                    interactivePayload = message.button.payload;
+                                } else if (message.type === 'interactive' && message.interactive.type === 'button_reply') {
+                                    messageText = message.interactive.button_reply.title;
+                                    interactivePayload = message.interactive.button_reply.id;
                                 }
 
                                 const textToAnalyze = messageText ? messageText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
 
-                                // 3. DESCOBRIR A LOJA
+                                // 2. Encontrar a loja pelo ID do Telefone
                                 let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
-                                
-                                if (settingsSnap.empty) continue; // Se não achar a loja, aborta
+                                if (settingsSnap.empty) continue; 
 
-                                const storeData = settingsSnap.docs[0].data();
                                 const storeId = settingsSnap.docs[0].id;
-                                const waSettings = storeData.integrations?.whatsapp || {};
+                                const waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
                                 const apiToken = waSettings.apiToken;
                                 const storeDomain = `https://${storeId}.velodelivery.com.br`; 
 
-                                // 4. SALVAR INBOX NO PAINEL
-                                let logText = messageText;
-                                if (isMedia) logText = `[Mídia Recebida: ${message.type}]`;
-
+                                // 3. Salvar a mensagem que o cliente mandou na tela do Lojista
+                                let logText = messageText || `[Enviou mídia: ${message.type}]`;
                                 await db.collection('whatsapp_inbound').add({
-                                    messageId: messageId, 
                                     storeId: storeId,
                                     phoneNumberId: phoneNumberId, 
                                     from: message.from,
@@ -775,88 +706,73 @@ export default async function handler(req, res) {
                                     text: logText, 
                                     receivedAt: admin.firestore.FieldValue.serverTimestamp(),
                                     status: 'unread',
-                                    direction: 'inbound',
-                                    type: message.type
+                                    direction: 'inbound'
                                 });
 
-                                // 5. CONTROLE DE SESSÃO E MOTOR DE REGRAS
+                                // 4. Verificar se o bot está pausado
                                 const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
                                 const sessionSnap = await sessionRef.get();
-                                let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastMenuSentAt: 0, lastAwaySentAt: 0 };
+                                const botPaused = sessionSnap.exists ? (sessionSnap.data().botPaused || false) : false;
 
-                                // Se o bot estiver pausado para este cliente, aborta as automações (HUMANO ATENDENDO)
-                                if (sessionData.botPaused) continue;
+                                // SE O BOT ESTIVER PAUSADO, ELE PARA AQUI. (Você deve clicar em Reativar no painel)
+                                if (botPaused) continue;
 
+                                // 5. Regras de Resposta do Bot
                                 if (apiToken) {
                                     let replyPayload = null;
                                     let logTextForPanel = ""; 
-                                    let triggerInternalAlert = false;
                                     let shouldPauseBot = false;
-                                    const nowMs = Date.now();
 
                                     const storeDoc = await db.collection('stores').doc(storeId).get();
-                                    const isStoreOpen = checkIsStoreOpen(storeDoc.data() || {});
+                                    const isStoreOpen = storeDoc.exists ? (storeDoc.data().isOpen !== false) : true;
 
-                                    // REGRA A: LOJA FECHADA
                                     if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                        // Manda mensagem de ausência a cada 2 horas (para não dar spam se o cliente mandar várias msgs)
-                                        if (nowMs - (sessionData.lastAwaySentAt || 0) > 7200000) {
-                                            const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
-                                            replyPayload = { type: "text", text: { body: awayMsg } };
-                                            logTextForPanel = awayMsg;
-                                            sessionData.lastAwaySentAt = nowMs;
-                                        }
+                                        const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴";
+                                        replyPayload = { type: "text", text: { body: awayMsg } };
+                                        logTextForPanel = awayMsg;
                                     } 
-                                    // REGRA B: LOJA ABERTA E BOT LIGADO
                                     else if (isStoreOpen && waSettings.botEnabled) {
-                                        const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante', 'falar com', 'pessoa'];
-                                        const orderKeywords = ['cardapio', 'pedir', 'fome', 'menu', 'comprar', 'link', 'site', 'fazer pedido', '1'];
+                                        const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro'];
+                                        const orderKeywords = ['cardapio', 'pedir', 'fome', 'menu', '1'];
                                         
                                         const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => textToAnalyze.includes(kw));
                                         const wantsToOrder = interactivePayload === 'btn_menu' || orderKeywords.some(kw => textToAnalyze.includes(kw));
 
                                         if (needsSupport) {
-                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um de nossos atendentes.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
+                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático. Um atendente real vai te responder por aqui em instantes!";
                                             replyPayload = { type: "text", text: { body: supportMsg } };
                                             logTextForPanel = supportMsg;
-                                            triggerInternalAlert = true;
                                             shouldPauseBot = true;
                                         } 
                                         else if (wantsToOrder) {
-                                            const menuMsg = `Que ótimo! 🍔 Acesse nosso cardápio digital e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
+                                            const menuMsg = `Que ótimo! 🍔 Acesse nosso cardápio digital oficial e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                             replyPayload = { type: "text", text: { body: menuMsg } };
                                             logTextForPanel = menuMsg;
                                         } 
                                         else {
-                                            // Só manda o menu de botões se for Saudação OU a cada 5 minutos
-                                            const isGreeting = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa'].some(kw => textToAnalyze === kw || textToAnalyze.startsWith(kw + ' '));
+                                            // Se não for pedido de suporte nem link, envia o MENU DE BOTÕES DA META
+                                            const greeting = waSettings.botGreeting || `Olá! 👋 Sou o assistente virtual da loja.`;
+                                            const opt1Text = (waSettings.botOption1 || "🍔 Ver Cardápio").substring(0, 20); 
+                                            const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar Atendente").substring(0, 20);
                                             
-                                            if (isGreeting || (nowMs - (sessionData.lastMenuSentAt || 0) > 300000)) {
-                                                const greeting = waSettings.botGreeting || `Olá! 👋 Sou o assistente virtual da loja.`;
-                                                // Fallback seguro caso o lojista deixe vazio no painel
-                                                const opt1Text = (waSettings.botOption1 || "Fazer Pedido").substring(0, 20); 
-                                                const opt2Text = (waSettings.botOption2 || "Falar c/ Humano").substring(0, 20);
-                                                
-                                                replyPayload = {
-                                                    type: "interactive",
-                                                    interactive: {
-                                                        type: "button",
-                                                        body: { text: `${greeting}\n\nComo posso te ajudar agora?` },
-                                                        action: {
-                                                            buttons: [
-                                                                { type: "reply", reply: { id: "btn_menu", title: opt1Text } },
-                                                                { type: "reply", reply: { id: "btn_support", title: opt2Text } }
-                                                            ]
-                                                        }
+                                            replyPayload = {
+                                                type: "interactive",
+                                                interactive: {
+                                                    type: "button",
+                                                    body: { text: `${greeting}\n\nComo posso te ajudar agora?` },
+                                                    action: {
+                                                        buttons: [
+                                                            { type: "reply", reply: { id: "btn_menu", title: opt1Text } },
+                                                            { type: "reply", reply: { id: "btn_support", title: opt2Text } }
+                                                        ]
                                                     }
-                                                };
-                                                logTextForPanel = `[Botões Interativos Enviados]\n1. ${opt1Text}\n2. ${opt2Text}`;
-                                                sessionData.lastMenuSentAt = nowMs;
-                                            }
+                                                }
+                                            };
+                                            logTextForPanel = `[Menu de Botões Enviado]\n1. ${opt1Text}\n2. ${opt2Text}`;
                                         }
                                     }
 
-                                    // 6. ENVIAR PARA A META E SALVAR LOG
+                                    // 6. Enviar a mensagem para a Meta
                                     if (replyPayload) {
                                         const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
@@ -869,31 +785,23 @@ export default async function handler(req, res) {
                                         if (metaRes.ok) {
                                             const batch = db.batch();
                                             
-                                            const logRef = db.collection('whatsapp_inbound').doc();
-                                            batch.set(logRef, {
-                                                storeId: storeId, phoneNumberId: phoneNumberId, to: message.from, text: logTextForPanel,
+                                            // Salva o que o bot respondeu na tela do lojista
+                                            batch.set(db.collection('whatsapp_inbound').doc(), {
+                                                storeId: storeId, to: message.from, text: logTextForPanel,
                                                 receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
                                             });
 
-                                            if (triggerInternalAlert) {
-                                                const alertRef = db.collection('whatsapp_inbound').doc();
-                                                batch.set(alertRef, {
-                                                    storeId: storeId, to: message.from, text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou arquivo. Bot pausado para atendimento humano.",
+                                            // Se pediu suporte, cria o alerta amarelo e pausa o bot no banco
+                                            if (shouldPauseBot) {
+                                                batch.set(db.collection('whatsapp_inbound').doc(), {
+                                                    storeId: storeId, to: message.from, text: "⚠️ ATENÇÃO: Cliente solicitou suporte. Bot pausado para atendimento humano.",
                                                     receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound', isSystemAlert: true
                                                 });
+
+                                                batch.set(sessionRef, { storeId: storeId, phone: message.from, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             }
 
-                                            batch.set(sessionRef, {
-                                                storeId: storeId, phone: message.from,
-                                                botPaused: shouldPauseBot ? true : sessionData.botPaused,
-                                                lastMenuSentAt: sessionData.lastMenuSentAt,
-                                                lastAwaySentAt: sessionData.lastAwaySentAt,
-                                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                            }, { merge: true });
-
                                             await batch.commit();
-                                        } else {
-                                            console.error("❌ Erro da Meta:", await metaRes.json());
                                         }
                                     }
                                 }
@@ -901,14 +809,15 @@ export default async function handler(req, res) {
                         }
                     }
                 } catch (error) {
-                    console.error("❌ Erro interno Webhook:", error);
+                    console.error("Erro interno Webhook:", error);
                 }
                 
-                return res.status(200).send('EVENT_RECEIVED'); // Sempre responde rápido para não dar Timeout
+                // Retorna 200 rápido para a Meta parar de enviar mensagens duplicadas
+                return res.status(200).send('EVENT_RECEIVED'); 
             }
             return res.status(404).send('Not Found');
         }
-        return res.status(405).json({ error: 'Method Not Allowed' });
+        return res.status(405).end();
     }
 
     // ------------------------------------------------------------------------
