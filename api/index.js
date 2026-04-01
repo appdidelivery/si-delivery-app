@@ -644,7 +644,7 @@ export default async function handler(req, res) {
     }
 
   // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (MOTOR NLP, ANTI-SPAM & ANTI-DUPLICAÇÃO)
+    // 10. WHATSAPP WEBHOOK (MOTOR NLP, AGENDA DE HORÁRIOS E ANTI-SPAM)
     // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
@@ -654,19 +654,64 @@ export default async function handler(req, res) {
             const token = req.query['hub.verify_token'];
             const challenge = req.query['hub.challenge'];
 
-            if (mode && token) {
-                if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
-                    console.log('✅ WEBHOOK_VERIFIED');
-                    return res.status(200).send(challenge);
-                } else {
-                    return res.status(403).json({ error: 'Token inválido' });
-                }
+            if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
+                return res.status(200).send(challenge);
             }
-            return res.status(400).json({ error: 'Parâmetros ausentes' });
+            return res.status(403).json({ error: 'Token inválido' });
         }
 
         if (req.method === 'POST') {
             const body = req.body;
+
+            // Função interna para checar se a loja está aberta AGORA (Fuso do Brasil)
+            const checkIsStoreOpen = (storeData) => {
+                if (storeData.isOpen === false) return false; // Chave Mestra Fechada
+                if (!storeData.schedule) return true; // Sem agenda, assume aberto
+
+                // Pega a hora exata no Brasil (São Paulo)
+                const nowBR = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+                const day = nowBR.getDay(); // 0 = Domingo, 1 = Segunda...
+                const currentHour = nowBR.getHours();
+                const currentMinute = nowBR.getMinutes();
+                const currentTimeInt = currentHour * 60 + currentMinute;
+
+                const daySchedule = storeData.schedule[day];
+                if (!daySchedule || !daySchedule.open) return false;
+
+                const parseTime = (timeStr) => {
+                    if (!timeStr) return null;
+                    const [h, m] = timeStr.split(':').map(Number);
+                    return h * 60 + m;
+                };
+
+                const start1 = parseTime(daySchedule.start);
+                const end1 = parseTime(daySchedule.end);
+
+                let isOpenShift1 = false;
+                if (start1 !== null && end1 !== null) {
+                    // Lógica para horário que vira a madrugada (ex: 18:00 às 02:00)
+                    if (end1 < start1) {
+                        isOpenShift1 = currentTimeInt >= start1 || currentTimeInt <= end1;
+                    } else {
+                        isOpenShift1 = currentTimeInt >= start1 && currentTimeInt <= end1;
+                    }
+                }
+
+                let isOpenShift2 = false;
+                if (daySchedule.splitShift) {
+                    const start2 = parseTime(daySchedule.start2);
+                    const end2 = parseTime(daySchedule.end2);
+                    if (start2 !== null && end2 !== null) {
+                        if (end2 < start2) {
+                            isOpenShift2 = currentTimeInt >= start2 || currentTimeInt <= end2;
+                        } else {
+                            isOpenShift2 = currentTimeInt >= start2 && currentTimeInt <= end2;
+                        }
+                    }
+                }
+
+                return isOpenShift1 || isOpenShift2;
+            };
 
             if (body.object === 'whatsapp_business_account') {
                 try {
@@ -675,23 +720,16 @@ export default async function handler(req, res) {
                             const value = change.value;
                             const phoneNumberId = value.metadata?.phone_number_id;
 
-                            // Verifica se é uma mensagem recebida (ignora status de leitura/entrega)
+                            // Ignora notificações de leitura/entrega, foca só em mensagens recebidas
                             if (value.messages && value.messages[0]) {
                                 const message = value.messages[0];
-                                const messageId = message.id; // ID único gerado pela Meta
+                                const messageId = message.id;
 
-                                // =========================================================
-                                // 1. TRAVA ANTI-DUPLICAÇÃO (IDEMPOTÊNCIA)
-                                // =========================================================
+                                // 1. TRAVA ANTI-DUPLICAÇÃO (Idempotência)
                                 const existingMsg = await db.collection('whatsapp_inbound').where('messageId', '==', messageId).limit(1).get();
-                                if (!existingMsg.empty) {
-                                    // Se a mensagem já existe no banco, a Meta está tentando reenviar. Ignoramos!
-                                    continue; 
-                                }
+                                if (!existingMsg.empty) continue; 
 
-                                // =========================================================
-                                // 2. EXTRAÇÃO DE DADOS DA MENSAGEM
-                                // =========================================================
+                                // 2. EXTRAÇÃO DA MENSAGEM
                                 let messageText = '';
                                 let interactivePayload = '';
                                 const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
@@ -711,35 +749,25 @@ export default async function handler(req, res) {
                                     interactivePayload = message.button.payload;
                                 }
 
-                                // Normaliza o texto para o Bot entender sem acentos e em minúsculo
                                 const textToAnalyze = messageText ? messageText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
 
-                                // =========================================================
-                                // 3. IDENTIFICAÇÃO DA LOJA
-                                // =========================================================
-                                let settingsSnap = await db.collection('settings')
-                                    .where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)])
-                                    .limit(1).get();
+                                // 3. DESCOBRIR A LOJA
+                                let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
                                 
-                                let storeId = 'desconhecida';
-                                let apiToken = null;
-                                let storeDomain = '';
+                                if (settingsSnap.empty) continue; // Se não achar a loja, aborta
 
-                                if (!settingsSnap.empty) {
-                                    const storeData = settingsSnap.docs[0].data();
-                                    storeId = settingsSnap.docs[0].id;
-                                    apiToken = storeData.integrations?.whatsapp?.apiToken;
-                                    storeDomain = `https://${storeId}.velodelivery.com.br`; 
-                                }
+                                const storeData = settingsSnap.docs[0].data();
+                                const storeId = settingsSnap.docs[0].id;
+                                const waSettings = storeData.integrations?.whatsapp || {};
+                                const apiToken = waSettings.apiToken;
+                                const storeDomain = `https://${storeId}.velodelivery.com.br`; 
 
-                                // =========================================================
-                                // 4. SALVAR MENSAGEM DO CLIENTE NO PAINEL
-                                // =========================================================
+                                // 4. SALVAR INBOX NO PAINEL
                                 let logText = messageText;
-                                if (isMedia) logText = `[Enviou um arquivo de ${message.type}]`;
+                                if (isMedia) logText = `[Mídia Recebida: ${message.type}]`;
 
                                 await db.collection('whatsapp_inbound').add({
-                                    messageId: messageId, // Salva o ID para a trava anti-duplicação funcionar!
+                                    messageId: messageId, 
                                     storeId: storeId,
                                     phoneNumberId: phoneNumberId, 
                                     from: message.from,
@@ -751,74 +779,63 @@ export default async function handler(req, res) {
                                     type: message.type
                                 });
 
-                                // =========================================================
-                                // 5. CONTROLE DE SESSÃO DO BOT E HANDOFF (TRANSBORDO)
-                                // =========================================================
+                                // 5. CONTROLE DE SESSÃO E MOTOR DE REGRAS
                                 const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
                                 const sessionSnap = await sessionRef.get();
-                                
-                                let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastMenuSentAt: 0 };
+                                let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastMenuSentAt: 0, lastAwaySentAt: 0 };
 
-                                // Se o Lojista já está atendendo (Bot Pausado), encerramos aqui para não atrapalhar!
-                                if (sessionData.botPaused) {
-                                    continue; 
-                                }
+                                // Se o bot estiver pausado para este cliente, aborta as automações (HUMANO ATENDENDO)
+                                if (sessionData.botPaused) continue;
 
-                                let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
-                                
                                 if (apiToken) {
                                     let replyPayload = null;
                                     let logTextForPanel = ""; 
                                     let triggerInternalAlert = false;
                                     let shouldPauseBot = false;
+                                    const nowMs = Date.now();
 
                                     const storeDoc = await db.collection('stores').doc(storeId).get();
-                                    const isStoreOpen = storeDoc.exists ? (storeDoc.data().isOpen !== false) : true;
+                                    const isStoreOpen = checkIsStoreOpen(storeDoc.data() || {});
 
-                                    // --- REGRA A: LOJA FECHADA ---
+                                    // REGRA A: LOJA FECHADA
                                     if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                        const now = Date.now();
-                                        if (now - (sessionData.lastAwaySentAt || 0) > 7200000) { // Evita spam (2h)
+                                        // Manda mensagem de ausência a cada 2 horas (para não dar spam se o cliente mandar várias msgs)
+                                        if (nowMs - (sessionData.lastAwaySentAt || 0) > 7200000) {
                                             const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                             replyPayload = { type: "text", text: { body: awayMsg } };
                                             logTextForPanel = awayMsg;
-                                            sessionData.lastAwaySentAt = now;
+                                            sessionData.lastAwaySentAt = nowMs;
                                         }
                                     } 
-                                    // --- REGRA B: LOJA ABERTA E BOT LIGADO ---
+                                    // REGRA B: LOJA ABERTA E BOT LIGADO
                                     else if (isStoreOpen && waSettings.botEnabled) {
-                                        
-                                        // Dicionários Inteligentes (NLP Básico)
                                         const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante', 'falar com', 'pessoa'];
                                         const orderKeywords = ['cardapio', 'pedir', 'fome', 'menu', 'comprar', 'link', 'site', 'fazer pedido', '1'];
                                         
                                         const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => textToAnalyze.includes(kw));
                                         const wantsToOrder = interactivePayload === 'btn_menu' || orderKeywords.some(kw => textToAnalyze.includes(kw));
 
-                                        // B1. TRANSBORDO PARA HUMANO (PAUSA O BOT)
                                         if (needsSupport) {
-                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um atendente real.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
+                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um de nossos atendentes.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
                                             replyPayload = { type: "text", text: { body: supportMsg } };
                                             logTextForPanel = supportMsg;
                                             triggerInternalAlert = true;
                                             shouldPauseBot = true;
                                         } 
-                                        // B2. ENVIAR LINK DO CARDÁPIO
                                         else if (wantsToOrder) {
                                             const menuMsg = `Que ótimo! 🍔 Acesse nosso cardápio digital e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                             replyPayload = { type: "text", text: { body: menuMsg } };
                                             logTextForPanel = menuMsg;
                                         } 
-                                        // B3. SAUDAÇÃO E BOTÕES (COM MEMÓRIA ANTI-SPAM DE 5 MIN)
                                         else {
-                                            const now = Date.now();
+                                            // Só manda o menu de botões se for Saudação OU a cada 5 minutos
                                             const isGreeting = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa'].some(kw => textToAnalyze === kw || textToAnalyze.startsWith(kw + ' '));
                                             
-                                            // Só envia o menu se for uma saudação explícita OU se já passou 5 minutos do último envio
-                                            if (isGreeting || (now - (sessionData.lastMenuSentAt || 0) > 300000)) {
-                                                const greeting = waSettings.botGreeting || `Olá! 👋 Sou o assistente virtual da *${storeDoc.data().name || 'loja'}*.`;
-                                                const opt1Text = (waSettings.botOption1 || "🍔 Ver Cardápio").substring(0, 20); 
-                                                const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar Atendente").substring(0, 20);
+                                            if (isGreeting || (nowMs - (sessionData.lastMenuSentAt || 0) > 300000)) {
+                                                const greeting = waSettings.botGreeting || `Olá! 👋 Sou o assistente virtual da loja.`;
+                                                // Fallback seguro caso o lojista deixe vazio no painel
+                                                const opt1Text = (waSettings.botOption1 || "Fazer Pedido").substring(0, 20); 
+                                                const opt2Text = (waSettings.botOption2 || "Falar c/ Humano").substring(0, 20);
                                                 
                                                 replyPayload = {
                                                     type: "interactive",
@@ -834,28 +851,18 @@ export default async function handler(req, res) {
                                                     }
                                                 };
                                                 logTextForPanel = `[Botões Interativos Enviados]\n1. ${opt1Text}\n2. ${opt2Text}`;
-                                                sessionData.lastMenuSentAt = now;
+                                                sessionData.lastMenuSentAt = nowMs;
                                             }
                                         }
                                     }
 
-                                    // =========================================================
-                                    // 6. ENVIAR RESPOSTA PARA A META E ATUALIZAR BANCO
-                                    // =========================================================
+                                    // 6. ENVIAR PARA A META E SALVAR LOG
                                     if (replyPayload) {
-                                        const fetchPayload = {
-                                            messaging_product: "whatsapp",
-                                            recipient_type: "individual",
-                                            to: message.from,
-                                            ...replyPayload
-                                        };
+                                        const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
                                         const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
                                             method: 'POST',
-                                            headers: {
-                                                'Authorization': `Bearer ${apiToken}`,
-                                                'Content-Type': 'application/json'
-                                            },
+                                            headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                                             body: JSON.stringify(fetchPayload)
                                         });
 
@@ -864,39 +871,29 @@ export default async function handler(req, res) {
                                             
                                             const logRef = db.collection('whatsapp_inbound').doc();
                                             batch.set(logRef, {
-                                                storeId: storeId,
-                                                phoneNumberId: phoneNumberId,
-                                                to: message.from,
-                                                text: logTextForPanel,
-                                                receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                                status: 'read',
-                                                direction: 'outbound'
+                                                storeId: storeId, phoneNumberId: phoneNumberId, to: message.from, text: logTextForPanel,
+                                                receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
                                             });
 
                                             if (triggerInternalAlert) {
                                                 const alertRef = db.collection('whatsapp_inbound').doc();
                                                 batch.set(alertRef, {
-                                                    storeId: storeId,
-                                                    to: message.from,
-                                                    text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou mídia (PIX). Bot pausado para atendimento humano.",
-                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                                    status: 'read',
-                                                    direction: 'outbound',
-                                                    isSystemAlert: true
+                                                    storeId: storeId, to: message.from, text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou arquivo. Bot pausado para atendimento humano.",
+                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound', isSystemAlert: true
                                                 });
                                             }
 
-                                            const sessRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
-                                            batch.set(sessRef, {
-                                                storeId: storeId,
-                                                phone: message.from,
+                                            batch.set(sessionRef, {
+                                                storeId: storeId, phone: message.from,
                                                 botPaused: shouldPauseBot ? true : sessionData.botPaused,
-                                                lastMenuSentAt: sessionData.lastMenuSentAt || 0,
-                                                lastAwaySentAt: sessionData.lastAwaySentAt || 0,
+                                                lastMenuSentAt: sessionData.lastMenuSentAt,
+                                                lastAwaySentAt: sessionData.lastAwaySentAt,
                                                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
                                             }, { merge: true });
 
                                             await batch.commit();
+                                        } else {
+                                            console.error("❌ Erro da Meta:", await metaRes.json());
                                         }
                                     }
                                 }
@@ -904,11 +901,10 @@ export default async function handler(req, res) {
                         }
                     }
                 } catch (error) {
-                    console.error("❌ Erro interno no Webhook:", error);
+                    console.error("❌ Erro interno Webhook:", error);
                 }
                 
-                // Sempre responde 200 OK rapidamente para a Meta não ficar retentando (o que causava a duplicação)
-                return res.status(200).send('EVENT_RECEIVED');
+                return res.status(200).send('EVENT_RECEIVED'); // Sempre responde rápido para não dar Timeout
             }
             return res.status(404).send('Not Found');
         }
