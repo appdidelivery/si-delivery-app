@@ -85,8 +85,8 @@ export default function AdminChat() {
             
             // Ordenamos no próprio frontend de forma segura e cronológica
             msgs.sort((a, b) => {
-                const timeA = a.receivedAt?.toMillis ? a.receivedAt.toMillis() : (a.receivedAt?.seconds * 1000 || 0);
-                const timeB = b.receivedAt?.toMillis ? b.receivedAt.toMillis() : (b.receivedAt?.seconds * 1000 || 0);
+                const timeA = a.receivedAt?.toMillis ? a.receivedAt.toMillis() : (a.receivedAt?.seconds ? a.receivedAt.seconds * 1000 : Date.now());
+                const timeB = b.receivedAt?.toMillis ? b.receivedAt.toMillis() : (b.receivedAt?.seconds ? b.receivedAt.seconds * 1000 : Date.now());
                 return timeA - timeB; 
             });
 
@@ -160,8 +160,8 @@ export default function AdminChat() {
     const chatList = Object.values(chats).sort((a, b) => {
         const lastMsgA = a.msgs[a.msgs.length - 1];
         const lastMsgB = b.msgs[b.msgs.length - 1];
-        const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds * 1000 || 0);
-        const timeB = lastMsgB?.receivedAt?.toMillis ? lastMsgB.receivedAt.toMillis() : (lastMsgB?.receivedAt?.seconds * 1000 || 0);
+        const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds ? lastMsgA.receivedAt.seconds * 1000 : Date.now());
+        const timeB = lastMsgB?.receivedAt?.toMillis ? lastMsgB.receivedAt.toMillis() : (lastMsgB?.receivedAt?.seconds ? lastMsgB.receivedAt.seconds * 1000 : Date.now());
         return timeB - timeA; // Ordem decrescente (mais novos primeiro)
     });
     
