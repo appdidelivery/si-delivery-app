@@ -1990,16 +1990,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
                                     const gatilhoDesejo = isBebida ? 'Bateu aquela sede? 🍻' : 'Bateu aquela fome? 🍔';
 
-                                    const msg30min = `Olá ${firstName}! Tudo bem? Vi que você começou um pedido na *${storeStatus.name}* mas não finalizou. Aconteceu algum erro no site ou faltou alguma coisa? Se precisar de ajuda, estou por aqui! 😊`;
+                                   // TEXTOS AGRESSIVOS DE ALTA CONVERSÃO
+                                    const msg30min = `Fala ${firstName}, tudo bem? Aqui é da *${storeStatus.name}*! 👀\n\nVi que você deixou alguns itens deliciosos no carrinho, mas não finalizou. Deu algum erro na página ou faltou alguma informação? \n\nSe precisar de ajuda para fechar o pedido, me chama aqui!`;
                                     
-                                    const msg1hora = `Oi ${firstName}! ${gatilhoDesejo} Vi que seu carrinho na *${storeStatus.name}* está te esperando. Finalize seu pedido agora e ganhe 5% OFF usando o cupom *VOLTA5*! \n👉 https://${storeId}.velodelivery.com.br`;
+                                    const msg1hora = `Bateu aquela fome, ${firstName}? 🤤🍔\n\nSeu carrinho na *${storeStatus.name}* está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar agora com *5% OFF*!\n\nUse o cupom: *VOLTA5*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
                                     
-                                    const msg24horas = `Última chance, ${firstName}! 🚨 Seu carrinho na *${storeStatus.name}* vai expirar. Para fechar agora, criamos um cupom muito especial pra você com 10% OFF, use: *VOLTA10* no app. Aproveite! \n👉 https://${storeId}.velodelivery.com.br`;
+                                    const msg24horas = `🚨 ÚLTIMA CHANCE, ${firstName}!\n\nO seu carrinho na *${storeStatus.name}* vai expirar nas próximas horas. Como eu sei que você quer muito esse pedido, o gerente ficou maluco e liberou *10% OFF* para você fechar agora!\n\nUse o cupom: *VOLTA10*\n👉 Garanta seu desconto: https://${storeId}.velodelivery.com.br`;
 
                                     const sendMsg = async (text) => {
                                         const phone = String(cart.customerPhone).replace(/\D/g, '');
+                                        if (phone.length < 10) return alert("Número de cliente inválido.");
                                         
-                                        // Se a API Oficial estiver conectada, dispara pelo sistema
+                                        // Tenta enviar silenciosamente pelo Robô da Meta (API)
                                         if (settings?.integrations?.whatsapp?.apiToken) {
                                             try {
                                                 const res = await fetch('/api/whatsapp-send', {
@@ -2013,16 +2015,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     })
                                                 });
                                                 if (res.ok) {
-                                                    alert("✅ Mensagem de resgate enviada com sucesso pela API (Robô)!");
+                                                    // Marca visualmente no painel que a mensagem foi enviada
+                                                    alert("✅ Mensagem disparada com sucesso direto no WhatsApp do cliente!");
                                                 } else {
-                                                    alert("❌ Erro ao enviar pela API. O WhatsApp Web será aberto manualmente.");
-                                                    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                                    throw new Error("Falha na API");
                                                 }
                                             } catch (e) {
+                                                alert("❌ O bot está offline ou o token expirou. Abrindo o WhatsApp Web...");
                                                 window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
                                             }
                                         } else {
-                                            // Fallback: Lojista sem API abre a janela manual
+                                            // Se o lojista não tem a API configurada, abre o WPP Web
                                             window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
                                         }
                                     };

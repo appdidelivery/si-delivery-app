@@ -63,6 +63,9 @@ export default function AdminChat() {
     const audioChunksRef = useRef([]);
     const timerIntervalRef = useRef(null);
     const fileInputRef = useRef(null);
+    // --- ESTADOS PARA NOVA CONVERSA ---
+    const [showNewChatModal, setShowNewChatModal] = useState(false);
+    const [newChatPhone, setNewChatPhone] = useState('');
 
     // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
@@ -512,17 +515,73 @@ export default function AdminChat() {
                     </div>
                 </div>
                 
-                {/* Busca */}
-                <div className="p-2 border-b border-gray-200 bg-white">
-                    <div className="bg-[#f0f2f5] flex items-center gap-3 px-3 py-1.5 rounded-lg">
+                {/* Busca e Nova Conversa */}
+                <div className="p-2 border-b border-gray-200 bg-white flex items-center gap-2">
+                    <div className="bg-[#f0f2f5] flex-1 flex items-center gap-3 px-3 py-1.5 rounded-lg">
                         <Search size={18} className="text-gray-500" />
                         <input 
                             type="text" 
-                            placeholder="Pesquisar ou começar nova conversa" 
+                            placeholder="Pesquisar..." 
                             className="bg-transparent border-none outline-none w-full text-sm text-gray-700 placeholder-gray-500"
                         />
                     </div>
+                    <button 
+                        onClick={() => setShowNewChatModal(true)}
+                        className="bg-[#008069] text-white p-2 rounded-lg hover:bg-[#016d5a] transition-colors shadow-sm"
+                        title="Iniciar Nova Conversa"
+                    >
+                        <Plus size={20} />
+                    </button>
                 </div>
+
+                {/* MODAL DE NOVA CONVERSA */}
+                <AnimatePresence>
+                    {showNewChatModal && (
+                        <div className="absolute inset-0 bg-white z-40 flex flex-col animate-in slide-in-from-bottom-full">
+                            <div className="h-16 bg-[#008069] text-white flex items-center px-4 shrink-0 shadow-md gap-4">
+                                <button onClick={() => setShowNewChatModal(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors">
+                                    <ArrowLeft size={20} />
+                                </button>
+                                <h2 className="text-lg font-bold">Nova Conversa</h2>
+                            </div>
+                            <div className="p-6 flex flex-col gap-4">
+                                <p className="text-sm text-gray-500 font-medium">Digite o WhatsApp do cliente com DDD (Ex: 48999999999)</p>
+                                <input 
+                                    type="tel" 
+                                    placeholder="Apenas números (DDD + Tel)"
+                                    value={newChatPhone}
+                                    onChange={(e) => setNewChatPhone(e.target.value.replace(/\D/g, ''))}
+                                    className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-[#008069] text-gray-800 font-bold"
+                                />
+                                <button 
+                                    onClick={async () => {
+                                        if (newChatPhone.length < 10) return alert("Número muito curto.");
+                                        let finalPhone = newChatPhone;
+                                        if (!finalPhone.startsWith('55')) finalPhone = `55${finalPhone}`;
+                                        
+                                        // 1. Abre a tela de chat
+                                        setActiveChat(finalPhone);
+                                        setShowNewChatModal(false);
+                                        setNewChatPhone('');
+                                        
+                                        // 2. Grava um log no banco para o cliente aparecer na lista esquerda
+                                        await addDoc(collection(db, 'whatsapp_inbound'), {
+                                            storeId: storeId,
+                                            to: finalPhone,
+                                            text: 'Iniciou conversa via painel',
+                                            receivedAt: serverTimestamp(),
+                                            status: 'read',
+                                            direction: 'outbound'
+                                        });
+                                    }}
+                                    className="w-full bg-[#008069] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md hover:bg-[#016d5a] transition-all"
+                                >
+                                    Abrir Chat
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </AnimatePresence>
 
                 {/* Lista de Chats */}
                 <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
