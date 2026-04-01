@@ -644,7 +644,7 @@ export default async function handler(req, res) {
     }
 
   // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (CÓDIGO ORIGINAL BLINDADO)
+    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
     // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
@@ -657,15 +657,65 @@ export default async function handler(req, res) {
             if (mode && token) {
                 if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
                     return res.status(200).send(challenge);
-                } else {
-                    return res.status(403).json({ error: 'Token inválido' });
                 }
+                return res.status(403).json({ error: 'Token inválido' });
             }
             return res.status(400).json({ error: 'Parâmetros ausentes' });
         }
 
         if (req.method === 'POST') {
             const body = req.body;
+
+            // Função nativa para ler o fuso horário correto do Brasil (Evita erros de servidor em outro país)
+            const checkIsStoreOpen = (storeData) => {
+                if (storeData.isOpen === false) return false; // Loja fechada no botão mestre
+                if (!storeData.schedule) return true; // Se não tem agenda cadastrada, assume aberta
+
+                // Pega a hora atual em São Paulo
+                const now = new Date();
+                const timeOpts = { timeZone: 'America/Sao_Paulo', hour: 'numeric', minute: 'numeric', hour12: false };
+                const timeParts = new Intl.DateTimeFormat('en-US', timeOpts).formatToParts(now);
+                
+                let currentHour = 0; let currentMinute = 0;
+                timeParts.forEach(p => {
+                    if (p.type === 'hour') currentHour = parseInt(p.value, 10);
+                    if (p.type === 'minute') currentMinute = parseInt(p.value, 10);
+                });
+                if (currentHour === 24) currentHour = 0;
+                const currentTimeInt = currentHour * 60 + currentMinute;
+
+                // Pega o dia da semana atual em São Paulo (0=Dom, 1=Seg, 2=Ter...)
+                const dayString = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(now);
+                const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+                const currentDay = dayMap[dayString];
+
+                const daySchedule = storeData.schedule[currentDay];
+                if (!daySchedule || !daySchedule.open) return false; // Fechado hoje
+
+                const parseTime = (timeStr) => {
+                    if (!timeStr) return null;
+                    const [h, m] = timeStr.split(':').map(Number);
+                    return h * 60 + m;
+                };
+
+                const checkShift = (startStr, endStr) => {
+                    const start = parseTime(startStr); const end = parseTime(endStr);
+                    if (start === null || end === null) return false;
+                    if (end < start) { // Madrugada (Ex: 18:00 as 02:00)
+                        return currentTimeInt >= start || currentTimeInt <= end;
+                    } else { // Normal (Ex: 08:00 as 18:00)
+                        return currentTimeInt >= start && currentTimeInt <= end;
+                    }
+                };
+
+                const isOpenShift1 = checkShift(daySchedule.start, daySchedule.end);
+                let isOpenShift2 = false;
+                if (daySchedule.splitShift) {
+                    isOpenShift2 = checkShift(daySchedule.start2, daySchedule.end2);
+                }
+
+                return isOpenShift1 || isOpenShift2;
+            };
 
             if (body.object === 'whatsapp_business_account') {
                 for (const entry of body.entry) {
@@ -678,7 +728,6 @@ export default async function handler(req, res) {
                             let messageText = '';
                             let interactivePayload = '';
 
-                            // 1. CAPTURA DE TEXTO, BOTÕES OU MÍDIA
                             const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
 
                             if (message.type === 'text') {
@@ -693,18 +742,7 @@ export default async function handler(req, res) {
 
                             if (messageText || isMedia) {
                                 try {
-                                    // 2. BUSCA DA LOJA (LÓGICA ORIGINAL)
-                                    let settingsSnap = await db.collection('settings')
-                                        .where('integrations.whatsapp.phoneNumberId', '==', String(phoneNumberId))
-                                        .limit(1)
-                                        .get();
-
-                                    if (settingsSnap.empty) {
-                                        settingsSnap = await db.collection('settings')
-                                            .where('integrations.whatsapp.phoneNumberId', '==', Number(phoneNumberId))
-                                            .limit(1)
-                                            .get();
-                                    }
+                                    let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
                                     
                                     let storeId = 'desconhecida';
                                     let apiToken = null;
@@ -717,86 +755,80 @@ export default async function handler(req, res) {
                                         storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                     }
 
-                                    // 3. SALVA A MENSAGEM RECEBIDA NO PAINEL
                                     let logText = messageText;
-                                    if (isMedia) logText = `[Enviou um arquivo: ${message.type}]`;
+                                    if (isMedia) logText = `[Enviou arquivo: ${message.type}]`;
 
                                     await db.collection('whatsapp_inbound').add({
-                                        storeId: storeId,
-                                        phoneNumberId: phoneNumberId, 
-                                        from: message.from,
-                                        pushName: message.profile?.name || '',
-                                        text: logText, 
-                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                        status: 'unread'
+                                        storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
+                                        pushName: message.profile?.name || '', text: logText, 
+                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread'
                                     });
 
-                                    // =========================================================================
-                                    // CORREÇÃO CRÍTICA: NORMALIZAÇÃO DO TELEFONE PARA O "REATIVAR BOT" FUNCIONAR
-                                    // =========================================================================
+                                    // Normaliza o número para o Controle de Sessão
                                     let normalizedPhone = String(message.from).replace(/\D/g, '');
                                     if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
                                     if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
 
-                                    // 4. CONTROLE DE SESSÃO (USA O TELEFONE NORMALIZADO)
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
                                     const sessionSnap = await sessionRef.get();
-                                    let botPaused = sessionSnap.exists ? (sessionSnap.data().botPaused || false) : false;
+                                    
+                                    let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0 };
+                                    let botPaused = sessionData.botPaused || false;
+
+                                    // SE O BOT ESTIVER PAUSADO, ELE ABORTA AQUI
+                                    if (botPaused) continue;
 
                                     let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     
-                                    // 5. MOTOR DE RESPOSTA DO BOT (SÓ ENTRA AQUI SE NÃO ESTIVER PAUSADO)
-                                    if (apiToken && !botPaused) {
-                                        const incomingTextLower = messageText ? messageText.trim().toLowerCase() : '';
-                                        
-                                        // NLP Original
-                                        const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante'];
-                                        
-                                        // Aciona suporte se for Mídia (foto/áudio), Botão, ou Palavra-chave
-                                        const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
-
+                                    if (apiToken) {
                                         let replyPayload = null;
                                         let logTextForPanel = ""; 
                                         let triggerInternalAlert = false; 
 
                                         const storeDoc = await db.collection('stores').doc(storeId).get();
-                                        const isStoreOpen = storeDoc.exists ? (storeDoc.data().isOpen !== false) : true;
+                                        
+                                        // VALIDAÇÃO DE HORÁRIO OFICIAL
+                                        const isStoreOpen = checkIsStoreOpen(storeDoc.exists ? storeDoc.data() : {});
+                                        const incomingTextLower = messageText ? messageText.trim().toLowerCase() : '';
+                                        const nowMs = Date.now();
 
-                                        // REGRA A: LOJA FECHADA
+                                        // REGRA A: LOJA FECHADA (Fora do horário ou botão desativado)
                                         if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                            const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
-                                            replyPayload = { type: "text", text: { body: awayMsg } };
-                                            logTextForPanel = awayMsg;
+                                            
+                                            // Trava anti-spam de ausência: Envia a cada 1 hora no máximo para o mesmo cliente
+                                            if (nowMs - (sessionData.lastAwaySent || 0) > 3600000) {
+                                                const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
+                                                replyPayload = { type: "text", text: { body: awayMsg } };
+                                                logTextForPanel = `🤖 [Mensagem de Ausência Enviada]`;
+                                                
+                                                // Atualiza a sessão para lembrar que já enviou
+                                                await sessionRef.set({ storeId, phone: normalizedPhone, lastAwaySent: nowMs }, { merge: true });
+                                            }
+
                                         } 
                                         // REGRA B: LOJA ABERTA E BOT LIGADO
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            // B1. Cliente pediu suporte
+                                            const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante'];
+                                            const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
+
                                             if (needsSupport) {
                                                 const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um de nossos atendentes reais.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
-                                                logTextForPanel = supportMsg;
+                                                logTextForPanel = `🤖 ${supportMsg}`;
                                                 triggerInternalAlert = true;
                                                 
-                                                // PAUSA O BOT SALVANDO NO TELEFONE NORMALIZADO!
-                                                await sessionRef.set({
-                                                    storeId: storeId,
-                                                    phone: normalizedPhone,
-                                                    botPaused: true,
-                                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                                }, { merge: true });
+                                                await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             } 
-                                            // B2. Cliente quer o Cardápio (Clicou no botão ou digitou)
                                             else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir')) {
-                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital oficial e faça seu pedido rapidinho (sem taxas) por aqui:\n\n👉 ${storeDomain}`;
+                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: menuMsg } };
-                                                logTextForPanel = menuMsg;
+                                                logTextForPanel = `🤖 ${menuMsg}`;
                                             } 
-                                            // B3. Saudação (MENU DE BOTÕES INTERATIVOS DA META)
                                             else {
                                                 const greeting = waSettings.botGreeting || "Olá! 👋 Sou o assistente virtual da loja.";
-                                                const opt1Text = (waSettings.botOption1 || "Fazer um Pedido").substring(0, 20); 
-                                                const opt2Text = (waSettings.botOption2 || "Falar c/ Atendente").substring(0, 20);
+                                                const opt1Text = (waSettings.botOption1 || "🍔 Fazer Pedido").substring(0, 20); 
+                                                const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar Atendente").substring(0, 20);
                                                 
                                                 replyPayload = {
                                                     type: "interactive",
@@ -811,67 +843,39 @@ export default async function handler(req, res) {
                                                         }
                                                     }
                                                 };
-                                                logTextForPanel = `[Menu Interativo Enviado com Botões]\n1. ${opt1Text}\n2. ${opt2Text}`;
+                                                logTextForPanel = `🤖 [Menu de Botões Enviado]\n🔘 ${opt1Text}\n🔘 ${opt2Text}`;
                                             }
                                         }
 
-                                        // 6. DISPARA A RESPOSTA PARA A META
+                                        // DISPARA A RESPOSTA
                                         if (replyPayload) {
-                                            const fetchPayload = {
-                                                messaging_product: "whatsapp",
-                                                recipient_type: "individual",
-                                                to: message.from,
-                                                ...replyPayload
-                                            };
+                                            const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
                                             const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-                                                method: 'POST',
-                                                headers: {
-                                                    'Authorization': `Bearer ${apiToken}`,
-                                                    'Content-Type': 'application/json'
-                                                },
+                                                method: 'POST', headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                                                 body: JSON.stringify(fetchPayload)
                                             });
 
                                             if (metaRes.ok) {
                                                 const batch = db.batch();
                                                 
-                                                const logRef = db.collection('whatsapp_inbound').doc();
-                                                batch.set(logRef, {
-                                                    storeId: storeId,
-                                                    phoneNumberId: phoneNumberId,
-                                                    from: message.from, 
-                                                    to: message.from,
-                                                    phone: message.from, 
-                                                    text: logTextForPanel,
-                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                                    status: 'read',
-                                                    direction: 'outbound'
+                                                batch.set(db.collection('whatsapp_inbound').doc(), {
+                                                    storeId: storeId, phoneNumberId: phoneNumberId, from: message.from, to: message.from, phone: message.from, 
+                                                    text: logTextForPanel, receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
                                                 });
 
                                                 if (triggerInternalAlert) {
-                                                    const alertRef = db.collection('whatsapp_inbound').doc();
-                                                    batch.set(alertRef, {
-                                                        storeId: storeId,
-                                                        phoneNumberId: phoneNumberId,
-                                                        from: message.from, 
-                                                        to: message.from,
-                                                        phone: message.from, 
-                                                        text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou comprovante. Bot pausado para atendimento humano.",
-                                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                                        status: 'read',
-                                                        direction: 'outbound', 
-                                                        isSystemAlert: true
+                                                    batch.set(db.collection('whatsapp_inbound').doc(), {
+                                                        storeId: storeId, phoneNumberId: phoneNumberId, from: message.from, to: message.from, phone: message.from, 
+                                                        text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou mídia. Bot pausado para atendimento humano.",
+                                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound', isSystemAlert: true
                                                     });
                                                 }
-
                                                 await batch.commit();
                                             }
                                         }
                                     }
-                                } catch (error) { 
-                                    console.error('❌ Erro Crítico no processamento:', error); 
-                                }
+                                } catch (error) { console.error('❌ Erro no processamento:', error); }
                             }
                         }
                     }
@@ -880,7 +884,7 @@ export default async function handler(req, res) {
             }
             return res.status(404).send('Not Found');
         }
-        return res.status(405).json({ error: 'Method Not Allowed' });
+        return res.status(405).end();
     }
 
     // ------------------------------------------------------------------------
