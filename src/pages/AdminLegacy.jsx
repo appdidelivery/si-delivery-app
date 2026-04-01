@@ -395,6 +395,7 @@ export default function Admin() {
     const [teamForm, setTeamForm] = useState({
         name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
     });
+    const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
 
     const handleUpdateAndClearCache = async () => {
         try {
@@ -793,6 +794,23 @@ export default function Admin() {
 
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
+        // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
+        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
+            s.docChanges().forEach((change) => {
+                const data = change.doc.data();
+                // Toca som de "Pop" suave se for mensagem nova do cliente
+                if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
+                    if (data.receivedAt && data.receivedAt.toMillis && data.receivedAt.toMillis() > Date.now() - 10000) {
+                        new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
+                    }
+                }
+            });
+            // Conta quantas pessoas diferentes mandaram mensagem não lida
+            const unreadDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().status === 'unread');
+            const unreadSenders = new Set(unreadDocs.map(d => d.data().from));
+            setUnreadChatsCount(unreadSenders.size);
+        });
+
        // NOVO: Escuta a versão e changelog global do sistema
         const unsubSystem = onSnapshot(doc(db, "system", "updates"), (d) => {
             if (d.exists()) setSystemUpdate({ version: d.data().version, log: d.data().log || [] });
@@ -807,7 +825,7 @@ export default function Admin() {
 
         return () => { 
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubBalance();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubBalance(); unsubWhatsApp();
         };
     },[storeId]);
     
@@ -1681,9 +1699,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             case 'customers':
                 // Bolinha de Missões/Avaliações Pendentes
                 return vipMissions.filter(m => m.status === 'pending').length;
-            case 'products':
+           case 'products':
                 // Bolinha de Estoque Crítico
                 return products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length;
+            case 'chat':
+                // Bolinha do WhatsApp (Mensagens não lidas)
+                return unreadChatsCount;
             default:
                 return 0;
         }
