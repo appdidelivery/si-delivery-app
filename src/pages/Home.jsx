@@ -1470,6 +1470,22 @@ export default function Home() {
         orderData.couponCode = appliedCoupon.code || "";
         orderData.discountAmount = discountAmount || 0;
       }
+
+      // === 🚨 NOVA LÓGICA: BAIXA DE INSUMOS DA FICHA TÉCNICA ===
+      const promisesBaixaEstoque = [];
+      sanitizedCart.forEach(cartItem => {
+          if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
+              cartItem.consumedIngredients.forEach(ci => {
+                  const ingRef = doc(db, "ingredients", ci.ingredientId);
+                  const totalGasto = Number(cartItem.quantity) * Number(ci.qty);
+                  promisesBaixaEstoque.push(updateDoc(ingRef, { stock: increment(-totalGasto) }));
+              });
+          }
+      });
+      if (promisesBaixaEstoque.length > 0) {
+          await Promise.all(promisesBaixaEstoque).catch(err => console.error("Erro ao dar baixa nos insumos:", err));
+      }
+      // =========================================================
 if (window.fbq) { 
           window.fbq('track', 'Purchase', { value: finalTotal, currency: 'BRL' }); 
       }
@@ -2735,34 +2751,23 @@ if (window.fbq) {
                                <div className="space-y-2">
                                     {group.options.map((opt, i) => {
                                         const isSelected = (selectedOptions[group.id] ||[]).some(o => o.name === opt.name);
-                                        // NOVO: Verifica se tem controle de estoque e se acabou
-                                        const isOutOfStock = opt.stock !== undefined && opt.stock !== '' && Number(opt.stock) <= 0;
 
                                         return (
-                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 transition-all ${isOutOfStock ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed grayscale' : (isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50 cursor-pointer` : 'border-transparent bg-white hover:border-slate-200 cursor-pointer')}`}>
+                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 transition-all ${isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50 cursor-pointer` : 'border-transparent bg-white hover:border-slate-200 cursor-pointer'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <input 
                                                         type={group.maxSelections === 1 ? 'radio' : 'checkbox'} 
                                                         checked={isSelected}
-                                                        disabled={isOutOfStock}
-                                                        onChange={() => !isOutOfStock && handleOptionToggle(group, opt)}
-                                                        className={`${currentTheme.accent} w-4 h-4 ${isOutOfStock ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                                        onChange={() => handleOptionToggle(group, opt)}
+                                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer`}
                                                     />
                                                     <div className="flex flex-col">
-                                                        <span className={`text-sm font-bold ${isSelected ? `${currentTheme.darkText}` : 'text-slate-600'} ${isOutOfStock ? 'line-through' : ''}`}>
+                                                        <span className={`text-sm font-bold ${isSelected ? `${currentTheme.darkText}` : 'text-slate-600'}`}>
                                                             {opt.name}
                                                         </span>
-                                                        {/* Tag de Esgotado ou Mostrador de Estoque Limitado */}
-                                                        {isOutOfStock ? (
-                                                            <span className="text-[10px] font-black text-red-500 uppercase mt-0.5 tracking-widest">Esgotado</span>
-                                                        ) : (
-                                                            opt.stock !== undefined && opt.stock !== '' && Number(opt.stock) <= 5 && (
-                                                                <span className="text-[9px] font-bold text-orange-500 uppercase mt-0.5">Restam apenas {opt.stock}</span>
-                                                            )
-                                                        )}
                                                     </div>
                                                 </div>
-                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? `${currentTheme.text}` : 'text-slate-400'} ${isOutOfStock ? 'line-through' : ''}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
+                                                {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? `${currentTheme.text}` : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
                                             </label>
                                         )
                                     })}

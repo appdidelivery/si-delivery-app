@@ -266,13 +266,27 @@ export default async function handler(req, res) {
                         
                         const msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
                         
-                        abandonedPromises.push(
+                       abandonedPromises.push(
                             fetch(GRAPH_API_URL, {
                                 method: 'POST',
                                 headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msg }
                                 })
+                            }).then(async (res) => {
+                                if (res.ok) {
+                                    // === SALVA A MENSAGEM DO ROBÔ NO CHAT DO PAINEL ===
+                                    try {
+                                        await db.collection('whatsapp_inbound').add({
+                                            storeId: storeId,
+                                            to: cleanPhone,
+                                            text: msg,
+                                            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                            status: 'read',
+                                            direction: 'outbound'
+                                        });
+                                    } catch(e) { console.error("Erro ao salvar log do carrinho no chat", e); }
+                                }
                             })
                         );
                         
@@ -592,7 +606,7 @@ export default async function handler(req, res) {
                     text: { body: dynamicParams.text }
                 };
                 
-                const response = await fetch(GRAPH_API_URL, {
+               const response = await fetch(GRAPH_API_URL, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -600,6 +614,20 @@ export default async function handler(req, res) {
                 
                 const data = await response.json();
                 if(response.ok) {
+                    // === SALVA A MENSAGEM AUTOMÁTICA NO BANCO PARA APARECER NO CHAT ===
+                    try {
+                        await db.collection('whatsapp_inbound').add({
+                            storeId: storeId,
+                            to: cleanPhone,
+                            text: dynamicParams.text,
+                            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            status: 'read',
+                            direction: 'outbound'
+                        });
+                    } catch(e) {
+                        console.error("Erro ao salvar log no chat:", e);
+                    }
+                    // =================================================================
                     return res.status(200).json({ success: true });
                 } else {
                     console.error("❌ Falha na API Meta [chat_reply]:", data);

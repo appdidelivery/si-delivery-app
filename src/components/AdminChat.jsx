@@ -135,9 +135,14 @@ export default function AdminChat() {
 
     // Agrupa mensagens BLINDADO (Garante que mensagens do cliente e da loja se unam pelo número certo)
     const chats = messages.reduce((acc, msg) => {
-        // Se a direção for outbound (nós enviamos), o cliente é o 'to'. Se for inbound, o cliente é o 'from'.
-        const phone = msg.direction === 'outbound' ? msg.to : msg.from; 
-        if (!phone) return acc;
+        let rawPhone = msg.direction === 'outbound' ? msg.to : msg.from; 
+        if (!rawPhone) return acc;
+        
+        // NORMALIZAÇÃO CIRÚRGICA: Remove o '55' da frente para o chat não duplicar conversas da mesma pessoa
+        let phone = String(rawPhone).replace(/\D/g, '');
+        if (phone.startsWith('55') && phone.length > 11) {
+            phone = phone.substring(2);
+        }
         
         const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
@@ -357,6 +362,9 @@ export default function AdminChat() {
         setLoadingSend(true);
 
         try {
+            // Garante o DDI 55 para a Meta não rejeitar o envio manual
+            const safePhone = activeChat.startsWith('55') ? activeChat : `55${activeChat}`;
+
             // 1. Dispara via API
             const response = await fetch('/api/whatsapp-send', {
                 method: 'POST',
@@ -364,18 +372,18 @@ export default function AdminChat() {
                 body: JSON.stringify({
                     action: 'chat_reply',
                     storeId: storeId,
-                    toPhone: activeChat,
+                    toPhone: safePhone,
                     dynamicParams: { text: replyText }
                 })
             });
 
             const data = await response.json();
 
-            if (data.success) {
+            if (data.success || response.ok) {
                 // 2. Salva no Firebase para aparecer no histórico (como mensagem enviada pela loja)
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
-                    to: activeChat,
+                    to: safePhone,
                     text: replyText,
                     receivedAt: serverTimestamp(),
                     status: 'read',

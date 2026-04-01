@@ -129,6 +129,7 @@ const allNavItems =[
     { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
     { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
     { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
+    { id: 'ingredients', name: 'Insumos (Pães)', icon: <Database size={18} />, mobileIcon: <Database size={22} /> },
     { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
     { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
     { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
@@ -365,6 +366,12 @@ export default function Admin() {
     const[abandonedCarts, setAbandonedCarts] = useState([]); // NOVO: Estado dos abandonados
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
+    
+    // --- ESTADOS DE INSUMOS GLOBAIS ---
+    const [ingredients, setIngredients] = useState([]);
+    const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
+    const [editingIngredientId, setEditingIngredientId] = useState(null);
+    const [ingredientForm, setIngredientForm] = useState({ name: '', stock: 0, unit: 'un' });
     const [settings, setSettings] = useState({ promoActive: false, promoBannerUrls: [] });
     const[generalBanners, setGeneralBanners] = useState([]);
     // --- ESTADOS DO MODAL DE RELATÓRIO ---
@@ -705,8 +712,11 @@ export default function Admin() {
         // Produtos
         const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => setProducts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         
-        // Categorias
+       // Categorias
         const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
+        
+        // Insumos Globais
+        const unsubIngredients = onSnapshot(query(collection(db, "ingredients"), where("storeId", "==", storeId)), (s) => setIngredients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         
         // Banners
         const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), orderBy("order", "asc")), (s) => setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -796,7 +806,7 @@ export default function Admin() {
         });
 
         return () => { 
-            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubGeneralBanners();
+            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubBalance();
         };
     },[storeId]);
@@ -1688,7 +1698,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
                <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
-    {allNavItems.map(item => {
+    {allNavItems.filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl).map(item => {
         const badgeCount = getBadgeCount(item.id);
         const isManual = item.id === 'manual';
         return (
@@ -2341,6 +2351,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </div>
                 )}
 
+                {activeTab === 'ingredients' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Insumos Globais</h1>
+                                <p className="text-slate-400 font-bold mt-1 text-sm">Controle o estoque base (Ex: Pães, Carnes, Embalagens).</p>
+                            </div>
+                            <button onClick={() => { setEditingIngredientId(null); setIngredientForm({ name: '', stock: 0, unit: 'un' }); setIsIngredientModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all">
+                                + NOVO INSUMO
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {ingredients.length === 0 && <p className="text-slate-400 font-bold col-span-full bg-slate-50 p-8 rounded-3xl text-center border-2 border-dashed border-slate-200">Nenhum insumo cadastrado ainda.</p>}
+                            {ingredients.map(ing => (
+                                <div key={ing.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
+                                    <div className="flex flex-col">
+                                        <span className="font-black text-slate-800 text-lg leading-tight uppercase">{ing.name}</span>
+                                        <span className={`text-sm font-bold mt-1 ${ing.stock <= 10 ? 'text-red-500' : 'text-slate-400'}`}>
+                                            Estoque: {ing.stock} {ing.unit}
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setEditingIngredientId(ing.id); setIngredientForm(ing); setIsIngredientModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100 transition-all"><Edit3 size={18} /></button>
+                                        <button onClick={() => window.confirm("Excluir Insumo?") && deleteDoc(doc(db, "ingredients", ing.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100 transition-all"><Trash2 size={18} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'categories' && (
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
@@ -2483,7 +2524,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '' }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '' }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
                                         <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
@@ -2962,8 +3003,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         const sellerEmail = auth.currentUser?.email || 'owner';
 
                                         try {
+                                            // === BAIXA DE INSUMOS (PDV BALCÃO) ===
+                                            const promisesBaixa = [];
+                                            manualCart.forEach(cartItem => {
+                                                if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
+                                                    cartItem.consumedIngredients.forEach(ci => {
+                                                        const ingRef = doc(db, "ingredients", ci.ingredientId);
+                                                        const totalGasto = Number(cartItem.quantity) * Number(ci.qty);
+                                                        promisesBaixa.push(updateDoc(ingRef, { stock: increment(-totalGasto) }));
+                                                    });
+                                                }
+                                            });
+                                            if (promisesBaixa.length > 0) {
+                                                await Promise.all(promisesBaixa).catch(e => console.error("Erro ao baixar insumo:", e));
+                                            }
+                                            // ====================================
+
                                             await addDoc(collection(db, "orders"), { 
-                                                ...manualCustomer, 
+                                                ...manualCustomer,
                                                 customerName: finalName, 
                                                 customerAddress: finalAddress, 
                                                 customerPhone: manualCustomer.phone || '', 
@@ -4050,6 +4107,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <div className="space-y-8">
                         <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">Configurações</h1>
                         
+                        {/* NOVO: MÓDULOS AVANÇADOS (ATIVAÇÃO DE INSUMOS) */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2 mb-4">
+                                ⚙️ Módulos Avançados
+                            </h2>
+                            <label className="flex items-center justify-between cursor-pointer p-4 bg-slate-50 hover:bg-slate-100 transition-all rounded-2xl border border-slate-200">
+                                <div className="flex flex-col">
+                                    <span className="font-black text-slate-700 uppercase">Controle de Insumos (Ficha Técnica)</span>
+                                    <span className="text-xs text-slate-500 font-bold mt-0.5">Ativa a aba de gestão de matérias-primas e a Ficha Técnica nos produtos.</span>
+                                </div>
+                                <input 
+                                    type="checkbox" 
+                                    checked={settings?.enableIngredientsControl || false}
+                                    onChange={async (e) => {
+                                        await updateDoc(doc(db, "settings", storeId), { enableIngredientsControl: e.target.checked }, { merge: true });
+                                    }}
+                                    className="w-6 h-6 accent-blue-600 cursor-pointer"
+                                />
+                            </label>
+                        </div>
+
                         {/* 1. Status Geral (Botão Gigante) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 text-center">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Controle Mestre</h2>
@@ -4783,6 +4861,45 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </nav>
 
             {/* MODAIS (CÓDIGO MANTIDO IGUAL AO SEU) */}
+           <AnimatePresence>
+                {isIngredientModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative shadow-2xl">
+                            <button onClick={() => setIsIngredientModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-6">{editingIngredientId ? 'Editar' : 'Novo'} Insumo</h2>
+                            <form onSubmit={async (e) => { 
+                                e.preventDefault(); 
+                                try { 
+                                    const dataToSave = { ...ingredientForm, stock: Number(ingredientForm.stock), storeId: storeId }; 
+                                    if (editingIngredientId) await updateDoc(doc(db, "ingredients", editingIngredientId), dataToSave); 
+                                    else await addDoc(collection(db, "ingredients"), dataToSave); 
+                                    setIsIngredientModalOpen(false); 
+                                    alert("Insumo salvo com sucesso!"); 
+                                } catch (error) { 
+                                    alert("Erro ao salvar: " + error.message); 
+                                } 
+                            }} className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 ml-2">Nome do Insumo (Ex: Pão sem Glúten)</label>
+                                    <input type="text" placeholder="Nome" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={ingredientForm.name} onChange={e => setIngredientForm({ ...ingredientForm, name: e.target.value })} required />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-500 ml-2">Quantidade em Estoque</label>
+                                        <input type="number" placeholder="Ex: 50" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={ingredientForm.stock} onChange={e => setIngredientForm({ ...ingredientForm, stock: e.target.value })} required />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-500 ml-2">Medida (un, kg, g)</label>
+                                        <input type="text" placeholder="Ex: un" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={ingredientForm.unit} onChange={e => setIngredientForm({ ...ingredientForm, unit: e.target.value })} required />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-blue-700 active:scale-95 transition-all">Salvar Insumo</button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <AnimatePresence>
                 {isCatModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -5144,6 +5261,68 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         {products.length <= 1 && <p className="text-xs text-slate-400 italic">Cadastre mais produtos para fazer recomendações.</p>}
                                     </div>
                                 </div>
+                               {/* --- INÍCIO: FICHA TÉCNICA (BAIXA DE INSUMOS) --- */}
+                                {settings?.enableIngredientsControl && (
+                                    <div className="pt-6 border-t border-slate-100 mt-4">
+                                        <label className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-1 ml-2">
+                                            📦 Ficha Técnica (Baixa Automática)
+                                        </label>
+                                        <p className="text-[10px] text-slate-400 mt-1 mb-3 ml-2 font-bold">Marque os insumos que compõem este lanche. Ao vender, o sistema descontará do estoque global invisivelmente.</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                            {ingredients.length === 0 && <span className="text-xs text-slate-400 italic">Nenhum insumo global cadastrado na aba de Insumos.</span>}
+                                            {ingredients.map(ing => {
+                                                const selected = (form.consumedIngredients || []).find(ci => ci.ingredientId === ing.id);
+                                                const isChecked = !!selected;
+                                                return (
+                                                    <div key={ing.id} className={`flex items-center justify-between bg-white p-3 rounded-xl border transition-all ${isChecked ? 'border-blue-400 shadow-sm' : 'border-slate-200 hover:border-blue-200'}`}>
+                                                        <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={isChecked}
+                                                                onChange={(e) => {
+                                                                    let current = form.consumedIngredients || [];
+                                                                    if (e.target.checked) {
+                                                                        current.push({ ingredientId: ing.id, qty: 1 });
+                                                                    } else {
+                                                                        current = current.filter(ci => ci.ingredientId !== ing.id);
+                                                                    }
+                                                                    setForm({...form, consumedIngredients: current});
+                                                                }}
+                                                                className="accent-blue-600 w-5 h-5 cursor-pointer"
+                                                            />
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-bold text-slate-700 leading-tight">{ing.name}</span>
+                                                                <span className="text-[9px] text-slate-400 font-black uppercase mt-0.5">Estoque: {ing.stock} {ing.unit}</span>
+                                                            </div>
+                                                        </label>
+                                                        {isChecked && (
+                                                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Qtd:</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0.01"
+                                                                    step="any"
+                                                                    value={selected.qty}
+                                                                    onChange={(e) => {
+                                                                        const current = [...form.consumedIngredients];
+                                                                        const index = current.findIndex(ci => ci.ingredientId === ing.id);
+                                                                        if(index !== -1) {
+                                                                            current[index].qty = Number(e.target.value);
+                                                                            setForm({...form, consumedIngredients: current});
+                                                                        }
+                                                                    }}
+                                                                    className="w-14 p-1.5 text-center bg-blue-50 rounded-lg text-xs font-black text-blue-700 outline-none focus:ring-2 ring-blue-500"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                                {/* --- FIM: FICHA TÉCNICA --- */}
+
                                 {/* --- INÍCIO: CRIADOR DE COMPLEMENTOS --- */}
                                 <div className="space-y-4 pt-6 border-t border-slate-100">
                                     <div className="flex justify-between items-center">
@@ -5217,14 +5396,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <input type="number" placeholder="Valor (+ R$)" className="w-24 p-3 bg-white rounded-lg text-xs font-bold border border-slate-100 outline-none text-blue-600" value={opt.price} onChange={(e) => {
                                                             const newComps =[...form.complements];
                                                             newComps[catIndex].options[optIndex].price = parseFloat(e.target.value) || 0;
-                                                            setForm(prev => ({ ...prev, complements: newComps }));
-                                                        }} />
-                                                        
-                                                        {/* NOVO: CAMPO DE ESTOQUE DA VARIAÇÃO/COMPLEMENTO */}
-                                                        <input type="number" placeholder="Estoque (Opc.)" className="w-28 p-3 bg-white rounded-lg text-xs font-bold border border-slate-100 outline-none text-orange-600" value={opt.stock !== undefined ? opt.stock : ''} onChange={(e) => {
-                                                            const newComps =[...form.complements];
-                                                            // Se deixar vazio, apaga o limite de estoque (infinito)
-                                                            newComps[catIndex].options[optIndex].stock = e.target.value === '' ? '' : parseInt(e.target.value);
                                                             setForm(prev => ({ ...prev, complements: newComps }));
                                                         }} />
 
