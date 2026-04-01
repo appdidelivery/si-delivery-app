@@ -644,7 +644,7 @@ export default async function handler(req, res) {
     }
 
   // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (NOVO MOTOR NLP & ANTI-SPAM)
+    // 10. WHATSAPP WEBHOOK (MOTOR NLP, ANTI-SPAM & ANTI-DUPLICAÇÃO)
     // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
@@ -669,49 +669,57 @@ export default async function handler(req, res) {
             const body = req.body;
 
             if (body.object === 'whatsapp_business_account') {
-                for (const entry of body.entry) {
-                    for (const change of entry.changes) {
-                        const value = change.value;
-                        const phoneNumberId = value.metadata?.phone_number_id;
+                try {
+                    for (const entry of body.entry) {
+                        for (const change of entry.changes) {
+                            const value = change.value;
+                            const phoneNumberId = value.metadata?.phone_number_id;
 
-                        if (value.messages && value.messages[0]) {
-                            const message = value.messages[0];
-                            
-                            // 1. EXTRAÇÃO INTELIGENTE DE DADOS (Texto, Botões ou Mídia)
-                            let messageText = '';
-                            let interactivePayload = '';
-                            const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
+                            // Verifica se é uma mensagem recebida (ignora status de leitura/entrega)
+                            if (value.messages && value.messages[0]) {
+                                const message = value.messages[0];
+                                const messageId = message.id; // ID único gerado pela Meta
 
-                            if (message.type === 'text') {
-                                messageText = message.text.body;
-                            } else if (message.type === 'interactive') {
-                                if (message.interactive.type === 'button_reply') {
-                                    messageText = message.interactive.button_reply.title;
-                                    interactivePayload = message.interactive.button_reply.id;
-                                } else if (message.interactive.type === 'list_reply') {
-                                    messageText = message.interactive.list_reply.title;
-                                    interactivePayload = message.interactive.list_reply.id;
+                                // =========================================================
+                                // 1. TRAVA ANTI-DUPLICAÇÃO (IDEMPOTÊNCIA)
+                                // =========================================================
+                                const existingMsg = await db.collection('whatsapp_inbound').where('messageId', '==', messageId).limit(1).get();
+                                if (!existingMsg.empty) {
+                                    // Se a mensagem já existe no banco, a Meta está tentando reenviar. Ignoramos!
+                                    continue; 
                                 }
-                            } else if (message.type === 'button') {
-                                // Fallback para botões antigos
-                                messageText = message.button.text;
-                                interactivePayload = message.button.payload;
-                            }
 
-                            // Texto normalizado para a "IA" entender melhor (sem acentos e minúsculo)
-                            const textToAnalyze = messageText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                                // =========================================================
+                                // 2. EXTRAÇÃO DE DADOS DA MENSAGEM
+                                // =========================================================
+                                let messageText = '';
+                                let interactivePayload = '';
+                                const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
 
-                            try {
-                                // 2. IDENTIFICAÇÃO MULTILOJA SEGURA
+                                if (message.type === 'text') {
+                                    messageText = message.text.body;
+                                } else if (message.type === 'interactive') {
+                                    if (message.interactive.type === 'button_reply') {
+                                        messageText = message.interactive.button_reply.title;
+                                        interactivePayload = message.interactive.button_reply.id;
+                                    } else if (message.interactive.type === 'list_reply') {
+                                        messageText = message.interactive.list_reply.title;
+                                        interactivePayload = message.interactive.list_reply.id;
+                                    }
+                                } else if (message.type === 'button') {
+                                    messageText = message.button.text;
+                                    interactivePayload = message.button.payload;
+                                }
+
+                                // Normaliza o texto para o Bot entender sem acentos e em minúsculo
+                                const textToAnalyze = messageText ? messageText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
+
+                                // =========================================================
+                                // 3. IDENTIFICAÇÃO DA LOJA
+                                // =========================================================
                                 let settingsSnap = await db.collection('settings')
-                                    .where('integrations.whatsapp.phoneNumberId', '==', String(phoneNumberId))
+                                    .where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)])
                                     .limit(1).get();
-
-                                if (settingsSnap.empty) {
-                                    settingsSnap = await db.collection('settings')
-                                        .where('integrations.whatsapp.phoneNumberId', '==', Number(phoneNumberId))
-                                        .limit(1).get();
-                                }
                                 
                                 let storeId = 'desconhecida';
                                 let apiToken = null;
@@ -724,11 +732,14 @@ export default async function handler(req, res) {
                                     storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                 }
 
-                                // 3. SALVA MENSAGEM DO CLIENTE NO PAINEL (INBOX)
+                                // =========================================================
+                                // 4. SALVAR MENSAGEM DO CLIENTE NO PAINEL
+                                // =========================================================
                                 let logText = messageText;
                                 if (isMedia) logText = `[Enviou um arquivo de ${message.type}]`;
 
                                 await db.collection('whatsapp_inbound').add({
+                                    messageId: messageId, // Salva o ID para a trava anti-duplicação funcionar!
                                     storeId: storeId,
                                     phoneNumberId: phoneNumberId, 
                                     from: message.from,
@@ -740,21 +751,19 @@ export default async function handler(req, res) {
                                     type: message.type
                                 });
 
-                                // 4. GERENCIAMENTO DE SESSÃO (Memória do Bot e Anti-Spam)
+                                // =========================================================
+                                // 5. CONTROLE DE SESSÃO DO BOT E HANDOFF (TRANSBORDO)
+                                // =========================================================
                                 const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
                                 const sessionSnap = await sessionRef.get();
                                 
-                                let sessionData = sessionSnap.exists ? sessionSnap.data() : {
-                                    botPaused: false,
-                                    lastMenuSentAt: 0 // Timestamp para evitar repetição
-                                };
+                                let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastMenuSentAt: 0 };
 
-                                // Se o humano já assumiu, o bot não faz absolutamente nada.
+                                // Se o Lojista já está atendendo (Bot Pausado), encerramos aqui para não atrapalhar!
                                 if (sessionData.botPaused) {
                                     continue; 
                                 }
 
-                                // 5. MOTOR DE INTENÇÃO (NLP) E REGRAS DE NEGÓCIO
                                 let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                 
                                 if (apiToken) {
@@ -768,9 +777,8 @@ export default async function handler(req, res) {
 
                                     // --- REGRA A: LOJA FECHADA ---
                                     if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                        // Anti-spam de loja fechada (Manda a cada 2 horas no máximo)
                                         const now = Date.now();
-                                        if (now - (sessionData.lastAwaySentAt || 0) > 7200000) {
+                                        if (now - (sessionData.lastAwaySentAt || 0) > 7200000) { // Evita spam (2h)
                                             const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                             replyPayload = { type: "text", text: { body: awayMsg } };
                                             logTextForPanel = awayMsg;
@@ -780,40 +788,35 @@ export default async function handler(req, res) {
                                     // --- REGRA B: LOJA ABERTA E BOT LIGADO ---
                                     else if (isStoreOpen && waSettings.botEnabled) {
                                         
-                                        // DICIONÁRIOS NLP
+                                        // Dicionários Inteligentes (NLP Básico)
                                         const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante', 'falar com', 'pessoa'];
                                         const orderKeywords = ['cardapio', 'pedir', 'fome', 'menu', 'comprar', 'link', 'site', 'fazer pedido', '1'];
                                         
-                                        // CONDIÇÕES
-                                        // Cliente mandou foto/áudio (provável PIX) OU clicou no botão "Falar com atendente" OU digitou palavra de suporte
                                         const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => textToAnalyze.includes(kw));
-                                        // Cliente clicou em "Ver Cardápio" ou digitou algo relacionado
                                         const wantsToOrder = interactivePayload === 'btn_menu' || orderKeywords.some(kw => textToAnalyze.includes(kw));
 
-                                        // B1. TRANSBORDO PARA HUMANO (HANDOFF)
+                                        // B1. TRANSBORDO PARA HUMANO (PAUSA O BOT)
                                         if (needsSupport) {
-                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e avisei nossa equipe.\n\nPor favor, aguarde um instante que um atendente real já vai te responder por aqui mesmo!";
+                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um atendente real.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
                                             replyPayload = { type: "text", text: { body: supportMsg } };
                                             logTextForPanel = supportMsg;
                                             triggerInternalAlert = true;
                                             shouldPauseBot = true;
                                         } 
-                                        // B2. ENVIAR CARDÁPIO (VENDA)
+                                        // B2. ENVIAR LINK DO CARDÁPIO
                                         else if (wantsToOrder) {
-                                            const menuMsg = `Que ótimo! 🍔 Acesse nosso cardápio digital oficial e faça seu pedido rapidinho por aqui:\n\n👉 ${storeDomain}`;
+                                            const menuMsg = `Que ótimo! 🍔 Acesse nosso cardápio digital e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                             replyPayload = { type: "text", text: { body: menuMsg } };
                                             logTextForPanel = menuMsg;
                                         } 
-                                        // B3. SAUDAÇÃO E MENU INTERATIVO (FALLBACK ANTI-SPAM)
+                                        // B3. SAUDAÇÃO E BOTÕES (COM MEMÓRIA ANTI-SPAM DE 5 MIN)
                                         else {
                                             const now = Date.now();
-                                            // Só manda o menu se o cliente disse "oi" OU se faz mais de 5 minutos desde o último envio do menu
-                                            // Isso impede que o bot fique repetindo o menu a cada frase que o cliente digita.
                                             const isGreeting = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa'].some(kw => textToAnalyze === kw || textToAnalyze.startsWith(kw + ' '));
                                             
+                                            // Só envia o menu se for uma saudação explícita OU se já passou 5 minutos do último envio
                                             if (isGreeting || (now - (sessionData.lastMenuSentAt || 0) > 300000)) {
                                                 const greeting = waSettings.botGreeting || `Olá! 👋 Sou o assistente virtual da *${storeDoc.data().name || 'loja'}*.`;
-                                                // Meta limita os botões a 20 caracteres EXATOS!
                                                 const opt1Text = (waSettings.botOption1 || "🍔 Ver Cardápio").substring(0, 20); 
                                                 const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar Atendente").substring(0, 20);
                                                 
@@ -836,7 +839,9 @@ export default async function handler(req, res) {
                                         }
                                     }
 
-                                    // 6. EXECUÇÃO DO ENVIO E ATUALIZAÇÃO DO BANCO
+                                    // =========================================================
+                                    // 6. ENVIAR RESPOSTA PARA A META E ATUALIZAR BANCO
+                                    // =========================================================
                                     if (replyPayload) {
                                         const fetchPayload = {
                                             messaging_product: "whatsapp",
@@ -857,7 +862,6 @@ export default async function handler(req, res) {
                                         if (metaRes.ok) {
                                             const batch = db.batch();
                                             
-                                            // 6.1 Log da resposta do Bot
                                             const logRef = db.collection('whatsapp_inbound').doc();
                                             batch.set(logRef, {
                                                 storeId: storeId,
@@ -869,21 +873,19 @@ export default async function handler(req, res) {
                                                 direction: 'outbound'
                                             });
 
-                                            // 6.2 Alerta Interno de Handoff (Lojista)
                                             if (triggerInternalAlert) {
                                                 const alertRef = db.collection('whatsapp_inbound').doc();
                                                 batch.set(alertRef, {
                                                     storeId: storeId,
                                                     to: message.from,
-                                                    text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou mídia (PIX). Bot pausado automaticamente.",
+                                                    text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou mídia (PIX). Bot pausado para atendimento humano.",
                                                     receivedAt: admin.firestore.FieldValue.serverTimestamp(),
                                                     status: 'read',
                                                     direction: 'outbound',
-                                                    isSystemAlert: true // Front-end pode usar isso para pintar de vermelho
+                                                    isSystemAlert: true
                                                 });
                                             }
 
-                                            // 6.3 Atualiza a sessão do cliente (Pausa ou Timestamps)
                                             const sessRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
                                             batch.set(sessRef, {
                                                 storeId: storeId,
@@ -895,18 +897,17 @@ export default async function handler(req, res) {
                                             }, { merge: true });
 
                                             await batch.commit();
-                                        } else {
-                                            console.error("❌ Erro API Meta:", await metaRes.json());
                                         }
                                     }
                                 }
-                            } catch (error) { 
-                                console.error('❌ Erro Crítico no webhook:', error); 
                             }
                         }
                     }
+                } catch (error) {
+                    console.error("❌ Erro interno no Webhook:", error);
                 }
-                // Responde 200 pro Meta rápido para ele não dar Timeout e ficar repetindo o Webhook
+                
+                // Sempre responde 200 OK rapidamente para a Meta não ficar retentando (o que causava a duplicação)
                 return res.status(200).send('EVENT_RECEIVED');
             }
             return res.status(404).send('Not Found');
