@@ -3040,12 +3040,34 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="flex flex-col gap-4">
                                             {/* Banners Inputs (Mantido a lógica original, ajustado layout) */}
                                             {[
-                                                { file: promoBannerFile1, setFile: setPromoBannerFile1, url: settings.promoBannerUrls?.[0], id: 1 },
-                                                { file: promoBannerFile2, setFile: setPromoBannerFile2, url: settings.promoBannerUrls?.[1], id: 2 },
-                                                { file: promoBannerFile3, setFile: setPromoBannerFile3, url: settings.promoBannerUrls?.[2], id: 3 }
+                                                { file: promoBannerFile1, setFile: setPromoBannerFile1, url: settings.promoBannerUrls?.[0], id: 1, index: 0 },
+                                                { file: promoBannerFile2, setFile: setPromoBannerFile2, url: settings.promoBannerUrls?.[1], id: 2, index: 1 },
+                                                { file: promoBannerFile3, setFile: setPromoBannerFile3, url: settings.promoBannerUrls?.[2], id: 3, index: 2 }
                                             ].map((b) => (
-                                                <div key={b.id} className="w-full">
-                                                    {(b.file || b.url) && <img src={b.file ? URL.createObjectURL(b.file) : b.url} className="w-full h-24 object-cover rounded-xl mb-2 bg-slate-100"/>}
+                                                <div key={b.id} className="w-full relative">
+                                                    {(b.file || b.url) && (
+                                                        <div className="relative mb-2">
+                                                            <img src={b.file ? URL.createObjectURL(b.file) : b.url} className="w-full h-24 object-cover rounded-xl bg-slate-100"/>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    if (b.file) {
+                                                                        b.setFile(null); // Remove o preview local antes de salvar
+                                                                    } else if (b.url) {
+                                                                        if(window.confirm("Deseja apagar este banner definitivamente?")) {
+                                                                            const newUrls = [...(settings.promoBannerUrls || [])];
+                                                                            newUrls.splice(b.index, 1);
+                                                                            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: newUrls }, { merge: true });
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 shadow-md transition-all active:scale-95"
+                                                                title="Remover Banner"
+                                                            >
+                                                                <Trash2 size={16}/>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     <input type="file" accept="image/*" onChange={(e) => b.setFile(e.target.files[0])} className="hidden" id={`promo-banner-upload-${b.id}`}/>
                                                     <label htmlFor={`promo-banner-upload-${b.id}`} className={`w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm cursor-pointer border-2 border-dashed ${settings.promoActive ? 'bg-orange-600 border-orange-400 text-orange-50 hover:bg-orange-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'} transition-all`}>
                                                         Upload Banner {b.id} <UploadCloud size={16}/>
