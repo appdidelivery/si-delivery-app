@@ -413,6 +413,13 @@ export default function Home() {
   const [couponError, setCouponError] = useState('');
   const[discountAmount, setDiscountAmount] = useState(0);
 
+  const [storeSettings, setStoreSettings] = useState({
+    isOpen: true, openTime: '08:00', closeTime: '23:00',
+    message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
+    slogan: 'Os melhores produtos entregues na sua casa.',
+    name: 'Minha Loja'
+  });
+
   // 🚨 BLINDAGEM MESTRA DE CACHE E LOGÍSTICA
   useEffect(() => {
     const savedCustomer = localStorage.getItem('veloCustomerData');
@@ -706,13 +713,6 @@ export default function Home() {
   
   const [isCepLoading, setIsCepLoading] = useState(false);
   const[cepError, setCepError] = useState('');
-
-  const [storeSettings, setStoreSettings] = useState({
-    isOpen: true, openTime: '08:00', closeTime: '23:00',
-    message: 'Aberto agora!', storeLogoUrl: '/logo-loja.png', storeBannerUrl: '/fachada.jpg',
-    slogan: 'Os melhores produtos entregues na sua casa.',
-    name: 'Minha Loja'
-  });
 
   const scrollToCategory = (categoryId) => {
     if (storeSettings?.layoutTheme === 'list') {
