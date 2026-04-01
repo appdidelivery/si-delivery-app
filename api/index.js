@@ -643,8 +643,8 @@ export default async function handler(req, res) {
         }
     }
 
-  /// ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (BOTÕES DA META E HANDOFF LIMPO)
+  // ------------------------------------------------------------------------
+    // 10. WHATSAPP WEBHOOK (CÓDIGO ORIGINAL BLINDADO)
     // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
@@ -654,170 +654,233 @@ export default async function handler(req, res) {
             const token = req.query['hub.verify_token'];
             const challenge = req.query['hub.challenge'];
 
-            if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
-                return res.status(200).send(challenge);
+            if (mode && token) {
+                if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
+                    return res.status(200).send(challenge);
+                } else {
+                    return res.status(403).json({ error: 'Token inválido' });
+                }
             }
-            return res.status(403).json({ error: 'Token inválido' });
+            return res.status(400).json({ error: 'Parâmetros ausentes' });
         }
 
         if (req.method === 'POST') {
             const body = req.body;
 
             if (body.object === 'whatsapp_business_account') {
-                try {
-                    for (const entry of body.entry) {
-                        for (const change of entry.changes) {
-                            const value = change.value;
-                            const phoneNumberId = value.metadata?.phone_number_id;
+                for (const entry of body.entry) {
+                    for (const change of entry.changes) {
+                        const value = change.value;
+                        const phoneNumberId = value.metadata?.phone_number_id;
 
-                            if (value.messages && value.messages[0]) {
-                                const message = value.messages[0];
-                                
-                                // 1. Extração segura de texto ou botão
-                                let messageText = '';
-                                let interactivePayload = '';
-                                const isMedia = ['image', 'audio', 'document', 'video'].includes(message.type);
+                        if (value.messages && value.messages[0]) {
+                            const message = value.messages[0];
+                            let messageText = '';
+                            let interactivePayload = '';
 
-                                if (message.type === 'text') {
-                                    messageText = message.text.body;
-                                } else if (message.type === 'interactive' && message.interactive.type === 'button_reply') {
-                                    messageText = message.interactive.button_reply.title;
-                                    interactivePayload = message.interactive.button_reply.id;
-                                }
+                            // 1. CAPTURA DE TEXTO, BOTÕES OU MÍDIA
+                            const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
 
-                                const textToAnalyze = messageText ? messageText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
+                            if (message.type === 'text') {
+                                messageText = message.text.body;
+                            } else if (message.type === 'interactive' && message.interactive.type === 'button_reply') {
+                                messageText = message.interactive.button_reply.title;
+                                interactivePayload = message.interactive.button_reply.id;
+                            } else if (message.type === 'button') {
+                                messageText = message.button.text;
+                                interactivePayload = message.button.payload;
+                            }
 
-                                // 2. Encontrar a loja pelo ID do Telefone
-                                let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
-                                if (settingsSnap.empty) continue; 
+                            if (messageText || isMedia) {
+                                try {
+                                    // 2. BUSCA DA LOJA (LÓGICA ORIGINAL)
+                                    let settingsSnap = await db.collection('settings')
+                                        .where('integrations.whatsapp.phoneNumberId', '==', String(phoneNumberId))
+                                        .limit(1)
+                                        .get();
 
-                                const storeId = settingsSnap.docs[0].id;
-                                const waSettings = settingsSnap.docs[0].data().integrations?.whatsapp || {};
-                                const apiToken = waSettings.apiToken;
-                                const storeDomain = `https://${storeId}.velodelivery.com.br`; 
+                                    if (settingsSnap.empty) {
+                                        settingsSnap = await db.collection('settings')
+                                            .where('integrations.whatsapp.phoneNumberId', '==', Number(phoneNumberId))
+                                            .limit(1)
+                                            .get();
+                                    }
+                                    
+                                    let storeId = 'desconhecida';
+                                    let apiToken = null;
+                                    let storeDomain = '';
 
-                                // 3. Salvar a mensagem que o cliente mandou na tela do Lojista
-                                let logText = messageText || `[Enviou mídia: ${message.type}]`;
-                                await db.collection('whatsapp_inbound').add({
-                                    storeId: storeId,
-                                    phoneNumberId: phoneNumberId, 
-                                    from: message.from,
-                                    pushName: message.profile?.name || '',
-                                    text: logText, 
-                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                    status: 'unread',
-                                    direction: 'inbound'
-                                });
-
-                                // 4. Verificar se o bot está pausado
-                                const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${message.from}`);
-                                const sessionSnap = await sessionRef.get();
-                                const botPaused = sessionSnap.exists ? (sessionSnap.data().botPaused || false) : false;
-
-                                // SE O BOT ESTIVER PAUSADO, ELE PARA AQUI. (Você deve clicar em Reativar no painel)
-                                if (botPaused) continue;
-
-                                // 5. Regras de Resposta do Bot
-                                if (apiToken) {
-                                    let replyPayload = null;
-                                    let logTextForPanel = ""; 
-                                    let shouldPauseBot = false;
-
-                                    const storeDoc = await db.collection('stores').doc(storeId).get();
-                                    const isStoreOpen = storeDoc.exists ? (storeDoc.data().isOpen !== false) : true;
-
-                                    if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                        const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴";
-                                        replyPayload = { type: "text", text: { body: awayMsg } };
-                                        logTextForPanel = awayMsg;
-                                    } 
-                                    else if (isStoreOpen && waSettings.botEnabled) {
-                                        const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro'];
-                                        const orderKeywords = ['cardapio', 'pedir', 'fome', 'menu', '1'];
-                                        
-                                        const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => textToAnalyze.includes(kw));
-                                        const wantsToOrder = interactivePayload === 'btn_menu' || orderKeywords.some(kw => textToAnalyze.includes(kw));
-
-                                        if (needsSupport) {
-                                            const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático. Um atendente real vai te responder por aqui em instantes!";
-                                            replyPayload = { type: "text", text: { body: supportMsg } };
-                                            logTextForPanel = supportMsg;
-                                            shouldPauseBot = true;
-                                        } 
-                                        else if (wantsToOrder) {
-                                            const menuMsg = `Que ótimo! 🍔 Acesse nosso cardápio digital oficial e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
-                                            replyPayload = { type: "text", text: { body: menuMsg } };
-                                            logTextForPanel = menuMsg;
-                                        } 
-                                        else {
-                                            // Se não for pedido de suporte nem link, envia o MENU DE BOTÕES DA META
-                                            const greeting = waSettings.botGreeting || `Olá! 👋 Sou o assistente virtual da loja.`;
-                                            const opt1Text = (waSettings.botOption1 || "🍔 Ver Cardápio").substring(0, 20); 
-                                            const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar Atendente").substring(0, 20);
-                                            
-                                            replyPayload = {
-                                                type: "interactive",
-                                                interactive: {
-                                                    type: "button",
-                                                    body: { text: `${greeting}\n\nComo posso te ajudar agora?` },
-                                                    action: {
-                                                        buttons: [
-                                                            { type: "reply", reply: { id: "btn_menu", title: opt1Text } },
-                                                            { type: "reply", reply: { id: "btn_support", title: opt2Text } }
-                                                        ]
-                                                    }
-                                                }
-                                            };
-                                            logTextForPanel = `[Menu de Botões Enviado]\n1. ${opt1Text}\n2. ${opt2Text}`;
-                                        }
+                                    if (!settingsSnap.empty) {
+                                        const storeData = settingsSnap.docs[0].data();
+                                        storeId = settingsSnap.docs[0].id;
+                                        apiToken = storeData.integrations?.whatsapp?.apiToken;
+                                        storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                     }
 
-                                    // 6. Enviar a mensagem para a Meta
-                                    if (replyPayload) {
-                                        const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
+                                    // 3. SALVA A MENSAGEM RECEBIDA NO PAINEL
+                                    let logText = messageText;
+                                    if (isMedia) logText = `[Enviou um arquivo: ${message.type}]`;
 
-                                        const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-                                            method: 'POST',
-                                            headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-                                            body: JSON.stringify(fetchPayload)
-                                        });
+                                    await db.collection('whatsapp_inbound').add({
+                                        storeId: storeId,
+                                        phoneNumberId: phoneNumberId, 
+                                        from: message.from,
+                                        pushName: message.profile?.name || '',
+                                        text: logText, 
+                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                        status: 'unread'
+                                    });
 
-                                        if (metaRes.ok) {
-                                            const batch = db.batch();
+                                    // =========================================================================
+                                    // CORREÇÃO CRÍTICA: NORMALIZAÇÃO DO TELEFONE PARA O "REATIVAR BOT" FUNCIONAR
+                                    // =========================================================================
+                                    let normalizedPhone = String(message.from).replace(/\D/g, '');
+                                    if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
+                                    if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
+
+                                    // 4. CONTROLE DE SESSÃO (USA O TELEFONE NORMALIZADO)
+                                    const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
+                                    const sessionSnap = await sessionRef.get();
+                                    let botPaused = sessionSnap.exists ? (sessionSnap.data().botPaused || false) : false;
+
+                                    let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
+                                    
+                                    // 5. MOTOR DE RESPOSTA DO BOT (SÓ ENTRA AQUI SE NÃO ESTIVER PAUSADO)
+                                    if (apiToken && !botPaused) {
+                                        const incomingTextLower = messageText ? messageText.trim().toLowerCase() : '';
+                                        
+                                        // NLP Original
+                                        const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante'];
+                                        
+                                        // Aciona suporte se for Mídia (foto/áudio), Botão, ou Palavra-chave
+                                        const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
+
+                                        let replyPayload = null;
+                                        let logTextForPanel = ""; 
+                                        let triggerInternalAlert = false; 
+
+                                        const storeDoc = await db.collection('stores').doc(storeId).get();
+                                        const isStoreOpen = storeDoc.exists ? (storeDoc.data().isOpen !== false) : true;
+
+                                        // REGRA A: LOJA FECHADA
+                                        if (!isStoreOpen && waSettings.autoAwayMessage) {
+                                            const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
+                                            replyPayload = { type: "text", text: { body: awayMsg } };
+                                            logTextForPanel = awayMsg;
+                                        } 
+                                        // REGRA B: LOJA ABERTA E BOT LIGADO
+                                        else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            // Salva o que o bot respondeu na tela do lojista
-                                            batch.set(db.collection('whatsapp_inbound').doc(), {
-                                                storeId: storeId, to: message.from, text: logTextForPanel,
-                                                receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                                            // B1. Cliente pediu suporte
+                                            if (needsSupport) {
+                                                const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um de nossos atendentes reais.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
+                                                replyPayload = { type: "text", text: { body: supportMsg } };
+                                                logTextForPanel = supportMsg;
+                                                triggerInternalAlert = true;
+                                                
+                                                // PAUSA O BOT SALVANDO NO TELEFONE NORMALIZADO!
+                                                await sessionRef.set({
+                                                    storeId: storeId,
+                                                    phone: normalizedPhone,
+                                                    botPaused: true,
+                                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                }, { merge: true });
+                                            } 
+                                            // B2. Cliente quer o Cardápio (Clicou no botão ou digitou)
+                                            else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir')) {
+                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital oficial e faça seu pedido rapidinho (sem taxas) por aqui:\n\n👉 ${storeDomain}`;
+                                                replyPayload = { type: "text", text: { body: menuMsg } };
+                                                logTextForPanel = menuMsg;
+                                            } 
+                                            // B3. Saudação (MENU DE BOTÕES INTERATIVOS DA META)
+                                            else {
+                                                const greeting = waSettings.botGreeting || "Olá! 👋 Sou o assistente virtual da loja.";
+                                                const opt1Text = (waSettings.botOption1 || "Fazer um Pedido").substring(0, 20); 
+                                                const opt2Text = (waSettings.botOption2 || "Falar c/ Atendente").substring(0, 20);
+                                                
+                                                replyPayload = {
+                                                    type: "interactive",
+                                                    interactive: {
+                                                        type: "button",
+                                                        body: { text: `${greeting}\n\nComo posso te ajudar agora?` },
+                                                        action: {
+                                                            buttons: [
+                                                                { type: "reply", reply: { id: "btn_menu", title: opt1Text } },
+                                                                { type: "reply", reply: { id: "btn_support", title: opt2Text } }
+                                                            ]
+                                                        }
+                                                    }
+                                                };
+                                                logTextForPanel = `[Menu Interativo Enviado com Botões]\n1. ${opt1Text}\n2. ${opt2Text}`;
+                                            }
+                                        }
+
+                                        // 6. DISPARA A RESPOSTA PARA A META
+                                        if (replyPayload) {
+                                            const fetchPayload = {
+                                                messaging_product: "whatsapp",
+                                                recipient_type: "individual",
+                                                to: message.from,
+                                                ...replyPayload
+                                            };
+
+                                            const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Authorization': `Bearer ${apiToken}`,
+                                                    'Content-Type': 'application/json'
+                                                },
+                                                body: JSON.stringify(fetchPayload)
                                             });
 
-                                            // Se pediu suporte, cria o alerta amarelo e pausa o bot no banco
-                                            if (shouldPauseBot) {
-                                                batch.set(db.collection('whatsapp_inbound').doc(), {
-                                                    storeId: storeId, to: message.from, text: "⚠️ ATENÇÃO: Cliente solicitou suporte. Bot pausado para atendimento humano.",
-                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound', isSystemAlert: true
+                                            if (metaRes.ok) {
+                                                const batch = db.batch();
+                                                
+                                                const logRef = db.collection('whatsapp_inbound').doc();
+                                                batch.set(logRef, {
+                                                    storeId: storeId,
+                                                    phoneNumberId: phoneNumberId,
+                                                    from: message.from, 
+                                                    to: message.from,
+                                                    phone: message.from, 
+                                                    text: logTextForPanel,
+                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                    status: 'read',
+                                                    direction: 'outbound'
                                                 });
 
-                                                batch.set(sessionRef, { storeId: storeId, phone: message.from, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                            }
+                                                if (triggerInternalAlert) {
+                                                    const alertRef = db.collection('whatsapp_inbound').doc();
+                                                    batch.set(alertRef, {
+                                                        storeId: storeId,
+                                                        phoneNumberId: phoneNumberId,
+                                                        from: message.from, 
+                                                        to: message.from,
+                                                        phone: message.from, 
+                                                        text: "⚠️ ATENÇÃO: Cliente solicitou suporte ou enviou comprovante. Bot pausado para atendimento humano.",
+                                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                        status: 'read',
+                                                        direction: 'outbound', 
+                                                        isSystemAlert: true
+                                                    });
+                                                }
 
-                                            await batch.commit();
+                                                await batch.commit();
+                                            }
                                         }
                                     }
+                                } catch (error) { 
+                                    console.error('❌ Erro Crítico no processamento:', error); 
                                 }
                             }
                         }
                     }
-                } catch (error) {
-                    console.error("Erro interno Webhook:", error);
                 }
-                
-                // Retorna 200 rápido para a Meta parar de enviar mensagens duplicadas
-                return res.status(200).send('EVENT_RECEIVED'); 
+                return res.status(200).send('EVENT_RECEIVED');
             }
             return res.status(404).send('Not Found');
         }
-        return res.status(405).end();
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     // ------------------------------------------------------------------------
