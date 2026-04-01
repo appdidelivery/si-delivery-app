@@ -2134,7 +2134,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
                                                 })()}
 
-                                                {/* 2. STATUS DO PEDIDO (COZINHA/ENTREGA) */}
+                                                {/* 2. STATUS DO PEDIDO 2(COZINHA/ENTREGA) */}
                                                 {(() => {
                                                     const statusMap = {
                                                         pending: { label: 'Novo Pedido', color: 'bg-red-500 text-white animate-pulse shadow-md' },
