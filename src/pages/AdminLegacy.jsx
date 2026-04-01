@@ -6280,12 +6280,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <div>
                                                     <p className="text-sm font-black text-orange-800 uppercase">Conexão Pendente</p>
                                                     <p className="text-xs text-orange-700 font-medium mt-1">
-                                                        Preencha o <b>ID do Telefone</b> e o <b>Token da API</b> acima e clique em "Salvar e Ativar" para validar suas credenciais e liberar o Chatbot Automático e os Gatilhos.
+                                                        Preencha o <b>ID do Telefone</b> e o <b>Token da API</b> acima e clique em "Salvar e Ativar" para validar suas credenciais e liberar o Chatbot.
                                                     </p>
                                                 </div>
                                             </div>
                                         ) : (
                                             <>
+                                                {/* 1. GATILHOS E AUTOMAÇÕES */}
                                                 <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                                                     🤖 Gatilhos e Automações
                                                 </h3>
@@ -6336,7 +6337,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoLoyalty || false} onChange={e => setIntegrationForm({...integrationForm, autoLoyalty: e.target.checked})} />
                                                     </label>
 
-                                                    {/* Mensagem de Ausência (Fora do Horário) */}
+                                                    {/* Mensagem de Ausência */}
                                                     <label className="flex items-center justify-between cursor-pointer pt-3 border-t border-slate-200">
                                                         <div className="pr-4">
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><Clock size={12} className="text-orange-500"/> Mensagem de Ausência</p>
@@ -6355,7 +6356,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     )}
                                                 </div>
 
-                                                {/* Chatbot */}
+                                                {/* 2. CHATBOT E BOTÕES */}
                                                 <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mt-6">
                                                     💬 Menu do Chatbot Automático
                                                 </h3>
@@ -6363,7 +6364,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <label className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-4">
                                                         <div className="pr-4">
                                                             <p className="text-xs font-black text-slate-700 uppercase">Ativar Menu Automático</p>
-                                                            <p className="text-[10px] text-slate-500 leading-tight mt-1">Responde automaticamente com opções.</p>
+                                                            <p className="text-[10px] text-slate-500 leading-tight mt-1">Envia opções com botões interativos para o cliente.</p>
                                                         </div>
                                                         <input type="checkbox" className="w-5 h-5 accent-blue-600 flex-shrink-0 cursor-pointer" checked={integrationForm.botEnabled || false} onChange={e => setIntegrationForm({...integrationForm, botEnabled: e.target.checked})} />
                                                     </label>
@@ -6375,21 +6376,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 <textarea rows="3" placeholder="Ex: Olá! Sou o assistente virtual..." className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none focus:ring-2 ring-blue-500" value={integrationForm.botGreeting || ''} onChange={e => setIntegrationForm({...integrationForm, botGreeting: e.target.value})} />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Texto Opção 1 (Cardápio)</label>
-                                                                <input type="text" placeholder="Ex: 🍔 Ver Cardápio" className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none" value={integrationForm.botOption1 || ''} onChange={e => setIntegrationForm({...integrationForm, botOption1: e.target.value})} />
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Botão 1 (Abre o Cardápio)</label>
+                                                                <input type="text" maxLength="20" placeholder="Ex: 🍔 Ver Cardápio" className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none" value={integrationForm.botOption1 || ''} onChange={e => setIntegrationForm({...integrationForm, botOption1: e.target.value})} />
+                                                                <p className="text-[8px] text-slate-400 mt-1">Máx. 20 caracteres (Exigência do WhatsApp).</p>
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Texto Opção 2 (Falar c/ Atendente)</label>
-                                                                <input type="text" placeholder="Ex: 👨‍💻 Falar com Humano" className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none" value={integrationForm.botOption2 || ''} onChange={e => setIntegrationForm({...integrationForm, botOption2: e.target.value})} />
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Botão 2 (Chama Atendente)</label>
+                                                                <input type="text" maxLength="20" placeholder="Ex: 👨‍💻 Falar com Humano" className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-slate-200 outline-none" value={integrationForm.botOption2 || ''} onChange={e => setIntegrationForm({...integrationForm, botOption2: e.target.value})} />
                                                             </div>
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                {/* Disparo em Massa */}
+                                                {/* 3. DISPARO EM MASSA */}
                                                 <div className="bg-green-50 p-4 rounded-2xl border border-green-200 mt-6">
                                                     <h4 className="text-xs font-black text-green-800 uppercase mb-2">📢 Disparo em Massa (Base VIP)</h4>
-                                                    <p className="text-[10px] text-green-700 mb-3">Envie um Template aprovado na Meta.</p>
+                                                    <p className="text-[10px] text-green-700 mb-3">Envie um Template aprovado na Meta para seus clientes.</p>
                                                     <input type="text" placeholder="Nome do Template (ex: promo_fds)" className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-green-200 mb-3 focus:ring-2 ring-green-400" value={integrationForm.broadcastTemplate || ''} onChange={e => setIntegrationForm({...integrationForm, broadcastTemplate: e.target.value.trim()})} />
                                                    <button type="button" onClick={async () => {
                                                         if(!integrationForm.broadcastTemplate) return alert("Digite o nome exato do Template!");
@@ -6408,7 +6410,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     </button>
                                                 </div>
 
-                                                {/* --- Sincronizar Perfil Comercial --- */}
+                                                {/* 4. SINCRONIZAR PERFIL COMERCIAL */}
                                                 <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 mt-6">
                                                     <h4 className="text-xs font-black text-blue-800 uppercase mb-2">🏪 Sincronizar Perfil do WhatsApp</h4>
                                                     <p className="text-[10px] text-blue-700 mb-3">Envia os dados da sua loja (Endereço, Descrição, Site) preenchidos no Velo direto para o perfil do WhatsApp.</p>
@@ -6438,84 +6440,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             </>
                                         )}
-                                    </div>
-                                )}
-
-                                {/* NOVO: Motor de Automações do WhatsApp (Exibe apenas se conectado) */}
-                                {selectedIntegration.id === 'whatsapp' && integrationForm.phoneNumberId && integrationForm.apiToken && (
-                                    <div className="pt-6 border-t border-slate-100 space-y-4 mt-6 animate-in fade-in">
-                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                            🤖 Gatilhos e Automações
-                                        </h3>
-                                        
-                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
-                                            {/* Status de Pedido */}
-                                            <label className="flex items-center justify-between cursor-pointer">
-                                                <div className="pr-4">
-                                                    <p className="text-xs font-black text-slate-700 uppercase">Avisos de Pedido (Status)</p>
-                                                    <p className="text-[10px] text-slate-500 leading-tight mt-1">Notifica o cliente via API quando o status muda (Saiu p/ Entrega, etc).</p>
-                                                </div>
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="w-5 h-5 accent-green-500 flex-shrink-0"
-                                                    checked={integrationForm.autoOrderStatus || false}
-                                                    onChange={e => setIntegrationForm({...integrationForm, autoOrderStatus: e.target.checked})}
-                                                />
-                                            </label>
-
-                                            {/* Carrinho Abandonado */}
-                                            <label className="flex items-center justify-between cursor-pointer pt-4 border-t border-slate-200">
-                                                <div className="pr-4">
-                                                    <p className="text-xs font-black text-slate-700 uppercase">Carrinhos Abandonados</p>
-                                                    <p className="text-[10px] text-slate-500 leading-tight mt-1">Dispara um Template de resgate 1h após inatividade no carrinho.</p>
-                                                </div>
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="w-5 h-5 accent-green-500 flex-shrink-0"
-                                                    checked={integrationForm.autoAbandonedCart || false}
-                                                    onChange={e => setIntegrationForm({...integrationForm, autoAbandonedCart: e.target.checked})}
-                                                />
-                                            </label>
-                                        </div>
-
-                                        {/* Lista de Transmissão / Marketing */}
-                                        <div className="bg-green-50 p-4 rounded-2xl border border-green-200">
-                                            <h4 className="text-xs font-black text-green-800 uppercase mb-2">📢 Disparo em Massa (Base VIP)</h4>
-                                            <p className="text-[10px] text-green-700 mb-3">Envie um Template aprovado na Meta para todos os clientes ativos.</p>
-                                            
-                                            <input 
-                                                type="text" 
-                                                placeholder="Nome do Template (ex: promo_fds)" 
-                                                className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-green-200 mb-3"
-                                                value={integrationForm.broadcastTemplate || ''}
-                                                onChange={e => setIntegrationForm({...integrationForm, broadcastTemplate: e.target.value.trim()})}
-                                            />
-                                            
-                                            <button 
-                                                type="button"
-                                                onClick={async () => {
-                                                    if(!integrationForm.broadcastTemplate) return alert("Digite o nome exato do Template cadastrado no seu Meta Business!");
-                                                    if(window.confirm(`Disparar o template '${integrationForm.broadcastTemplate}' para toda a base? Essa ação enviará mensagens através da sua API e consumirá créditos da Meta.`)){
-                                                        try {
-                                                            const res = await fetch('/api/whatsapp-send', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({
-                                                                    action: 'broadcast',
-                                                                    storeId: storeId,
-                                                                    templateName: integrationForm.broadcastTemplate
-                                                                })
-                                                            });
-                                                            if(res.ok) alert("✅ Disparo iniciado em background! Verifique os relatórios no Meta Business.");
-                                                            else alert("❌ Erro ao solicitar o disparo. Verifique os logs.");
-                                                        } catch(e) { alert("Erro de conexão com a API Serverless."); }
-                                                    }
-                                                }}
-                                                className="w-full bg-green-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-green-700 active:scale-95 transition-all"
-                                            >
-                                                ▶️ Iniciar Disparo para Clientes
-                                            </button>
-                                        </div>
                                     </div>
                                 )}
 
