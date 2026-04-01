@@ -109,9 +109,11 @@ export default function AdminChat() {
             snapshot.forEach(doc => {
                 const data = doc.data();
                 if (data.customerPhone && data.customerName) {
-                    // Limpa o telefone para cruzar perfeitamente com o chat
+                    // Limpa o telefone para cruzar perfeitamente com o chat (Trata o nono dígito)
                     let phone = String(data.customerPhone).replace(/\D/g, '');
-                    if (phone.length >= 10 && !phone.startsWith('55')) phone = '55' + phone;
+                    if (phone.startsWith('55')) phone = phone.substring(2);
+                    if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
+                    
                     // Associa o número ao nome (o último pedido sobreescreve, mantendo atualizado)
                     book[phone] = data.customerName;
                 }
@@ -138,11 +140,10 @@ export default function AdminChat() {
         let rawPhone = msg.direction === 'outbound' ? msg.to : msg.from; 
         if (!rawPhone) return acc;
         
-        // NORMALIZAÇÃO CIRÚRGICA: Remove o '55' da frente para o chat não duplicar conversas da mesma pessoa
+        // NORMALIZAÇÃO CIRÚRGICA (O TERROR DO NONO DÍGITO):
         let phone = String(rawPhone).replace(/\D/g, '');
-        if (phone.startsWith('55') && phone.length > 11) {
-            phone = phone.substring(2);
-        }
+        if (phone.startsWith('55')) phone = phone.substring(2); // 1. Remove o 55
+        if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2); // 2. Força o 9º dígito se a Meta ocultar
         
         const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
