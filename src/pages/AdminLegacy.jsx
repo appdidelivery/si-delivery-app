@@ -2661,18 +2661,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                                 {/* Toggle Balcão / Delivery */}
                                 <div className="flex bg-slate-800 rounded-xl p-1">
-                                    <button 
-                                        onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup' }); setManualShippingFee(0); }}
-                                        className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        🏪 Balcão/Mesa
-                                    </button>
-                                    <button 
-                                        onClick={() => setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery' })}
-                                        className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        🛵 Delivery
-                                    </button>
+                                    {storeStatus.posPickupEnabled !== false && (
+                                        <button 
+                                            onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup' }); setManualShippingFee(0); }}
+                                            className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            🏪 Balcão/Mesa
+                                        </button>
+                                    )}
+                                    {storeStatus.posDeliveryEnabled !== false && (
+                                        <button 
+                                            onClick={() => setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery' })}
+                                            className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            🛵 Delivery
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -4148,33 +4152,51 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <MapPin size={24}/> Localização e Regras
                                 </h2>
 
-                                {/* --- NOVO: CONTROLE MESTRE DE LOGÍSTICA --- */}
-                                <div className="flex flex-col md:flex-row gap-4 mb-6 pb-6 border-b border-slate-100">
-                                    <label className={`flex-1 flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.deliveryEnabled !== false ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                                        <div>
-                                            <span className={`font-black uppercase tracking-tight text-sm ${storeStatus.deliveryEnabled !== false ? 'text-blue-800' : 'text-slate-500'}`}>🛵 Habilitar Delivery</span>
-                                            <p className="text-[10px] font-bold text-slate-500 mt-1">Aceitar pedidos para entrega.</p>
-                                        </div>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={storeStatus.deliveryEnabled !== false} 
-                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { deliveryEnabled: e.target.checked }, { merge: true })}
-                                            className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
-                                        />
-                                    </label>
+                                {/* --- NOVO: CONTROLE MESTRE DE LOGÍSTICA (SEPARADO POR CANAL) --- */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 pb-6 border-b border-slate-100">
+                                    {/* CANAL 1: LOJA ONLINE (APP) */}
+                                    <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100">
+                                        <h3 className="text-[11px] font-black text-blue-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <ExternalLink size={16} className="text-blue-500"/> Loja Online (App Cliente)
+                                        </h3>
+                                        <div className="flex flex-col gap-3">
+                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.deliveryEnabled !== false ? 'bg-white border-blue-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
+                                                <div>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.deliveryEnabled !== false ? 'text-blue-800' : 'text-slate-500'}`}>🛵 Habilitar Delivery</span>
+                                                </div>
+                                                <input type="checkbox" checked={storeStatus.deliveryEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { deliveryEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
+                                            </label>
 
-                                    <label className={`flex-1 flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.pickupEnabled !== false ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                                        <div>
-                                            <span className={`font-black uppercase tracking-tight text-sm ${storeStatus.pickupEnabled !== false ? 'text-blue-800' : 'text-slate-500'}`}>🏪 Habilitar Retirada</span>
-                                            <p className="text-[10px] font-bold text-slate-500 mt-1">Aceitar pedidos de balcão.</p>
+                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.pickupEnabled !== false ? 'bg-white border-blue-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
+                                                <div>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.pickupEnabled !== false ? 'text-blue-800' : 'text-slate-500'}`}>🏪 Habilitar Retirada</span>
+                                                </div>
+                                                <input type="checkbox" checked={storeStatus.pickupEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { pickupEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
+                                            </label>
                                         </div>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={storeStatus.pickupEnabled !== false} 
-                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { pickupEnabled: e.target.checked }, { merge: true })}
-                                            className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
-                                        />
-                                    </label>
+                                    </div>
+
+                                    {/* CANAL 2: FRENTE DE CAIXA (PDV/BALCÃO) */}
+                                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                                        <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <Store size={16} className="text-slate-500"/> Frente de Caixa (Painel PDV)
+                                        </h3>
+                                        <div className="flex flex-col gap-3">
+                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.posDeliveryEnabled !== false ? 'bg-white border-slate-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
+                                                <div>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.posDeliveryEnabled !== false ? 'text-slate-800' : 'text-slate-500'}`}>🛵 Lançar Delivery</span>
+                                                </div>
+                                                <input type="checkbox" checked={storeStatus.posDeliveryEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { posDeliveryEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer" />
+                                            </label>
+
+                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.posPickupEnabled !== false ? 'bg-white border-slate-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
+                                                <div>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.posPickupEnabled !== false ? 'text-slate-800' : 'text-slate-500'}`}>🏪 Lançar Balcão/Mesa</span>
+                                                </div>
+                                                <input type="checkbox" checked={storeStatus.posPickupEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { posPickupEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer" />
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 {/* 1. Endereço Físico (Para o Rodapé) */}
