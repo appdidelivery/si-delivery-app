@@ -5447,21 +5447,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         customerName: editingOrderData.customerName || '',
                                         customerAddress: editingOrderData.customerAddress || '',
                                         customerPhone: editingOrderData.customerPhone || '',
-                                        // **FIX CRÍTICO**: Se paymentMethod for nulo ou undefined, usa 'pix' como um padrão seguro.
                                         paymentMethod: editingOrderData.paymentMethod ?? 'pix', 
                                         observation: editingOrderData.observation || '',
                                         status: editingOrderData.status || 'pending',
+                                        paymentStatus: editingOrderData.paymentStatus || 'pending', // Garante que o status do pagamento seja salvo
                                         shippingFee: Number(editingOrderData.shippingFee || 0),
                                         items: editingOrderData.items ||[],
                                         total: newTotal,
                                     };
                                     
-                                    // O campo 'troco' depende do método de pagamento já sanitizado
                                     dataParaSalvar.changeFor = dataParaSalvar.paymentMethod === 'dinheiro' 
                                         ? (editingOrderData.changeFor || '') 
                                         : '';
 
+                                    // Descobre se os status mudaram antes de salvar
+                                    const pedidoAntigo = orders.find(o => o.id === editingOrderData.id) || {};
+                                    const mudouStatusPedido = pedidoAntigo.status !== dataParaSalvar.status;
+                                    const mudouStatusPagamento = pedidoAntigo.paymentStatus !== dataParaSalvar.paymentStatus;
+
                                     await updateDoc(doc(db, "orders", editingOrderData.id), dataParaSalvar);
+
+                                    // --- DISPARO AUTOMÁTICO VIA API (MODAL) ---
+                                    if (settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoOrderStatus) {
+                                        const phone = String(dataParaSalvar.customerPhone || '').replace(/\D/g, '');
+                                        const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
+                                        const lojaNome = storeStatus?.name || "Velo Delivery";
+
+                                        if (cleanPhone.length >= 10) {
+                                            // 1. Notifica mudança de Pedido (Cozinha/Entrega)
+                                            if (mudouStatusPedido) {
+                                                const msgsPedido = {
+                                                    preparing: `👨‍🍳 *PEDIDO EM PREPARO!*\n\nOlá ${dataParaSalvar.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
+                                                    delivery: `🏍️ *SAIU PARA ENTREGA!*\n\nO motoboy já está a caminho com o seu pedido #${editingOrderData.id.slice(-5).toUpperCase()}.`,
+                                                    completed: `✅ *PEDIDO ENTREGUE!*\n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️\n\n🎁 *Ganhe Prêmios e Descontos!*\nAcesse agora o nosso app e entre no Clube VIP para ganhar pontos na faixa:\n👉 https://${window.location.host}`,
+                                                    canceled: `❌ *PEDIDO CANCELADO*\n\nO pedido #${editingOrderData.id.slice(-5).toUpperCase()} foi cancelado.`
+                                                };
+                                                if (msgsPedido[dataParaSalvar.status]) {
+                                                    fetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgsPedido[dataParaSalvar.status] } }) }).catch(()=>{});
+                                                }
+                                            }
+
+                                            // 2. Notifica mudança de Pagamento
+                                            if (mudouStatusPagamento) {
+                                                let msgPagamento = "";
+                                                if (dataParaSalvar.paymentStatus === 'paid') {
+                                                    msgPagamento = `✅ *Pagamento Confirmado!*\n\nOlá ${dataParaSalvar.customerName.split(' ')[0]}, recebemos o pagamento do pedido #${editingOrderData.id.slice(-5).toUpperCase()} com sucesso. Obrigado!`;
+                                                } else if (dataParaSalvar.paymentStatus === 'failed') {
+                                                    msgPagamento = `❌ *Aviso de Pagamento*\n\nOlá ${dataParaSalvar.customerName.split(' ')[0]}, houve um problema e o pagamento do pedido #${editingOrderData.id.slice(-5).toUpperCase()} consta como recusado ou pendente. Por favor, entre em contato conosco.`;
+                                                }
+                                                
+                                                if (msgPagamento) {
+                                                    fetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgPagamento } }) }).catch(()=>{});
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // ------------------------------------------
                                     
                                     setIsOrderEditModalOpen(false);
                                     alert("Pedido atualizado com sucesso!");
