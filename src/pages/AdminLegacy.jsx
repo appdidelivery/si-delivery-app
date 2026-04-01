@@ -2190,6 +2190,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </button>
                                         <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
                                         <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
+                                        
+                                        {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
+                                        {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
+                                            <button 
+                                                onClick={async () => {
+                                                    const chavePix = store?.velopayPixKey || store?.pixKey || 'Chave não cadastrada';
+                                                    const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da ${storeStatus?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
+                                                    
+                                                    window.open(`https://wa.me/55${(o.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                    
+                                                    // Muda o status automaticamente para evitar cobrar duas vezes
+                                                    await updateDoc(doc(db, "orders", o.id), { 
+                                                        paymentStatus: 'aguardando_pix' 
+                                                    });
+                                                }}
+                                                className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
+                                                title="Cobrar PIX no WhatsApp"
+                                            >
+                                                <QrCode size={20}/>
+                                            </button>
+                                        )}
+
                                         <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
     <option value="pending">⏳ Novo Pedido</option>
     <option value="preparing">👨‍🍳 Preparando</option>
@@ -2471,26 +2493,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <ImageIcon size={16}/> Ver Print Enviado
                                                     </button>
                                                 )}
-                                                {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
-                                                {(order.paymentStatus === 'pending' || order.paymentStatus === 'pending_on_delivery') && (
-                                                    <button 
-                                                        onClick={async () => {
-                                                            const chavePix = store?.velopayPixKey || store?.pixKey || 'Chave não cadastrada';
-                                                            const msg = `Olá ${order.customerName.split(' ')[0]}! Aqui é da ${store?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(order.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
-                                                            
-                                                            window.open(`https://wa.me/${(order.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-                                                            
-                                                            // Muda o status automaticamente para evitar cobrar duas vezes
-                                                            await updateDoc(doc(db, "orders", order.id), { 
-                                                                paymentStatus: 'aguardando_pix' 
-                                                            });
-                                                        }}
-                                                        className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center ml-2"
-                                                        title="Cobrar PIX no WhatsApp"
-                                                    >
-                                                        <QrCode size={18}/>
-                                                    </button>
-                                                )}
+                                                
                                             </div>
                                             <div className="flex gap-2 mt-auto">
                                                 <button onClick={() => handleMissionAction(m, 'rejected')} className="flex-1 bg-red-50 text-red-600 p-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-all border border-red-100">
