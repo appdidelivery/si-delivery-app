@@ -805,19 +805,29 @@ if (data.abandonmentAlertSent === true) continue;
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
                                             // 1. PALAVRAS-CHAVE DE SUPORTE E RECLAMAÇÃO (Transbordo Humano)
-                                            const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errado', 'reclamar', 'faltou', 'frio', 'estragado'];
+                                            // Usamos "atras" para pegar "atraso" e "atrasado". "estragad" pega "estragado" e "estragada".
+                                            const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errado', 'reclamar', 'faltou', 'frio', 'estragad'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
                                             // 2. PALAVRAS-CHAVE DE FAQ (Respostas Rápidas Expansivas)
-                                            const isFaqHorario = ['horario', 'horas', 'que horas', 'abre', 'fecha', 'funcionamento'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqFrete = ['frete', 'taxa', 'entrega', 'bairros', 'onde entrega', 'motoboy'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqPagamento = ['pagamento', 'aceita cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqEndereco = ['onde fica', 'endereco', 'endereço', 'localizacao', 'localização', 'rua', 'bairro', 'situado', 'cidade'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqContato = ['telefone', 'contato', 'ligar', 'celular', 'whatsapp da loja'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqHorario = ['horario', 'horas', 'que horas', 'abre', 'fecha', 'funcionamento', 'atendimento'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqFrete = ['frete', 'taxa', 'entrega', 'bairro', 'onde', 'motoboy'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqPagamento = ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqEndereco = ['onde fica', 'endereco', 'localiza', 'rua', 'situado', 'cidade'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqContato = ['telefone', 'contato', 'ligar', 'celular', 'whatsapp'].some(kw => incomingTextLower.includes(kw));
 
-                                            // Busca dados dinâmicos da loja (Google Meu Negócio / Banco de Dados)
+                                            // Busca dados dinâmicos da loja com Tratamento de Erro (Caso não tenha preenchido no painel)
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
-                                            const storeAddressStr = storeDynamicData.address ? `${storeDynamicData.address.street || ''}, ${storeDynamicData.address.city || ''}`.trim() : "nosso endereço principal (veja no link do cardápio)";
+                                            const addr = storeDynamicData.address || {};
+                                            let storeAddressStr = "nosso endereço principal (veja no link do cardápio)";
+                                            
+                                            // Só tenta montar o endereço se a rua ou cidade existirem de verdade no banco
+                                            if (addr.street || addr.city) {
+                                                const streetPart = addr.street ? addr.street.trim() : '';
+                                                const cityPart = addr.city ? addr.city.trim() : '';
+                                                storeAddressStr = [streetPart, cityPart].filter(Boolean).join(', ');
+                                            }
+                                            
                                             const storePhoneStr = storeDynamicData.phone || "este mesmo número do WhatsApp";
 
                                             if (needsSupport) {
