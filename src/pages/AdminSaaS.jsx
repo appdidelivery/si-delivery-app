@@ -7,7 +7,7 @@ import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { 
     LayoutDashboard, Store, Radio, ShieldAlert, 
     LogOut, Menu, X, Loader2, CheckCircle, 
-    ToggleRight, UserPlus, Activity, AlertTriangle, Play, Zap 
+    ToggleRight, UserPlus, Activity, AlertTriangle, Play, Zap, CreditCard, Clock, CheckCircle2, Ban
 } from 'lucide-react';
 
 export default function AdminSaaS() {
@@ -22,74 +22,93 @@ export default function AdminSaaS() {
     const [storesList, setStoresList] = useState([]);
     const [actionLoading, setActionLoading] = useState(null);
 
-    // 🔒 TRAVA DE SEGURANÇA: Mude para o seu email de acesso
-    const MASTER_EMAIL = 'appdidelivery@gmail.com'; 
+    // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
+    // Coloque aqui todos os emails que podem acessar o Velo Dark Ops (sempre em minúsculas)
+    const MASTER_EMAILS = [
+        'appdidelivery@gmail.com', 
+        'email-da-agencia@gmail.com',
+        'emaildacsi@gmail.com'
+    ]; 
 
-    // --- PROTEÇÃO E BUSCA DE DADOS ---
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            // 1. Está logado?
-            if (!user) {
-                navigate('/login');
+            if (!user) { navigate('/login'); return; }
+            
+            // Pega o email do usuário logado e garante que está tudo minúsculo para evitar erro de digitação
+            const userEmail = user.email ? user.email.toLowerCase() : 'sem-email';
+
+            // Verifica se o email da pessoa está na nossa lista VIP
+            if (!MASTER_EMAILS.includes(userEmail)) {
+                // Se não estiver, avisa EXATAMENTE qual email foi bloqueado
+                alert(`ACESSO NEGADO!\n\nO sistema bloqueou o email: ${userEmail}\n\nSe este é o seu email, adicione ele na lista MASTER_EMAILS lá no código AdminSaaS.jsx.`);
+                navigate('/admin'); 
                 return;
             }
 
-            // 2. É o Mestre (Super Admin)?
-            if (user.email !== MASTER_EMAIL) {
-                alert("Acesso Negado: Velo Dark Ops é restrito à diretoria.");
-                navigate('/admin'); // Expulsa pro painel de lojista comum
-                return;
-            }
-
-            // 3. Se passou pela segurança, busca os dados reais
             await fetchSaaSData();
             setGlobalLoading(false);
         });
         return () => unsubscribe();
     }, [navigate]);
 
-    // Busca os dados do Firebase
     const fetchSaaSData = async () => {
         try {
             const storesSnap = await getDocs(collection(db, 'stores'));
             const allStores = storesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // Filtra as lojas onde o status do VeloPay é pendente
-            // (Ajuste 'veloPayStatus' para o nome exato do campo que você usa no seu banco)
             const pendingPix = allStores.filter(s => s.veloPayStatus === 'pendente' || s.pixStatus === 'pendente');
             setPixQueue(pendingPix);
-
-            // Alimenta a aba "Controle de Lojas" com todos os clientes reais do banco
             setStoresList(allStores);
         } catch (error) {
             console.error("Erro ao buscar dados do SaaS:", error);
         }
     };
 
-    // Ação Real: Aprovar VeloPay
     const handleApprovePix = async (storeId) => {
         if (!window.confirm('Confirmar liberação do VeloPay para esta loja?')) return;
-        
         setActionLoading(storeId);
         try {
             const storeRef = doc(db, 'stores', storeId);
             await updateDoc(storeRef, {
                 veloPayStatus: 'ativo',
-                pixStatus: 'ativo', // Atualizamos ambos por segurança até você padronizar
+                pixStatus: 'ativo',
                 veloPayApprovedAt: new Date()
             });
-            alert('VeloPay ativado com sucesso para esta loja!');
-            await fetchSaaSData(); // Recarrega a fila para sumir com o card
-        } catch (error) {
-            alert('Erro ao aprovar: ' + error.message);
-        } finally {
-            setActionLoading(null);
+            alert('VeloPay ativado com sucesso!');
+            await fetchSaaSData(); 
+        } catch (error) { alert('Erro ao aprovar: ' + error.message); } 
+        finally { setActionLoading(null); }
+    };
+
+    // --- NOVA FUNÇÃO: GERENCIAR FATURA ---
+    const handleUpdateBillingStatus = async (storeId, newStatus) => {
+        if (!window.confirm(`Mudar o status financeiro desta loja para: ${newStatus.toUpperCase()}?`)) return;
+        setActionLoading(`billing_${storeId}`);
+        try {
+            const storeRef = doc(db, 'stores', storeId);
+            await updateDoc(storeRef, {
+                billingStatus: newStatus, // Ex: 'pago', 'pendente', 'teste', 'gratis_vitalicio'
+                billingUpdatedAt: new Date()
+            });
+            await fetchSaaSData(); 
+        } catch (error) { alert('Erro ao atualizar fatura: ' + error.message); } 
+        finally { setActionLoading(null); }
+    };
+
+    // --- HELPER DE RENDERIZAÇÃO DE STATUS ---
+    const renderBillingBadge = (status) => {
+        switch (status) {
+            case 'pago': return <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-500 text-xs font-bold px-2 py-1 rounded"><CheckCircle2 size={12}/> Pago</span>;
+            case 'pendente': return <span className="flex items-center gap-1 bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded"><Clock size={12}/> Vencido/Pendente</span>;
+            case 'teste': return <span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 text-xs font-bold px-2 py-1 rounded"><Activity size={12}/> Em Teste</span>;
+            case 'gratis_vitalicio': return <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 text-xs font-bold px-2 py-1 rounded"><ShieldAlert size={12}/> Cortesia (CSI)</span>;
+            case 'bloqueado': return <span className="flex items-center gap-1 bg-red-500/10 text-red-400 text-xs font-bold px-2 py-1 rounded"><Ban size={12}/> Bloqueado</span>;
+            default: return <span className="text-xs text-slate-500">Sem status</span>;
         }
     };
 
     if (globalLoading) return <div className="flex h-screen items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-blue-500 w-12 h-12"/></div>;
 
-    // --- RENDERIZAÇÃO DE CONTEÚDO ---
     const renderContent = () => {
         if (activeTab === 'dashboard') {
              return (
@@ -140,7 +159,7 @@ export default function AdminSaaS() {
                     <div className="flex justify-between items-center">
                         <div>
                             <h2 className="text-3xl font-black text-white mb-2">Controle de Lojas</h2>
-                            <p className="text-slate-400">Impersonate, Feature Toggling e Monitor de Infra.</p>
+                            <p className="text-slate-400">Visão geral e acesso remoto.</p>
                         </div>
                     </div>
 
@@ -150,15 +169,13 @@ export default function AdminSaaS() {
                                 <tr className="bg-slate-950/50 border-b border-slate-800">
                                     <th className="p-4 text-slate-400 font-semibold text-sm">Loja & Plano</th>
                                     <th className="p-4 text-slate-400 font-semibold text-sm">Módulos (Toggling)</th>
-                                    <th className="p-4 text-slate-400 font-semibold text-sm">Consumo (Data Fuel)</th>
+                                    <th className="p-4 text-slate-400 font-semibold text-sm">Status Financeiro</th>
                                     <th className="p-4 text-slate-400 font-semibold text-sm">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {storesList.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="4" className="p-8 text-center text-slate-500 font-bold">Nenhuma loja cadastrada no Firebase ainda.</td>
-                                    </tr>
+                                    <tr><td colSpan="4" className="p-8 text-center text-slate-500 font-bold">Nenhuma loja encontrada.</td></tr>
                                 ) : (
                                     storesList.map(loja => (
                                         <tr key={loja.id} className="border-b border-slate-800/50 hover:bg-slate-800/20">
@@ -184,14 +201,11 @@ export default function AdminSaaS() {
                                                 </div>
                                             </td>
                                             <td className="p-4">
-                                                <div className="space-y-1">
-                                                    <p className="text-xs text-slate-400 flex items-center gap-1"><Activity size={12}/> Criada em: {loja.createdAt?.toDate ? loja.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A'}</p>
-                                                    <p className="text-xs text-slate-400 flex items-center gap-1 mt-2"><Activity size={12}/> ID: {loja.id.substring(0, 8)}...</p>
-                                                </div>
+                                                {renderBillingBadge(loja.billingStatus)}
                                             </td>
                                             <td className="p-4">
-                                                <button onClick={() => alert(`Acesso remoto (Impersonate) para a loja ${loja.name} será configurado no próximo passo!`)} className="flex items-center gap-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                                                    <Play size={16} /> Acessar Painel
+                                                <button onClick={() => alert(`Acesso remoto para a loja ${loja.name} será configurado em breve!`)} className="flex items-center gap-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                                                    <Play size={16} /> Impersonate
                                                 </button>
                                             </td>
                                         </tr>
@@ -199,6 +213,54 @@ export default function AdminSaaS() {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- NOVA ABA: GESTÃO DE FATURAS ---
+        if (activeTab === 'faturas') {
+            return (
+                <div className="space-y-6">
+                    <div>
+                        <h2 className="text-3xl font-black text-white mb-2">Gestão de Assinaturas</h2>
+                        <p className="text-slate-400">Controle manual de pagamentos, cortesias e bloqueios.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {storesList.map(loja => (
+                            <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col justify-between">
+                                <div>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h3 className="font-bold text-white text-lg">{loja.name || 'Loja Sem Nome'}</h3>
+                                        {renderBillingBadge(loja.billingStatus)}
+                                    </div>
+                                    <p className="text-sm text-slate-500 mb-6">Altere o status para controlar o acesso ao painel do lojista.</p>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'pago')} disabled={actionLoading === `billing_${loja.id}`} className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 py-2 rounded-lg text-xs font-bold transition-colors">
+                                            Marcar como Pago
+                                        </button>
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'pendente')} disabled={actionLoading === `billing_${loja.id}`} className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 py-2 rounded-lg text-xs font-bold transition-colors">
+                                            Cobrar (Pendente)
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'teste')} disabled={actionLoading === `billing_${loja.id}`} className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 py-2 rounded-lg text-xs font-bold transition-colors">
+                                            Modo Teste
+                                        </button>
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'gratis_vitalicio')} disabled={actionLoading === `billing_${loja.id}`} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 py-2 rounded-lg text-xs font-bold transition-colors">
+                                            Cortesia (CSI)
+                                        </button>
+                                    </div>
+                                    <button onClick={() => handleUpdateBillingStatus(loja.id, 'bloqueado')} disabled={actionLoading === `billing_${loja.id}`} className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 py-2 rounded-lg text-xs font-bold transition-colors mt-2">
+                                        Bloquear Acesso
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
@@ -230,10 +292,10 @@ export default function AdminSaaS() {
         </div>;
     };
 
-    // --- LAYOUT E NAVEGAÇÃO ---
     const menuItems = [
         { id: 'dashboard', label: 'Fila Pix', icon: LayoutDashboard },
         { id: 'lojas', label: 'Controle de Lojas', icon: Store },
+        { id: 'faturas', label: 'Faturas & Status', icon: CreditCard }, // Nova Aba
         { id: 'broadcast', label: 'Broadcast', icon: Radio },
         { id: 'auditoria', label: 'Audit Log', icon: ShieldAlert },
     ];
