@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -2274,7 +2274,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
                                                     <button 
                                                         onClick={async () => {
-                                                            const chavePix = store?.velopayPixKey || store?.pixKey || 'Chave não cadastrada';
+                                                            const chavePix = storeStatus?.velopayData?.pixKey || storeStatus?.pixKey || 'Chave não cadastrada';
                                                             const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da ${storeStatus?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
                                                             
                                                             window.open(`https://wa.me/55${(o.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -3662,242 +3662,236 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 </div>
                         </div>
 {/* --- DESTAQUE: VELOPAY NATIVO --- */}
-                        <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
-                            <div className="absolute -top-24 -right-24 bg-blue-500 w-64 h-64 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
-                            
-                            <div className="flex items-center justify-between mb-6 relative z-10">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-blue-500 p-3 rounded-2xl text-white shadow-lg"><Landmark size={28}/></div>
-                                    <div>
-                                        <h3 className="text-2xl font-black uppercase text-white italic leading-none">VeloPay <span className="text-blue-400">Bank</span></h3>
-                                        <p className="text-xs font-medium text-slate-300 mt-1">Sua conta digital nativa (As menores taxas do Brasil).</p>
-                                    </div>
-                                </div>
-                                <div className="hidden md:flex bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest border border-slate-700 items-center gap-1 shadow-inner">
-                                    <ShieldCheck size={12} className="text-blue-400"/> Efí Bank
-                                </div>
-                            </div>
+                        <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
+                            <div className="absolute -top-24 -right-24 bg-blue-500 w-64 h-64 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
+                            
+                            <div className="flex items-center justify-between mb-6 relative z-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-500 p-3 rounded-2xl text-white shadow-lg"><Landmark size={28}/></div>
+                                    <div>
+                                        <h3 className="text-2xl font-black uppercase text-white italic leading-none">VeloPay <span className="text-blue-400">Bank</span></h3>
+                                        <p className="text-xs font-medium text-slate-300 mt-1">Sua conta digital nativa (As menores taxas do Brasil).</p>
+                                    </div>
+                                </div>
+                                <div className="hidden md:flex bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest border border-slate-700 items-center gap-1 shadow-inner">
+                                    <ShieldCheck size={12} className="text-blue-400"/> Efí Bank
+                                </div>
+                            </div>
 
-                            {!storeStatus.velopayStatus || storeStatus.velopayStatus === 'unconfigured' ? (
-                                <div className="relative z-10 bg-white/5 border border-white/10 p-6 md:p-8 rounded-[2rem] backdrop-blur-md">
-                                    {/* ========================================== */}
-                                {/* DASHBOARD DE TAXAS E TOGGLE CARTÃO VELOPAY */}
-                                {/* ========================================== */}
-                                <div className="mb-10 bg-slate-900/50 rounded-[2rem] border border-white/10 p-6 shadow-inner animate-in fade-in zoom-in">
-                                    <h3 className="text-white font-black uppercase text-xs tracking-widest mb-5 flex items-center gap-2">
-                                        <Wallet size={16} className="text-blue-400"/> Taxas e Condições do VeloPay
-                                    </h3>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* CARD TAXA PIX */}
-                                        <div className="bg-slate-800 p-5 rounded-2xl border border-white/5 relative overflow-hidden flex flex-col justify-between">
-                                            <div>
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <span className="text-blue-300 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><QrCode size={14}/> PIX NATIVO</span>
-                                                    <span className="bg-green-500/20 text-green-400 text-[9px] px-2 py-1 rounded-md font-black uppercase tracking-widest border border-green-500/30">Ativo Padrão</span>
+                            {!storeStatus?.velopayStatus || storeStatus?.velopayStatus === 'unconfigured' ? (
+                                <div className="relative z-10 bg-white/5 border border-white/10 p-6 md:p-8 rounded-[2rem] backdrop-blur-md">
+                                    <div className="mb-10 bg-slate-900/50 rounded-[2rem] border border-white/10 p-6 shadow-inner animate-in fade-in zoom-in">
+                                        <h3 className="text-white font-black uppercase text-xs tracking-widest mb-5 flex items-center gap-2">
+                                            <Wallet size={16} className="text-blue-400"/> Taxas e Condições do VeloPay
+                                        </h3>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* CARD TAXA PIX */}
+                                            <div className="bg-slate-800 p-5 rounded-2xl border border-white/5 relative overflow-hidden flex flex-col justify-between">
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <span className="text-blue-300 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><QrCode size={14}/> PIX NATIVO</span>
+                                                        <span className="bg-green-500/20 text-green-400 text-[9px] px-2 py-1 rounded-md font-black uppercase tracking-widest border border-green-500/30">Ativo Padrão</span>
+                                                    </div>
+                                                    
+                                                    <div className="flex justify-between items-end mb-2 mt-4">
+                                                        <p className="text-slate-400 text-[10px] font-bold uppercase">Taxa Aplicada</p>
+                                                        <select 
+                                                            disabled={storeStatus?.velopayStatus !== 'active'}
+                                                            className={`bg-slate-900 text-blue-400 text-[10px] font-black uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none ${storeStatus?.velopayStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                            value={storeStatus?.velopayPixPlan || 'd0'}
+                                                            onChange={async (e) => {
+                                                                await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value });
+                                                            }}
+                                                        >
+                                                            <option value="d30">Receber em 30 dias</option>
+                                                            <option value="d14">Receber em 15 dias</option>
+                                                            <option value="d1">Receber em 24h (D+1)</option>
+                                                        </select>
+                                                </div>
+
+                                                <div className="flex items-end gap-1 mt-3">
+                                                    <p className="text-white font-black text-3xl italic leading-none">
+                                                        {storeStatus?.velopayPixPlan === 'd30' ? '1,49%' : storeStatus?.velopayPixPlan === 'd14' ? '2,00%' : '2,59%'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center text-blue-300">
+                                               <span>Saque disponível {storeStatus?.velopayPixPlan === 'd30' ? 'em 30 dias' : storeStatus?.velopayPixPlan === 'd14' ? 'em 15 dias' : 'no mesmo dia (D+0)'}.</span>
+                                            </p>
+                                        </div>
+
+                                        {/* CARD TAXA CARTÃO E TOGGLE (Opcional) */}
+                                        <div className={`p-5 rounded-2xl border relative overflow-hidden transition-all duration-300 flex flex-col justify-between ${storeStatus?.velopayCreditStatus === 'active' ? 'bg-blue-900/30 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-slate-800 border-white/5'}`}>
+                                            <div>
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <span className={`${storeStatus?.velopayCreditStatus === 'active' ? 'text-blue-400' : 'text-slate-400'} font-black text-[10px] uppercase tracking-widest flex items-center gap-1 transition-colors`}><CreditCard size={14}/> CARTÃO DE CRÉDITO</span>
+                                                    
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            disabled={storeStatus?.velopayStatus !== 'active'}
+                                                            className="sr-only peer disabled:cursor-not-allowed"
+                                                            checked={storeStatus?.velopayCreditStatus === 'active'}
+                                                            onChange={async (e) => {
+                                                                if (storeStatus?.velopayStatus !== 'active') return alert("Ative sua conta VeloPay primeiro!");
+                                                                const newVal = e.target.checked ? 'active' : 'inactive';
+                                                                await updateDoc(doc(db, "stores", storeId), { velopayCreditStatus: newVal });
+                                                            }}
+                                                        />
+                                                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                                                    </label>
+                                                </div>
+                                                
+                                                <div className="flex justify-between items-end mb-2 mt-4">
+                                                    <p className="text-slate-400 text-[10px] font-bold uppercase">Taxa Aplicada</p>
+                                                    <select 
+                                                        disabled={storeStatus?.velopayStatus !== 'active'}
+                                                        className={`bg-slate-900 text-blue-400 text-[10px] font-black uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none ${storeStatus?.velopayStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                        value={storeStatus?.velopayCreditPlan || 'd30'}
+                                                        onChange={async (e) => {
+                                                            await updateDoc(doc(db, "stores", storeId), { velopayCreditPlan: e.target.value });
+                                                        }}
+                                                    >
+                                                        <option value="d30">Receber em 30 dias</option>
+                                                        <option value="d14">Receber em 15 dias</option>
+                                                        <option value="d1">Receber em 24h (D+1)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="flex items-end gap-1 mt-3">
+                                                    <p className={`font-black text-3xl italic leading-none transition-colors ${storeStatus?.velopayCreditStatus === 'active' ? 'text-white' : 'text-slate-500'}`}>
+                                                        {storeStatus?.velopayCreditPlan === 'd1' ? '5,99%' : storeStatus?.velopayCreditPlan === 'd14' ? '5,49%' : '4,99%'}
+                                                    </p>
+                                                    <span className="text-xs font-bold text-slate-500 mb-1">+ R$ 0,39</span>
+                                                </div>
+                                            </div>
+                                            <div className={`mt-4 bg-white/5 p-2 rounded-lg flex flex-col gap-1 transition-colors ${storeStatus?.velopayCreditStatus === 'active' ? 'text-blue-300' : 'text-slate-500'}`}>
+                                                <div className="flex justify-between items-center w-full">
+                                                    <span className="text-[10px] font-bold">Saque disponível {storeStatus?.velopayPixPlan === 'd30' ? 'em 30 dias' : storeStatus?.velopayPixPlan === 'd14' ? 'em 15 dias' : 'no mesmo dia (D+0)'}.</span>
+                                                    {storeStatus?.velopayCreditStatus === 'active' && <span className="text-[10px] font-bold">Ativado ✅</span>}
                                                 </div>
-                                                
-                                                {/* MENU DE ESCOLHA DO PLANO PIX */}
-                                                <div className="flex justify-between items-end mb-2 mt-4">
-                                                    <p className="text-slate-400 text-[10px] font-bold uppercase">Taxa Aplicada</p>
-                                                    <select 
-                                                        disabled={store?.velopayStatus !== 'active'}
-                                                        className={`bg-slate-900 text-blue-400 text-[10px] font-black uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none ${store?.velopayStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                                        value={store?.velopayPixPlan || 'd0'}
-                                                        onChange={async (e) => {
-                                                            await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value });
-                                                        }}
-                                                    >
-                                                        <option value="d30">Receber em 30 dias</option>
-                                                        <option value="d14">Receber em 15 dias</option>
-                                                        <option value="d1">Receber em 24h (D+1)</option>
-                                                    </select>
-                                                </div>
+                                                <span className="text-white/50 text-[8px] uppercase font-bold">⚠️ Taxa mínima de R$ 1,50 por transação.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* ========================================== */}
+                                    <h4 className="text-white font-black uppercase tracking-widest text-sm mb-6 border-b border-white/10 pb-4">Ativar Recebimento Nativo</h4>
+                                    <form onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        setIsSubmittingVeloPay(true);
+                                        // Simulação de delay de envio
+                                        setTimeout(async () => {
+                                            await updateDoc(doc(db, "stores", storeId), {
+                                                velopayStatus: 'pending_review',
+                                                velopayData: veloPayForm
+                                            }, { merge: true });
+                                            setIsSubmittingVeloPay(false);
+                                            alert("📄 Documentação enviada! Em breve sua conta VeloPay será ativada pela Efí Bank.");
+                                        }, 1500);
+                                    }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        
+                                        <div className="col-span-1 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">Razão Social / Nome Completo</label>
+                                            <input 
+                                                type="text" required
+                                                value={veloPayForm.legalName} onChange={e => setVeloPayForm({...veloPayForm, legalName: e.target.value})}
+                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
+                                                placeholder="Conforme documento oficial" 
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">CPF ou CNPJ</label>
+                                            <input 
+                                                type="text" required
+                                                value={veloPayForm.document} onChange={e => setVeloPayForm({...veloPayForm, document: e.target.value})}
+                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
+                                                placeholder="Apenas números" 
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">WhatsApp de Contato</label>
+                                            <input 
+                                                type="tel" required
+                                                value={veloPayForm.phone} onChange={e => setVeloPayForm({...veloPayForm, phone: e.target.value})}
+                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
+                                                placeholder="(DD) 90000-0000" 
+                                            />
+                                        </div>
 
-                                                <div className="flex items-end gap-1 mt-3">
-                                                    <p className="text-white font-black text-3xl italic leading-none">
-    {store?.velopayPixPlan === 'd30' ? '1,49%' : store?.velopayPixPlan === 'd7' ? '2,00%' : '2,59%'}
-</p>
-                                                </div>
-                                            </div>
-                                            <p className="text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center text-blue-300">
-                                               <span>Saque disponível {store?.velopayPixPlan === 'd30' ? 'em 30 dias' : store?.velopayPixPlan === 'd7' ? 'em 15 dias' : 'no mesmo dia (D+0)'}.</span>
-                                            </p>
-                                        </div>
+                                        <div className="col-span-1 md:col-span-2 pt-4 mt-2 border-t border-slate-700">
+                                            <h3 className="text-xs font-black uppercase tracking-widest text-white mb-1">Dados de Saque (Recebimento)</h3>
+                                        </div>
 
-                                        {/* CARD TAXA CARTÃO E TOGGLE (Opcional) */}
-                                        <div className={`p-5 rounded-2xl border relative overflow-hidden transition-all duration-300 flex flex-col justify-between ${store?.velopayCreditStatus === 'active' ? 'bg-blue-900/30 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-slate-800 border-white/5'}`}>
-                                            <div>
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <span className={`${store?.velopayCreditStatus === 'active' ? 'text-blue-400' : 'text-slate-400'} font-black text-[10px] uppercase tracking-widest flex items-center gap-1 transition-colors`}><CreditCard size={14}/> CARTÃO DE CRÉDITO</span>
-                                                    
-                                                    {/* CHAVE DE LIGAR/DESLIGAR CARTÃO */}
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            disabled={store?.velopayStatus !== 'active'}
-                                                            className="sr-only peer disabled:cursor-not-allowed"
-                                                            checked={store?.velopayCreditStatus === 'active'}
-                                                            onChange={async (e) => {
-                                                                if (store?.velopayStatus !== 'active') return alert("Ative sua conta VeloPay primeiro!");
-                                                                const newVal = e.target.checked ? 'active' : 'inactive';
-                                                                await updateDoc(doc(db, "stores", storeId), { velopayCreditStatus: newVal });
-                                                            }}
-                                                        />
-                                                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
-                                                    </label>
-                                                </div>
-                                                
-                                                {/* MENU DE ESCOLHA DO PLANO */}
-                                                <div className="flex justify-between items-end mb-2 mt-4">
-                                                    <p className="text-slate-400 text-[10px] font-bold uppercase">Taxa Aplicada</p>
-                                                    <select 
-                                                        disabled={store?.velopayStatus !== 'active'}
-                                                        className={`bg-slate-900 text-blue-400 text-[10px] font-black uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none ${store?.velopayStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                                        value={store?.velopayCreditPlan || 'd30'}
-                                                        onChange={async (e) => {
-                                                            await updateDoc(doc(db, "stores", storeId), { velopayCreditPlan: e.target.value });
-                                                        }}
-                                                    >
-                                                        <option value="d30">Receber em 30 dias</option>
-<option value="d14">Receber em 15 dias</option>
-<option value="d1">Receber em 24h (D+1)</option>
-                                                    </select>
-                                                </div>
+                                        <div className="col-span-1 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">Chave PIX Recebedora</label>
+                                            <div className="relative">
+                                                <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400" size={18} />
+                                                <input 
+                                                    type="text" required
+                                                    value={veloPayForm.pixKey} onChange={e => setVeloPayForm({...veloPayForm, pixKey: e.target.value})}
+                                                    className="w-full p-4 pl-12 bg-green-900/20 text-green-100 rounded-2xl font-black border border-green-800/50 focus:ring-2 ring-green-500 outline-none transition-all placeholder-green-700/50" 
+                                                    placeholder="Sua chave PIX cadastrada no CNPJ/CPF acima" 
+                                                />
+                                            </div>
+                                        </div>
 
-                                                <div className="flex items-end gap-1 mt-3">
-                                                    <p className={`font-black text-3xl italic leading-none transition-colors ${store?.velopayCreditStatus === 'active' ? 'text-white' : 'text-slate-500'}`}>
-    {store?.velopayCreditPlan === 'd1' ? '5,99%' : store?.velopayCreditPlan === 'd14' ? '5,49%' : '4,99%'}
-</p>
-                                                    <span className="text-xs font-bold text-slate-500 mb-1">+ R$ 0,39</span>
-                                                </div>
-                                            </div>
-                                            <p className={`text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex justify-between items-center transition-colors ${store?.velopayCreditStatus === 'active' ? 'text-blue-300' : 'text-slate-500'}`}>
-                                                <p className="text-[10px] mt-4 font-bold bg-white/5 p-2 rounded-lg flex flex-col gap-1 text-blue-300">
-    <span>Saque disponível {store?.velopayPixPlan === 'd30' ? 'em 30 dias' : store?.velopayPixPlan === 'd7' ? 'em 15 dias' : 'no mesmo dia (D+0)'}.</span>
-    <span className="text-white/50 text-[8px] uppercase">⚠️ Taxa mínima de R$ 1,50 por transação.</span>
-</p>
-                                                {store?.velopayCreditStatus === 'active' && <span>Ativado ✅</span>}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                {/* ========================================== */}
-                                    <h4 className="text-white font-black uppercase tracking-widest text-sm mb-6 border-b border-white/10 pb-4">Ativar Recebimento Nativo</h4>
-                                    <form onSubmit={async (e) => {
-                                        e.preventDefault();
-                                        setIsSubmittingVeloPay(true);
-                                        // Simulação de delay de envio
-                                        setTimeout(async () => {
-                                            await updateDoc(doc(db, "stores", storeId), {
-                                                velopayStatus: 'pending_review',
-                                                velopayData: veloPayForm
-                                            }, { merge: true });
-                                            setIsSubmittingVeloPay(false);
-                                            alert("📄 Documentação enviada! Em breve sua conta VeloPay será ativada pela Efí Bank.");
-                                        }, 1500);
-                                    }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        
-                                        <div className="col-span-1 md:col-span-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">Razão Social / Nome Completo</label>
-                                            <input 
-                                                type="text" required
-                                                value={veloPayForm.legalName} onChange={e => setVeloPayForm({...veloPayForm, legalName: e.target.value})}
-                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
-                                                placeholder="Conforme documento oficial" 
-                                            />
-                                        </div>
-                                        
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">CPF ou CNPJ</label>
-                                            <input 
-                                                type="text" required
-                                                value={veloPayForm.document} onChange={e => setVeloPayForm({...veloPayForm, document: e.target.value})}
-                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
-                                                placeholder="Apenas números" 
-                                            />
-                                        </div>
-                                        
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">WhatsApp de Contato</label>
-                                            <input 
-                                                type="tel" required
-                                                value={veloPayForm.phone} onChange={e => setVeloPayForm({...veloPayForm, phone: e.target.value})}
-                                                className="w-full p-4 bg-slate-800/50 text-white rounded-2xl font-bold border border-slate-700 focus:ring-2 ring-blue-500 outline-none transition-all placeholder-slate-600" 
-                                                placeholder="(DD) 90000-0000" 
-                                            />
-                                        </div>
+                                        <div className="col-span-1 md:col-span-2 mt-4">
+                                            <button 
+                                                type="submit"
+                                                disabled={isSubmittingVeloPay}
+                                                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-900/50 hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                            >
+                                                {isSubmittingVeloPay ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
+                                                {isSubmittingVeloPay ? 'Enviando Dados Seguros...' : 'Solicitar Ativação VeloPay'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            ) : storeStatus?.velopayStatus === 'pending_review' ? (
+                                <div className="relative z-10 bg-orange-500/10 border border-orange-500/20 p-8 rounded-3xl backdrop-blur-md text-center">
+                                    <Loader2 className="animate-spin text-orange-400 mx-auto mb-4" size={32} />
+                                    <h4 className="text-orange-400 font-black uppercase tracking-widest mb-2">Conta em Análise</h4>
+                                    <p className="text-orange-200/70 text-sm font-medium">Sua documentação foi enviada com segurança para a Efí Bank. Em breve o Pix Nativo estará liberado.</p>
+                                </div>
+                            ) : (
+                                /* Conta Ativa - Dashboard Interno */
+                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Total VeloPay</p>
+                                        <h2 className="text-4xl font-black italic text-white mb-2">R$ {velopayBalance.toFixed(2)}</h2>
+                                        {storeStatus?.velopayPixPlan !== 'd0' && (
+                                            <div className="flex items-center gap-1.5 text-orange-400 mb-4 animate-pulse">
+                                                <Clock size={12}/>
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Aguardando Ciclo de Saque ({storeStatus?.velopayPixPlan === 'd30' ? 'D+30' : 'D+14'})</span>
+                                            </div>
+                                        )}
+                                        <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl mb-6">
+                                            <p className="text-orange-400 text-xs font-bold flex items-center gap-2">
+                                                <Shield size={16}/> Atenção: Repasse Manual
+                                            </p>
+                                            <p className="text-slate-400 text-[10px] mt-1">
+                                                Para sua segurança, os pedidos são auditados. Seu saque será enviado para a chave PIX cadastrada ({storeStatus?.velopayData?.pixKey}) conforme o prazo do seu plano.
+                                            </p>
+                                        </div>
 
-                                        <div className="col-span-1 md:col-span-2 pt-4 mt-2 border-t border-slate-700">
-                                            <h3 className="text-xs font-black uppercase tracking-widest text-white mb-1">Dados de Saque (Recebimento)</h3>
-                                        </div>
-
-                                        <div className="col-span-1 md:col-span-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block ml-2">Chave PIX Recebedora</label>
-                                            <div className="relative">
-                                                <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400" size={18} />
-                                                <input 
-                                                    type="text" required
-                                                    value={veloPayForm.pixKey} onChange={e => setVeloPayForm({...veloPayForm, pixKey: e.target.value})}
-                                                    className="w-full p-4 pl-12 bg-green-900/20 text-green-100 rounded-2xl font-black border border-green-800/50 focus:ring-2 ring-green-500 outline-none transition-all placeholder-green-700/50" 
-                                                    placeholder="Sua chave PIX cadastrada no CNPJ/CPF acima" 
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-1 md:col-span-2 mt-4">
-                                            <button 
-                                                type="submit"
-                                                disabled={isSubmittingVeloPay}
-                                                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-900/50 hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                                            >
-                                                {isSubmittingVeloPay ? <Loader2 className="animate-spin" size={18}/> : <ShieldCheck size={18}/>}
-                                                {isSubmittingVeloPay ? 'Enviando Dados Seguros...' : 'Solicitar Ativação VeloPay'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            ) : storeStatus.velopayStatus === 'pending_review' ? (
-                                <div className="relative z-10 bg-orange-500/10 border border-orange-500/20 p-8 rounded-3xl backdrop-blur-md text-center">
-                                    <Loader2 className="animate-spin text-orange-400 mx-auto mb-4" size={32} />
-                                    <h4 className="text-orange-400 font-black uppercase tracking-widest mb-2">Conta em Análise</h4>
-                                    <p className="text-orange-200/70 text-sm font-medium">Sua documentação foi enviada com segurança para a Efí Bank. Em breve o Pix Nativo estará liberado.</p>
-                                </div>
-                            ) : (
-                                /* Conta Ativa - Dashboard Interno */
-                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
-    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Total VeloPay</p>
-<h2 className="text-4xl font-black italic text-white mb-2">R$ {velopayBalance.toFixed(2)}</h2>
-{store?.velopayPixPlan !== 'd0' && (
-    <div className="flex items-center gap-1.5 text-orange-400 mb-4 animate-pulse">
-        <Clock size={12}/>
-        <span className="text-[9px] font-black uppercase tracking-widest">Aguardando Ciclo de Saque ({store?.velopayPixPlan === 'd30' ? 'D+30' : 'D+15'})</span>
-    </div>
-)}
-    <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl mb-6">
-    <p className="text-orange-400 text-xs font-bold flex items-center gap-2">
-        <Shield size={16}/> Atenção: Repasse Manual
-    </p>
-    <p className="text-slate-400 text-[10px] mt-1">
-        Para sua segurança, os pedidos são auditados. Seu saque será enviado para a chave PIX cadastrada ({store?.velopayData?.pixKey}) conforme o prazo do seu plano.
-    </p>
-</div>
-
-<button 
-    disabled={store?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
-    className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
->
-    {store?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora'}
-</button>
-</div>
-                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
-                                        <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
-                                        <p className="text-slate-300 text-xs font-medium">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                                        <button 
+                                            disabled={storeStatus?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
+                                            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
+                                        >
+                                            {storeStatus?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora'}
+                                        </button>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
+                                        <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
+                                        <p className="text-slate-300 text-xs font-medium">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         
                         {/* NOVO CARD: STRIPE CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
@@ -4027,53 +4021,97 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                            )}
                         </div>
 
-                        {/* --- NOVO CARD: CONTROLE DE MEIOS DE PAGAMENTO (ENTREGA E BALCÃO) --- */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
-                            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                                <div className="bg-slate-50 p-3 rounded-2xl text-slate-600"><CreditCard size={24} /></div>
-                                <div>
-                                    <h3 className="text-2xl font-black uppercase text-slate-800 italic leading-none">Opções de Pagamento</h3>
-                                    <p className="text-xs font-bold text-slate-400 mt-1">O que o cliente verá na tela de finalizar o pedido?</p>
-                                </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[
-                                    { id: 'online', label: '💳 PAGTO ONLINE (MERCADO PAGO / STRIPE)', icon: <CreditCard size={18} /> },
-                                    { id: 'pix', label: '⚡ PIX NATIVO (VELOPAY / AUTOMÁTICO)', icon: <QrCode size={18} /> },
-                                    { id: 'offline_pix', label: 'PIX MANUAL (COPIA E COLA ANTIGO)', icon: <QrCode size={18} /> },
-                                    { id: 'cardDelivery', label: 'CARTÃO NA ENTREGA (MOTOBOY)', icon: <CreditCard size={18} /> },
-                                    { id: 'cashDelivery', label: 'DINHEIRO NA ENTREGA (MOTOBOY)', icon: <Banknote size={18} /> },
-                                    { id: 'cardPickup', label: 'CARTÃO NA RETIRADA (BALCÃO)', icon: <CreditCard size={18} /> },
-                                    { id: 'cashPickup', label: 'DINHEIRO NA RETIRADA (BALCÃO)', icon: <Banknote size={18} /> },
-                                ].map(pm => {
-                                    // Padrão: Se o logista nunca mexeu, tudo vem ativado como 'true'
-                                    const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
-                                    return (
-                                        <label key={pm.id} className={`flex items-center justify-between p-5 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-blue-500 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60 hover:opacity-100'}`}>
-                                            <span className={`font-black uppercase tracking-tight text-sm ${isActive ? 'text-blue-800' : 'text-slate-500'}`}>{pm.label}</span>
-                                            <div className="relative">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={isActive} 
-                                                    onChange={async (e) => {
-                                                        // Puxa as regras atuais ou usa o padrão tudo ligado
-                                                        const currentPayments = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
-                                                        const newPayments = { ...currentPayments, [pm.id]: e.target.checked };
-                                                        
-                                                        // Atualiza Tela
-                                                        setStoreStatus(prev => ({...prev, acceptedPayments: newPayments}));
-                                                        // Salva no Banco de Dados
-                                                        await updateDoc(doc(db, "stores", storeId), { acceptedPayments: newPayments }, { merge: true });
-                                                    }}
-                                                    className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer"
-                                                />
-                                            </div>
-                                        </label>
-                                    )
-                                })}
-                            </div>
-                        </div>
+                        {/* --- CARD ATUALIZADO: CONTROLE DE MEIOS DE PAGAMENTO (ENTREGA E BALCÃO) --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
+                            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                                <div className="bg-slate-50 p-3 rounded-2xl text-slate-600"><CreditCard size={24} /></div>
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase text-slate-800 italic leading-none">Opções de Pagamento</h3>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">Quais métodos de pagamento você aceita na sua loja?</p>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* CANAL 1: PAGAMENTOS ONLINE (APP) */}
+                                <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100">
+                                    <h3 className="text-[11px] font-black text-blue-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <ExternalLink size={16} className="text-blue-500"/> Pagamentos Online (App)
+                                    </h3>
+                                    <div className="flex flex-col gap-3">
+                                        {[
+                                            { id: 'online', label: '💳 CARTÃO DE CRÉDITO' },
+                                            { id: 'pix', label: '⚡ PIX AUTOMÁTICO' },
+                                            { id: 'offline_pix', label: '💠 PIX COPIA E COLA' },
+                                        ].map(pm => {
+                                            const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
+                                            return (
+                                                <label key={pm.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-blue-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${isActive ? 'text-blue-800' : 'text-slate-500'}`}>{pm.label}</span>
+                                                    <input type="checkbox" checked={isActive} onChange={async (e) => {
+                                                        const currentPayments = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                                        const newPayments = { ...currentPayments, [pm.id]: e.target.checked };
+                                                        setStoreStatus(prev => ({...prev, acceptedPayments: newPayments}));
+                                                        await updateDoc(doc(db, "stores", storeId), { acceptedPayments: newPayments }, { merge: true });
+                                                    }} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
+                                                </label>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* CANAL 2: NA ENTREGA */}
+                                <div className="bg-orange-50/50 p-5 rounded-3xl border border-orange-100">
+                                    <h3 className="text-[11px] font-black text-orange-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Truck size={16} className="text-orange-500"/> Na Entrega (Motoboy)
+                                    </h3>
+                                    <div className="flex flex-col gap-3">
+                                        {[
+                                            { id: 'cardDelivery', label: '💳 MÁQUINA DE CARTÃO' },
+                                            { id: 'cashDelivery', label: '💵 DINHEIRO EM ESPÉCIE' },
+                                        ].map(pm => {
+                                            const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
+                                            return (
+                                                <label key={pm.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-orange-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${isActive ? 'text-orange-800' : 'text-slate-500'}`}>{pm.label}</span>
+                                                    <input type="checkbox" checked={isActive} onChange={async (e) => {
+                                                        const currentPayments = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                                        const newPayments = { ...currentPayments, [pm.id]: e.target.checked };
+                                                        setStoreStatus(prev => ({...prev, acceptedPayments: newPayments}));
+                                                        await updateDoc(doc(db, "stores", storeId), { acceptedPayments: newPayments }, { merge: true });
+                                                    }} className="w-5 h-5 rounded-md accent-orange-600 cursor-pointer" />
+                                                </label>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* CANAL 3: NA RETIRADA */}
+                                <div className="bg-emerald-50/50 p-5 rounded-3xl border border-emerald-100">
+                                    <h3 className="text-[11px] font-black text-emerald-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Store size={16} className="text-emerald-500"/> Na Retirada (Balcão)
+                                    </h3>
+                                    <div className="flex flex-col gap-3">
+                                        {[
+                                            { id: 'cardPickup', label: '💳 MÁQUINA DE CARTÃO' },
+                                            { id: 'cashPickup', label: '💵 DINHEIRO EM ESPÉCIE' },
+                                        ].map(pm => {
+                                            const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
+                                            return (
+                                                <label key={pm.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-emerald-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${isActive ? 'text-emerald-800' : 'text-slate-500'}`}>{pm.label}</span>
+                                                    <input type="checkbox" checked={isActive} onChange={async (e) => {
+                                                        const currentPayments = storeStatus.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                                        const newPayments = { ...currentPayments, [pm.id]: e.target.checked };
+                                                        setStoreStatus(prev => ({...prev, acceptedPayments: newPayments}));
+                                                        await updateDoc(doc(db, "stores", storeId), { acceptedPayments: newPayments }, { merge: true });
+                                                    }} className="w-5 h-5 rounded-md accent-emerald-600 cursor-pointer" />
+                                                </label>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Card da Fatura */}
@@ -4910,8 +4948,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <div className="mb-8 relative z-10">
                                                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{app.name}</h3>
                                                 <p className="text-xs text-slate-400 mt-2 font-medium">
-        CNPJ: {store.cnpj}
-    </p>
+                                                    CNPJ: {storeStatus?.cnpj || 'Não informado'}
+                                                </p>
                                             </div>
 
                                             <button 
