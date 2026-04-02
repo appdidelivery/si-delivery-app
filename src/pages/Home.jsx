@@ -14,6 +14,17 @@ import "react-responsive-carousel/lib/styles/carousel.min.css";
 
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
+// --- OTIMIZADOR DE IMAGENS CLOUDINARY (Corta o peso de Megabytes para Kilobytes) ---
+const optimizeCloudinary = (url, width = 400) => {
+    if (!url || typeof url !== 'string') return url;
+    // Força formato WebP, compressão máxima e redimensionamento inteligente na nuvem
+    if (url.includes('cloudinary.com') && !url.includes('f_auto')) {
+        const parts = url.split('/upload/');
+        if (parts.length === 2) return `${parts[0]}/upload/f_auto,q_auto,w_${width}/${parts[1]}`;
+    }
+    return url;
+};
+
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
 import { 
     GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
@@ -185,8 +196,9 @@ export default function Home() {
           const v = parseInt(Math.random() * 1000000);
           
           script.type = 'text/javascript';
-          script.async = false;
-          script.id = 'efi-sdk';
+          script.async = true; // true para destravar o carregamento da tela do cliente
+          script.defer = true;
+          script.id = 'efi-sdk';
           script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
           
           document.head.appendChild(script);
@@ -1972,7 +1984,7 @@ if (window.fbq) {
               {generalBanners.map((banner) => (
                 <div key={banner.id}>
                     <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
-                        <img src={banner.imageUrl} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading="lazy" decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                       <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading="lazy" decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
                     </a>
                 </div>
               ))}
@@ -2066,7 +2078,7 @@ if (window.fbq) {
                           return (
                               <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    <img src={p.imageUrl} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                    <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2117,7 +2129,7 @@ if (window.fbq) {
                           return (
                               <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                   <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      <img src={p.imageUrl} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2248,7 +2260,7 @@ if (window.fbq) {
                                                     </div>
                                                 </div>
                                                 <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
-                                                    <img src={p.imageUrl} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
                                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl z-10">-{p.discountPercentage}%</span>}
                                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
