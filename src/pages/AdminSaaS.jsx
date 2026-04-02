@@ -23,8 +23,9 @@ export default function AdminSaaS() {
     const [actionLoading, setActionLoading] = useState(null);
 
     // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
+    // COLOQUE SEUS EMAILS REAIS AQUI EMBAIXO
     const MASTER_EMAILS = [
-        'seuemail@gmail.com', 
+        'projetosdiego.l@gmail.com', 
         'emaildaagencia@gmail.com'
     ]; 
 
@@ -34,7 +35,7 @@ export default function AdminSaaS() {
             const userEmail = user.email ? user.email.toLowerCase() : 'sem-email';
 
             if (!MASTER_EMAILS.includes(userEmail)) {
-                alert(`ACESSO NEGADO!\n\nEmail bloqueado: ${userEmail}\nAdicione na lista MASTER_EMAILS.`);
+                alert(`ACESSO NEGADO!\n\nEmail bloqueado: ${userEmail}\nAdicione na lista MASTER_EMAILS no código.`);
                 navigate('/admin'); return;
             }
             await fetchSaaSData();
@@ -95,7 +96,7 @@ export default function AdminSaaS() {
     };
 
     const handleDeleteStore = async (storeId, storeName) => {
-        if (!window.confirm(`⚠️ DELETAR "${storeName}"? Isso apaga os dados!`)) return;
+        if (!window.confirm(`⚠️ DELETAR "${storeName}"? Isso apaga os dados do banco!`)) return;
         if (window.prompt(`Digite DELETAR para confirmar:`) !== 'DELETAR') return;
         setActionLoading(`delete_${storeId}`);
         try {
@@ -123,13 +124,14 @@ export default function AdminSaaS() {
     };
 
     const handleImpersonate = (storeId) => {
-        if (!window.confirm("Você entrará no painel deste cliente. Certifique-se de que a arquitetura do seu App suporta a troca de contexto via localStorage.")) return;
-        // Salva o ID da loja no cache do navegador para "enganar" o app
+        if (!window.confirm("Você entrará no painel deste cliente.\nIsso limpará sua sessão atual. Para voltar ao Master Admin depois, você precisará deslogar e logar novamente.\nDeseja continuar?")) return;
+        
+        // Salva o ID da loja no cache e redireciona para o admin daquela loja
         localStorage.setItem('@velo:overrideStoreId', storeId);
-        window.open('/admin', '_blank'); // Abre em nova aba
+        window.location.href = '/admin';
     };
 
-    // --- HELPERS ---
+    // --- HELPERS VISUAIS ---
     const renderBillingBadge = (status) => {
         switch (status) {
             case 'pago': return <span className="flex w-fit items-center gap-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-2 py-1 rounded"><CheckCircle2 size={12}/> Pago</span>;
@@ -160,7 +162,14 @@ export default function AdminSaaS() {
                             pixQueue.map(loja => (
                                 <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div><h3 className="font-bold text-white text-lg">{loja.name}</h3></div>
+                                        <div>
+                                            <h3 className="font-bold text-white text-lg">{loja.name}</h3>
+                                            <p className="text-xs text-slate-500 mt-1">Status Atual: <span className="text-amber-500">{loja.veloPayStatus || loja.efiStatus || 'pendente'}</span></p>
+                                        </div>
+                                    </div>
+                                    <div className="mb-6 space-y-1">
+                                        <p className="text-sm text-slate-400">Doc: {loja.cnpj || loja.documento || 'Não informado'}</p>
+                                        <p className="text-sm text-slate-400">Pix: {loja.chavePix || loja.pixKey || 'Não informada'}</p>
                                     </div>
                                     <button onClick={() => handleApprovePix(loja.id)} disabled={actionLoading === loja.id} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white py-3 rounded-xl font-bold">
                                         {actionLoading === loja.id ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />} Aprovar VeloPay
@@ -197,12 +206,10 @@ export default function AdminSaaS() {
                                             <div className="mt-1">{renderBillingBadge(loja.billingStatus)}</div>
                                         </td>
                                         <td className="p-4 space-y-3">
-                                            {/* TOGGLE: VELO GAME */}
                                             <button onClick={() => handleToggleModule(loja.id, 'veloGameEnabled', loja.veloGameEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors">
                                                 {loja.veloGameEnabled ? <ToggleRight size={22} className="text-emerald-500" /> : <ToggleLeft size={22} className="text-slate-600" />} 
                                                 Velo Game
                                             </button>
-                                            {/* TOGGLE: VELOPAY */}
                                             <button onClick={() => handleToggleModule(loja.id, 'veloPayEnabled', loja.veloPayEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors">
                                                 {loja.veloPayEnabled ? <ToggleRight size={22} className="text-emerald-500" /> : <ToggleLeft size={22} className="text-slate-600" />} 
                                                 VeloPay
