@@ -1892,8 +1892,8 @@ if (window.fbq) {
         <div className="relative z-10 flex flex-col gap-5">
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-4">
-                    <img src={storeSettings.storeLogoUrl} className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-                    <div className="text-left">
+                    <img src={storeSettings.storeLogoUrl} alt={storeSettings.name || "Logo da Loja"} width="64" height="64" loading="eager" fetchpriority="high" decoding="sync" className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+                    <div className="text-left">
                         <h1 className="text-2xl font-black text-white leading-none uppercase drop-shadow-md">{storeSettings.name || "Sua Loja"}</h1>
                         {storeSettings.slogan && <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1 drop-shadow-sm">{storeSettings.slogan}</p>}
                     </div>
@@ -1957,7 +1957,7 @@ if (window.fbq) {
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
                 <div key={index}>
-                  <img src={url} alt={`Banner ${index + 1}`} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                  <img src={url} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
                 </div>
               ))}
             </Carousel>
@@ -1972,7 +1972,7 @@ if (window.fbq) {
               {generalBanners.map((banner) => (
                 <div key={banner.id}>
                     <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
-                        <img src={banner.imageUrl} alt={banner.linkTo} className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                        <img src={banner.imageUrl} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading="lazy" decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
                     </a>
                 </div>
               ))}
@@ -2065,9 +2065,9 @@ if (window.fbq) {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
                               <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                    <img src={p.imageUrl} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
                                           <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
@@ -2117,7 +2117,7 @@ if (window.fbq) {
                           return (
                               <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                   <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      <img src={p.imageUrl} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2165,7 +2165,7 @@ if (window.fbq) {
                         return (
                             <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    <img src={p.imageUrl} className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                   <img src={p.imageUrl} alt={p.name} width="80" height="80" loading="lazy" decoding="async" className="w-20 h-20 object-contain mx-auto mb-2" />
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2248,8 +2248,8 @@ if (window.fbq) {
                                                     </div>
                                                 </div>
                                                 <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
-                                                    <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.name} />
-                                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
+                                                    <img src={p.imageUrl} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
                                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl z-10">-{p.discountPercentage}%</span>}
                                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
                                                     {p.isChilled && <span className="absolute bottom-1 right-1 bg-cyan-100 text-cyan-800 text-[10px] p-1 rounded-full leading-none shadow-sm z-10">❄️</span>}
@@ -2310,7 +2310,7 @@ if (window.fbq) {
           rel="noopener noreferrer" 
           className="inline-flex flex-col items-center opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer"
         >
-          <img src="/logo retangular Velo Delivery.png" className="h-6 w-auto mb-2" alt="Velo Delivery" />
+          <img src="/logo retangular Velo Delivery.png" alt="Velo Delivery" width="120" height="24" loading="lazy" decoding="async" className="h-6 w-auto mb-2" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Powered by VELO DELIVERY</p>
         </a>
         <div className="flex gap-4 justify-center text-sm text-gray-500 mt-8 mb-4">
@@ -2415,7 +2415,7 @@ if (window.fbq) {
                   <div className="space-y-4 mb-8 mt-4">
                     {cart.map(item => (
                       <div key={item.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-3"><img src={item.imageUrl} className="w-12 h-12 object-contain rounded-lg bg-white p-1"/><div className="text-sm font-bold">{item.name}</div></div>
+                        <div className="flex items-center gap-3"><img src={item.imageUrl} alt={item.name} width="48" height="48" loading="lazy" decoding="async" className="w-12 h-12 object-contain rounded-lg bg-white p-1"/><div className="text-sm font-bold">{item.name}</div></div>
                         {item.observation && (
                             <span className="block text-[10px] text-orange-600 font-bold leading-tight mt-1 bg-orange-50 p-1.5 rounded-md border border-orange-100">
                                 Obs: {item.observation}
@@ -2536,7 +2536,7 @@ if (window.fbq) {
                           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                               {upsellProducts.map(p => (
                                   <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
-                                      <img src={p.imageUrl} className="w-20 h-20 object-contain mx-auto mb-2" />
+                                      <img src={p.imageUrl} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
                                       <p className={`${currentTheme.text} font-black text-sm`}>
                                           R$ {Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice).toFixed(2) : Number(p.price).toFixed(2)}
@@ -2660,7 +2660,7 @@ if (window.fbq) {
               </button>
 
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
-                <img src={selectedProduct.imageUrl} className="w-full h-full object-cover" alt={selectedProduct.name} />
+                <img src={selectedProduct.imageUrl} alt={selectedProduct.name} width="400" height="400" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
                   <span className="absolute bottom-4 left-4 bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg z-10">
                     -{selectedProduct.discountPercentage}% OFF
