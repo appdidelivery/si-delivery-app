@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Admin from './pages/Admin';
 import Tracking from './pages/Tracking';
 import Login from './pages/Login';
+import AdminSaaS from './pages/AdminSaaS';
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
@@ -58,6 +59,14 @@ function App() {
               element={
                 <ProtectedRoute user={currentUser}>
                   <Admin currentUser={currentUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin-saas"
+              element={
+                <ProtectedRoute user={currentUser}>
+                  <AdminSaaS />
                 </ProtectedRoute>
               }
             />
