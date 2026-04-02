@@ -808,10 +808,17 @@ if (data.abandonmentAlertSent === true) continue;
                                             const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errado', 'reclamar', 'faltou', 'frio', 'estragado'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
-                                            // 2. PALAVRAS-CHAVE DE FAQ (Respostas Rápidas)
+                                            // 2. PALAVRAS-CHAVE DE FAQ (Respostas Rápidas Expansivas)
                                             const isFaqHorario = ['horario', 'horas', 'que horas', 'abre', 'fecha', 'funcionamento'].some(kw => incomingTextLower.includes(kw));
                                             const isFaqFrete = ['frete', 'taxa', 'entrega', 'bairros', 'onde entrega', 'motoboy'].some(kw => incomingTextLower.includes(kw));
                                             const isFaqPagamento = ['pagamento', 'aceita cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqEndereco = ['onde fica', 'endereco', 'endereço', 'localizacao', 'localização', 'rua', 'bairro', 'situado', 'cidade'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqContato = ['telefone', 'contato', 'ligar', 'celular', 'whatsapp da loja'].some(kw => incomingTextLower.includes(kw));
+
+                                            // Busca dados dinâmicos da loja (Google Meu Negócio / Banco de Dados)
+                                            const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
+                                            const storeAddressStr = storeDynamicData.address ? `${storeDynamicData.address.street || ''}, ${storeDynamicData.address.city || ''}`.trim() : "nosso endereço principal (veja no link do cardápio)";
+                                            const storePhoneStr = storeDynamicData.phone || "este mesmo número do WhatsApp";
 
                                             if (needsSupport) {
                                                 // Mensagem 100% humanizada
@@ -837,8 +844,18 @@ if (data.abandonmentAlertSent === true) continue;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Pagamento] ${faqMsg}`;
                                             }
-                                            else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir') || incomingTextLower.includes('fome')) {
-                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
+                                            else if (isFaqEndereco) {
+                                                const faqMsg = `Nós ficamos localizados em: *${storeAddressStr}* 📍\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site com total praticidade:\n👉 ${storeDomain}`;
+                                                replyPayload = { type: "text", text: { body: faqMsg } };
+                                                logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
+                                            }
+                                            else if (isFaqContato) {
+                                                const faqMsg = `Você pode falar com a gente por aqui mesmo ou ligar direto no número: *${storePhoneStr}* 📞\n\nSe a ideia for matar a fome agora, o caminho mais rápido é o nosso cardápio:\n👉 ${storeDomain}`;
+                                                replyPayload = { type: "text", text: { body: faqMsg } };
+                                                logTextForPanel = `🤖 [FAQ Contato] ${faqMsg}`;
+                                            }
+                                            else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir') || incomingTextLower.includes('fome') || incomingTextLower.includes('burger') || incomingTextLower.includes('lanche') || incomingTextLower.includes('menu')) {
+                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital completo (com fotos, preços e categorias) e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: menuMsg } };
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
