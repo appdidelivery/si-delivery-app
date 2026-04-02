@@ -24,7 +24,7 @@ export default function AdminSaaS() {
 
     // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
     const MASTER_EMAILS = [
-        'seuemail@gmail.com', 
+        'projetosdiego.l@gmail.com', 
         'emaildaagencia@gmail.com'
     ]; 
 
@@ -46,12 +46,14 @@ export default function AdminSaaS() {
     const fetchSaaSData = async () => {
         try {
             const storesSnap = await getDocs(collection(db, 'stores'));
-            // REMOVIDO O FILTRO QUE ESCONDIA AS LOJAS. AGORA PUXA TUDO DO BANCO!
             const allStores = storesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+            // FILTRO CORRIGIDO: Agora busca o "pending_review" e o "velopayStatus" minúsculo
             const pendingPix = allStores.filter(s => 
-                s.veloPayStatus === 'pendente' || s.pixStatus === 'pendente' || 
-                s.veloPayStatus === 'em_analise' || s.efiStatus === 'em_analise' || s.veloPayStatus === 'analise'
+                s.velopayStatus === 'pending_review' || 
+                s.veloPayStatus === 'pendente' || 
+                s.efiStatus === 'em_analise' || 
+                s.pixStatus === 'pendente'
             );
             
             setPixQueue(pendingPix);
@@ -61,14 +63,18 @@ export default function AdminSaaS() {
 
     // --- AÇÕES DO FIREBASE ---
     const handleApprovePix = async (storeId) => {
-        if (!window.confirm('Forçar liberação do VeloPay/Efí para esta loja?')) return;
+        if (!window.confirm('Aprovar e liberar o VeloPay para esta loja?')) return;
         setActionLoading(storeId);
         try {
-            // Se o campo do banco for diferente, arrumaremos aqui depois!
+            // CORREÇÃO: Atualiza os dois padrões para garantir que o app do lojista leia certo
             await updateDoc(doc(db, 'stores', storeId), {
-                veloPayStatus: 'ativo', pixStatus: 'ativo', efiStatus: 'ativo', veloPayApprovedAt: new Date()
+                velopayStatus: 'active', // O que a CSI usa
+                veloPayStatus: 'ativo',  // Legado
+                efiStatus: 'ativo',
+                pixStatus: 'ativo',
+                veloPayApprovedAt: new Date()
             });
-            alert('Ação enviada para o banco!');
+            alert('VeloPay ativado com sucesso!');
             await fetchSaaSData(); 
         } catch (error) { alert('Erro: ' + error.message); } 
         finally { setActionLoading(null); }
@@ -161,12 +167,15 @@ export default function AdminSaaS() {
                                 <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            <h3 className="font-bold text-white text-lg">{loja.name || '⚠️ LOJA FANTASMA'}</h3>
-                                            <p className="text-xs text-slate-500 mt-1">Status Atual: <span className="text-amber-500">{loja.veloPayStatus || loja.efiStatus || 'pendente'}</span></p>
+                                            {/* CORREÇÃO: Puxa o nome jurídico se não tiver nome fantasia */}
+                                            <h3 className="font-bold text-white text-lg">{loja.name || loja.velopayData?.legalName || 'Loja em Cadastro'}</h3>
+                                            <p className="text-xs text-slate-500 mt-1">Status Atual: <span className="text-amber-500">{loja.velopayStatus || 'pending_review'}</span></p>
                                         </div>
                                     </div>
                                     <div className="mb-6 space-y-1">
-                                        <p className="text-sm text-slate-400">ID: {loja.id.substring(0,8)}...</p>
+                                        {/* CORREÇÃO: Lê os dados corretos de dentro do velopayData */}
+                                        <p className="text-sm text-slate-400">Doc: {loja.velopayData?.document || loja.cnpj || 'Não informado'}</p>
+                                        <p className="text-sm text-slate-400">Pix: {loja.velopayData?.pixKey || loja.chavePix || 'Não informada'}</p>
                                     </div>
                                     <button onClick={() => handleApprovePix(loja.id)} disabled={actionLoading === loja.id} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white py-3 rounded-xl font-bold">
                                         {actionLoading === loja.id ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />} Aprovar VeloPay
@@ -198,20 +207,38 @@ export default function AdminSaaS() {
                             <tbody>
                                 {storesList.map(loja => (
                                     <tr key={loja.id} className={`border-b border-slate-800/50 hover:bg-slate-800/20 ${loja.billingStatus === 'bloqueado' ? 'opacity-50' : ''}`}>
-                                        <td className="p-4">
-                                            <p className="font-bold text-white">{loja.name || '⚠️ [LOJA FANTASMA / VAZIA]'}</p>
+                                        <td className="p-4 min-w-[200px]">
+                                            <p className="font-bold text-white">{loja.name || loja.velopayData?.legalName || '⚠️ [LOJA VAZIA]'}</p>
                                             <div className="mt-1">{renderBillingBadge(loja.billingStatus)}</div>
                                             <p className="text-[10px] text-slate-600 mt-1">ID: {loja.id}</p>
                                         </td>
-                                        <td className="p-4 space-y-3">
-                                            <button onClick={() => handleToggleModule(loja.id, 'veloGameEnabled', loja.veloGameEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors">
-                                                {loja.veloGameEnabled ? <ToggleRight size={22} className="text-emerald-500" /> : <ToggleLeft size={22} className="text-slate-600" />} 
-                                                Velo Game
-                                            </button>
-                                            <button onClick={() => handleToggleModule(loja.id, 'veloPayEnabled', loja.veloPayEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors">
-                                                {loja.veloPayEnabled ? <ToggleRight size={22} className="text-emerald-500" /> : <ToggleLeft size={22} className="text-slate-600" />} 
-                                                VeloPay
-                                            </button>
+                                        <td className="p-4">
+                                            <div className="grid grid-cols-2 gap-3 min-w-[280px]">
+                                                <button onClick={() => handleToggleModule(loja.id, 'veloGameEnabled', loja.veloGameEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
+                                                    {loja.veloGameEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
+                                                    Velo Game
+                                                </button>
+                                                <button onClick={() => handleToggleModule(loja.id, 'veloPayEnabled', loja.veloPayEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
+                                                    {loja.veloPayEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
+                                                    VeloPay
+                                                </button>
+                                                <button onClick={() => handleToggleModule(loja.id, 'pdvEnabled', loja.pdvEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
+                                                    {loja.pdvEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
+                                                    PDV (Garçom)
+                                                </button>
+                                                <button onClick={() => handleToggleModule(loja.id, 'aiCopyEnabled', loja.aiCopyEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
+                                                    {loja.aiCopyEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
+                                                    IA p/ Copy
+                                                </button>
+                                                <button onClick={() => handleToggleModule(loja.id, 'whatsappRecoveryEnabled', loja.whatsappRecoveryEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
+                                                    {loja.whatsappRecoveryEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
+                                                    Wpp Recovery
+                                                </button>
+                                                <button onClick={() => handleToggleModule(loja.id, 'dataFuelEnabled', loja.dataFuelEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
+                                                    {loja.dataFuelEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
+                                                    Data Fuel
+                                                </button>
+                                            </div>
                                         </td>
                                         <td className="p-4">
                                             <div className="flex justify-end flex-wrap items-center gap-2">
@@ -242,7 +269,7 @@ export default function AdminSaaS() {
                             <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col justify-between">
                                 <div className="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
                                     <div>
-                                        <h3 className="font-bold text-white text-xl">{loja.name || '⚠️ LOJA FANTASMA'}</h3>
+                                        <h3 className="font-bold text-white text-xl">{loja.name || loja.velopayData?.legalName || '⚠️ LOJA FANTASMA'}</h3>
                                         <div className="mt-2">{renderBillingBadge(loja.billingStatus)}</div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 text-right">
