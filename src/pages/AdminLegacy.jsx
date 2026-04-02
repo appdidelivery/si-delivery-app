@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -437,6 +437,32 @@ export default function Admin() {
     const [integrationForm, setIntegrationForm] = useState({});
     // Estado da Busca
     const [productSearch, setProductSearch] = useState('');
+
+    // --- NOVO: LÓGICA DE ATIVAÇÃO RÁPIDA E EM MASSA ---
+    const [selectedProductIds, setSelectedProductIds] = useState([]);
+
+    const handleQuickToggleCategory = async (cat) => {
+        try {
+            await updateDoc(doc(db, "categories", cat.id), { isActive: cat.isActive === false ? true : false });
+        } catch (e) { alert("Erro ao alterar status da categoria."); }
+    };
+
+    const handleQuickToggleProduct = async (product) => {
+        try {
+            await updateDoc(doc(db, "products", product.id), { isActive: product.isActive === false ? true : false });
+        } catch (e) { alert("Erro ao alterar status do produto."); }
+    };
+
+    const handleBulkToggleProducts = async (newStatus) => {
+        if (selectedProductIds.length === 0) return;
+        if (!window.confirm(`Deseja ${newStatus ? 'ATIVAR' : 'OCULTAR'} os ${selectedProductIds.length} produtos selecionados?`)) return;
+        
+        try {
+            const batchPromises = selectedProductIds.map(id => updateDoc(doc(db, "products", id), { isActive: newStatus }));
+            await Promise.all(batchPromises);
+            setSelectedProductIds([]); // Limpa a seleção após o sucesso
+        } catch (e) { alert("Erro na atualização em massa."); }
+    };
     // --- ESTADOS FINANCEIROS (NOVO) ---
     const [invoiceData, setInvoiceData] = useState({
         basePlan: 49.90,
@@ -2420,9 +2446,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <span className="text-xs font-bold text-slate-400 mt-1">Ordem: {c.order || 0}</span>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List', order: c.order || 0, isActive: c.isActive !== false }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600"><Edit3 size={16} /></button>
-                                        <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600"><Trash2 size={16} /></button>
-                                    </div>
+                                        <button onClick={() => handleQuickToggleCategory(c)} className={`p-2 rounded-lg transition-all ${c.isActive === false ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`} title={c.isActive === false ? 'Oculto (Clique para Ativar)' : 'Ativo (Clique para Ocultar)'}>
+                                            {c.isActive === false ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                        <button onClick={() => { setEditingCatId(c.id); setCatForm({ name: c.name, icon: c.icon || 'List', order: c.order || 0, isActive: c.isActive !== false }); setIsCatModalOpen(true); }} className="p-2 bg-slate-50 rounded-lg text-blue-600 hover:bg-blue-100"><Edit3 size={16} /></button>
+                                        <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "categories", c.id))} className="p-2 bg-slate-50 rounded-lg text-red-600 hover:bg-red-100"><Trash2 size={16} /></button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -2516,18 +2545,46 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             />
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
                             {productSearch && (
-                                <button onClick={() => setProductSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500">
-                                    <X size={20}/>
-                                </button>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {products.filter(p => 
+                                <button onClick={() => setProductSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500">
+                                    <X size={20}/>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* BARRA DE AÇÕES EM MASSA (PRODUTOS) */}
+                        {selectedProductIds.length > 0 && (
+                            <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex justify-between items-center animate-in fade-in slide-in-from-top-2 mb-6 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <span className="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-lg font-black">{selectedProductIds.length}</span>
+                                    <span className="font-bold text-blue-800 text-sm uppercase tracking-widest hidden md:inline">Selecionados</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleBulkToggleProducts(true)} className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2"><Eye size={16} className="hidden md:block"/> Ativar</button>
+                                    <button onClick={() => handleBulkToggleProducts(false)} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2"><EyeOff size={16} className="hidden md:block"/> Ocultar</button>
+                                    <button onClick={() => setSelectedProductIds([])} className="px-3 py-2 bg-white text-slate-500 hover:bg-slate-100 rounded-xl font-bold text-xs uppercase border border-slate-200 ml-2">Cancelar</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {products.filter(p =>
                                 p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
                                 p.category.toLowerCase().includes(productSearch.toLowerCase())
                             ).map(p => (                                
-                                <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all">
-                                    <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-20 h-20 object-contain rounded-2xl bg-slate-50 p-2" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
+                                <div key={p.id} className={`bg-white p-6 rounded-[2.5rem] border-2 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
+                                    {/* Checkbox Multi-seleção */}
+                                    <div className="absolute top-4 left-4 z-10">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedProductIds.includes(p.id)}
+                                            onChange={(e) => {
+                                                if(e.target.checked) setSelectedProductIds(prev => [...prev, p.id]);
+                                                else setSelectedProductIds(prev => prev.filter(id => id !== p.id));
+                                            }}
+                                            className="w-5 h-5 accent-blue-600 cursor-pointer shadow-sm"
+                                        />
+                                    </div>
+                                    <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-20 h-20 object-contain rounded-2xl bg-white border border-slate-100 p-2 ml-4 relative z-0" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
     <p className={`font-bold leading-tight ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{p.name}</p>
@@ -2549,11 +2606,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         )}
                                         <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                        {/* PASSO 1 (continuação): Carregar dados existentes ao editar */}
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '', isActive: p.isActive !== false }); setIsModalOpen(true); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
-                                        <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
-                                    </div>
+                                    <div className="flex flex-col gap-2 z-10 relative">
+                                        <button onClick={() => handleQuickToggleProduct(p)} className={`p-2 rounded-xl transition-all ${p.isActive === false ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`} title={p.isActive === false ? 'Produto Oculto (Clique para Ativar)' : 'Produto Ativo (Clique para Ocultar)'}>
+                                            {p.isActive === false ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '', isActive: p.isActive !== false }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
+                                        <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
+                                    </div>
                                 </div>
                             ))}
                         </div>

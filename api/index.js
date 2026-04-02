@@ -369,8 +369,11 @@ if (data.abandonmentAlertSent === true) continue;
             let googleOrderFeed = { data: [] };
 
             productsSnapshot.forEach(doc => {
-                const p = doc.data();
-                if (!p.name) return;
+    const p = doc.data();
+    if (!p.name) return;
+    
+    // 🚨 TRAVA DE PRODUTO PAUSADO: Oculta do Google
+    if (p.isActive === false) return;
 
                 let availability = 'in_stock'; 
                 if (p.stock !== undefined && p.stock !== null && p.stock !== '') {

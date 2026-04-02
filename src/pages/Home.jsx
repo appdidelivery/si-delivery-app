@@ -941,13 +941,14 @@ export default function Home() {
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
     const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => {
-        const fetchedProducts = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Filtra os produtos para remover os pausados
+        const fetchedProducts = s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false);
         setProducts(fetchedProducts);
         setFeaturedProducts(fetchedProducts.filter(p => p.isFeatured && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
         setBestsellingProducts(fetchedProducts.filter(p => p.isBestSeller && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
     });
 
-    const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
+    const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
 
     const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId)), (s) => {
         setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
