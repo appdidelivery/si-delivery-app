@@ -24,8 +24,8 @@ export default function AdminSaaS() {
 
     // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
     const MASTER_EMAILS = [
-        'seuemail@gmail.com', 
-        'emaildaagencia@gmail.com'
+        'projetosdiego.l@gmail.com', 
+        'appdidelivery@gmail.com'
     ]; 
 
     useEffect(() => {
