@@ -23,9 +23,8 @@ export default function AdminSaaS() {
     const [actionLoading, setActionLoading] = useState(null);
 
     // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
-    // COLOQUE SEUS EMAILS REAIS AQUI EMBAIXO
     const MASTER_EMAILS = [
-        'projetosdiego.l@gmail.com', 
+        'seuemail@gmail.com', 
         'emaildaagencia@gmail.com'
     ]; 
 
@@ -47,10 +46,8 @@ export default function AdminSaaS() {
     const fetchSaaSData = async () => {
         try {
             const storesSnap = await getDocs(collection(db, 'stores'));
-            // Filtra e limpa lojas sem nome (lixo de banco)
-            const allStores = storesSnap.docs
-                .map(d => ({ id: d.id, ...d.data() }))
-                .filter(s => s.name && s.name.trim() !== '' && s.name !== 'Nova Loja');
+            // REMOVIDO O FILTRO QUE ESCONDIA AS LOJAS. AGORA PUXA TUDO DO BANCO!
+            const allStores = storesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
             const pendingPix = allStores.filter(s => 
                 s.veloPayStatus === 'pendente' || s.pixStatus === 'pendente' || 
@@ -67,10 +64,11 @@ export default function AdminSaaS() {
         if (!window.confirm('Forçar liberação do VeloPay/Efí para esta loja?')) return;
         setActionLoading(storeId);
         try {
+            // Se o campo do banco for diferente, arrumaremos aqui depois!
             await updateDoc(doc(db, 'stores', storeId), {
                 veloPayStatus: 'ativo', pixStatus: 'ativo', efiStatus: 'ativo', veloPayApprovedAt: new Date()
             });
-            alert('VeloPay/Efí ativado!');
+            alert('Ação enviada para o banco!');
             await fetchSaaSData(); 
         } catch (error) { alert('Erro: ' + error.message); } 
         finally { setActionLoading(null); }
@@ -96,8 +94,9 @@ export default function AdminSaaS() {
     };
 
     const handleDeleteStore = async (storeId, storeName) => {
-        if (!window.confirm(`⚠️ DELETAR "${storeName}"? Isso apaga os dados do banco!`)) return;
-        if (window.prompt(`Digite DELETAR para confirmar:`) !== 'DELETAR') return;
+        const displayName = storeName || 'LOJA SEM NOME';
+        if (!window.confirm(`⚠️ DELETAR "${displayName}"? Isso apaga os dados do banco permanentemente!`)) return;
+        if (window.prompt(`Digite DELETAR para confirmar a exclusão:`) !== 'DELETAR') return;
         setActionLoading(`delete_${storeId}`);
         try {
             await deleteDoc(doc(db, 'stores', storeId));
@@ -126,7 +125,6 @@ export default function AdminSaaS() {
     const handleImpersonate = (storeId) => {
         if (!window.confirm("Você entrará no painel deste cliente.\nIsso limpará sua sessão atual. Para voltar ao Master Admin depois, você precisará deslogar e logar novamente.\nDeseja continuar?")) return;
         
-        // Salva o ID da loja no cache e redireciona para o admin daquela loja
         localStorage.setItem('@velo:overrideStoreId', storeId);
         window.location.href = '/admin';
     };
@@ -163,13 +161,12 @@ export default function AdminSaaS() {
                                 <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            <h3 className="font-bold text-white text-lg">{loja.name}</h3>
+                                            <h3 className="font-bold text-white text-lg">{loja.name || '⚠️ LOJA FANTASMA'}</h3>
                                             <p className="text-xs text-slate-500 mt-1">Status Atual: <span className="text-amber-500">{loja.veloPayStatus || loja.efiStatus || 'pendente'}</span></p>
                                         </div>
                                     </div>
                                     <div className="mb-6 space-y-1">
-                                        <p className="text-sm text-slate-400">Doc: {loja.cnpj || loja.documento || 'Não informado'}</p>
-                                        <p className="text-sm text-slate-400">Pix: {loja.chavePix || loja.pixKey || 'Não informada'}</p>
+                                        <p className="text-sm text-slate-400">ID: {loja.id.substring(0,8)}...</p>
                                     </div>
                                     <button onClick={() => handleApprovePix(loja.id)} disabled={actionLoading === loja.id} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white py-3 rounded-xl font-bold">
                                         {actionLoading === loja.id ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />} Aprovar VeloPay
@@ -202,8 +199,9 @@ export default function AdminSaaS() {
                                 {storesList.map(loja => (
                                     <tr key={loja.id} className={`border-b border-slate-800/50 hover:bg-slate-800/20 ${loja.billingStatus === 'bloqueado' ? 'opacity-50' : ''}`}>
                                         <td className="p-4">
-                                            <p className="font-bold text-white">{loja.name}</p>
+                                            <p className="font-bold text-white">{loja.name || '⚠️ [LOJA FANTASMA / VAZIA]'}</p>
                                             <div className="mt-1">{renderBillingBadge(loja.billingStatus)}</div>
+                                            <p className="text-[10px] text-slate-600 mt-1">ID: {loja.id}</p>
                                         </td>
                                         <td className="p-4 space-y-3">
                                             <button onClick={() => handleToggleModule(loja.id, 'veloGameEnabled', loja.veloGameEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors">
@@ -244,7 +242,7 @@ export default function AdminSaaS() {
                             <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col justify-between">
                                 <div className="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
                                     <div>
-                                        <h3 className="font-bold text-white text-xl">{loja.name}</h3>
+                                        <h3 className="font-bold text-white text-xl">{loja.name || '⚠️ LOJA FANTASMA'}</h3>
                                         <div className="mt-2">{renderBillingBadge(loja.billingStatus)}</div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 text-right">
