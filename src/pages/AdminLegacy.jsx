@@ -1060,7 +1060,39 @@ const handleGenerateProductCopy = async () => {
             alert("Erro ao salvar zonas: " + error.message);
         }
     };
-    const printLabel = (o) => {
+    const handleRefundMercadoPago = async (order) => {
+        if (!window.confirm(`🚨 ATENÇÃO: Deseja realmente ESTORNAR o pagamento de R$ ${Number(order.total).toFixed(2)} do pedido #${order.id.slice(-5).toUpperCase()}?\n\nO dinheiro será devolvido ao cliente no Mercado Pago e o pedido será cancelado.`)) return;
+
+        try {
+            // Um toast simples para ele saber que tá carregando
+            alert("Processando estorno no Mercado Pago. Por favor aguarde...");
+            
+            const res = await fetch('/api/refund-mp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: storeId, orderId: order.id })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                // Atualiza o banco de dados marcando como estornado
+                await updateDoc(doc(db, "orders", order.id), { 
+                    paymentStatus: 'refunded', 
+                    status: 'canceled',
+                    refundedAt: serverTimestamp()
+                });
+                alert("✅ Pagamento estornado e pedido cancelado com sucesso!");
+            } else {
+                alert(`❌ Erro ao estornar: ${data.error || 'Erro desconhecido'}`);
+            }
+        } catch (error) {
+            console.error("Erro ao estornar:", error);
+            alert("Erro de conexão ao tentar realizar o estorno.");
+        }
+    };
+
+    const printLabel = (o) => {
         const w = window.open('', '_blank');
         const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)} un)</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
@@ -2269,21 +2301,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </button>
                                                 <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
                                                 <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                                
+                                                {/* BOTÃO DE ESTORNO MERCADO PAGO */}
+                                                {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
+                                                    <button 
+                                                        onClick={() => handleRefundMercadoPago(o)} 
+                                                        className="p-3 bg-red-50 rounded-xl hover:bg-red-100 text-red-600 transition-colors" 
+                                                        title="Estornar Pagamento (Mercado Pago)"
+                                                    >
+                                                        <RefreshCw size={20} />
+                                                    </button>
+                                                )}
                                                 {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
                                                 {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
                                                     <button 
                                                         onClick={async () => {
-                                                            const chavePix = storeStatus?.velopayData?.pixKey || storeStatus?.pixKey || 'Chave não cadastrada';
-                                                            const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da ${storeStatus?.name || 'loja'}.\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar, pague pelo nosso PIX Oficial:\n\n*${chavePix}*\n\nAssim que pagar, envie o comprovante aqui para liberarmos sua comanda! 🚀`;
-                                                            
-                                                            window.open(`https://wa.me/55${(o.customerPhone || '').replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-                                                            
-                                                            // Muda o status automaticamente para evitar cobrar duas vezes
-                                                            await updateDoc(doc(db, "orders", o.id), { 
-                                                                paymentStatus: 'aguardando_pix' 
-                                                            });
-                                                        }}
+                                                            // 1. Verifica se tem PIX Dinâmico, senão usa o Fixo
+                                                            const chavePixParaCobrar = o.pixCopiaECola || storeStatus?.velopayData?.pixKey || storeStatus?.pixKey || 'Chave não cadastrada';
+                                                            const tipoChaveText = o.pixCopiaECola ? 'nosso PIX Copia e Cola abaixo' : 'nosso PIX Oficial';
+                                                            
+                                                            // 2. Monta a Mensagem
+                                                            const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da *${storeStatus?.name || 'loja'}*.\n\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar a produção, pague pelo ${tipoChaveText}:\n\n${chavePixParaCobrar}\n\nAssim que pagar, nos avise aqui para liberarmos sua comanda! 🚀`;
+
+                                                            // 3. Trata o Telefone
+                                                            const phoneRaw = String(o.customerPhone || '').replace(/\D/g, '');
+                                                            const cleanPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
+                                                            const waConfig = settings?.integrations?.whatsapp;
+
+                                                            // 4. Valida se a Meta API está conectada
+                                                            if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && cleanPhone.length >= 12) {
+                                                                try {
+                                                                    const res = await fetch('/api/whatsapp-send', {
+                                                                        method: 'POST',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({
+                                                                            action: 'chat_reply',
+                                                                            storeId: storeId,
+                                                                            toPhone: cleanPhone,
+                                                                            dynamicParams: { text: msg }
+                                                                        })
+                                                                    });
+                                                                    if (res.ok) {
+                                                                        alert("✅ Cobrança enviada direto pro WhatsApp do cliente!");
+                                                                    } else {
+                                                                        throw new Error("Falha na API da Meta");
+                                                                    }
+                                                                } catch(e) {
+                                                                    // Fallback: se der erro na Meta, abre o WPP Web
+                                                                    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                                }
+                                                    } else {
+                                                        // Se não tiver a API da Meta, abre o WPP Web direto
+                                                        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                    }
+                                                    
+                                                    // Muda o status automaticamente para evitar cobrar duas vezes
+                                                    await updateDoc(doc(db, "orders", o.id), { 
+                                                        paymentStatus: 'aguardando_pix' 
+                                                    });
+                                                }}
                                                         className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
                                                         title="Cobrar PIX no WhatsApp"
                                                     >
@@ -2367,13 +2442,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                         <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-auto">
                                                             <div className="flex gap-1">
-                                                                <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
-                                                                <button onClick={() => {
-                                                                    const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };
-                                                                    setEditingOrderData(initialDataForModal);
-                                                                    setIsOrderEditModalOpen(true);
-                                                                }} className="p-2 bg-slate-100 rounded-lg hover:bg-orange-100 text-orange-600 transition-colors" title="Ver Detalhes/Editar"><Edit3 size={16} /></button>
-                                                            </div>
+                                                            <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
+                                                            <button onClick={() => {
+                                                                const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };
+                                                                setEditingOrderData(initialDataForModal);
+                                                                setIsOrderEditModalOpen(true);
+                                                            }} className="p-2 bg-slate-100 rounded-lg hover:bg-orange-100 text-orange-600 transition-colors" title="Ver Detalhes/Editar"><Edit3 size={16} /></button>
+                                                            
+                                                            {/* BOTÃO DE ESTORNO MERCADO PAGO */}
+                                                            {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
+                                                                <button 
+                                                                    onClick={() => handleRefundMercadoPago(o)} 
+                                                                    className="p-2 bg-red-50 rounded-lg hover:bg-red-100 text-red-600 transition-colors" 
+                                                                    title="Estornar Pix/Cartão (Mercado Pago)"
+                                                                >
+                                                                    <RefreshCw size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                             <button 
                                                                 onClick={() => updateStatusAndNotify(o, col.next)}
                                                                 className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
@@ -3384,7 +3470,89 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             {/* COLUNA DIREITA: FIDELIDADE E CUPONS GERAIS */}
                             <div className="space-y-6 lg:space-y-8">
-                                
+                                {/* --- NOVO: COMPRE E GANHE (BOGO) --- */}
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.buyAndGetPromo?.active ? 'bg-teal-600 text-white border-teal-400' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <Gift size={48} className={settings.buyAndGetPromo?.active ? 'text-teal-300 animate-bounce' : 'text-slate-200'} />
+                                            <div>
+                                                <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.buyAndGetPromo?.active ? 'text-white' : 'text-slate-800'}`}>Compre & Ganhe</h2>
+                                                <p className={`text-xs font-bold mt-1 ${settings.buyAndGetPromo?.active ? 'text-teal-100' : 'text-slate-400'}`}>Brinde automático no carrinho.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                const current = settings.buyAndGetPromo || {};
+                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...current, active: !current.active } }, { merge: true });
+                                            }}
+                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.buyAndGetPromo?.active ? 'bg-white text-teal-600 hover:bg-teal-50' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+                                        >
+                                            {settings.buyAndGetPromo?.active ? 'Desativar' : 'Ativar Promo'}
+                                        </button>
+                                    </div>
+
+                                    {settings.buyAndGetPromo?.active && (
+                                        <div className="pt-6 border-t border-teal-500/50 space-y-4 animate-in fade-in slide-in-from-top-4">
+                                            {/* Regras de Ativação (Data/Hora) */}
+                                            <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500">
+                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Clock size={14}/> Regras de Horário</p>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div>
+                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-100">Dias da Semana</label>
+                                                        <select value={settings.buyAndGetPromo?.recurringDay || 'all'} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringDay: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-800 text-white border-none focus:ring-2 ring-teal-400">
+                                                            <option value="all">Todos os Dias</option>
+                                                            <option value="1">Só Segunda</option>
+                                                            <option value="2">Só Terça</option>
+                                                            <option value="3">Só Quarta</option>
+                                                            <option value="4">Só Quinta</option>
+                                                            <option value="5">Só Sexta</option>
+                                                            <option value="6">Só Sábado</option>
+                                                            <option value="0">Só Domingo</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-100">Hora Início</label>
+                                                        <input type="time" value={settings.buyAndGetPromo?.recurringStart || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringStart: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-800 text-white border-none focus:ring-2 ring-teal-400" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-100">Hora Fim</label>
+                                                        <input type="time" value={settings.buyAndGetPromo?.recurringEnd || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringEnd: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-800 text-white border-none focus:ring-2 ring-teal-400" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Produtos Gatilho */}
+                                            <div className="bg-white/10 p-4 rounded-2xl border border-teal-500">
+                                                <p className="text-[10px] font-black uppercase text-teal-100 tracking-widest mb-2 flex items-center gap-2"><ShoppingBag size={14}/> Comprando qualquer um destes:</p>
+                                                <div className="max-h-32 overflow-y-auto custom-scrollbar border border-teal-500/50 rounded-xl p-2 bg-teal-800/30 flex flex-col gap-1">
+                                                    {products.map(p => {
+                                                        const isSelected = (settings.buyAndGetPromo?.triggerProductIds || []).includes(p.id);
+                                                        return (
+                                                            <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-teal-500 border border-teal-300' : 'hover:bg-teal-700/50 border border-transparent'}`}>
+                                                                <input type="checkbox" checked={isSelected} onChange={async (e) => {
+                                                                    const current = settings.buyAndGetPromo?.triggerProductIds || [];
+                                                                    const newTriggers = e.target.checked ? [...current, p.id] : current.filter(id => id !== p.id);
+                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, triggerProductIds: newTriggers } }, { merge: true });
+                                                                }} className="w-4 h-4 accent-white cursor-pointer" />
+                                                                <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {/* Produto Brinde */}
+                                            <div className="bg-white/10 p-4 rounded-2xl border border-teal-500">
+                                                <p className="text-[10px] font-black uppercase text-teal-100 tracking-widest mb-2 flex items-center gap-2"><Gift size={14}/> O cliente GANHA este produto:</p>
+                                                <select value={settings.buyAndGetPromo?.rewardProductId || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rewardProductId: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer">
+                                                    <option value="">Selecione o Brinde...</option>
+                                                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                </select>
+                                                <p className="text-[9px] text-teal-200 mt-2 font-medium">O brinde será adicionado automaticamente ao carrinho por R$ 0,00 caso a regra de horário seja cumprida.</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 {/* --- 3. CLUBE DE FIDELIDADE --- */}
                                 <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.loyaltyActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-white border-slate-100'}`}>
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -3454,39 +3622,58 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         {/* Cashback */}
-                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="bg-green-500/20 p-2 rounded-xl text-green-400 mt-1"><Wallet size={20}/></div>
-                                                    <div className="pr-4">
-                                                        <p className="font-black text-white text-sm uppercase">Carteira de Cashback</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Cliente usa saldo acumulado na compra.</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
-                                            </div>
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-green-500/20 p-2 rounded-xl text-green-400 mt-1"><Wallet size={20}/></div>
+                                                    <div className="pr-4">
+                                                        <p className="font-black text-white text-sm uppercase">Carteira de Cashback</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Cliente usa saldo acumulado na compra.</p>
+                                                    </div>
+                                                </div>
+                                                <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
+                                            </div>
 
-                                            {settings.gamification?.cashback && (
-                                                <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase flex justify-between items-end">
-                                                        Porcentagem de Retorno (%)
-                                                        <span className="text-green-400 font-black text-xs">{settings.gamification?.cashbackPercent || 2}%</span>
-                                                    </label>
-                                                    <input 
-                                                        type="range" 
-                                                        min="1" max="20" step="1"
-                                                        value={settings.gamification?.cashbackPercent || 2} 
-                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashbackPercent: Number(e.target.value) } }, { merge: true })}
-                                                        className="w-full mt-2 accent-green-500 cursor-pointer"
-                                                    />
-                                                    <div className="mt-3 bg-green-900/30 p-3 rounded-xl border border-green-800/50">
-                                                        <p className="text-[10px] text-green-400 font-bold leading-relaxed">
-                                                            💡 <strong className="text-white">Automação Ativa:</strong> Ao marcar o pedido como "✅ Entregue", o sistema irá depositar <strong>{settings.gamification?.cashbackPercent || 2}% do valor</strong> na Carteira Digital do cliente.
-                                                        </p>
+                                            {settings.gamification?.cashback && (
+                                                <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase flex justify-between items-end">
+                                                        Porcentagem de Retorno (%)
+                                                        <span className="text-green-400 font-black text-xs">{settings.gamification?.cashbackPercent || 2}%</span>
+                                                    </label>
+                                                    <input 
+                                                        type="range" 
+                                                        min="1" max="20" step="1"
+                                                        value={settings.gamification?.cashbackPercent || 2} 
+                                                        onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashbackPercent: Number(e.target.value) } }, { merge: true })}
+                                                        className="w-full mt-2 accent-green-500 cursor-pointer"
+                                                    />
+
+                                                    {/* --- NOVO CAMPO: VALIDADE DO SALDO --- */}
+                                                    <div className="mt-4">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">
+                                                            Validade do Saldo (Em Dias)
+                                                        </label>
+                                                        <div className="flex items-center gap-3">
+                                                            <input 
+                                                                type="number" 
+                                                                min="0"
+                                                                placeholder="Ex: 30"
+                                                                value={settings.gamification?.cashbackValidityDays || ''} 
+                                                                onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashbackValidityDays: Number(e.target.value) } }, { merge: true })}
+                                                                className="w-24 p-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-green-500 text-sm text-center placeholder-slate-600"
+                                                            />
+                                                            <span className="text-[10px] text-slate-500 font-bold">Dias (0 = Nunca expira)</span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
+
+                                                    <div className="mt-4 bg-green-900/30 p-3 rounded-xl border border-green-800/50">
+                                                        <p className="text-[10px] text-green-400 font-bold leading-relaxed">
+                                                            💡 <strong className="text-white">Automação Ativa:</strong> Ao marcar o pedido como "✅ Entregue", o sistema irá depositar <strong>{settings.gamification?.cashbackPercent || 2}% do valor</strong> na Carteira Digital do cliente, válido por <strong>{settings.gamification?.cashbackValidityDays > 0 ? `${settings.gamification.cashbackValidityDays} dias` : 'tempo indeterminado'}</strong>.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
 
                                         {/* Tiers VIP */}
                                         <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">

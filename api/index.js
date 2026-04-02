@@ -1702,6 +1702,61 @@ if (data.abandonmentAlertSent === true) continue;
             return res.status(200).send('Erro processado'); 
         }
     }
+    // ------------------------------------------------------------------------
+    // 19. MERCADO PAGO: REEMBOLSAR PAGAMENTO (ESTORNO)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/refund-mp') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeId, orderId } = req.body;
+        if (!storeId || !orderId) return res.status(400).json({ error: 'Dados insuficientes.' });
+
+        try {
+            // 1. Pega o token do MP da loja
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const mpConfig = settingsDoc.data()?.integrations?.mercadopago;
+
+            if (!mpConfig || !mpConfig.accessToken) {
+                return res.status(400).json({ error: 'Mercado Pago não configurado.' });
+            }
+
+            // 2. Busca o pagamento no Mercado Pago usando o external_reference (que é o orderId do Firebase)
+            const searchRes = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${orderId}`, {
+                headers: { 'Authorization': `Bearer ${mpConfig.accessToken}` }
+            });
+            const searchData = await searchRes.json();
+
+            if (!searchRes.ok || !searchData.results || searchData.results.length === 0) {
+                return res.status(404).json({ error: 'Pagamento não encontrado no Mercado Pago para este pedido.' });
+            }
+
+            // Pega o pagamento mais recente aprovado para este pedido
+            const payment = searchData.results.find(p => p.status === 'approved') || searchData.results[0];
+            const paymentId = payment.id;
+
+            // 3. Solicita o Estorno Total
+            const refundRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}/refunds`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${mpConfig.accessToken}`,
+                    'X-Idempotency-Key': `refund_${orderId}_${Date.now()}` // Garante que não vai estornar 2x por erro de rede
+                }
+            });
+
+            const refundData = await refundRes.json();
+
+            if (!refundRes.ok) {
+                console.error("Erro MP Refund:", refundData);
+                return res.status(400).json({ error: 'O Mercado Pago recusou o estorno.', details: refundData });
+            }
+
+            return res.status(200).json({ success: true, refundId: refundData.id });
+
+        } catch (error) {
+            console.error('Erro ao estornar MP:', error);
+            return res.status(500).json({ error: 'Erro interno ao processar estorno.' });
+        }
+    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================

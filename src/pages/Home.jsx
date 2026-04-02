@@ -519,6 +519,62 @@ export default function Home() {
         promoBannerUrls:[]
   });
   const[showExitModal, setShowExitModal] = useState(false);
+  // --- NOVO: MOTOR DA PROMOÇÃO COMPRE E GANHE (BOGO) ---
+  useEffect(() => {
+      const promo = marketingSettings?.buyAndGetPromo;
+      
+      // 1. Se a promo não existe, tá desligada, ou não configurou os produtos, removemos qualquer brinde
+      if (!promo?.active || !promo?.triggerProductIds?.length || !promo?.rewardProductId) {
+          setCart(prev => prev.some(i => i.isReward) ? prev.filter(i => !i.isReward) : prev);
+          return;
+      }
+
+      // 2. Valida dia e horário da promoção
+      const isPromoTimeActive = isWithinRecurringSchedule(promo.recurringDay, promo.recurringStart, promo.recurringEnd);
+      if (!isPromoTimeActive) {
+          setCart(prev => prev.some(i => i.isReward) ? prev.filter(i => !i.isReward) : prev);
+          return;
+      }
+
+      // 3. Conta quantos produtos "Gatilho" existem no carrinho
+      const triggerItemsCount = cart.reduce((acc, item) => {
+          if (promo.triggerProductIds.includes(item.id) && !item.isReward) {
+              return acc + item.quantity;
+          }
+          return acc;
+      }, 0);
+
+      // 4. Busca os dados do produto brinde
+      const rewardProduct = products.find(p => p.id === promo.rewardProductId);
+      if (!rewardProduct) return;
+
+      // 5. Atualiza o carrinho injetando ou removendo o brinde automaticamente
+      setCart(prevCart => {
+          const rewardItem = prevCart.find(i => i.isReward && i.id === promo.rewardProductId);
+          
+          if (triggerItemsCount > 0) {
+              // Se a quantidade de brinde for diferente da quantidade de gatilhos, atualizamos (Evita loop infinito)
+              if (!rewardItem || rewardItem.quantity !== triggerItemsCount) {
+                  const cleanCart = prevCart.filter(i => !i.isReward);
+                  return [...cleanCart, {
+                      ...rewardProduct,
+                      cartItemId: `reward-${promo.rewardProductId}`,
+                      quantity: triggerItemsCount,
+                      price: 0, // Brinde é de graça!
+                      isReward: true,
+                      name: `🎁 BRINDE: ${rewardProduct.name}`
+                  }];
+              }
+          } else {
+              // Se removeu os gatilhos, tira o brinde
+              if (rewardItem) {
+                  return prevCart.filter(i => !i.isReward);
+              }
+          }
+          return prevCart;
+      });
+
+  }, [cart, marketingSettings?.buyAndGetPromo, products]);
 
   // --- ESTADOS DA ÁREA VIP E GAMIFICAÇÃO ---
   const[showVipArea, setShowVipArea] = useState(false);
@@ -2001,7 +2057,60 @@ if (window.fbq) {
       </AnimatePresence>
 
       <div className="p-6">
-        
+        {/* --- INÍCIO: BANNER COMPRE E GANHE (BOGO) --- */}
+        <AnimatePresence>
+            {marketingSettings?.buyAndGetPromo?.active && 
+             marketingSettings?.buyAndGetPromo?.rewardProductId &&
+             isWithinRecurringSchedule(marketingSettings.buyAndGetPromo.recurringDay, marketingSettings.buyAndGetPromo.recurringStart, marketingSettings.buyAndGetPromo.recurringEnd) && (() => {
+                const rewardProd = products.find(p => p.id === marketingSettings.buyAndGetPromo.rewardProductId);
+                if (!rewardProd) return null;
+
+                // Lógica para puxar os nomes exatos dos produtos gatilho
+                const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
+                const triggerProducts = products.filter(p => triggerIds.includes(p.id));
+                
+                let triggerText = "os itens participantes";
+                if (triggerProducts.length === 1) {
+                    triggerText = triggerProducts[0].name;
+                } else if (triggerProducts.length === 2) {
+                    triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
+                } else if (triggerProducts.length > 2) {
+                    triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais ${triggerProducts.length - 2} opções`;
+                }
+
+                return (
+                    <motion.div initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
+                        <div className="relative flex items-stretch rounded-2xl shadow-lg bg-teal-600 text-white overflow-hidden border border-teal-400">
+                            {/* Efeito de Fundo Pontilhado para dar textura */}
+                            <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+                            
+                            {/* Lado Esquerdo (Ícone com Animação) */}
+                            <div className="w-[25%] min-w-[85px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
+                                <Gift size={36} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
+                                <span className="bg-yellow-400 text-teal-900 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
+                            </div>
+
+                            {/* Divisor Estilo Ticket */}
+                            <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
+
+                            {/* Textos Magnéticos */}
+                            <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
+                                    <Zap size={10} className="text-yellow-400"/> Oferta Especial
+                                </p>
+                                <p className="font-black uppercase text-sm md:text-base leading-tight drop-shadow-md">
+                                    GANHE 1x {rewardProd.name}!
+                                </p>
+                                <p className="text-[10px] font-bold mt-1 text-teal-100 leading-snug">
+                                    Compre <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra de graça no carrinho.
+                                </p>
+                            </div>
+                        </div>
+                    </motion.div>
+                );
+            })()}
+        </AnimatePresence>
+        {/* --- FIM: BANNER COMPRE E GANHE (BOGO) --- */}
         {/* --- INÍCIO: NOVO FORMATO DE CUPOM NA VITRINE --- */}
         <AnimatePresence>
             {marketingSettings?.promoActive && marketingSettings?.smartBanners && marketingSettings.smartBanners.map((banner, index) => {
@@ -2435,19 +2544,30 @@ if (window.fbq) {
                 <>
                   <div className="space-y-4 mb-8 mt-4">
                     {cart.map(item => (
-                      <div key={item.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-3"><img src={item.imageUrl} alt={item.name} width="48" height="48" loading="lazy" decoding="async" className="w-12 h-12 object-contain rounded-lg bg-white p-1"/><div className="text-sm font-bold">{item.name}</div></div>
-                        {item.observation && (
-                            <span className="block text-[10px] text-orange-600 font-bold leading-tight mt-1 bg-orange-50 p-1.5 rounded-md border border-orange-100">
-                                Obs: {item.observation}
-                            </span>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus size={16}/></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus size={16}/></button>
-                          <button onClick={() => removeFromCart(item.id)} className="p-1 text-red-500"><Trash2 size={16}/></button>
+                      <div key={item.cartItemId || item.id} className={`flex items-center justify-between p-4 rounded-2xl border ${item.isReward ? 'bg-teal-50 border-teal-200 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
+                        <div className="flex items-center gap-3">
+                            <img src={item.imageUrl} alt={item.name} width="48" height="48" loading="lazy" decoding="async" className={`w-12 h-12 object-contain rounded-lg p-1 ${item.isReward ? 'bg-teal-100' : 'bg-white'}`}/>
+                            <div className={`text-sm font-bold ${item.isReward ? 'text-teal-800' : ''}`}>{item.name}</div>
                         </div>
-                      </div>
-                    ))}
+                        {item.observation && (
+                            <span className="block text-[10px] text-orange-600 font-bold leading-tight mt-1 bg-orange-50 p-1.5 rounded-md border border-orange-100">
+                                Obs: {item.observation}
+                            </span>
+                        )}
+                        <div className="flex items-center gap-2">
+                            {item.isReward ? (
+                                <span className="bg-teal-500 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                                    Grátis ({item.quantity}x)
+                                </span>
+                            ) : (
+                                <>
+                                    <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus size={16}/></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus size={16}/></button>
+                                    <button onClick={() => removeFromCart(item.id)} className="p-1 text-red-500"><Trash2 size={16}/></button>
+                                </>
+                            )}
+                        </div>
+                      </div>
+                    ))}
                   </div> 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes de Entrega:</p>
                   
