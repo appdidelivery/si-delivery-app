@@ -804,32 +804,55 @@ if (data.abandonmentAlertSent === true) continue;
                                         // REGRA B: LOJA ABERTA E BOT LIGADO
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'pix', 'comprovante'];
+                                            // 1. PALAVRAS-CHAVE DE SUPORTE E RECLAMAÇÃO (Transbordo Humano)
+                                            const supportKeywords = ['atraso', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errado', 'reclamar', 'faltou', 'frio', 'estragado'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
+                                            // 2. PALAVRAS-CHAVE DE FAQ (Respostas Rápidas)
+                                            const isFaqHorario = ['horario', 'horas', 'que horas', 'abre', 'fecha', 'funcionamento'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqFrete = ['frete', 'taxa', 'entrega', 'bairros', 'onde entrega', 'motoboy'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqPagamento = ['pagamento', 'aceita cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco'].some(kw => incomingTextLower.includes(kw));
+
                                             if (needsSupport) {
-                                                const supportMsg = "Entendi! 👩‍💻 Já pausei meu sistema automático e chamei um de nossos atendentes reais.\n\nPor favor, aguarde um instante que já vamos te responder por aqui mesmo!";
+                                                // Mensagem 100% humanizada
+                                                const supportMsg = "Poxa, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!";
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
-                                                logTextForPanel = `🤖 ${supportMsg}`;
+                                                logTextForPanel = `🤖 [Transbordo] ${supportMsg}`;
                                                 triggerInternalAlert = true;
                                                 
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             } 
-                                            else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir')) {
+                                            else if (isFaqHorario) {
+                                                const faqMsg = "Nosso horário de funcionamento é das 18h às 23h, de terça a domingo! 🍔🍟\n\nQuer aproveitar e já dar uma olhadinha no que estamos preparando hoje? 👉 " + storeDomain;
+                                                replyPayload = { type: "text", text: { body: faqMsg } };
+                                                logTextForPanel = `🤖 [FAQ Horário] ${faqMsg}`;
+                                            }
+                                            else if (isFaqFrete) {
+                                                const faqMsg = "Nossa taxa de entrega varia de acordo com o seu bairro! 🛵💨\n\nMas é super fácil descobrir: basta clicar no link do nosso cardápio, colocar seu endereço e o sistema calcula na hora para você!\n👉 " + storeDomain;
+                                                replyPayload = { type: "text", text: { body: faqMsg } };
+                                                logTextForPanel = `🤖 [FAQ Frete] ${faqMsg}`;
+                                            }
+                                            else if (isFaqPagamento) {
+                                                const faqMsg = "Aceitamos Pix, Cartão de Crédito e Débito! 💳\n\nVocê pode pagar super rápido e seguro direto pelo site na hora de finalizar o pedido, ou na entrega com a nossa maquininha.\n\nQuer pedir agora? 👉 " + storeDomain;
+                                                replyPayload = { type: "text", text: { body: faqMsg } };
+                                                logTextForPanel = `🤖 [FAQ Pagamento] ${faqMsg}`;
+                                            }
+                                            else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir') || incomingTextLower.includes('fome')) {
                                                 const menuMsg = `Que ótimo! Acesse nosso cardápio digital e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: menuMsg } };
-                                                logTextForPanel = `🤖 ${menuMsg}`;
+                                                logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else {
-                                                const greeting = waSettings.botGreeting || "Olá! 👋 Sou o assistente virtual da loja.";
+                                                // Boas-vindas Padrão mais calorosa
+                                                const greeting = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
                                                 const opt1Text = (waSettings.botOption1 || "🍔 Fazer Pedido").substring(0, 20); 
-                                                const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar Atendente").substring(0, 20);
+                                                const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar com a Equipe").substring(0, 20);
                                                 
                                                 replyPayload = {
                                                     type: "interactive",
                                                     interactive: {
                                                         type: "button",
-                                                        body: { text: `${greeting}\n\nComo posso te ajudar agora?` },
+                                                        body: { text: `${greeting}\n\nComo posso te ajudar hoje?` },
                                                         action: {
                                                             buttons: [
                                                                 { type: "reply", reply: { id: "btn_menu", title: opt1Text } },
