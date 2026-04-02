@@ -184,35 +184,33 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 // =======================================================================
-  // SDK EFÍ PAY: Carrega o script anti-fraude (OTIMIZADO COM ATRASO)
-  // =======================================================================
-  useEffect(() => {
-      const loadEfi = setTimeout(() => {
-          const efiAccountId = import.meta.env.VITE_EFI_ACCOUNT_IDENTIFIER || '16118a513a9c71e7b0a08e62aec546a8'; 
-          
-          if (!document.getElementById('efi-sdk')) {
-              const script = document.createElement('script');
-              const v = parseInt(Math.random() * 1000000);
-              
-              script.type = 'text/javascript';
-              script.async = true;
-              script.defer = true;
-              script.id = 'efi-sdk';
-              script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
-              
-              document.head.appendChild(script);
-              
-              window.$gn = {
-                  validForm: true,
-                  processed: false,
-                  done: {},
-                  ready: function(fn) { window.$gn.done = fn; }
-              };
-              console.log("💳 SDK Anti-fraude da Efí carregado com sucesso!");
-          }
-      }, 4000); // ⏱️ Atraso de 4 segundos
-      return () => clearTimeout(loadEfi);
-  }, []);
+  // SDK EFÍ PAY: Carrega o script anti-fraude
+  // =======================================================================
+  useEffect(() => {
+      const efiAccountId = import.meta.env.VITE_EFI_ACCOUNT_IDENTIFIER || '16118a513a9c71e7b0a08e62aec546a8'; 
+      
+      if (!document.getElementById('efi-sdk')) {
+          // Define a função ready ANTES de injetar o script para não perder a sincronia
+          window.$gn = {
+              validForm: true,
+              processed: false,
+              done: {},
+              ready: function(fn) { window.$gn.done = fn; }
+          };
+
+          const script = document.createElement('script');
+          const v = parseInt(Math.random() * 1000000);
+          
+          script.type = 'text/javascript';
+          script.async = false;
+          script.id = 'efi-sdk';
+          script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
+          
+          document.head.appendChild(script);
+          
+          console.log("💳 SDK Anti-fraude da Efí carregado com sucesso!");
+      }
+  }, []);
 
   const generateSlug = (text) => {
     return text.toString().toLowerCase()
