@@ -26,7 +26,7 @@ export default function AdminSaaS() {
     // Coloque aqui todos os emails que podem acessar o Velo Dark Ops (sempre em minúsculas)
     const MASTER_EMAILS = [
         'appdidelivery@gmail.com', 
-        'email-da-agencia@gmail.com',
+        'projetosdiego.l@gmail.com',
         'emaildacsi@gmail.com'
     ]; 
 
