@@ -67,6 +67,7 @@ export default function AdminChat() {
     // --- ESTADOS PARA NOVA CONVERSA ---
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatPhone, setNewChatPhone] = useState('');
+    const [isImporting, setIsImporting] = useState(false); // Novo: Controle de importação
 
     // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
@@ -409,6 +410,53 @@ export default function AdminChat() {
         }
     };
 // --- LÓGICA DE REATIVAR O BOT (ENCERRAR ATENDIMENTO) ---
+// --- FUNÇÃO PARA IMPORTAR BASE DE CONTATOS VIA CSV ---
+    const handleImportCSV = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !storeId) return;
+
+        const confirmImport = window.confirm("Deseja importar estes contatos para sua agenda? (O arquivo deve ser Nome;Telefone)");
+        if (!confirmImport) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+
+        reader.onload = async (event) => {
+            const text = event.target.result;
+            const lines = text.split('\n');
+            let count = 0;
+
+            for (let line of lines) {
+                // Suporta separação por vírgula ou ponto-e-vírgula
+                const [name, rawPhone] = line.includes(';') ? line.split(';') : line.split(',');
+
+                if (name && rawPhone) {
+                    // Normalização do Telefone para o padrão Velo
+                    let phone = String(rawPhone).replace(/\D/g, '');
+                    if (phone.startsWith('55')) phone = phone.substring(2);
+                    if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
+
+                    try {
+                        // Salva na Agenda (CRM)
+                        await setDoc(doc(db, 'customers', `${storeId}_${phone}`), {
+                            storeId: storeId,
+                            phone: phone,
+                            name: name.trim(),
+                            updatedAt: serverTimestamp()
+                        }, { merge: true });
+                        count++;
+                    } catch (err) {
+                        console.error("Erro ao importar linha:", line);
+                    }
+                }
+            }
+            alert(`✅ Sucesso! ${count} contatos foram importados para sua agenda.`);
+            setIsImporting(false);
+            e.target.value = ''; // Limpa o input
+        };
+
+        reader.readAsText(file);
+    };
     const handleEndSession = async () => {
         if (!activeChat || !storeId) return;
         
@@ -558,6 +606,15 @@ export default function AdminChat() {
                                     <ArrowLeft size={20} />
                                 </button>
                                 <h2 className="text-lg font-bold">Nova Conversa</h2>
+                            </div>
+                            <div className="p-4 border-b border-gray-100 bg-blue-50 flex flex-col gap-2">
+                                <p className="text-[10px] font-bold text-blue-600 uppercase">Importação em Lote</p>
+                                <label className="flex items-center justify-center gap-2 w-full p-3 bg-white border-2 border-dashed border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
+                                    {isImporting ? <Loader2 className="animate-spin text-blue-500" size={20} /> : <Paperclip className="text-blue-500" size={20} />}
+                                    <span className="text-xs font-bold text-blue-700">{isImporting ? 'Importando...' : 'Importar Agenda (CSV)'}</span>
+                                    <input type="file" accept=".csv" className="hidden" onChange={handleImportCSV} disabled={isImporting} />
+                                </label>
+                                <p className="text-[9px] text-blue-400 text-center">Arquivo deve conter: Nome;Telefone</p>
                             </div>
                             <div className="p-6 flex flex-col gap-4">
                                 <p className="text-sm text-gray-500 font-medium">Digite o WhatsApp do cliente com DDD (Ex: 48999999999)</p>
