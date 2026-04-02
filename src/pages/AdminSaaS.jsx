@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
-import { collection, addDoc, setDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { 
     LayoutDashboard, Store, Radio, ShieldAlert, 
     LogOut, Menu, X, Loader2, CheckCircle, 
@@ -12,21 +12,80 @@ import {
 
 export default function AdminSaaS() {
     const navigate = useNavigate();
-    const { store, loading } = useStore();
+    const { store } = useStore();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    // Proteção de Rota
+    // --- ESTADOS REAIS DAS FUNCIONALIDADES ---
+    const [globalLoading, setGlobalLoading] = useState(true);
+    const [pixQueue, setPixQueue] = useState([]);
+    const [actionLoading, setActionLoading] = useState(null);
+
+    // 🔒 TRAVA DE SEGURANÇA: Mude para o seu email de acesso
+    const MASTER_EMAIL = 'appdidelivery@gmail.com'; 
+
+    // --- PROTEÇÃO E BUSCA DE DADOS ---
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
-            if (!user) navigate('/login');
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            // 1. Está logado?
+            if (!user) {
+                navigate('/login');
+                return;
+            }
+
+            // 2. É o Mestre (Super Admin)?
+            if (user.email !== MASTER_EMAIL) {
+                alert("Acesso Negado: Velo Dark Ops é restrito à diretoria.");
+                navigate('/admin'); // Expulsa pro painel de lojista comum
+                return;
+            }
+
+            // 3. Se passou pela segurança, busca os dados reais
+            await fetchSaaSData();
+            setGlobalLoading(false);
         });
         return () => unsubscribe();
     }, [navigate]);
 
-    if (loading) return <div className="flex h-screen items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-blue-500"/></div>;
+    // Busca os dados do Firebase
+    const fetchSaaSData = async () => {
+        try {
+            const storesSnap = await getDocs(collection(db, 'stores'));
+            const allStores = storesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // --- RENDERIZAÇÃO DE CONTEÚDO (VELO DARK OPS) ---
+            // Filtra as lojas onde o status do VeloPay é pendente
+            // (Ajuste 'veloPayStatus' para o nome exato do campo que você usa no seu banco)
+            const pendingPix = allStores.filter(s => s.veloPayStatus === 'pendente' || s.pixStatus === 'pendente');
+            setPixQueue(pendingPix);
+        } catch (error) {
+            console.error("Erro ao buscar dados do SaaS:", error);
+        }
+    };
+
+    // Ação Real: Aprovar VeloPay
+    const handleApprovePix = async (storeId) => {
+        if (!window.confirm('Confirmar liberação do VeloPay para esta loja?')) return;
+        
+        setActionLoading(storeId);
+        try {
+            const storeRef = doc(db, 'stores', storeId);
+            await updateDoc(storeRef, {
+                veloPayStatus: 'ativo',
+                pixStatus: 'ativo', // Atualizamos ambos por segurança até você padronizar
+                veloPayApprovedAt: new Date()
+            });
+            alert('VeloPay ativado com sucesso para esta loja!');
+            await fetchSaaSData(); // Recarrega a fila para sumir com o card
+        } catch (error) {
+            alert('Erro ao aprovar: ' + error.message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    if (globalLoading) return <div className="flex h-screen items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-blue-500 w-12 h-12"/></div>;
+
+    // --- RENDERIZAÇÃO DE CONTEÚDO ---
     const renderContent = () => {
         if (activeTab === 'dashboard') {
              return (
@@ -37,23 +96,35 @@ export default function AdminSaaS() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* Card Exemplo Fila Pix */}
-                        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="font-bold text-white text-lg">Burger Express</h3>
-                                    <p className="text-sm text-slate-500">CNPJ: 12.345.678/0001-90</p>
+                        {pixQueue.length === 0 ? (
+                            <div className="col-span-full p-8 border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 font-bold">
+                                Nenhuma loja aguardando aprovação de VeloPay no momento.
+                            </div>
+                        ) : (
+                            pixQueue.map(loja => (
+                                <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="font-bold text-white text-lg">{loja.name || 'Loja Sem Nome'}</h3>
+                                            <p className="text-sm text-slate-500">Doc: {loja.cnpj || loja.documento || 'Não informado'}</p>
+                                        </div>
+                                        <span className="bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded">Pendente</span>
+                                    </div>
+                                    <div className="mb-6 space-y-1">
+                                        <p className="text-sm text-slate-400">Responsável: {loja.responsavel || 'Não informado'}</p>
+                                        <p className="text-sm text-slate-400">Chave Pix: {loja.chavePix || loja.pixKey || 'Não informada'}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleApprovePix(loja.id)}
+                                        disabled={actionLoading === loja.id}
+                                        className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white py-3 rounded-xl font-bold transition-colors"
+                                    >
+                                        {actionLoading === loja.id ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
+                                        {actionLoading === loja.id ? 'Aprovando...' : 'Aprovar VeloPay'}
+                                    </button>
                                 </div>
-                                <span className="bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded">Pendente</span>
-                            </div>
-                            <div className="mb-6 space-y-1">
-                                <p className="text-sm text-slate-400">Responsável: João Silva</p>
-                                <p className="text-sm text-slate-400">Chave Pix: 48999999999</p>
-                            </div>
-                            <button className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold transition-colors">
-                                <CheckCircle size={18} /> Aprovar VeloPay
-                            </button>
-                        </div>
+                            ))
+                        )}
                     </div>
                 </div>
              );
@@ -80,7 +151,7 @@ export default function AdminSaaS() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {/* Linha Exemplo Loja */}
+                                {/* O controle de lojas será conectado na próxima etapa, mantido layout visual por enquanto */}
                                 <tr className="border-b border-slate-800/50 hover:bg-slate-800/20">
                                     <td className="p-4">
                                         <div className="flex items-center gap-3">
@@ -108,33 +179,6 @@ export default function AdminSaaS() {
                                     </td>
                                     <td className="p-4">
                                         <button className="flex items-center gap-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                                            <Play size={16} /> Acessar Painel
-                                        </button>
-                                    </td>
-                                </tr>
-                                {/* Linha Exemplo Loja Inativa */}
-                                <tr className="border-b border-slate-800/50 hover:bg-slate-800/20 bg-red-950/10">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-xl">🍕</div>
-                                            <div>
-                                                <p className="font-bold text-slate-300">Pizzaria Teste</p>
-                                                <span className="text-xs bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded font-bold">FREE</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 space-y-2">
-                                        <div className="flex items-center gap-2 text-sm text-slate-500">
-                                            <ToggleRight size={18} className="text-slate-600" /> Velo Game
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-2 text-red-400 text-xs font-bold">
-                                            <AlertTriangle size={14} /> 12 dias sem pedidos (Risco Churn)
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <button className="flex items-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
                                             <Play size={16} /> Acessar Painel
                                         </button>
                                     </td>
@@ -182,7 +226,6 @@ export default function AdminSaaS() {
 
     return (
         <div className="flex h-screen bg-slate-950 overflow-hidden font-sans text-slate-300 selection:bg-blue-500/30">
-            {/* Sidebar Esquerda */}
             <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800 transform transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 flex flex-col`}>
                 <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
                     <div>
@@ -215,7 +258,6 @@ export default function AdminSaaS() {
                 </div>
             </aside>
 
-            {/* Conteúdo Principal */}
             <main className="flex-1 overflow-y-auto relative bg-[#0B0F19]">
                 <header className="md:hidden bg-slate-900 p-4 flex items-center justify-between border-b border-slate-800 sticky top-0 z-40">
                     <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-300"><Menu /></button>
