@@ -19,6 +19,7 @@ export default function AdminSaaS() {
     // --- ESTADOS REAIS DAS FUNCIONALIDADES ---
     const [globalLoading, setGlobalLoading] = useState(true);
     const [pixQueue, setPixQueue] = useState([]);
+    const [storesList, setStoresList] = useState([]);
     const [actionLoading, setActionLoading] = useState(null);
 
     // 🔒 TRAVA DE SEGURANÇA: Mude para o seu email de acesso
@@ -57,6 +58,9 @@ export default function AdminSaaS() {
             // (Ajuste 'veloPayStatus' para o nome exato do campo que você usa no seu banco)
             const pendingPix = allStores.filter(s => s.veloPayStatus === 'pendente' || s.pixStatus === 'pendente');
             setPixQueue(pendingPix);
+
+            // Alimenta a aba "Controle de Lojas" com todos os clientes reais do banco
+            setStoresList(allStores);
         } catch (error) {
             console.error("Erro ao buscar dados do SaaS:", error);
         }
@@ -151,38 +155,48 @@ export default function AdminSaaS() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {/* O controle de lojas será conectado na próxima etapa, mantido layout visual por enquanto */}
-                                <tr className="border-b border-slate-800/50 hover:bg-slate-800/20">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-xl">🍔</div>
-                                            <div>
-                                                <p className="font-bold text-white">Cowburguer</p>
-                                                <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded font-bold">PRO</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 space-y-2">
-                                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                                            <ToggleRight size={18} className="text-emerald-500" /> Velo Game
-                                        </div>
-                                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                                            <ToggleRight size={18} className="text-emerald-500" /> VeloPay
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="space-y-1">
-                                            <p className="text-xs text-slate-400 flex items-center gap-1"><Activity size={12}/> API: 12k/50k reqs</p>
-                                            <div className="w-full bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{width: '24%'}}></div></div>
-                                            <p className="text-xs text-slate-400 flex items-center gap-1 mt-2"><Activity size={12}/> Storage: 1.2GB</p>
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <button className="flex items-center gap-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                                            <Play size={16} /> Acessar Painel
-                                        </button>
-                                    </td>
-                                </tr>
+                                {storesList.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="4" className="p-8 text-center text-slate-500 font-bold">Nenhuma loja cadastrada no Firebase ainda.</td>
+                                    </tr>
+                                ) : (
+                                    storesList.map(loja => (
+                                        <tr key={loja.id} className="border-b border-slate-800/50 hover:bg-slate-800/20">
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-xl overflow-hidden">
+                                                        {loja.logoUrl ? <img src={loja.logoUrl} alt="Logo" className="w-full h-full object-cover" /> : '🏪'}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-white">{loja.name || 'Loja Sem Nome'}</p>
+                                                        <span className={`text-xs px-2 py-0.5 rounded font-bold ${loja.plano === 'pro' || loja.plan === 'pro' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-700/50 text-slate-400'}`}>
+                                                            {loja.plano ? loja.plano.toUpperCase() : (loja.plan ? loja.plan.toUpperCase() : 'FREE')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 space-y-2">
+                                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                                    <ToggleRight size={18} className={loja.veloGameEnabled ? "text-emerald-500" : "text-slate-600"} /> Velo Game
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                                    <ToggleRight size={18} className={loja.veloPayStatus === 'ativo' ? "text-emerald-500" : "text-slate-600"} /> VeloPay
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-slate-400 flex items-center gap-1"><Activity size={12}/> Criada em: {loja.createdAt?.toDate ? loja.createdAt.toDate().toLocaleDateString('pt-BR') : 'N/A'}</p>
+                                                    <p className="text-xs text-slate-400 flex items-center gap-1 mt-2"><Activity size={12}/> ID: {loja.id.substring(0, 8)}...</p>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <button onClick={() => alert(`Acesso remoto (Impersonate) para a loja ${loja.name} será configurado no próximo passo!`)} className="flex items-center gap-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                                                    <Play size={16} /> Acessar Painel
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
