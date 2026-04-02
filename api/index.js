@@ -801,76 +801,77 @@ if (data.abandonmentAlertSent === true) continue;
                                             }
 
                                         } 
-                                        // REGRA B: LOJA ABERTA E BOT LIGADO
+                                       // REGRA B: LOJA ABERTA E BOT LIGADO
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            // 1. PALAVRAS-CHAVE DE SUPORTE E RECLAMAÇÃO (Transbordo Humano)
-                                            // Usamos "atras" para pegar "atraso" e "atrasado". "estragad" pega "estragado" e "estragada".
-                                            const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errado', 'reclamar', 'faltou', 'frio', 'estragad'];
+                                            // Garante que o texto está limpo, minúsculo e sem acentos/cedilha (ex: endereço -> endereco)
+                                            const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+
+                                            // 1. DEFINIÇÃO DAS PALAVRAS-CHAVE (MUITO MAIS INTELIGENTE E SEM CONFLITOS)
+                                            // Suporte (Prioridade Máxima):
+                                            const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
-                                            // 2. PALAVRAS-CHAVE DE FAQ (Respostas Rápidas Expansivas)
-                                            const isFaqHorario = ['horario', 'horas', 'que horas', 'abre', 'fecha', 'funcionamento', 'atendimento'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqFrete = ['frete', 'taxa', 'entrega', 'bairro', 'onde', 'motoboy'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqPagamento = ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqEndereco = ['onde fica', 'endereco', 'localiza', 'rua', 'situado', 'cidade'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqContato = ['telefone', 'contato', 'ligar', 'celular', 'whatsapp'].some(kw => incomingTextLower.includes(kw));
+                                            // Endereço (Tiramos 'onde' do frete e colocamos aqui para pegar 'onde fica' e 'onde e'):
+                                            const isFaqEndereco = ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw));
+                                            
+                                            // Frete:
+                                            const isFaqFrete = ['frete', 'taxa', 'entrega', 'motoboy', 'regiao', 'valor da tele', 'cobram'].some(kw => incomingTextLower.includes(kw));
+                                            
+                                            // Horário:
+                                            const isFaqHorario = ['horario', 'horas', 'abre', 'fecha', 'funcionamento', 'atendimento'].some(kw => incomingTextLower.includes(kw));
+                                            
+                                            // Pagamento:
+                                            const isFaqPagamento = ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw));
 
-                                            // Busca dados dinâmicos da loja com Tratamento de Erro (Caso não tenha preenchido no painel)
+                                            // Fazer Pedido (Adicionado 'pedido', 'gostaria de fazer'):
+                                            const isMenuTrigger = interactivePayload === 'btn_menu' || ['1', 'cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'menu', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw));
+
+                                            // Busca dados dinâmicos da loja com Tratamento de Erro Seguro
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
                                             const addr = storeDynamicData.address || {};
                                             let storeAddressStr = "nosso endereço principal (veja no link do cardápio)";
-                                            
-                                            // Só tenta montar o endereço se a rua ou cidade existirem de verdade no banco
                                             if (addr.street || addr.city) {
                                                 const streetPart = addr.street ? addr.street.trim() : '';
                                                 const cityPart = addr.city ? addr.city.trim() : '';
                                                 storeAddressStr = [streetPart, cityPart].filter(Boolean).join(', ');
                                             }
-                                            
                                             const storePhoneStr = storeDynamicData.phone || "este mesmo número do WhatsApp";
 
+                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA MUITO PARA NÃO BUGAR)
                                             if (needsSupport) {
-                                                // Mensagem 100% humanizada
                                                 const supportMsg = "Poxa, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!";
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
                                                 logTextForPanel = `🤖 [Transbordo] ${supportMsg}`;
                                                 triggerInternalAlert = true;
-                                                
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             } 
-                                            else if (isFaqHorario) {
-                                                const faqMsg = "Nosso horário de funcionamento é das 18h às 23h, de terça a domingo! 🍔🍟\n\nQuer aproveitar e já dar uma olhadinha no que estamos preparando hoje? 👉 " + storeDomain;
+                                            else if (isFaqEndereco) {
+                                                const faqMsg = `Nós ficamos localizados em: *${storeAddressStr}* 📍\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site com total praticidade:\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Horário] ${faqMsg}`;
+                                                logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
                                             }
                                             else if (isFaqFrete) {
                                                 const faqMsg = "Nossa taxa de entrega varia de acordo com o seu bairro! 🛵💨\n\nMas é super fácil descobrir: basta clicar no link do nosso cardápio, colocar seu endereço e o sistema calcula na hora para você!\n👉 " + storeDomain;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Frete] ${faqMsg}`;
                                             }
+                                            else if (isFaqHorario) {
+                                                const faqMsg = "Nosso horário de funcionamento é das 18h às 23h, de terça a domingo! 🍔🍟\n\nQuer aproveitar e já dar uma olhadinha no que estamos preparando hoje? 👉 " + storeDomain;
+                                                replyPayload = { type: "text", text: { body: faqMsg } };
+                                                logTextForPanel = `🤖 [FAQ Horário] ${faqMsg}`;
+                                            }
                                             else if (isFaqPagamento) {
                                                 const faqMsg = "Aceitamos Pix, Cartão de Crédito e Débito! 💳\n\nVocê pode pagar super rápido e seguro direto pelo site na hora de finalizar o pedido, ou na entrega com a nossa maquininha.\n\nQuer pedir agora? 👉 " + storeDomain;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Pagamento] ${faqMsg}`;
                                             }
-                                            else if (isFaqEndereco) {
-                                                const faqMsg = `Nós ficamos localizados em: *${storeAddressStr}* 📍\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site com total praticidade:\n👉 ${storeDomain}`;
-                                                replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
-                                            }
-                                            else if (isFaqContato) {
-                                                const faqMsg = `Você pode falar com a gente por aqui mesmo ou ligar direto no número: *${storePhoneStr}* 📞\n\nSe a ideia for matar a fome agora, o caminho mais rápido é o nosso cardápio:\n👉 ${storeDomain}`;
-                                                replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Contato] ${faqMsg}`;
-                                            }
-                                            else if (interactivePayload === 'btn_menu' || incomingTextLower === '1' || incomingTextLower.includes('cardapio') || incomingTextLower.includes('pedir') || incomingTextLower.includes('fome') || incomingTextLower.includes('burger') || incomingTextLower.includes('lanche') || incomingTextLower.includes('menu')) {
-                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital completo (com fotos, preços e categorias) e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
+                                            else if (isMenuTrigger) {
+                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital completo e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: menuMsg } };
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else {
-                                                // Boas-vindas Padrão mais calorosa
                                                 const greeting = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
                                                 const opt1Text = (waSettings.botOption1 || "🍔 Fazer Pedido").substring(0, 20); 
                                                 const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar com a Equipe").substring(0, 20);

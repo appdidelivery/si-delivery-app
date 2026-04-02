@@ -410,53 +410,6 @@ export default function AdminChat() {
         }
     };
 // --- LÓGICA DE REATIVAR O BOT (ENCERRAR ATENDIMENTO) ---
-// --- FUNÇÃO PARA IMPORTAR BASE DE CONTATOS VIA CSV ---
-    const handleImportCSV = async (e) => {
-        const file = e.target.files[0];
-        if (!file || !storeId) return;
-
-        const confirmImport = window.confirm("Deseja importar estes contatos para sua agenda? (O arquivo deve ser Nome;Telefone)");
-        if (!confirmImport) return;
-
-        setIsImporting(true);
-        const reader = new FileReader();
-
-        reader.onload = async (event) => {
-            const text = event.target.result;
-            const lines = text.split('\n');
-            let count = 0;
-
-            for (let line of lines) {
-                // Suporta separação por vírgula ou ponto-e-vírgula
-                const [name, rawPhone] = line.includes(';') ? line.split(';') : line.split(',');
-
-                if (name && rawPhone) {
-                    // Normalização do Telefone para o padrão Velo
-                    let phone = String(rawPhone).replace(/\D/g, '');
-                    if (phone.startsWith('55')) phone = phone.substring(2);
-                    if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
-
-                    try {
-                        // Salva na Agenda (CRM)
-                        await setDoc(doc(db, 'customers', `${storeId}_${phone}`), {
-                            storeId: storeId,
-                            phone: phone,
-                            name: name.trim(),
-                            updatedAt: serverTimestamp()
-                        }, { merge: true });
-                        count++;
-                    } catch (err) {
-                        console.error("Erro ao importar linha:", line);
-                    }
-                }
-            }
-            alert(`✅ Sucesso! ${count} contatos foram importados para sua agenda.`);
-            setIsImporting(false);
-            e.target.value = ''; // Limpa o input
-        };
-
-        reader.readAsText(file);
-    };
     const handleEndSession = async () => {
         if (!activeChat || !storeId) return;
         
@@ -475,6 +428,30 @@ export default function AdminChat() {
             } catch (error) {
                 console.error("Erro ao reativar bot:", error);
                 alert("Erro ao encerrar atendimento.");
+            }
+        }
+    };
+
+    // --- LÓGICA PARA APAGAR A CONVERSA INTEIRA ---
+    const handleDeleteEntireChat = async () => {
+        if (!activeChat || !storeId) return;
+
+        if (window.confirm("🔴 Tem certeza que deseja apagar TODA a conversa com este cliente do seu painel? Esta ação não pode ser desfeita.")) {
+            try {
+                // Pega todas as mensagens da conversa atual que já estão agrupadas na variável activeMessages
+                const msgsToDelete = chats[activeChat]?.msgs || [];
+                
+                // Apaga cada documento do Firebase
+                for (const msg of msgsToDelete) {
+                    await deleteDoc(doc(db, 'whatsapp_inbound', msg.id));
+                }
+
+                alert("✅ Conversa apagada com sucesso!");
+                setActiveChat(null); // Fecha a tela de conversa
+                setShowContactInfo(false); // Fecha a aba lateral se estiver aberta
+            } catch (error) {
+                console.error("Erro ao apagar conversa:", error);
+                alert("Erro ao tentar apagar a conversa. Verifique sua conexão.");
             }
         }
     };
@@ -734,12 +711,21 @@ export default function AdminChat() {
                                     </div>
                                 </div>
                             
-                            <button 
-                                onClick={handleEndSession}
-                                className="bg-white hover:bg-green-50 text-[#008069] border border-gray-200 hover:border-[#008069] px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-2"
-                            >
-                                🤖 Reativar Bot
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={handleDeleteEntireChat}
+                                    className="bg-white hover:bg-red-50 text-red-500 border border-gray-200 hover:border-red-500 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
+                                    title="Apagar Conversa Inteira"
+                                >
+                                    <Trash2 size={16} /> Apagar
+                                </button>
+                                <button 
+                                    onClick={handleEndSession}
+                                    className="bg-white hover:bg-green-50 text-[#008069] border border-gray-200 hover:border-[#008069] px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-2"
+                                >
+                                    🤖 Reativar Bot
+                                </button>
+                            </div>
                         </div>
                         
                         {/* Histórico */}
