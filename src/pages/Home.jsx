@@ -185,33 +185,35 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 // =======================================================================
-  // SDK EFÍ PAY: Carrega o script anti-fraude apenas na tela de checkout
-  // =======================================================================
-  useEffect(() => {
-      // Substitua pelo seu Identificador de Conta
-      const efiAccountId = import.meta.env.VITE_EFI_ACCOUNT_IDENTIFIER || '16118a513a9c71e7b0a08e62aec546a8'; 
-      
-      if (!document.getElementById('efi-sdk')) {
-          const script = document.createElement('script');
-          const v = parseInt(Math.random() * 1000000);
-          
-          script.type = 'text/javascript';
-          script.async = true; // true para destravar o carregamento da tela do cliente
-          script.defer = true;
-          script.id = 'efi-sdk';
-          script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
-          
-          document.head.appendChild(script);
-          
-          window.$gn = {
-              validForm: true,
-              processed: false,
-              done: {},
-              ready: function(fn) { window.$gn.done = fn; }
-          };
-          console.log("💳 SDK Anti-fraude da Efí carregado com sucesso!");
-      }
-  }, []);
+  // SDK EFÍ PAY: Carrega o script anti-fraude (OTIMIZADO COM ATRASO)
+  // =======================================================================
+  useEffect(() => {
+      const loadEfi = setTimeout(() => {
+          const efiAccountId = import.meta.env.VITE_EFI_ACCOUNT_IDENTIFIER || '16118a513a9c71e7b0a08e62aec546a8'; 
+          
+          if (!document.getElementById('efi-sdk')) {
+              const script = document.createElement('script');
+              const v = parseInt(Math.random() * 1000000);
+              
+              script.type = 'text/javascript';
+              script.async = true;
+              script.defer = true;
+              script.id = 'efi-sdk';
+              script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
+              
+              document.head.appendChild(script);
+              
+              window.$gn = {
+                  validForm: true,
+                  processed: false,
+                  done: {},
+                  ready: function(fn) { window.$gn.done = fn; }
+              };
+              console.log("💳 SDK Anti-fraude da Efí carregado com sucesso!");
+          }
+      }, 4000); // ⏱️ Atraso de 4 segundos
+      return () => clearTimeout(loadEfi);
+  }, []);
 
   const generateSlug = (text) => {
     return text.toString().toLowerCase()
@@ -870,67 +872,70 @@ export default function Home() {
       localStorage.setItem('dismissediOSInstallPrompt', 'true');
   };
 
-  // --- INÍCIO: SISTEMA INTEGRADO DE PIXELS E ANALYTICS ---
-  useEffect(() => {
-      const integrations = marketingSettings?.integrations;
+  // --- INÍCIO: SISTEMA INTEGRADO DE PIXELS E ANALYTICS (OTIMIZADO) ---
+  useEffect(() => {
+      const loadScriptsTimeout = setTimeout(() => {
+          const integrations = marketingSettings?.integrations;
 
-      // 1. Google Tag Manager (GTM)
-      if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
-          const script = document.createElement('script');
-          script.id = 'gtm-script';
-          script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
-          document.head.appendChild(script);
-      }
+          // 1. Google Tag Manager (GTM)
+          if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
+              const script = document.createElement('script');
+              script.id = 'gtm-script';
+              script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
+              document.head.appendChild(script);
+          }
 
-      // 2. Meta Pixel (Facebook)
-      if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
-          const script = document.createElement('script');
-          script.id = 'meta-pixel-script';
-          script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
-          document.head.appendChild(script);
-      }
+          // 2. Meta Pixel (Facebook)
+          if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
+              const script = document.createElement('script');
+              script.id = 'meta-pixel-script';
+              script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
+              document.head.appendChild(script);
+          }
 
-      // 3. Google Analytics 4 (GA4) e Google Ads
-      const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 
-      const gadsId = integrations?.gads?.conversionId;
+          // 3. Google Analytics 4 (GA4) e Google Ads
+          const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 
+          const gadsId = integrations?.gads?.conversionId;
 
-      if ((ga4Id || gadsId) && !document.getElementById('google-gtag-script')) {
-          const script = document.createElement('script');
-          script.id = 'google-gtag-script';
-          script.async = true;
-          script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id || gadsId}`;
-          document.head.appendChild(script);
+          if ((ga4Id || gadsId) && !document.getElementById('google-gtag-script')) {
+              const script = document.createElement('script');
+              script.id = 'google-gtag-script';
+              script.async = true;
+              script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id || gadsId}`;
+              document.head.appendChild(script);
 
-          const script2 = document.createElement('script');
-          script2.id = 'google-gtag-config';
-          let configHtml = `window.dataLayer = window.dataLayer ||[]; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());`;
-          if (ga4Id) configHtml += ` gtag('config', '${ga4Id}');`;
-          if (gadsId) configHtml += ` gtag('config', '${gadsId}');`;
-          script2.innerHTML = configHtml;
-          document.head.appendChild(script2);
-      }
+              const script2 = document.createElement('script');
+              script2.id = 'google-gtag-config';
+              let configHtml = `window.dataLayer = window.dataLayer ||[]; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());`;
+              if (ga4Id) configHtml += ` gtag('config', '${ga4Id}');`;
+              if (gadsId) configHtml += ` gtag('config', '${gadsId}');`;
+              script2.innerHTML = configHtml;
+              document.head.appendChild(script2);
+          }
 
-      // 4. Contador Nativo Velo (Para o Painel Admin)
-      const registrarVisitaNativa = async () => {
-          if (!storeId || storeId === 'csi') return;
-          const hoje = new Date().toISOString().split('T')[0];
-          const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
-          const sessionKey = `visit_${storeId}_${hoje}`;
-          if (!sessionStorage.getItem(sessionKey)) {
-              try {
-                  const snap = await getDoc(visitaRef);
-                  if (snap.exists()) {
-                      await updateDoc(visitaRef, { pageViews: increment(1) });
-                  } else {
-                      await setDoc(visitaRef, { pageViews: 1, date: hoje });
-                  }
-                  sessionStorage.setItem(sessionKey, 'true');
-              } catch (e) { console.error("Erro Analytics Velo:", e); }
-          }
-      };
+          // 4. Contador Nativo Velo
+          const registrarVisitaNativa = async () => {
+              if (!storeId || storeId === 'csi') return;
+              const hoje = new Date().toISOString().split('T')[0];
+              const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+              const sessionKey = `visit_${storeId}_${hoje}`;
+              if (!sessionStorage.getItem(sessionKey)) {
+                  try {
+                      const snap = await getDoc(visitaRef);
+                      if (snap.exists()) {
+                          await updateDoc(visitaRef, { pageViews: increment(1) });
+                      } else {
+                          await setDoc(visitaRef, { pageViews: 1, date: hoje });
+                      }
+                      sessionStorage.setItem(sessionKey, 'true');
+                  } catch (e) { console.error("Erro Analytics Velo:", e); }
+              }
+          };
+          registrarVisitaNativa();
+      }, 3500); // ⏱️ Atraso de 3.5 segundos para liberar a CPU do celular
 
-      registrarVisitaNativa();
-  },[marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId]);
+      return () => clearTimeout(loadScriptsTimeout);
+  },[marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId]);
   // --- FIM: SISTEMA INTEGRADO DE PIXELS E ANALYTICS ---
 
   // --- INICIA A BUSCA DE DADOS DO BANCO ---
@@ -1965,8 +1970,8 @@ if (window.fbq) {
          (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
          (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
          isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6">
-            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
+          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 min-h-[180px]">
+            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
                 <div key={index}>
                   <img src={url} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
@@ -1979,8 +1984,8 @@ if (window.fbq) {
 
       <AnimatePresence>
         {generalBanners.length > 0 && (
-          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 pt-0">
-            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
+          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 pt-0 min-h-[180px]">
+            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
               {generalBanners.map((banner) => (
                 <div key={banner.id}>
                     <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
