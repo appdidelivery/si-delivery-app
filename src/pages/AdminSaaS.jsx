@@ -128,6 +128,24 @@ export default function AdminSaaS() {
         finally { setActionLoading(null); }
     };
 
+    const handleUpdatePayout = async (storeId) => {
+        const pixPlan = window.prompt("Plano de Repasse PIX (ex: d1, d14, d30):", "d30");
+        if (!pixPlan) return;
+        const creditPlan = window.prompt("Plano de Repasse CARTÃO (ex: d1, d14, d30):", "d30");
+        if (!creditPlan) return;
+        
+        setActionLoading(`payout_${storeId}`);
+        try {
+            await updateDoc(doc(db, 'stores', storeId), {
+                velopayPixPlan: pixPlan.toLowerCase(),
+                velopayCreditPlan: creditPlan.toLowerCase()
+            });
+            alert('Planos de repasse atualizados com sucesso!');
+            await fetchSaaSData();
+        } catch (error) { alert('Erro: ' + error.message); }
+        finally { setActionLoading(null); }
+    };
+
     const handleImpersonate = (storeId) => {
         if (!window.confirm("Você entrará no painel deste cliente.\nIsso limpará sua sessão atual. Para voltar ao Master Admin depois, você precisará deslogar e logar novamente.\nDeseja continuar?")) return;
         
@@ -211,6 +229,10 @@ export default function AdminSaaS() {
                                             <p className="font-bold text-white">{loja.name || loja.velopayData?.legalName || '⚠️ [LOJA VAZIA]'}</p>
                                             <div className="mt-1">{renderBillingBadge(loja.billingStatus)}</div>
                                             <p className="text-[10px] text-slate-600 mt-1">ID: {loja.id}</p>
+                                            <div className="mt-2 p-2 bg-slate-950 rounded border border-slate-800 inline-block">
+                                                <p className="text-[10px] font-bold text-slate-400">Repasse Pix: <span className="text-emerald-400">{loja.velopayPixPlan?.toUpperCase() || 'D30'}</span></p>
+                                                <p className="text-[10px] font-bold text-slate-400">Repasse Cartão: <span className="text-blue-400">{loja.velopayCreditPlan?.toUpperCase() || 'D30'}</span></p>
+                                            </div>
                                         </td>
                                         <td className="p-4">
                                             <div className="grid grid-cols-2 gap-3 min-w-[280px]">
