@@ -1,18 +1,17 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
-const Reviews = React.lazy(() => import('../components/Reviews'));
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
-const AgeGate = React.lazy(() => import('../components/AgeGate'));
-
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css"; 
-
 import { getStoreIdFromHostname } from '../utils/domainHelper';
+
+const Reviews = React.lazy(() => import('../components/Reviews'));
+const AgeGate = React.lazy(() => import('../components/AgeGate'));
 
 // --- OTIMIZADOR DE IMAGENS CLOUDINARY (Corta o peso de Megabytes para Kilobytes) ---
 const optimizeCloudinary = (url, width = 400) => {
@@ -1894,8 +1893,8 @@ if (window.fbq) {
         productData={selectedProduct} 
     />
     <Suspense fallback={null}>
-        <AgeGate enabled={storeSettings?.ageGateEnabled} />
-    </Suspense>
+        <AgeGate enabled={storeSettings?.ageGateEnabled} />
+    </Suspense>
 
 
     <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
@@ -2307,10 +2306,10 @@ if (window.fbq) {
       </section>
 
       <section className="px-6 pb-10 max-w-2xl mx-auto">
-          <Suspense fallback={<div className="h-32 flex items-center justify-center text-slate-400 font-bold text-xs uppercase tracking-widest">Carregando avaliações...</div>}>
-              <Reviews storeId={storeId} customerPhone={customer.phone} />
-          </Suspense>
-      </section>
+          <Suspense fallback={<div className="h-20 flex items-center justify-center text-slate-400 font-bold text-xs uppercase tracking-widest">Carregando avaliações...</div>}>
+              <Reviews storeId={storeId} customerPhone={customer.phone} />
+          </Suspense>
+      </section>
 
       <footer className="p-12 text-center">
         {/* --- INÍCIO: EXIBIÇÃO DO CNPJ --- */}

@@ -742,7 +742,13 @@ if (data.abandonmentAlertSent === true) continue;
                             }
 
                             if (messageText || isMedia) {
-                                try {
+                               try {
+                                    // --- BLINDAGEM ANTI-CRASH DO WEBHOOK ---
+                                    if (!phoneNumberId) {
+                                        console.warn("Webhook recebido sem phoneNumberId. Ignorando para não travar a API.");
+                                        continue;
+                                    }
+
                                     let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
                                     
                                     let storeId = 'desconhecida';
@@ -758,6 +764,7 @@ if (data.abandonmentAlertSent === true) continue;
 
                                     let logText = messageText;
                                     if (isMedia) logText = `[Enviou arquivo: ${message.type}]`;
+                                    if (!messageText && !isMedia) logText = `[Formato não suportado/Ação do cliente: ${message.type}]`;
 
                                     await db.collection('whatsapp_inbound').add({
                                         storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,

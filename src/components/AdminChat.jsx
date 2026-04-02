@@ -363,8 +363,13 @@ export default function AdminChat() {
         setLoadingSend(true);
 
         try {
-            // Garante o DDI 55 para a Meta não rejeitar o envio manual
-            const safePhone = activeChat.startsWith('55') ? activeChat : `55${activeChat}`;
+            // --- CORREÇÃO DO TERROR DO 9º DÍGITO ---
+            // Em vez de forçar o número do activeChat, buscamos o número EXATO
+            // que a Meta usou na última mensagem recebida deste cliente.
+            const currentChatMsgs = chats[activeChat]?.msgs || [];
+            const lastInboundMsg = currentChatMsgs.slice().reverse().find(m => m.direction !== 'outbound');
+            let targetPhone = lastInboundMsg && lastInboundMsg.from ? lastInboundMsg.from : activeChat;
+            const safePhone = targetPhone.startsWith('55') ? targetPhone : `55${targetPhone}`;
 
             // 1. Dispara via API
             const response = await fetch('/api/whatsapp-send', {
