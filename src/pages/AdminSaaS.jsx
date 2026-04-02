@@ -24,8 +24,8 @@ export default function AdminSaaS() {
 
     // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
     const MASTER_EMAILS = [
-        'projetosdiego.l@gmail.com', 
-        'appdidelivery@gmail.com'
+        'seuemail@gmail.com', 
+        'emaildaagencia@gmail.com'
     ]; 
 
     useEffect(() => {
@@ -48,7 +48,6 @@ export default function AdminSaaS() {
             const storesSnap = await getDocs(collection(db, 'stores'));
             const allStores = storesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // FILTRO CORRIGIDO: Agora busca o "pending_review" e o "velopayStatus" minúsculo
             const pendingPix = allStores.filter(s => 
                 s.velopayStatus === 'pending_review' || 
                 s.veloPayStatus === 'pendente' || 
@@ -66,10 +65,9 @@ export default function AdminSaaS() {
         if (!window.confirm('Aprovar e liberar o VeloPay para esta loja?')) return;
         setActionLoading(storeId);
         try {
-            // CORREÇÃO: Atualiza os dois padrões para garantir que o app do lojista leia certo
             await updateDoc(doc(db, 'stores', storeId), {
-                velopayStatus: 'active', // O que a CSI usa
-                veloPayStatus: 'ativo',  // Legado
+                velopayStatus: 'active', 
+                veloPayStatus: 'ativo', 
                 efiStatus: 'ativo',
                 pixStatus: 'ativo',
                 veloPayApprovedAt: new Date()
@@ -77,6 +75,24 @@ export default function AdminSaaS() {
             alert('VeloPay ativado com sucesso!');
             await fetchSaaSData(); 
         } catch (error) { alert('Erro: ' + error.message); } 
+        finally { setActionLoading(null); }
+    };
+
+    const handleUpdatePayout = async (storeId) => {
+        const pixPlan = window.prompt("Plano de Repasse PIX (ex: d1, d14, d30):", "d30");
+        if (!pixPlan) return;
+        const creditPlan = window.prompt("Plano de Repasse CARTÃO (ex: d1, d14, d30):", "d30");
+        if (!creditPlan) return;
+        
+        setActionLoading(`payout_${storeId}`);
+        try {
+            await updateDoc(doc(db, 'stores', storeId), {
+                velopayPixPlan: pixPlan.toLowerCase(),
+                velopayCreditPlan: creditPlan.toLowerCase()
+            });
+            alert('Planos de repasse atualizados com sucesso!');
+            await fetchSaaSData();
+        } catch (error) { alert('Erro: ' + error.message); }
         finally { setActionLoading(null); }
     };
 
@@ -128,24 +144,6 @@ export default function AdminSaaS() {
         finally { setActionLoading(null); }
     };
 
-    const handleUpdatePayout = async (storeId) => {
-        const pixPlan = window.prompt("Plano de Repasse PIX (ex: d1, d14, d30):", "d30");
-        if (!pixPlan) return;
-        const creditPlan = window.prompt("Plano de Repasse CARTÃO (ex: d1, d14, d30):", "d30");
-        if (!creditPlan) return;
-        
-        setActionLoading(`payout_${storeId}`);
-        try {
-            await updateDoc(doc(db, 'stores', storeId), {
-                velopayPixPlan: pixPlan.toLowerCase(),
-                velopayCreditPlan: creditPlan.toLowerCase()
-            });
-            alert('Planos de repasse atualizados com sucesso!');
-            await fetchSaaSData();
-        } catch (error) { alert('Erro: ' + error.message); }
-        finally { setActionLoading(null); }
-    };
-
     const handleImpersonate = (storeId) => {
         if (!window.confirm("Você entrará no painel deste cliente.\nIsso limpará sua sessão atual. Para voltar ao Master Admin depois, você precisará deslogar e logar novamente.\nDeseja continuar?")) return;
         
@@ -185,13 +183,11 @@ export default function AdminSaaS() {
                                 <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            {/* CORREÇÃO: Puxa o nome jurídico se não tiver nome fantasia */}
                                             <h3 className="font-bold text-white text-lg">{loja.name || loja.velopayData?.legalName || 'Loja em Cadastro'}</h3>
                                             <p className="text-xs text-slate-500 mt-1">Status Atual: <span className="text-amber-500">{loja.velopayStatus || 'pending_review'}</span></p>
                                         </div>
                                     </div>
                                     <div className="mb-6 space-y-1">
-                                        {/* CORREÇÃO: Lê os dados corretos de dentro do velopayData */}
                                         <p className="text-sm text-slate-400">Doc: {loja.velopayData?.document || loja.cnpj || 'Não informado'}</p>
                                         <p className="text-sm text-slate-400">Pix: {loja.velopayData?.pixKey || loja.chavePix || 'Não informada'}</p>
                                     </div>
@@ -211,10 +207,10 @@ export default function AdminSaaS() {
                 <div className="space-y-6">
                     <div>
                         <h2 className="text-3xl font-black text-white mb-2">Controle de Lojas</h2>
-                        <p className="text-slate-400">Ligar/desligar módulos, acessos e exclusões.</p>
+                        <p className="text-slate-400">Ligar/desligar módulos, acessos, repasses e exclusões.</p>
                     </div>
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[800px]">
+                        <table className="w-full text-left border-collapse min-w-[900px]">
                             <thead>
                                 <tr className="bg-slate-950/50 border-b border-slate-800">
                                     <th className="p-4 text-slate-400 font-semibold text-sm">Loja & Status</th>
@@ -228,7 +224,7 @@ export default function AdminSaaS() {
                                         <td className="p-4 min-w-[200px]">
                                             <p className="font-bold text-white">{loja.name || loja.velopayData?.legalName || '⚠️ [LOJA VAZIA]'}</p>
                                             <div className="mt-1">{renderBillingBadge(loja.billingStatus)}</div>
-                                            <p className="text-[10px] text-slate-600 mt-1">ID: {loja.id}</p>
+                                            <p className="text-[10px] text-slate-600 mt-2">ID: {loja.id}</p>
                                             <div className="mt-2 p-2 bg-slate-950 rounded border border-slate-800 inline-block">
                                                 <p className="text-[10px] font-bold text-slate-400">Repasse Pix: <span className="text-emerald-400">{loja.velopayPixPlan?.toUpperCase() || 'D30'}</span></p>
                                                 <p className="text-[10px] font-bold text-slate-400">Repasse Cartão: <span className="text-blue-400">{loja.velopayCreditPlan?.toUpperCase() || 'D30'}</span></p>
@@ -265,6 +261,7 @@ export default function AdminSaaS() {
                                         <td className="p-4">
                                             <div className="flex justify-end flex-wrap items-center gap-2">
                                                 <button onClick={() => handleApprovePix(loja.id)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">Aprovar Pix</button>
+                                                <button onClick={() => handleUpdatePayout(loja.id)} className="bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CreditCard size={14} /> Repasse</button>
                                                 <button onClick={() => handleImpersonate(loja.id)} className="bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Play size={14} /> Impersonate</button>
                                                 <button onClick={() => handleUpdateBillingStatus(loja.id, loja.billingStatus === 'bloqueado' ? 'pago' : 'bloqueado')} className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Lock size={14} /> Bloquear</button>
                                                 <button onClick={() => handleDeleteStore(loja.id, loja.name)} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors"><Trash2 size={14} /></button>
