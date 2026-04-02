@@ -615,20 +615,7 @@ if (data.abandonmentAlertSent === true) continue;
                 
                 const data = await response.json();
                 if(response.ok) {
-                    // === SALVA A MENSAGEM AUTOMÁTICA NO BANCO PARA APARECER NO CHAT ===
-                    try {
-                        await db.collection('whatsapp_inbound').add({
-                            storeId: storeId,
-                            to: cleanPhone,
-                            text: dynamicParams.text,
-                            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            status: 'read',
-                            direction: 'outbound'
-                        });
-                    } catch(e) {
-                        console.error("Erro ao salvar log no chat:", e);
-                    }
-                    // =================================================================
+                    // Removido o salvamento duplo aqui, pois o Frontend (AdminChat.jsx) já salva a mensagem com sucesso no Firebase.
                     return res.status(200).json({ success: true });
                 } else {
                     console.error("❌ Falha na API Meta [chat_reply]:", data);
@@ -807,7 +794,7 @@ if (data.abandonmentAlertSent === true) continue;
                                             if (nowMs - (sessionData.lastAwaySent || 0) > 3600000) {
                                                 const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                                 replyPayload = { type: "text", text: { body: awayMsg } };
-                                                logTextForPanel = `🤖 [Mensagem de Ausência Enviada]`;
+                                                logTextForPanel = `🤖 ${awayMsg}`;
                                                 
                                                 // Atualiza a sessão para lembrar que já enviou
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, lastAwaySent: nowMs }, { merge: true });
