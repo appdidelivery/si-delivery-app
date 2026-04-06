@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -7,19 +6,8 @@ import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Nav
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import { Carousel } from 'react-responsive-carousel';
-import "react-responsive-carousel/lib/styles/carousel.min.css"; 
+import "react-responsive-carousel/lib/styles/carousel.min.css";
 import { getStoreIdFromHostname } from '../utils/domainHelper';
-
-const Reviews = React.lazy(() => import('../components/Reviews'));
-const AgeGate = React.lazy(() => import('../components/AgeGate'));
-
-// --- OTIMIZADOR DE IMAGENS CLOUDINARY (Corta o peso de Megabytes para Kilobytes) ---
-const optimizeCloudinary = (url, width = 400) => {
-    if (!url || typeof url !== 'string') return url;
-    if (!url.includes('cloudinary.com')) return url;
-    // Motor agressivo: Remove configurações antigas ou gigantes da URL e força a nossa otimização leve
-    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto,w_${width},c_limit/v`);
-};
 
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
 import { 
@@ -37,6 +25,17 @@ import {
     FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
     FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar 
 } from 'react-icons/fa6';
+
+const Reviews = React.lazy(() => import('../components/Reviews'));
+const AgeGate = React.lazy(() => import('../components/AgeGate'));
+
+// --- OTIMIZADOR DE IMAGENS CLOUDINARY (Corta o peso de Megabytes para Kilobytes) ---
+const optimizeCloudinary = (url, width = 400) => {
+    if (!url || typeof url !== 'string') return url;
+    if (!url.includes('cloudinary.com')) return url;
+    // Motor agressivo: Remove configurações antigas ou gigantes da URL e força a nossa otimização leve
+    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto,w_${width},c_limit/v`);
+};
 
 const renderCategoryIcon = (iconName, categoryName) => {
     if (iconName) {
@@ -199,9 +198,10 @@ export default function Home() {
           const v = parseInt(Math.random() * 1000000);
           
           script.type = 'text/javascript';
-          script.async = false;
+          script.async = true; // <-- ISSO LIBERA A TELA PARA CARREGAR IMEDIATAMENTE
+          script.defer = true; // <-- GARANTE QUE NÃO BLOQUEIA O REACT
           script.id = 'efi-sdk';
-          script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`; 
+          script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`;
           
           document.head.appendChild(script);
           
@@ -462,12 +462,12 @@ export default function Home() {
     }
 
     const savedPhone = localStorage.getItem('customerPhone');
-            if (savedPhone && !parsedCustomer.phone) {
-                setCustomer(prev => ({ ...prev, phone: savedPhone }));
-            }
-          }, [storeSettings?.deliveryEnabled, storeSettings?.pickupEnabled]); // <-- ADICIONE APENAS ESTA LINHA AQUI!
+        if (savedPhone && !parsedCustomer.phone) {
+            setCustomer(prev => ({ ...prev, phone: savedPhone }));
+        }
+    }, [storeSettings?.deliveryEnabled, storeSettings?.pickupEnabled]);
 
-  const handleCustomerChange = (field, value) => {
+    const handleCustomerChange = (field, value) => {
     const updatedCustomer = { ...customer,[field]: value };
     setCustomer(updatedCustomer);
     const { payment, changeFor, ...dataToSave } = updatedCustomer;
@@ -1951,10 +1951,10 @@ if (window.fbq) {
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
-                    <button onClick={handleShare} className="p-2.5 bg-white/20 text-white rounded-full backdrop-blur-sm border border-white/30 hover:bg-white/30 active:scale-95 transition-all shadow-sm">
-                        <Share size={18} />
-                    </button>
-                </div>
+                    <button aria-label="Compartilhar loja" onClick={handleShare} className="p-2.5 bg-white/20 text-white rounded-full backdrop-blur-sm border border-white/30 hover:bg-white/30 active:scale-95 transition-all shadow-sm">
+                        <Share size={18} aria-hidden="true" />
+                    </button>
+                </div>
             </div>
 
             <div className={`inline-flex self-start items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-md border ${isStoreOpenNow ? 'bg-green-500/20 text-green-100 border-green-400/50' : 'bg-red-500/20 text-red-100 border-red-400/50'} shadow-inner`}>
@@ -2007,10 +2007,10 @@ if (window.fbq) {
           <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[21/9]">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
-                <div key={index}>
-                  <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-[2/1] object-cover rounded-[2rem] shadow-xl border-4 border-white" />
-                </div>
-              ))}
+                <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
+                  <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-[2rem] shadow-xl border-4 border-white" />
+                </div>
+              ))}
             </Carousel>
           </motion.div>
         )}
@@ -2164,14 +2164,14 @@ if (window.fbq) {
                   Nossos Destaques
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <AnimatePresence mode='popLayout'>
-                      {featuredProducts.map(p => {
+                  <AnimatePresence>
+                      {featuredProducts.map((p, index) => {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
-                              <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                      <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading={index < 2 ? "eager" : "lazy"} fetchpriority={index < 2 ? "high" : "auto"} decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
                                           <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
@@ -2197,8 +2197,8 @@ if (window.fbq) {
                                               <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} />
+                                      <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} aria-hidden="true" />
                                       </button>
                                   </div>
                               </motion.div>
@@ -2215,13 +2215,13 @@ if (window.fbq) {
                   Mais Vendidos
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <AnimatePresence mode='popLayout'>
-                      {bestsellingProducts.map(p => {
+                  <AnimatePresence>
+                      {bestsellingProducts.map((p, index) => {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
-                              <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                   <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                      <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading={index < 2 ? "eager" : "lazy"} fetchpriority={index < 2 ? "high" : "auto"} decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2248,8 +2248,8 @@ if (window.fbq) {
                                               <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} />
+                                      <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} aria-hidden="true" />
                                       </button>
                                   </div>
                               </motion.div>
@@ -2261,16 +2261,17 @@ if (window.fbq) {
       )}
 
       <main className="px-6 mb-20 mt-8">
+        <h2 className="sr-only">Catálogo de Produtos</h2>
         {layoutTheme === 'grid' ? (
             <div className={`grid grid-cols-2 md:grid-cols-4 gap-4`}>
-                <AnimatePresence mode='popLayout'>
+                <AnimatePresence>
                     {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                         return (
-                            <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                    <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
                                         <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
@@ -2296,10 +2297,10 @@ if (window.fbq) {
                                               <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                           )}
                                       </div>
-                                      <button onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} />
+                                      <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                          <ShoppingCart size={16} aria-hidden="true" />
                                       </button>
-                                  </div>
+                                </div>
                             </motion.div>
                         );
                     })}
@@ -2327,11 +2328,11 @@ if (window.fbq) {
                                 <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-4 sticky top-20 bg-slate-50 z-40 py-2">
                                     {cat.name}
                                 </h2>
-                                <AnimatePresence mode='popLayout'>
+                                <AnimatePresence>
                                     {categoryProducts.map(p => {
                                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                                         return (
-                                            <motion.div layout initial={{opacity:0, x:-20}} animate={{opacity:1, x:0}} key={p.id} 
+                                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} 
                                                 onClick={() => hasStock ? handleOpenProduct(p) : null}
                                                 className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
                                             >
@@ -2352,8 +2353,8 @@ if (window.fbq) {
                                                     </div>
                                                 </div>
                                                 <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
-                                                    <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
+                                                    <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
                                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl z-10">-{p.discountPercentage}%</span>}
                                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
                                                     {p.isChilled && <span className="absolute bottom-1 right-1 bg-cyan-100 text-cyan-800 text-[10px] p-1 rounded-full leading-none shadow-sm z-10">❄️</span>}
@@ -2378,14 +2379,14 @@ if (window.fbq) {
             </p>
             {storeSettings.address && (
                 <a 
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeSettings.address)}`} 
+                    href={`https://maps.google.com/?q=${encodeURIComponent(storeSettings.address)}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-2 ${currentTheme.lightBg} ${currentTheme.text} px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest ${currentTheme.hoverLightBg} transition-all`}
                 >
                     Ver no Google Maps <ExternalLink size={14}/>
                 </a>
-            )}
+            )}
         </div>
       </section>
 
@@ -3249,8 +3250,6 @@ if (window.fbq) {
         )}
       </AnimatePresence>
 
-      {/* --- MODO GARÇOM LOGIN --- */}
-      <AnimatePresence></AnimatePresence>
       {/* --- MODO GARÇOM LOGIN --- */}
       <AnimatePresence>
         {showWaiterLogin && (

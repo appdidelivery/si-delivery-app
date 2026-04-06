@@ -73,13 +73,13 @@ export default function AgeGate({ enabled }) {
                             <button 
                                 aria-label="Informar que sou menor de idade"
                                 onClick={() => handleConfirmAge(false)}
-                                className="w-full bg-slate-100 text-slate-500 py-4 rounded-2xl font-bold uppercase tracking-widest text-sm hover:bg-red-50 hover:text-red-500 transition-all"
+                                className="w-full bg-slate-200 text-slate-700 py-4 rounded-2xl font-bold uppercase tracking-widest text-sm hover:bg-red-50 hover:text-red-700 transition-all"
                             >
                                 Não, sou menor de idade
                             </button>
                         </div>
                         
-                        <p className="text-[10px] text-slate-400 mt-6 flex items-center justify-center gap-1">
+                        <p className="text-[10px] text-slate-500 mt-6 flex items-center justify-center gap-1">
                             <ShieldAlert size={12} aria-hidden="true" /> Venda proibida para menores de 18 anos.
                         </p>
                     </motion.div>
