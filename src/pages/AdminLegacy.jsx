@@ -592,22 +592,34 @@ export default function Admin() {
             }
 
             const now = new Date();
-            let startOfCycle = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+            let startOfCycle, endOfCycle;
             
-            // Se hoje for ANTES do dia de vencimento, o ciclo atual começou no mês passado
-            if (now < startOfCycle) {
+            // O pulo do gato: se o dia de hoje for Menor ou Igual ao Vencimento, 
+            // significa que a loja AINDA está dentro do ciclo que fecha neste mês (Até as 23h59 de hoje).
+            if (now.getDate() <= diaVencimento) {
                 startOfCycle = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+                endOfCycle = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
+            } else {
+                startOfCycle = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+                endOfCycle = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento, 23, 59, 59);
             }
-            
-            const endOfCycle = new Date(startOfCycle.getFullYear(), startOfCycle.getMonth() + 1, diaVencimento);
 
-            const franchiseLimit = 100; // Franquia de pedidos
+            const franchiseLimit = 100;
             
-            // Conta pedidos DENTRO DO CICLO ATUAL do lojista
+            // BLINDAGEM DE DATAS: Garante que só pedidos deste ciclo exato sejam somados
             const currentMonthOrders = orders.filter(o => {
-                if(!o.createdAt) return false;
-                const d = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt.seconds * 1000);
-                return d >= startOfCycle && d < endOfCycle;
+                if (o.status === 'canceled' || o.status === 'cancelado') return false;
+                if (!o.createdAt) return false;
+
+                let d;
+                if (typeof o.createdAt.toDate === 'function') d = o.createdAt.toDate();
+                else if (o.createdAt.seconds) d = new Date(o.createdAt.seconds * 1000);
+                else if (o.createdAt._seconds) d = new Date(o.createdAt._seconds * 1000);
+                else d = new Date(o.createdAt);
+                
+                if (isNaN(d)) return false;
+
+                return d >= startOfCycle && d <= endOfCycle;
             }).length;
 
             const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
@@ -616,8 +628,8 @@ export default function Admin() {
             setInvoiceData({
                 basePlan: 49.90,
                 extraOrdersCost: extraCost,
-                storageUsage: (products.length * 0.5) + (generalBanners.length * 2), // Estimativa MB
-                dbUsage: products.length + orders.length + 50, // Estimativa Registros
+                storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
+                dbUsage: products.length + orders.length + 50,
                 total: 49.90 + extraCost,
                 status: 'open',
                 cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
