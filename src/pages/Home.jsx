@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy } from 'lucide-react';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import { Carousel } from 'react-responsive-carousel';
@@ -16,12 +16,9 @@ const AgeGate = React.lazy(() => import('../components/AgeGate'));
 // --- OTIMIZADOR DE IMAGENS CLOUDINARY (Corta o peso de Megabytes para Kilobytes) ---
 const optimizeCloudinary = (url, width = 400) => {
     if (!url || typeof url !== 'string') return url;
-    // Força formato WebP, compressão máxima e redimensionamento inteligente na nuvem
-    if (url.includes('cloudinary.com') && !url.includes('f_auto')) {
-        const parts = url.split('/upload/');
-        if (parts.length === 2) return `${parts[0]}/upload/f_auto,q_auto,w_${width}/${parts[1]}`;
-    }
-    return url;
+    if (!url.includes('cloudinary.com')) return url;
+    // Motor agressivo: Remove configurações antigas ou gigantes da URL e força a nossa otimização leve
+    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto,w_${width},c_limit/v`);
 };
 
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
@@ -515,68 +512,47 @@ export default function Home() {
   }, [cart, customer.phone, customer.name, storeId]);
      
   const[marketingSettings, setMarketingSettings] = useState({
-        promoActive: false,
-        promoBannerUrls:[]
-  });
-  const[showExitModal, setShowExitModal] = useState(false);
-  // --- NOVO: MOTOR DA PROMOÇÃO COMPRE E GANHE (BOGO) ---
+        promoActive: false,
+        promoBannerUrls:[]
+  });
+  const[showExitModal, setShowExitModal] = useState(false);
+
+  // --- MOTOR DE PROVA SOCIAL (LIVE SALES) ---
+  const [socialProof, setSocialProof] = useState({ visible: false, name: '', product: '' });
+
   useEffect(() => {
-      const promo = marketingSettings?.buyAndGetPromo;
-      
-      // 1. Se a promo não existe, tá desligada, ou não configurou os produtos, removemos qualquer brinde
-      if (!promo?.active || !promo?.triggerProductIds?.length || !promo?.rewardProductId) {
-          setCart(prev => prev.some(i => i.isReward) ? prev.filter(i => !i.isReward) : prev);
-          return;
-      }
+      // Só ativa se o lojista ligou no Painel Admin e se já carregou os produtos
+      if (!marketingSettings?.socialProofActive || products.length === 0) return;
 
-      // 2. Valida dia e horário da promoção
-      const isPromoTimeActive = isWithinRecurringSchedule(promo.recurringDay, promo.recurringStart, promo.recurringEnd);
-      if (!isPromoTimeActive) {
-          setCart(prev => prev.some(i => i.isReward) ? prev.filter(i => !i.isReward) : prev);
-          return;
-      }
+      const firstNames = ['João', 'Maria', 'Pedro', 'Ana', 'Lucas', 'Juliana', 'Carlos', 'Fernanda', 'Rafael', 'Amanda', 'Ricardo', 'Camila', 'Marcos', 'Letícia', 'Diego', 'Michele'];
 
-      // 3. Conta quantos produtos "Gatilho" existem no carrinho
-      const triggerItemsCount = cart.reduce((acc, item) => {
-          if (promo.triggerProductIds.includes(item.id) && !item.isReward) {
-              return acc + item.quantity;
-          }
-          return acc;
-      }, 0);
+      const triggerSocialProof = () => {
+          // Sorteia um nome e uma letra de sobrenome
+          const randomName = firstNames[Math.floor(Math.random() * firstNames.length)] + ' ' + String.fromCharCode(65 + Math.floor(Math.random() * 26)) + '.';
+          
+          // Sorteia um produto REAL do cardápio desta loja
+          const randomProduct = products[Math.floor(Math.random() * products.length)]?.name;
+          const randomQty = Math.floor(Math.random() * 2) + 1; // 1 ou 2 unidades
 
-      // 4. Busca os dados do produto brinde
-      const rewardProduct = products.find(p => p.id === promo.rewardProductId);
-      if (!rewardProduct) return;
+          setSocialProof({ visible: true, name: randomName, product: `${randomQty}x ${randomProduct}` });
 
-      // 5. Atualiza o carrinho injetando ou removendo o brinde automaticamente
-      setCart(prevCart => {
-          const rewardItem = prevCart.find(i => i.isReward && i.id === promo.rewardProductId);
-          
-          if (triggerItemsCount > 0) {
-              // Se a quantidade de brinde for diferente da quantidade de gatilhos, atualizamos (Evita loop infinito)
-              if (!rewardItem || rewardItem.quantity !== triggerItemsCount) {
-                  const cleanCart = prevCart.filter(i => !i.isReward);
-                  return [...cleanCart, {
-                      ...rewardProduct,
-                      cartItemId: `reward-${promo.rewardProductId}`,
-                      quantity: triggerItemsCount,
-                      price: 0, // Brinde é de graça!
-                      isReward: true,
-                      name: `🎁 BRINDE: ${rewardProduct.name}`
-                  }];
-              }
-          } else {
-              // Se removeu os gatilhos, tira o brinde
-              if (rewardItem) {
-                  return prevCart.filter(i => !i.isReward);
-              }
-          }
-          return prevCart;
-      });
+          // Esconde o popup depois de 5 segundos
+          setTimeout(() => {
+              setSocialProof(prev => ({ ...prev, visible: false }));
+          }, 5000);
+      };
 
-  }, [cart, marketingSettings?.buyAndGetPromo, products]);
+      // Começa a brincadeira 10 segundos após a página abrir, e repete a cada 40 segundos
+      const initialTimer = setTimeout(triggerSocialProof, 10000);
+      const intervalTimer = setInterval(triggerSocialProof, 40000);
 
-  // --- ESTADOS DA ÁREA VIP E GAMIFICAÇÃO ---
+      return () => {
+          clearTimeout(initialTimer);
+          clearInterval(intervalTimer);
+      };
+  }, [marketingSettings?.socialProofActive, products]);
+
+  // --- ESTADOS DA ÁREA VIP E GAMIFICAÇÃO ---
   const[showVipArea, setShowVipArea] = useState(false);
   const[showReviewPopup, setShowReviewPopup] = useState(false);
   const [pendingReviewOrder, setPendingReviewOrder] = useState(null);
@@ -1990,7 +1966,7 @@ if (window.fbq) {
 
       <AnimatePresence>
         {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-slate-900 text-white px-6 py-4 relative overflow-hidden shadow-lg border-b border-slate-800">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-slate-900 text-white px-6 py-4 relative overflow-hidden shadow-lg border-b border-slate-800">
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
             <div className="flex justify-between items-end relative z-10 mb-2">
               <div className="flex items-center gap-3">
@@ -2028,13 +2004,13 @@ if (window.fbq) {
          (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
          (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
          isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 min-h-[180px]">
+          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[21/9]">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
-                <div key={index}>
-                  <img src={url} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
-                </div>
-              ))}
+                <div key={index}>
+                  <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-[2/1] object-cover rounded-[2rem] shadow-xl border-4 border-white" />
+                </div>
+              ))}
             </Carousel>
           </motion.div>
         )}
@@ -2042,12 +2018,12 @@ if (window.fbq) {
 
       <AnimatePresence>
         {generalBanners.length > 0 && (
-          <motion.div layout initial={{height:0, opacity:0}} animate={{height:'auto', opacity:1}} exit={{height:0, opacity:0}} className="overflow-hidden p-6 pt-0 min-h-[180px]">
+          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[21/9]">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
               {generalBanners.map((banner, index) => (
                 <div key={banner.id}>
                     <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
-                        <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full h-auto object-contain rounded-[2rem] shadow-xl border-4 border-white" />
+                        <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-[2/1] object-cover rounded-[2rem] shadow-xl border-4 border-white" />
                     </a>
                 </div>
               ))}
@@ -2117,7 +2093,7 @@ if (window.fbq) {
                 if (!banner.topBarText || !isWithinRecurringSchedule(banner.recurringDay, banner.recurringStart, banner.recurringEnd)) return null;
                 
                 return (
-                    <motion.div key={index} initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
+                    <motion.div key={index} initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.95 }} className="mb-6 relative z-20 w-full">
                         <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden`}>
                             
                             {/* Borda tracejada geral */}
@@ -2293,8 +2269,8 @@ if (window.fbq) {
                         return (
                             <motion.div layout initial={{opacity:0, scale:0.9}} animate={{opacity:1, scale:1}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                   <img src={p.imageUrl} alt={p.name} width="80" height="80" loading="lazy" decoding="async" className="w-20 h-20 object-contain mx-auto mb-2" />
-                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                                    <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
                                         <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
@@ -2508,7 +2484,29 @@ if (window.fbq) {
         </div>
       </footer>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50"> 
+      {/* --- POPUP DE PROVA SOCIAL VISUAL --- */}
+      <AnimatePresence>
+          {socialProof.visible && (
+              <motion.div 
+                  initial={{ opacity: 0, y: 50, scale: 0.9 }} 
+                  animate={{ opacity: 1, y: 0, scale: 1 }} 
+                  exit={{ opacity: 0, y: 20, scale: 0.9 }} 
+                  className="fixed bottom-24 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-white rounded-2xl shadow-2xl border-l-4 border-green-500 p-4 z-40 flex items-center gap-4"
+              >
+                  <div className="bg-green-100 p-2 rounded-full flex-shrink-0">
+                      <CheckCircle size={20} className="text-green-600" />
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                      <p className="text-xs font-black text-slate-800 uppercase tracking-widest mb-0.5">Compra Verificada</p>
+                      <p className="text-xs text-slate-500 font-bold truncate">
+                          {socialProof.name} comprou <span className="text-slate-700">{socialProof.product}</span>
+                      </p>
+                  </div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50">
         <AnimatePresence>
           {activeOrderId && (
             <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
@@ -2734,8 +2732,8 @@ if (window.fbq) {
                           <p className="font-black text-xs text-slate-400 uppercase ml-4 tracking-widest mb-4">Que tal pedir também?</p>
                           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                               {upsellProducts.map(p => (
-                                  <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
-                                      <img src={p.imageUrl} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                  <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
+                                      <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-24 h-24 object-contain mx-auto mb-2" />
                                       <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
                                       <p className={`${currentTheme.text} font-black text-sm`}>
                                           R$ {Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice).toFixed(2) : Number(p.price).toFixed(2)}
