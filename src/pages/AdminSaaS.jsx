@@ -172,13 +172,25 @@ export default function AdminSaaS() {
                     if (!jaExiste) {
                         // CALCULA OS PEDIDOS REAIS QUE A LOJA FEZ NESTE CICLO ESPECÍFICO DO PASSADO
                         const pedidosNoCiclo = todosPedidosLoja.filter(oData => {
-                            if (oData.status === 'canceled') return false;
+                            // Ignora cancelados
+                            if (oData.status === 'canceled' || oData.status === 'cancelado') return false;
+                            
+                            if (!oData.createdAt) return false;
+
                             let dt;
-                            if (oData.createdAt && typeof oData.createdAt.toDate === 'function') {
+                            // Tenta todos os formatos possíveis que o Firebase pode ter salvo no passado
+                            if (typeof oData.createdAt.toDate === 'function') {
                                 dt = oData.createdAt.toDate();
+                            } else if (oData.createdAt.seconds) {
+                                dt = new Date(oData.createdAt.seconds * 1000);
+                            } else if (oData.createdAt._seconds) {
+                                dt = new Date(oData.createdAt._seconds * 1000);
                             } else {
-                                dt = new Date(oData.createdAt || 0);
+                                dt = new Date(oData.createdAt);
                             }
+                            
+                            if (isNaN(dt)) return false;
+
                             return dt >= startOfCycle && dt < endOfCycle;
                         }).length;
 
