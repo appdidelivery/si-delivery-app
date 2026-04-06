@@ -228,20 +228,96 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------------------
-    // 5. CRON AUTOMATIONS (ROBÔ DE RESGATE E RETENÇÃO)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/cron-automations') {
-        if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-        try {
-            console.log("⏱️ Iniciando Rotina de Automação de Marketing...");
-            const batch = db.batch();
-            let alertsSent = 0;
-            const now = new Date();
-            const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60000); // 30 Minutos atrás
-            
-            // Buscamos todos os abandonados e filtramos o envio no loop abaixo
+    // 5. CRON AUTOMATIONS (ROBÔ DE RESGATE, RETENÇÃO E FATURAMENTO)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/cron-automations') {
+        if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        try {
+            console.log("⏱️ Iniciando Rotina de Automação e Faturamento...");
+            const batch = db.batch();
+            
+            // --- INÍCIO: MOTOR DE FATURAMENTO AUTOMÁTICO (ROLLING BILLING) ---
+            // Força o fuso horário para o Brasil (UTC-3) para o Cron não fechar fatura no dia errado
+            const brazilTime = new Date(new Date().getTime() - 3 * 3600 * 1000);
+            const todayDay = brazilTime.getDate();
+            let faturasGeradas = 0;
+
+            const storesQuery = await db.collection('stores').get();
+            
+            for (const storeDoc of storesQuery.docs) {
+                const storeData = storeDoc.data();
+                if (!storeData.createdAt) continue;
+
+                // Lida com datas salvas como Timestamp (App) ou ISO String (Manual)
+                const dataCriacao = storeData.createdAt.toDate ? storeData.createdAt.toDate() : new Date(storeData.createdAt._seconds ? storeData.createdAt._seconds * 1000 : storeData.createdAt);
+                if (isNaN(dataCriacao)) continue;
+
+                const diaVencimento = dataCriacao.getDate();
+
+                // Hoje é o aniversário da loja? Se sim, FECHA A FATURA DAQUELE CICLO!
+                if (diaVencimento === todayDay) {
+                    const nomeMesAno = brazilTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                    
+                    const faturas = storeData.faturasHistorico || [];
+                    const faturaJaExiste = faturas.some(f => f.month.toLowerCase() === nomeMesAno.toLowerCase() && f.isAuto);
+                    
+                    if (!faturaJaExiste) {
+                        const startOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth() - 1, diaVencimento);
+                        const endOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth(), diaVencimento);
+
+                        // Conta pedidos do ciclo para cobrar excedentes (acima da franquia de 100)
+                        const ordersSnap = await db.collection('orders')
+                            .where('storeId', '==', storeDoc.id)
+                            .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(startOfCycle))
+                            .where('createdAt', '<', admin.firestore.Timestamp.fromDate(endOfCycle))
+                            .get();
+
+                        const ordersCount = ordersSnap.docs.filter(d => d.data().status !== 'canceled').length;
+                        
+                        const extraOrders = Math.max(0, ordersCount - 100);
+                        const extraCost = extraOrders * 0.25;
+                        const isCortesia = storeData.billingStatus === 'gratis_vitalicio';
+                        
+                        const totalFatura = isCortesia ? 0 : (49.90 + extraCost);
+                        const statusFatura = isCortesia ? 'ISENTO' : 'PENDENTE';
+
+                        const novaFatura = {
+                            id: `cron_${brazilTime.getTime()}`,
+                            month: nomeMesAno,
+                            amount: `R$ ${totalFatura.toFixed(2).replace('.', ',')}`,
+                            status: statusFatura,
+                            dueDate: endOfCycle.toISOString(),
+                            createdAt: brazilTime.toISOString(),
+                            isAuto: true,
+                            breakdown: {
+                                basePlan: 49.90,
+                                extraOrdersCost: extraCost,
+                                discount: isCortesia ? (49.90 + extraCost) : 0
+                            }
+                        };
+
+                        const updateData = { faturasHistorico: admin.firestore.FieldValue.arrayUnion(novaFatura) };
+                        
+                        // Se a loja paga, avisa no painel que ela tem boleto aberto mudando o status mestre
+                        if (!isCortesia && storeData.billingStatus !== 'teste' && storeData.billingStatus !== 'bloqueado') {
+                            updateData.billingStatus = 'pendente';
+                        }
+
+                        batch.update(storeDoc.ref, updateData);
+                        faturasGeradas++;
+                    }
+                }
+            }
+            console.log(`✅ Motor de Faturamento: ${faturasGeradas} faturas fechadas hoje.`);
+            // --- FIM: MOTOR DE FATURAMENTO AUTOMÁTICO ---
+
+            let alertsSent = 0;
+            const now = new Date();
+            const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60000); // 30 Minutos atrás
+            
+            // Buscamos todos os abandonados e filtramos o envio no loop abaixo
 const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").get();
             const abandonedPromises = [];
 

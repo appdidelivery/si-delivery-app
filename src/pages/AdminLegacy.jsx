@@ -584,15 +584,30 @@ export default function Admin() {
     // Efeito para calcular a fatura em tempo real e Saldo VeloPay dinâmico
     useEffect(() => {
         if(orders.length > 0 || products.length > 0) {
-            // Lógica simples de cálculo baseada no manifesto
+            // --- LÓGICA DE CICLO ROTATIVO (SAAS) ---
+            let diaVencimento = 10;
+            if (storeStatus?.createdAt) {
+                const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
+                if (!isNaN(dataCriacao)) diaVencimento = dataCriacao.getDate();
+            }
+
+            const now = new Date();
+            let startOfCycle = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+            
+            // Se hoje for ANTES do dia de vencimento, o ciclo atual começou no mês passado
+            if (now < startOfCycle) {
+                startOfCycle = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+            }
+            
+            const endOfCycle = new Date(startOfCycle.getFullYear(), startOfCycle.getMonth() + 1, diaVencimento);
+
             const franchiseLimit = 100; // Franquia de pedidos
             
-            // Conta pedidos deste mês
+            // Conta pedidos DENTRO DO CICLO ATUAL do lojista
             const currentMonthOrders = orders.filter(o => {
                 if(!o.createdAt) return false;
-                const d = o.createdAt.toDate();
-                const now = new Date();
-                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                const d = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt.seconds * 1000);
+                return d >= startOfCycle && d < endOfCycle;
             }).length;
 
             const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
@@ -604,7 +619,9 @@ export default function Admin() {
                 storageUsage: (products.length * 0.5) + (generalBanners.length * 2), // Estimativa MB
                 dbUsage: products.length + orders.length + 50, // Estimativa Registros
                 total: 49.90 + extraCost,
-                status: 'open'
+                status: 'open',
+                cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
+                cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})
             });
 
             // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
@@ -4463,9 +4480,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <p className="text-xl font-black text-slate-800">R$ 0,00 <span className="text-[10px] font-normal text-slate-400">(Zero % Comissão)</span></p>
                                     </div>
                                     <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Ciclo Atual</p>
-                                        <p className="text-xl font-black text-slate-800">{new Date().toLocaleString('default', { month: 'long' })}/26</p>
-                                    </div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Ciclo Atual</p>
+                                        <p className="text-lg font-black text-slate-800">
+                                            {invoiceData.cycleStartStr || '--/--'} a {invoiceData.cycleEndStr || '--/--'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
