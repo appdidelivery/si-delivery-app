@@ -136,10 +136,20 @@ export default function AdminSaaS() {
             const hoje = new Date();
             
             storesList.forEach(loja => {
-                if (!loja.createdAt) return;
-                
-                const dataCriacao = loja.createdAt.toDate ? loja.createdAt.toDate() : new Date(loja.createdAt);
-                if (isNaN(dataCriacao)) return;
+                let dataCriacao;
+                let isFixingDate = false;
+
+                // Se a loja não tem data, assume 10 de Janeiro para não quebrar
+                if (!loja.createdAt) {
+                    dataCriacao = new Date(2026, 0, 10); 
+                    isFixingDate = true;
+                } else {
+                    dataCriacao = loja.createdAt.toDate ? loja.createdAt.toDate() : new Date(loja.createdAt);
+                    if (isNaN(dataCriacao)) {
+                        dataCriacao = new Date(2026, 0, 10);
+                        isFixingDate = true;
+                    }
+                }
 
                 const diaVencimento = dataCriacao.getDate();
                 let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1); 
@@ -167,10 +177,16 @@ export default function AdminSaaS() {
                     iteradorMes.setMonth(iteradorMes.getMonth() + 1);
                 }
 
-                if (novasFaturas.length > 0) {
+                if (novasFaturas.length > 0 || isFixingDate) {
                     const lojaRef = doc(db, 'stores', loja.id);
-                    const historicoCompleto = [...historicoAtual, ...novasFaturas];
-                    batchPromises.push(updateDoc(lojaRef, { faturasHistorico: historicoCompleto }));
+                    const updateData = {};
+                    if (novasFaturas.length > 0) {
+                        updateData.faturasHistorico = [...historicoAtual, ...novasFaturas];
+                    }
+                    if (isFixingDate) {
+                        updateData.createdAt = dataCriacao; // Salva a data corrigida no banco
+                    }
+                    batchPromises.push(updateDoc(lojaRef, updateData));
                 }
             });
 
@@ -396,8 +412,26 @@ export default function AdminSaaS() {
                                         <h3 className="font-bold text-white text-xl uppercase">{loja.name || loja.velopayData?.legalName || '⚠️ LOJA FANTASMA'}</h3>
                                         <div className="mt-2 flex items-center gap-2">
                                             {renderBillingBadge(loja.billingStatus)}
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-800 px-2 py-1 rounded">
-                                                Vencimento: <span className="text-blue-400">{calculateDueDate(loja.createdAt)}</span>
+                                            <span 
+                                                onClick={async () => {
+                                                    const novaData = window.prompt("Mudar a data de criação/vencimento desta loja? (Formato: YYYY-MM-DD)\nExemplo para Janeiro: 2026-01-10", "2026-01-10");
+                                                    if (novaData) {
+                                                        const dateObj = new Date(novaData + 'T12:00:00');
+                                                        if (!isNaN(dateObj)) {
+                                                            setActionLoading(`date_${loja.id}`);
+                                                            await updateDoc(doc(db, 'stores', loja.id), { createdAt: dateObj });
+                                                            alert("✅ Data alterada! Agora clique no botão 'Sincronizar Faturas Antigas' lá em cima.");
+                                                            await fetchSaaSData();
+                                                            setActionLoading(null);
+                                                        } else {
+                                                            alert("Formato inválido. Use YYYY-MM-DD");
+                                                        }
+                                                    }
+                                                }}
+                                                className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-800 px-2 py-1 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-all border border-transparent hover:border-slate-600"
+                                                title="Clique para alterar a data base da loja"
+                                            >
+                                                Vencimento: <span className="text-blue-400">{calculateDueDate(loja.createdAt)}</span> ✏️
                                             </span>
                                         </div>
                                     </div>
