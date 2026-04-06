@@ -2239,9 +2239,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(24 Horas)</span>
                                                     </button>
                                                 </div>
-                                                <button onClick={() => window.confirm("Deseja apagar este carrinho?") && deleteDoc(doc(db, "abandoned_carts", cart.id))} className="w-full mt-3 p-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors flex items-center justify-center gap-1">
-                                                    <Trash2 size={12} /> Descartar Carrinho
-                                                </button>
+                                                <button onClick={() => alert("Ação temporariamente desativada para testes e análise de dados.")} className="w-full mt-3 p-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1 opacity-50 cursor-not-allowed">
+                                                        <Trash2 size={12} /> Descartar Carrinho
+                                                    </button>
                                             </div>
                                         </div>
                                     );
