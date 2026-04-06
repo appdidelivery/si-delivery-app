@@ -3530,11 +3530,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 />
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
+                                    )}
+                                </div>
 
-                            {/* COLUNA DIREITA: FIDELIDADE E CUPONS GERAIS */}
+                                {/* --- 3. PROVA SOCIAL (LIVE SALES) --- */}
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all ${settings.socialProofActive ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-white/20 p-3 rounded-full">
+                                                <Users size={32} className={settings.socialProofActive ? 'text-white animate-bounce' : 'text-slate-300'} /> 
+                                            </div>
+                                            <div>
+                                                <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.socialProofActive ? 'text-white' : 'text-slate-800'}`}>Prova Social</h2>
+                                                <p className={`text-xs font-bold mt-1 ${settings.socialProofActive ? 'text-emerald-100' : 'text-slate-400'}`}>Pop-up de compras ao vivo.</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={async () => { const newState = !settings.socialProofActive; await setDoc(doc(db, "settings", storeId), { socialProofActive: newState }, { merge: true }); }} 
+                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.socialProofActive ? 'bg-white text-emerald-600 hover:bg-emerald-50' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                        >
+                                            {settings.socialProofActive ? 'Desativar' : 'Ativar Módulo'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COLUNA DIREITA: FIDELIDADE E CUPONS GERAIS */}
                             <div className="space-y-6 lg:space-y-8">
                                 {/* --- NOVO: COMPRE E GANHE (BOGO) --- */}
                                 <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.buyAndGetPromo?.active ? 'bg-teal-600 text-white border-teal-400' : 'bg-white border-slate-100'}`}>
