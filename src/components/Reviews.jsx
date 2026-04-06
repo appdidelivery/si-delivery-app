@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, limit, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Star } from 'lucide-react';
+import { Star, ThumbsUp, ImageIcon } from 'lucide-react';
 
 export default function Reviews({ storeId }) {
     const [reviews, setReviews] = useState([]);
@@ -18,7 +18,7 @@ export default function Reviews({ storeId }) {
                 const q = query(
                     collection(db, "reviews"),
                     where("storeId", "==", storeId),
-                    limit(10)
+                    limit(100) // Aumentado para gerar uma média mais real
                 );
                 const snapshot = await getDocs(q);
                 
@@ -73,9 +73,62 @@ export default function Reviews({ storeId }) {
         }
     };
 
+    // Cálculos para o SEO e para a nota visual
+    const totalReviews = reviews.length;
+    const averageRating = totalReviews > 0 
+        ? (reviews.reduce((acc, curr) => acc + Number(curr.rating || 5), 0) / totalReviews).toFixed(1) 
+        : 5.0;
+
+    // Schema.org para o Google ler as estrelas nos resultados de pesquisa
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "name": "Velo Delivery Store",
+        "aggregateRating": totalReviews > 0 ? {
+            "@type": "AggregateRating",
+            "ratingValue": averageRating,
+            "reviewCount": totalReviews,
+            "bestRating": "5",
+            "worstRating": "1"
+        } : undefined
+    };
+
     return (
-        <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mt-8 mb-4">
-            <h2 className="text-2xl font-black italic uppercase mb-6 text-slate-800">Avaliações da Loja</h2>
+        <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mt-8 mb-4 relative">
+            {/* Script invisível para SEO (Rich Snippets no Google) */}
+            {totalReviews > 0 && (
+                <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+            )}
+            
+            {/* Cabeçalho Visual de Avaliações */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                    <h2 className="text-2xl font-black italic uppercase text-slate-800 mb-1">Avaliações da Loja</h2>
+                    <div className="flex items-center gap-3">
+                        <span className="text-4xl font-black text-slate-900">{averageRating}</span>
+                        <div className="flex flex-col">
+                            <div className="flex text-yellow-400">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star key={star} size={18} fill={star <= Math.round(averageRating) ? "currentColor" : "none"} />
+                                ))}
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                Baseado em {totalReviews} avaliações
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                {averageRating >= 4.0 && (
+                    <div className="bg-green-100 text-green-700 flex items-center gap-2 px-4 py-2 rounded-2xl border border-green-200 shadow-sm">
+                        <ThumbsUp size={20} className="mb-1" />
+                        <div className="flex flex-col">
+                            <span className="text-xs font-black uppercase tracking-widest leading-none">Excelente</span>
+                            <span className="text-[9px] font-bold opacity-80 uppercase tracking-widest">Loja Verificada</span>
+                        </div>
+                    </div>
+                )}
+            </div>
             
             {/* --- LISTAGEM DE AVALIAÇÕES --- */}
             <div className="space-y-4 mb-8 max-h-80 overflow-y-auto custom-scrollbar pr-2">
@@ -94,6 +147,13 @@ export default function Reviews({ storeId }) {
                             </div>
                         </div>
                         <p className="text-sm text-slate-600 font-medium leading-relaxed">{r.comment}</p>
+                        
+                        {/* Foto da Avaliação (Se houver) */}
+                        {r.imageUrl && (
+                            <div className="mt-3 relative rounded-xl overflow-hidden border border-slate-200 inline-block">
+                                <img src={r.imageUrl} alt={`Foto da avaliação de ${r.customerName}`} className="h-24 w-auto object-cover rounded-xl" loading="lazy" />
+                            </div>
+                        )}
                         
                         {/* Resposta do Lojista */}
                         {r.reply && (

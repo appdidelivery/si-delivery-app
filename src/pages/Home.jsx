@@ -2409,11 +2409,69 @@ if (window.fbq) {
                 >
                     Ver no Google Maps <ExternalLink size={14}/>
                 </a>
-            )}
-        </div>
-      </section>
+            )}
+        </div>
+      </section>
 
-      <section className="px-6 pb-10 max-w-2xl mx-auto">
+      {/* --- INÍCIO: FAQ DINÂMICO (SEO) --- */}
+      <section className="px-6 pb-10 max-w-2xl mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+              <div className="bg-indigo-100 text-indigo-600 p-2.5 rounded-xl shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic uppercase">Perguntas Frequentes</h2>
+          </div>
+
+          <div className="space-y-3">
+              <details className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
+                      <div className="flex items-center gap-3">
+                          <Clock size={18} className="text-blue-500" />
+                          <span>Qual o horário de funcionamento?</span>
+                      </div>
+                      <span className="transition duration-300 group-open:rotate-180 text-slate-400">
+                          <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                      </span>
+                  </summary>
+                  <div className="p-5 pt-0 text-sm text-slate-500 font-medium border-t border-slate-50 mt-1">
+                      {isStoreOpenNow ? `Sim, estamos abertos e aceitando pedidos agora! Nosso horário principal é das ${storeSettings.openTime || '08:00'} às ${storeSettings.closeTime || '23:00'}.` : `No momento estamos fechados. Nosso horário de atendimento é das ${storeSettings.openTime || '08:00'} às ${storeSettings.closeTime || '23:00'}.`}
+                  </div>
+              </details>
+
+              <details className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
+                      <div className="flex items-center gap-3">
+                          <CreditCard size={18} className="text-purple-500" />
+                          <span>Quais são as formas de pagamento?</span>
+                      </div>
+                      <span className="transition duration-300 group-open:rotate-180 text-slate-400">
+                          <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                      </span>
+                  </summary>
+                  <div className="p-5 pt-0 text-sm text-slate-500 font-medium border-t border-slate-50 mt-1">
+                      Para sua segurança e comodidade, aceitamos pagamentos online direto pelo aplicativo (Cartão de Crédito e PIX). Também oferecemos a opção de pagar apenas na entrega, seja em dinheiro (levamos o troco) ou cartão (levamos a maquininha até você).
+                  </div>
+              </details>
+
+              <details className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
+                      <div className="flex items-center gap-3">
+                          <MapPin size={18} className="text-green-500" />
+                          <span>Vocês entregam no meu endereço?</span>
+                      </div>
+                      <span className="transition duration-300 group-open:rotate-180 text-slate-400">
+                          <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                      </span>
+                  </summary>
+                  <div className="p-5 pt-0 text-sm text-slate-500 font-medium border-t border-slate-50 mt-1">
+                      Atendemos grande parte de {storeSettings.city || 'nossa região'}. É super simples: basta adicionar seus produtos ao carrinho, digitar o seu CEP e o nosso sistema calcula a taxa de entrega na mesma hora. Você também tem a opção de retirar seu pedido no balcão sem custo.
+                  </div>
+              </details>
+          </div>
+      </section>
+      {/* --- FIM: FAQ DINÂMICO --- */}
+
+      <section className="px-6 pb-10 max-w-2xl mx-auto">
           <Suspense fallback={<div className="h-20 flex items-center justify-center text-slate-400 font-bold text-xs uppercase tracking-widest">Carregando avaliações...</div>}>
               <Reviews storeId={storeId} customerPhone={customer.phone} />
           </Suspense>
