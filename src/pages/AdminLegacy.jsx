@@ -5454,6 +5454,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         className="w-6 h-6 accent-green-600 cursor-pointer"
     />
 </label>
+                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-blue-700 active:scale-95 transition-all">
+                                    Salvar Categoria
+                                </button>
                             </form>
                         </motion.div>
                     </motion.div>
