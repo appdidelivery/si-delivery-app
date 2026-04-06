@@ -132,8 +132,12 @@ export default function AdminSaaS() {
         if (!month) return;
         const val = window.prompt("Valor numérico exato? (Ex: 97.00)");
         if (!val || isNaN(val.replace(',', '.'))) return alert("Por favor, digite um valor numérico válido.");
-        const status = window.prompt("Status? (PAGO ou PENDENTE)").toUpperCase();
+        const status = window.prompt("Status? (Digite: PAGO, PENDENTE ou ISENTO)").toUpperCase();
         
+        let finalStatus = 'PENDENTE';
+        if (status === 'PAGO') finalStatus = 'PAGO';
+        if (status === 'ISENTO' || status === 'CORTESIA') finalStatus = 'ISENTO';
+
         setActionLoading(`invoice_${storeId}`);
         try {
             await updateDoc(doc(db, 'stores', storeId), {
@@ -141,7 +145,7 @@ export default function AdminSaaS() {
                     id: Date.now().toString(), 
                     month, 
                     amount: `R$ ${Number(val.replace(',', '.')).toFixed(2).replace('.', ',')}`, 
-                    status: status === 'PAGO' ? 'PAGO' : 'PENDENTE', 
+                    status: finalStatus, 
                     createdAt: new Date().toISOString() // Salva como ISO String para não quebrar
                 })
             });

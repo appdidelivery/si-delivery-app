@@ -3872,17 +3872,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <p className="text-slate-400 font-bold mt-2">Monitore o consumo de recursos da sua loja.</p>
                             </div>
                             <div className="text-right">
-    <p className="text-[10px] font-black uppercase text-slate-400">Status da Fatura</p>
-    {storeStatus.paymentStatus === 'paid' ? (
-        <span className="bg-green-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-green-200">
-            ✅ PAGO / PRO
-        </span>
-    ) : (
-        <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">
-            ⚠️ EM ABERTO
-        </span>
-    )}
-</div>
+                                <p className="text-[10px] font-black uppercase text-slate-400">Status do Plano</p>
+                                {(() => {
+                                    const status = storeStatus?.billingStatus || 'pendente';
+                                    if (status === 'pago') return <span className="bg-green-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-green-200">✅ PAGO / PRO</span>;
+                                    if (status === 'gratis_vitalicio') return <span className="bg-purple-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-purple-200">🎁 CORTESIA VIP</span>;
+                                    if (status === 'teste') return <span className="bg-blue-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-blue-200">🧪 EM TESTE</span>;
+                                    if (status === 'bloqueado') return <span className="bg-red-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-red-200 animate-pulse">🚫 BLOQUEADO</span>;
+                                    return <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">⚠️ FATURA PENDENTE</span>;
+                                })()}
+                            </div>
                         </div>
 {/* --- DESTAQUE: VELOPAY NATIVO --- */}
                         <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
@@ -4347,33 +4346,53 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Card da Fatura */}
-                            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
-                                <div className="absolute top-0 right-0 p-12 opacity-10"><Wallet size={200}/></div>
-                                
-                                <div className="relative z-10">
-                                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Fatura Atual (Venc. 10/Próx)</p>
-                                    <h2 className="text-6xl font-black italic tracking-tighter">R$ {invoiceData.total.toFixed(2)}</h2>
-                                    
-                                    <div className="mt-8 space-y-3">
-                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                            <span className="text-slate-400">Manutenção Base (SaaS)</span>
-                                            <span className="font-bold">R$ {invoiceData.basePlan.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                            <span className="text-slate-400">Excedente de Processamento</span>
-                                            <span className="font-bold text-orange-400">+ R$ {invoiceData.extraOrdersCost.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm pb-2">
-                                            <span className="text-slate-400">Storage & Database</span>
-                                            <span className="font-bold text-green-400">Incluso</span>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
+                                <div className="absolute top-0 right-0 p-12 opacity-10"><Wallet size={200}/></div>
+                                
+                                <div className="relative z-10">
+                                    {(() => {
+                                        let diaVencimento = 10; 
+                                        if (storeStatus?.createdAt) {
+                                            const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
+                                            if (!isNaN(dataCriacao)) diaVencimento = dataCriacao.getDate();
+                                        }
+                                        return <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Fatura Atual (Venc. dia {diaVencimento})</p>;
+                                    })()}
+                                    
+                                    <h2 className="text-6xl font-black italic tracking-tighter">
+                                        {storeStatus?.billingStatus === 'gratis_vitalicio' ? 'R$ 0,00' : `R$ ${invoiceData.total.toFixed(2)}`}
+                                    </h2>
+                                    
+                                    <div className="mt-8 space-y-3">
+                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                            <span className="text-slate-400">Manutenção Base (SaaS)</span>
+                                            <span className="font-bold">{storeStatus?.billingStatus === 'gratis_vitalicio' ? <span className="text-purple-400">Cortesia VIP</span> : `R$ ${invoiceData.basePlan.toFixed(2)}`}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                            <span className="text-slate-400">Excedente de Processamento</span>
+                                            <span className="font-bold text-orange-400">+ R$ {invoiceData.extraOrdersCost.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm pb-2">
+                                            <span className="text-slate-400">Storage & Database</span>
+                                            <span className="font-bold text-green-400">Incluso</span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                <button onClick={handleAssinarPro} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-        💳 Pagar Fatura (PIX / Cartão)
-    </button>
-                            </div>
+                                {storeStatus?.billingStatus === 'gratis_vitalicio' ? (
+                                    <div className="w-full bg-purple-600/20 text-purple-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-purple-500/30">
+                                        🎁 Plano Cortesia Ativo
+                                    </div>
+                                ) : storeStatus?.billingStatus === 'pago' ? (
+                                    <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
+                                        ✅ Fatura Paga
+                                    </div>
+                                ) : (
+                                    <button onClick={handleAssinarPro} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        💳 Pagar Fatura (PIX / Cartão)
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Monitor de Infraestrutura */}
                             <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between">
@@ -4450,28 +4469,87 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        {/* Histórico de Faturas */}
+                        {/* Histórico de Faturas (Gerado Dinamicamente) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
                             <h3 className="text-xl font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><FileText size={20}/> Histórico de Faturas</h3>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl opacity-50">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-green-100 p-2 rounded-lg text-green-600"><FileText size={18}/></div>
-                                        <div>
-                                            <p className="font-bold text-slate-700">
-                                                Fatura de Adesão ({storeStatus?.createdAt ? new Date(storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : storeStatus.createdAt).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : 'Atual'})
-                                            </p>
-                                            <p className="text-xs font-bold text-slate-400">
-                                                {storeStatus?.paymentStatus === 'paid' ? 'Pagamento Confirmado' : `Vence após 30 dias de teste`}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-black text-slate-700">R$ 49,90</p>
-                                        <p className="text-[10px] font-bold text-green-600 uppercase">Pago</p>
-                                    </div>
-                                </div>
-                                <p className="text-center text-xs text-slate-400 font-bold py-4">Faturas anteriores arquivadas.</p>
+                            <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+                                {(() => {
+                                    let history = [...(storeStatus?.faturasHistorico || [])];
+                                    
+                                    // Motor Auto-Gerador de Faturas Passadas
+                                    if (storeStatus?.createdAt) {
+                                        const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
+                                        if (!isNaN(dataCriacao)) {
+                                            const diaVencimento = dataCriacao.getDate();
+                                            const hoje = new Date();
+                                            
+                                            // Começa no mês seguinte à criação da loja
+                                            let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1);
+                                            
+                                            // Enquanto o mês iterado for anterior ao mês atual
+                                            while (iteradorMes < hoje && (iteradorMes.getMonth() !== hoje.getMonth() || iteradorMes.getFullYear() !== hoje.getFullYear())) {
+                                                const nomeMesAno = iteradorMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                                                const dataVencimentoReal = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
+                                                
+                                                const jaExiste = history.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
+                                                
+                                                if (!jaExiste) {
+                                                    const isCortesia = storeStatus?.billingStatus === 'gratis_vitalicio';
+                                                    history.push({
+                                                        id: `auto_${iteradorMes.getTime()}`,
+                                                        month: nomeMesAno,
+                                                        amount: 'R$ 49,90',
+                                                        status: isCortesia ? 'ISENTO' : 'PAGO',
+                                                        dueDate: dataVencimentoReal,
+                                                        isAuto: true
+                                                    });
+                                                }
+                                                iteradorMes.setMonth(iteradorMes.getMonth() + 1);
+                                            }
+                                        }
+                                    }
+
+                                    // Ordena da mais recente para a mais antiga
+                                    history.sort((a, b) => {
+                                        const dateA = a.dueDate || (a.createdAt ? new Date(a.createdAt) : new Date(0));
+                                        const dateB = b.dueDate || (b.createdAt ? new Date(b.createdAt) : new Date(0));
+                                        return dateB - dateA;
+                                    });
+
+                                    if (history.length === 0) {
+                                        return (
+                                            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center">
+                                                <p className="font-bold text-slate-500">Nenhum histórico de fatura.</p>
+                                                <p className="text-xs text-slate-400 mt-1">As faturas dos meses anteriores aparecerão aqui.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return history.map(fat => {
+                                        const displayDate = fat.dueDate ? fat.dueDate.toLocaleDateString('pt-BR') : (fat.createdAt ? new Date(fat.createdAt).toLocaleDateString('pt-BR') : 'Sem data');
+                                        return (
+                                            <div key={fat.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`p-3 rounded-xl ${fat.status === 'PAGO' ? 'bg-green-100 text-green-600' : fat.status === 'ISENTO' ? 'bg-purple-100 text-purple-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                        <FileText size={20}/>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-700 uppercase">{fat.month}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                            Vencimento: <span className="text-slate-600">{displayDate}</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fat.amount}</p>
+                                                    <p className={`text-[10px] font-black uppercase tracking-widest ${fat.status === 'PAGO' ? 'text-green-600' : fat.status === 'ISENTO' ? 'text-purple-600' : 'text-amber-500'}`}>
+                                                        {fat.status}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
                             </div>
                         </div>
                     </div>
