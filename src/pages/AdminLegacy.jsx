@@ -4562,7 +4562,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                                 <div className="text-right flex items-center gap-4">
                                                     <div>
-                                                        <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fat.amount}</p>
+                                                        <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                                            {fat.status === 'ISENTO' && (fat.amount === 'R$ 0,00' || fat.amount === 'R$ 0.00') ? 'R$ 49,90' : fat.amount}
+                                                        </p>
                                                         <p className={`text-[10px] font-black uppercase tracking-widest ${fat.status === 'PAGO' ? 'text-green-600' : fat.status === 'ISENTO' ? 'text-purple-600' : 'text-amber-500'}`}>
                                                             {fat.status}
                                                         </p>
@@ -7216,7 +7218,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex justify-between items-end">
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total da Fatura</p>
-                                    <p className="text-xs font-bold text-slate-500">Venc. {selectedInvoice.dueDate ? selectedInvoice.dueDate.toLocaleDateString('pt-BR') : 'N/A'}</p>
+                                    <p className="text-xs font-bold text-slate-500">Venc. {selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('pt-BR') : 'N/A'}</p>
                                 </div>
                                 <p className={`text-3xl font-black italic ${selectedInvoice.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                                     {selectedInvoice.amount === 'R$ 0,00' || selectedInvoice.status === 'ISENTO' ? 'R$ 0,00' : selectedInvoice.amount}

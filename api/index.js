@@ -295,7 +295,8 @@ export default async function handler(req, res) {
                         const extraCost = extraOrders * 0.25;
                         const isCortesia = storeData.billingStatus === 'gratis_vitalicio';
                         
-                        const totalFatura = isCortesia ? 0 : (49.90 + extraCost);
+                        // Mantém o valor cheio para o Extrato riscar e gerar a sensação de Economia
+                        const totalFatura = 49.90 + extraCost;
                         const statusFatura = isCortesia ? 'ISENTO' : 'PENDENTE';
 
                         const novaFatura = {

@@ -169,9 +169,9 @@ export default function AdminSaaS() {
                         novasFaturas.push({
                             id: `auto_${loja.id}_${iteradorMes.getTime()}`,
                             month: nomeMesAno,
-                            amount: isCortesia ? 'R$ 0,00' : 'R$ 49,90',
+                            amount: 'R$ 49,90', // Sempre salva o valor cheio para riscar visualmente se for cortesia
                             status: isCortesia ? 'ISENTO' : 'PAGO',
-                            createdAt: dataVencimentoReal.toISOString() // Usamos para ordenar depois
+                            createdAt: dataVencimentoReal.toISOString()
                         });
                     }
                     iteradorMes.setMonth(iteradorMes.getMonth() + 1);
