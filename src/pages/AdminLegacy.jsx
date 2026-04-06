@@ -379,6 +379,7 @@ export default function Admin() {
     const [reportDateRange, setReportDateRange] = useState('hoje'); // 'hoje', '7dias', '30dias', 'mes'
     const [reportSeller, setReportSeller] = useState('todos'); // 'todos', 'online', 'manual'
     const [showReportResults, setShowReportResults] = useState(false); // NOVO: Controla a exibição
+    const [selectedInvoice, setSelectedInvoice] = useState(null); // NOVO: Controla o Modal da Fatura Detalhada
     // -------------------------------------
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     // NOVO: Estado que vai receber as novidades do Firebase em tempo real
@@ -4476,21 +4477,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {(() => {
                                     let history = [...(storeStatus?.faturasHistorico || [])];
                                     
-                                    // Motor Auto-Gerador de Faturas Passadas
                                     if (storeStatus?.createdAt) {
                                         const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
                                         if (!isNaN(dataCriacao)) {
                                             const diaVencimento = dataCriacao.getDate();
                                             const hoje = new Date();
-                                            
-                                            // Começa no mês seguinte à criação da loja
                                             let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1);
                                             
-                                            // Enquanto o mês iterado for anterior ao mês atual
                                             while (iteradorMes < hoje && (iteradorMes.getMonth() !== hoje.getMonth() || iteradorMes.getFullYear() !== hoje.getFullYear())) {
                                                 const nomeMesAno = iteradorMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                                                 const dataVencimentoReal = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
-                                                
                                                 const jaExiste = history.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
                                                 
                                                 if (!jaExiste) {
@@ -4498,10 +4494,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     history.push({
                                                         id: `auto_${iteradorMes.getTime()}`,
                                                         month: nomeMesAno,
-                                                        amount: 'R$ 49,90',
+                                                        amount: isCortesia ? 'R$ 0,00' : 'R$ 49,90',
                                                         status: isCortesia ? 'ISENTO' : 'PAGO',
                                                         dueDate: dataVencimentoReal,
-                                                        isAuto: true
+                                                        isAuto: true,
+                                                        breakdown: { basePlan: 49.90, extraOrdersCost: 0, discount: isCortesia ? 49.90 : 0 }
                                                     });
                                                 }
                                                 iteradorMes.setMonth(iteradorMes.getMonth() + 1);
@@ -4509,7 +4506,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         }
                                     }
 
-                                    // Ordena da mais recente para a mais antiga
                                     history.sort((a, b) => {
                                         const dateA = a.dueDate || (a.createdAt ? new Date(a.createdAt) : new Date(0));
                                         const dateB = b.dueDate || (b.createdAt ? new Date(b.createdAt) : new Date(0));
@@ -4528,23 +4524,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     return history.map(fat => {
                                         const displayDate = fat.dueDate ? fat.dueDate.toLocaleDateString('pt-BR') : (fat.createdAt ? new Date(fat.createdAt).toLocaleDateString('pt-BR') : 'Sem data');
                                         return (
-                                            <div key={fat.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                            <div key={fat.id} onClick={() => setSelectedInvoice(fat)} className="cursor-pointer flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-400 hover:shadow-md transition-all group">
                                                 <div className="flex items-center gap-4">
-                                                    <div className={`p-3 rounded-xl ${fat.status === 'PAGO' ? 'bg-green-100 text-green-600' : fat.status === 'ISENTO' ? 'bg-purple-100 text-purple-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                    <div className={`p-3 rounded-xl transition-colors ${fat.status === 'PAGO' ? 'bg-green-100 text-green-600 group-hover:bg-green-200' : fat.status === 'ISENTO' ? 'bg-purple-100 text-purple-600 group-hover:bg-purple-200' : 'bg-amber-100 text-amber-600 group-hover:bg-amber-200'}`}>
                                                         <FileText size={20}/>
                                                     </div>
                                                     <div>
-                                                        <p className="font-black text-slate-700 uppercase">{fat.month}</p>
+                                                        <p className="font-black text-slate-700 uppercase group-hover:text-blue-600 transition-colors">{fat.month}</p>
                                                         <p className="text-[10px] font-bold text-slate-400 mt-0.5">
                                                             Vencimento: <span className="text-slate-600">{displayDate}</span>
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fat.amount}</p>
-                                                    <p className={`text-[10px] font-black uppercase tracking-widest ${fat.status === 'PAGO' ? 'text-green-600' : fat.status === 'ISENTO' ? 'text-purple-600' : 'text-amber-500'}`}>
-                                                        {fat.status}
-                                                    </p>
+                                                <div className="text-right flex items-center gap-4">
+                                                    <div>
+                                                        <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fat.amount}</p>
+                                                        <p className={`text-[10px] font-black uppercase tracking-widest ${fat.status === 'PAGO' ? 'text-green-600' : fat.status === 'ISENTO' ? 'text-purple-600' : 'text-amber-500'}`}>
+                                                            {fat.status}
+                                                        </p>
+                                                    </div>
+                                                    <ExternalLink size={16} className="text-slate-300 group-hover:text-blue-500" />
                                                 </div>
                                             </div>
                                         );
@@ -7147,6 +7146,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- MODAL DA FATURA DETALHADA --- */}
+            <AnimatePresence>
+                {selectedInvoice && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
+                            <button onClick={() => setSelectedInvoice(null)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            
+                            <div className="text-center mb-8 border-b border-slate-100 pb-6">
+                                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <FileText size={32} />
+                                </div>
+                                <h2 className="text-2xl font-black uppercase text-slate-900 leading-none">Fatura Detalhada</h2>
+                                <p className="text-slate-500 font-bold mt-2 uppercase tracking-widest text-xs">{selectedInvoice.month}</p>
+                                <span className={`mt-3 inline-block px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${selectedInvoice.status === 'PAGO' ? 'bg-green-100 text-green-700' : selectedInvoice.status === 'ISENTO' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    Status: {selectedInvoice.status}
+                                </span>
+                            </div>
+
+                            <div className="space-y-4 mb-8">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500 font-bold">Plano Base (SaaS)</span>
+                                    <span className="font-black text-slate-800">R$ {selectedInvoice.breakdown?.basePlan?.toFixed(2) || '49.90'}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500 font-bold">Excedente de Pedidos</span>
+                                    <span className="font-black text-slate-800">R$ {selectedInvoice.breakdown?.extraOrdersCost?.toFixed(2) || '0.00'}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500 font-bold">Armazenamento (Mídia)</span>
+                                    <span className="font-black text-green-500">Incluso</span>
+                                </div>
+                                {(selectedInvoice.breakdown?.discount > 0 || selectedInvoice.status === 'ISENTO') && (
+                                    <div className="flex justify-between items-center text-sm text-purple-600 border-t border-slate-100 pt-3">
+                                        <span className="font-bold uppercase text-[10px] tracking-widest">Desconto (Cortesia Velo)</span>
+                                        <span className="font-black text-base">- R$ {selectedInvoice.breakdown?.discount?.toFixed(2) || '49.90'}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex justify-between items-end">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total da Fatura</p>
+                                    <p className="text-xs font-bold text-slate-500">Venc. {selectedInvoice.dueDate ? selectedInvoice.dueDate.toLocaleDateString('pt-BR') : 'N/A'}</p>
+                                </div>
+                                <p className={`text-3xl font-black italic ${selectedInvoice.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                                    {selectedInvoice.amount === 'R$ 0,00' || selectedInvoice.status === 'ISENTO' ? 'R$ 0,00' : selectedInvoice.amount}
+                                </p>
+                            </div>
+                            
+                            {selectedInvoice.status === 'PENDENTE' && (
+                                <button onClick={handleAssinarPro} className="w-full mt-4 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                                    <CreditCard size={18} /> Pagar Fatura Agora
+                                </button>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}

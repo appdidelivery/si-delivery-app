@@ -126,7 +126,68 @@ export default function AdminSaaS() {
         } catch (error) { alert('Erro: ' + error.message); }
         finally { setActionLoading(null); }
     };
+// --- MOTOR MÁGICO: GERAR FATURAS RETROATIVAS NO BANCO ---
+    const handleSyncPastInvoices = async () => {
+        if (!window.confirm("Isso vai varrer TODAS as lojas e gerar as faturas dos meses passados no banco de dados. Confirmar?")) return;
+        
+        setActionLoading('sync_invoices');
+        try {
+            const batchPromises = [];
+            const hoje = new Date();
+            
+            storesList.forEach(loja => {
+                if (!loja.createdAt) return;
+                
+                const dataCriacao = loja.createdAt.toDate ? loja.createdAt.toDate() : new Date(loja.createdAt);
+                if (isNaN(dataCriacao)) return;
 
+                const diaVencimento = dataCriacao.getDate();
+                let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1); 
+                
+                let historicoAtual = loja.faturasHistorico || [];
+                let novasFaturas = [];
+
+                // Roda o loop desde o mês seguinte à criação até o mês passado
+                while (iteradorMes < hoje && (iteradorMes.getMonth() !== hoje.getMonth() || iteradorMes.getFullYear() !== hoje.getFullYear())) {
+                    const nomeMesAno = iteradorMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                    const dataVencimentoReal = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
+                    
+                    const jaExiste = historicoAtual.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
+                    
+                    if (!jaExiste) {
+                        const isCortesia = loja.billingStatus === 'gratis_vitalicio';
+                        novasFaturas.push({
+                            id: `auto_${loja.id}_${iteradorMes.getTime()}`,
+                            month: nomeMesAno,
+                            amount: isCortesia ? 'R$ 0,00' : 'R$ 49,90',
+                            status: isCortesia ? 'ISENTO' : 'PAGO',
+                            createdAt: dataVencimentoReal.toISOString() // Usamos para ordenar depois
+                        });
+                    }
+                    iteradorMes.setMonth(iteradorMes.getMonth() + 1);
+                }
+
+                if (novasFaturas.length > 0) {
+                    const lojaRef = doc(db, 'stores', loja.id);
+                    const historicoCompleto = [...historicoAtual, ...novasFaturas];
+                    batchPromises.push(updateDoc(lojaRef, { faturasHistorico: historicoCompleto }));
+                }
+            });
+
+            if (batchPromises.length > 0) {
+                await Promise.all(batchPromises);
+                alert(`✅ Mágica feita! Faturas retroativas reais criadas para ${batchPromises.length} lojas no banco de dados.`);
+                await fetchSaaSData();
+            } else {
+                alert("Tudo atualizado! Nenhuma fatura antiga estava faltando.");
+            }
+        } catch (error) {
+            console.error("Erro na sincronização:", error);
+            alert("Erro ao sincronizar faturas antigas.");
+        } finally {
+            setActionLoading(null);
+        }
+    };
     const handleAddInvoice = async (storeId) => {
         const month = window.prompt("Mês/Ano da fatura? (Ex: Abril/2026)");
         if (!month) return;
@@ -313,9 +374,19 @@ export default function AdminSaaS() {
         if (activeTab === 'faturas') {
             return (
                 <div className="space-y-6">
-                    <div>
-                        <h2 className="text-3xl font-black text-white mb-2">Assinaturas e Histórico</h2>
-                        <p className="text-slate-400">Controle pagamentos mensais e status financeiro.</p>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                        <div>
+                            <h2 className="text-3xl font-black text-white mb-2">Assinaturas e Histórico</h2>
+                            <p className="text-slate-400">Controle pagamentos mensais e status financeiro.</p>
+                        </div>
+                        <button 
+                            onClick={handleSyncPastInvoices} 
+                            disabled={actionLoading === 'sync_invoices'}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {actionLoading === 'sync_invoices' ? <Loader2 className="animate-spin" size={16}/> : <Zap size={16} className="text-yellow-400 fill-yellow-400"/>}
+                            Sincronizar Faturas Antigas
+                        </button>
                     </div>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {storesList.map(loja => (
