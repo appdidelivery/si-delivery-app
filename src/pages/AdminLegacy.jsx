@@ -4541,7 +4541,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     }
 
                                     return history.map(fat => {
-                                        const displayDate = fat.dueDate ? fat.dueDate.toLocaleDateString('pt-BR') : (fat.createdAt ? new Date(fat.createdAt).toLocaleDateString('pt-BR') : 'Sem data');
+                                        let displayDate = 'Sem data';
+                                        try {
+                                            if (fat.dueDate) displayDate = new Date(fat.dueDate).toLocaleDateString('pt-BR');
+                                            else if (fat.createdAt) displayDate = new Date(fat.createdAt).toLocaleDateString('pt-BR');
+                                        } catch(e) {}
+                                        
                                         return (
                                             <div key={fat.id} onClick={() => setSelectedInvoice(fat)} className="cursor-pointer flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-400 hover:shadow-md transition-all group">
                                                 <div className="flex items-center gap-4">
