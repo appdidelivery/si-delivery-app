@@ -1266,12 +1266,12 @@ if (data.abandonmentAlertSent === true) continue;
                 }
             }
 
-           // 4. Calcula a comissão da Velo no MP (1.50% de spread líquido)
-            // Somado à taxa padrão do MP (~3.99%), o lojista pagará um total de ~5.49%
-            const marketplaceFee = Number((totalPedido * 0.015).toFixed(2));
+           // 4. Calcula a comissão da Velo no MP (Taxa de 4,99% garantida no Painel Admin)
+            // Desta forma, ancoramos o VeloPay (3,99%) como a opção mais barata
+            const marketplaceFee = Number((totalPedido * 0.0499).toFixed(2));
 
-            // 5. Cria a Preferência de Pagamento na API do Mercado Pago
-            const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
+            // 5. Cria a Preferência de Pagamento na API do Mercado Pago
+            const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${mpConfig.accessToken}`,
@@ -1414,12 +1414,24 @@ if (data.abandonmentAlertSent === true) continue;
         const { storeId, orderId, totalAmount } = req.body;
 
         if (!storeId || !orderId || !totalAmount) {
-            return res.status(400).json({ error: 'Dados insuficientes para gerar o Pix.' });
-        }
+            return res.status(400).json({ error: 'Dados insuficientes para gerar o Pix.' });
+        }
 
-        try {
-            // Garante o caminho absoluto independente de onde o node está rodando
-            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+        try {
+            // --- 1. BUSCA O PLANO DO LOJISTA PARA CALCULAR A TAXA ---
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const pixPlan = storeDoc.data()?.velopayPixPlan || 'd30';
+            
+            let pixFeePercent = 0.0259; // Padrão D+30 (2,59%)
+            if (pixPlan === 'd14') pixFeePercent = 0.0299; // 2,99%
+            if (pixPlan === 'd1') pixFeePercent = 0.0359;  // 3,59%
+            if (pixPlan === 'd0') pixFeePercent = 0.0399;  // 3,99%
+
+            const feeAmount = Number((Number(totalAmount) * pixFeePercent).toFixed(2));
+            const netAmount = Number((Number(totalAmount) - feeAmount).toFixed(2));
+
+            // Garante o caminho absoluto independente de onde o node está rodando
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
             console.log('🔍 [VeloPay] Caminho do certificado:', certPath);
 
             // ====================================================================
@@ -1450,13 +1462,16 @@ if (data.abandonmentAlertSent === true) continue;
             // 2. Pega a imagem do QR Code
             const qrCodeResponse = await gerencianet.pixGenerateQRCode({ id: cobResponse.loc.id });
 
-            // 3. Salva no Firebase para a tela do cliente puxar
-            await db.collection('orders').doc(orderId).set({
-                paymentIntentId: cobResponse.txid,
-                velopayStatus: 'waiting_payment',
-                pixQrCodeUrl: qrCodeResponse.imagemQrcode,
-                pixCopiaECola: qrCodeResponse.qrcode
-            }, { merge: true });
+            // 3. Salva no Firebase para a tela do cliente puxar E JÁ SALVA AS TAXAS E LÍQUIDO
+            await db.collection('orders').doc(orderId).set({
+                paymentIntentId: cobResponse.txid,
+                velopayStatus: 'waiting_payment',
+                pixQrCodeUrl: qrCodeResponse.imagemQrcode,
+                pixCopiaECola: qrCodeResponse.qrcode,
+                veloFeeAmount: feeAmount,      // Taxa da Velo Delivery
+                veloNetAmount: netAmount,      // Líquido do Lojista
+                veloPlanUsed: pixPlan          // Registra qual plano estava ativo
+            }, { merge: true });
 
             return res.status(200).json({ success: true, txid: cobResponse.txid });
 
@@ -1472,14 +1487,28 @@ if (data.abandonmentAlertSent === true) continue;
         }
     }
     // ------------------------------------------------------------------------
-    // 17.7 VELOPAY: COBRANÇA CARTÃO DE CRÉDITO
-    // ------------------------------------------------------------------------
-    else if (path === '/api/velopay-credit') {
-        if (req.method !== 'POST') return res.status(405).end();
-        try {
-            const { paymentToken, orderId, total, customer, billingAddress } = req.body;
+    // 17.7 VELOPAY: COBRANÇA CARTÃO DE CRÉDITO
+    // ------------------------------------------------------------------------
+    else if (path === '/api/velopay-credit') {
+        if (req.method !== 'POST') return res.status(405).end();
+        try {
+            const { paymentToken, orderId, total, customer, billingAddress, storeId } = req.body;
 
-            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+            // --- 1. BUSCA O PLANO DO LOJISTA PARA CALCULAR A TAXA ---
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const creditPlan = storeDoc.data()?.velopayCreditPlan || 'd30';
+            
+            let creditFeePercent = 0.0499; // Padrão D+30 (4,99%)
+            if (creditPlan === 'd14') creditFeePercent = 0.0549; // 5,49%
+            if (creditPlan === 'd1') creditFeePercent = 0.0599;  // 5,99%
+
+            // Taxa fixa da Efí/Velo por transação de cartão
+            const fixedFee = 0.39; 
+
+            const feeAmount = Number(((Number(total) * creditFeePercent) + fixedFee).toFixed(2));
+            const netAmount = Number((Number(total) - feeAmount).toFixed(2));
+
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
             const efiOptions = {
                 sandbox: false, // Mude para true se for testar sem gastar
                 client_id: process.env.EFI_CLIENT_ID,
@@ -1528,15 +1557,24 @@ if (data.abandonmentAlertSent === true) continue;
             const efiResponse = await gerencianet.createOneStepCharge({}, chargeBody);
 
             // Verifica se a cobrança foi aceita
-            if (efiResponse.code === 200 && efiResponse.data) {
-                const status = efiResponse.data.status; // Pode ser 'approved', 'authorized', 'declined'
-                
-                return res.status(200).json({ 
-                    success: true, 
-                    chargeId: efiResponse.data.charge_id,
-                    status: status
-                });
-            } else {
+            if (efiResponse.code === 200 && efiResponse.data) {
+                const status = efiResponse.data.status; // Pode ser 'approved', 'authorized', 'declined'
+                
+                // Salva os dados da taxa e do repasse no pedido
+                await db.collection('orders').doc(orderId).set({
+                    paymentIntentId: efiResponse.data.charge_id,
+                    velopayStatus: status,
+                    veloFeeAmount: feeAmount,      // Taxa da Velo Delivery
+                    veloNetAmount: netAmount,      // Líquido do Lojista
+                    veloPlanUsed: creditPlan       // Registra qual plano estava ativo
+                }, { merge: true });
+                
+                return res.status(200).json({ 
+                    success: true, 
+                    chargeId: efiResponse.data.charge_id,
+                    status: status
+                });
+            } else {
                 throw new Error("A Efí recusou a transação ou retornou erro.");
             }
 

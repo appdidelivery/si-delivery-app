@@ -393,11 +393,36 @@ export default function Admin() {
     const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const[editingTeamId, setEditingTeamId] = useState(null);
     const [teamForm, setTeamForm] = useState({
-        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
-    });
-    const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
+        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
+    });
+    const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
+    const [withdrawalsList, setWithdrawalsList] = useState([]); // NOVO: Lista de Saques para abater do saldo
 
-    const handleUpdateAndClearCache = async () => {
+    const handleRequestWithdraw = async () => {
+        if (velopayBalance <= 0) return alert("Saldo insuficiente para saque.");
+        if (!window.confirm(`Deseja solicitar o saque de R$ ${velopayBalance.toFixed(2)}?`)) return;
+
+        setIsProcessingWithdraw(true);
+        try {
+            await addDoc(collection(db, "withdrawals"), {
+                storeId: storeId,
+                storeName: storeStatus.name,
+                amount: velopayBalance,
+                status: 'pending',
+                pixKey: storeStatus?.velopayData?.pixKey || '',
+                requestedAt: serverTimestamp(),
+                plan: storeStatus?.velopayPixPlan || 'd0'
+            });
+            alert("✅ Saque solicitado com sucesso! O valor será depositado na sua conta cadastrada.");
+        } catch (error) {
+            console.error("Erro ao solicitar saque:", error);
+            alert("Erro ao solicitar saque. Tente novamente.");
+        } finally {
+            setIsProcessingWithdraw(false);
+        }
+    };
+
+    const handleUpdateAndClearCache = async () => {
         try {
             // 1. Destruir os Service Workers (PWA) que interceptam os arquivos antigos
             if ('serviceWorker' in navigator) {
@@ -555,33 +580,48 @@ export default function Admin() {
         checkStripeOnboarding();
     }, [storeId, navigate]);
 
-    // Efeito para calcular a fatura em tempo real (Cole isso logo abaixo do useEffect principal dos Pedidos)
-    useEffect(() => {
-        if(orders.length > 0 || products.length > 0) {
-            // Lógica simples de cálculo baseada no manifesto
-            const franchiseLimit = 100; // Franquia de pedidos
-            
-            // Conta pedidos deste mês
-            const currentMonthOrders = orders.filter(o => {
-                if(!o.createdAt) return false;
-                const d = o.createdAt.toDate();
-                const now = new Date();
-                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            }).length;
+    // Efeito para calcular a fatura em tempo real e Saldo VeloPay dinâmico
+    useEffect(() => {
+        if(orders.length > 0 || products.length > 0) {
+            // Lógica simples de cálculo baseada no manifesto
+            const franchiseLimit = 100; // Franquia de pedidos
+            
+            // Conta pedidos deste mês
+            const currentMonthOrders = orders.filter(o => {
+                if(!o.createdAt) return false;
+                const d = o.createdAt.toDate();
+                const now = new Date();
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            }).length;
 
-            const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
-            const extraCost = extraOrders * 0.25;
+            const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
+            const extraCost = extraOrders * 0.25;
 
-            setInvoiceData({
-                basePlan: 49.90,
-                extraOrdersCost: extraCost,
-                storageUsage: (products.length * 0.5) + (generalBanners.length * 2), // Estimativa MB
-                dbUsage: products.length + orders.length + 50, // Estimativa Registros
-                total: 49.90 + extraCost,
-                status: 'open'
-            });
-        }
-    }, [orders, products, generalBanners]);
+            setInvoiceData({
+                basePlan: 49.90,
+                extraOrdersCost: extraCost,
+                storageUsage: (products.length * 0.5) + (generalBanners.length * 2), // Estimativa MB
+                dbUsage: products.length + orders.length + 50, // Estimativa Registros
+                total: 49.90 + extraCost,
+                status: 'open'
+            });
+
+            // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
+            const totalPixRecebido = orders
+                .filter(o => 
+                    ['velopay_pix', 'pix', 'link_mp'].includes(o.paymentMethod) && 
+                    ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(o.paymentStatus) &&
+                    o.source !== 'manual_pdv' && o.source !== 'manual' // Pega só vendas da loja online
+                )
+                .reduce((acc, o) => acc + Number(o.veloNetAmount || o.total || 0), 0); // Lê o valor com a taxa descontada
+
+            const totalSacado = withdrawalsList
+                .filter(w => w.status !== 'rejected') // Abate os saques pendentes ou aprovados
+                .reduce((acc, w) => acc + Number(w.amount || 0), 0);
+
+            setVelopayBalance(Math.max(0, totalPixRecebido - totalSacado));
+        }
+    }, [orders, products, generalBanners, withdrawalsList]);
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const[isModalOpen, setIsModalOpen] = useState(false);
@@ -842,17 +882,13 @@ export default function Admin() {
             if (d.exists()) setSystemUpdate({ version: d.data().version, log: d.data().log || [] });
         });
 
-        // NOVO: MOTOR DO SALDO VELOPAY
-        const unsubBalance = onSnapshot(doc(db, "stats", storeId), (docSnap) => {
-            if (docSnap.exists()) {
-                setVelopayBalance(docSnap.data().velopayBalance || 0);
-            }
-        });
+        // NOVO: MOTOR DE SAQUES VELOPAY (Substitui o stats que não estava atualizando)
+        const unsubWithdrawals = onSnapshot(query(collection(db, "withdrawals"), where("storeId", "==", storeId)), (s) => setWithdrawalsList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        return () => { 
-            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubBalance(); unsubWhatsApp();
-        };
+        return () => { 
+            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp();
+        };
     },[storeId]);
     
     // --- FUNÇÕES AUXILIARES ---
@@ -1647,12 +1683,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     const filteredReportOrders = getFilteredOrdersForReport();
     
     const reportTotals = {
-        pix: filteredReportOrders.filter(o => o.paymentMethod === 'pix' || o.paymentMethod === 'offline_pix').reduce((acc, o) => acc + Number(o.total || 0), 0),
-        cartao: filteredReportOrders.filter(o => o.paymentMethod === 'cartao' || o.paymentMethod === 'offline_credit_card' || o.paymentMethod === 'motoboy_card').reduce((acc, o) => acc + Number(o.total || 0), 0),
-        dinheiro: filteredReportOrders.filter(o => o.paymentMethod === 'dinheiro').reduce((acc, o) => acc + Number(o.total || 0), 0),
-        totalGeral: filteredReportOrders.reduce((acc, o) => acc + Number(o.total || 0), 0),
-        qtdPedidos: filteredReportOrders.length
-    };
+        pix: filteredReportOrders.filter(o => o.paymentMethod === 'pix' || o.paymentMethod === 'offline_pix' || o.paymentMethod === 'velopay_pix').reduce((acc, o) => acc + Number(o.total || 0), 0),
+        cartao: filteredReportOrders.filter(o => o.paymentMethod === 'cartao' || o.paymentMethod === 'offline_credit_card' || o.paymentMethod === 'motoboy_card').reduce((acc, o) => acc + Number(o.total || 0), 0),
+        dinheiro: filteredReportOrders.filter(o => o.paymentMethod === 'dinheiro').reduce((acc, o) => acc + Number(o.total || 0), 0),
+        totalGeral: filteredReportOrders.reduce((acc, o) => acc + Number(o.total || 0), 0),
+        qtdPedidos: filteredReportOrders.length
+    };
     // --------------------------------------------------------
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
@@ -2215,8 +2251,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     const pStatus = o.paymentStatus || 'pending';
                                                     
                                                     if (isOnline) {
-                                                        if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO ONLINE</span>;
-                                                        if (pStatus === 'failed') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
+                                                        if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'concluida' || pStatus === 'CONCLUIDA') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO ONLINE</span>;
+                                                        if (pStatus === 'failed' || pStatus === 'rejected') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
                                                         return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse">⏳ AGUARDANDO PAGTO</span>;
                                                     }
                                                     if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
@@ -4050,12 +4086,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
                                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Total VeloPay</p>
                                         <h2 className="text-4xl font-black italic text-white mb-2">R$ {velopayBalance.toFixed(2)}</h2>
-                                        {storeStatus?.velopayPixPlan !== 'd0' && (
-                                            <div className="flex items-center gap-1.5 text-orange-400 mb-4 animate-pulse">
-                                                <Clock size={12}/>
-                                                <span className="text-[9px] font-black uppercase tracking-widest">Aguardando Ciclo de Saque ({storeStatus?.velopayPixPlan === 'd30' ? 'D+30' : 'D+14'})</span>
-                                            </div>
-                                        )}
+                                        
+                                        <div className="flex flex-col gap-2 mb-4">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Ciclo de Repasse (Pix)</label>
+                                            <select 
+                                                className="bg-slate-900 text-blue-400 text-xs font-black uppercase rounded-xl border border-slate-700 p-3 outline-none cursor-pointer w-full shadow-inner"
+                                                value={storeStatus?.velopayPixPlan || 'd30'}
+                                                onChange={async (e) => {
+                                                    if(window.confirm("Alterar o ciclo mudará a taxa cobrada por transação. Confirmar?")) {
+                                                        await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value }, { merge: true });
+                                                    }
+                                                }}
+                                            >
+                                                <option value="d30">Em 30 dias (Taxa 2,59%)</option>
+                                                <option value="d14">Em 15 dias (Taxa 2,99%)</option>
+                                                <option value="d1">Em 24h/D+1 (Taxa 3,59%)</option>
+                                                <option value="d0">Na Hora / D+0 (Taxa 3,99%)</option>
+                                            </select>
+                                        </div>
+
                                         <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl mb-6">
                                             <p className="text-orange-400 text-xs font-bold flex items-center gap-2">
                                                 <Shield size={16}/> Atenção: Repasse Manual
@@ -4065,11 +4114,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </p>
                                         </div>
 
-                                        <button 
+                                        <button 
+                                            onClick={handleRequestWithdraw}
                                             disabled={storeStatus?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
                                             className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
                                         >
-                                            {storeStatus?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora'}
+                                            {isProcessingWithdraw ? 'Processando...' : (storeStatus?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora')}
                                         </button>
                                     </div>
                                     <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
@@ -4088,18 +4138,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             {/* --- INFO DE TAXAS STRIPE --- */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
-                                    <p className="font-black text-3xl italic text-slate-800 leading-none">5,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-2">Recebimento padrão em 30 dias (D+30).</p>
-                                </div>
-                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><QrCode size={14}/> PIX STRIPE</p>
-                                    <p className="font-black text-3xl italic text-slate-800 leading-none">1,19%</p>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-2">Liquidação na conta conectada.</p>
-                                </div>
-                            </div>
+                            <div className="grid grid-cols-1 gap-4 mb-6">
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
+                                    <p className="font-black text-3xl italic text-slate-800 leading-none">5,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-2">Recebimento padrão em 30 dias (D+30).</p>
+                                </div>
+                            </div>
                             
                             {storeStatus.stripeConnectId ? (
                                 <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
@@ -4159,12 +4204,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             {/* --- INFO DE TAXAS MERCADO PAGO --- */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
-                                    <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><QrCode size={14}/> PIX MERCADO PAGO</p>
-                                    <p className="font-black text-3xl italic text-blue-800 leading-none">0,99%</p>
-                                    <p className="text-[10px] font-bold text-blue-500 mt-2">Recebimento na hora.</p>
-                                </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
+                                    <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><QrCode size={14}/> PIX MERCADO PAGO</p>
+                                    <p className="font-black text-3xl italic text-blue-800 leading-none">4,99%</p>
+                                    <p className="text-[10px] font-bold text-blue-500 mt-2">Recebimento na hora.</p>
+                                </div>
                                 <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
                                     <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
                                     <div className="flex items-end gap-2">

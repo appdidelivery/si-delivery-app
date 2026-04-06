@@ -130,16 +130,23 @@ export default function AdminSaaS() {
     const handleAddInvoice = async (storeId) => {
         const month = window.prompt("Mês/Ano da fatura? (Ex: Abril/2026)");
         if (!month) return;
-        const val = window.prompt("Valor? (Ex: R$ 97,00)");
-        if (!val) return;
+        const val = window.prompt("Valor numérico exato? (Ex: 97.00)");
+        if (!val || isNaN(val.replace(',', '.'))) return alert("Por favor, digite um valor numérico válido.");
         const status = window.prompt("Status? (PAGO ou PENDENTE)").toUpperCase();
         
         setActionLoading(`invoice_${storeId}`);
         try {
             await updateDoc(doc(db, 'stores', storeId), {
-                faturasHistorico: arrayUnion({ id: Date.now().toString(), month, amount: val, status, createdAt: new Date() })
+                faturasHistorico: arrayUnion({ 
+                    id: Date.now().toString(), 
+                    month, 
+                    amount: `R$ ${Number(val.replace(',', '.')).toFixed(2).replace('.', ',')}`, 
+                    status: status === 'PAGO' ? 'PAGO' : 'PENDENTE', 
+                    createdAt: new Date().toISOString() // Salva como ISO String para não quebrar
+                })
             });
             await fetchSaaSData();
+            alert("✅ Fatura adicionada ao histórico!");
         } catch (error) { alert('Erro: ' + error.message); }
         finally { setActionLoading(null); }
     };
@@ -150,7 +157,30 @@ export default function AdminSaaS() {
         localStorage.setItem('@velo:overrideStoreId', storeId);
         window.location.href = '/admin';
     };
+// --- LÓGICA DE VENCIMENTO DINÂMICO ---
+    const calculateDueDate = (createdAt) => {
+        if (!createdAt) return 'Não Definido';
+        try {
+            // Lida com o formato Timestamp do Firebase ou com string ISO
+            const creationDate = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
+            if (isNaN(creationDate)) return 'Data Inválida';
 
+            const dayOfCreation = creationDate.getDate();
+            const now = new Date();
+            
+            // O vencimento é o dia da criação, no mês atual
+            const dueDate = new Date(now.getFullYear(), now.getMonth(), dayOfCreation);
+            
+            // Se o dia de hoje for maior que o dia do vencimento, joga o próximo vencimento pro mês seguinte
+            if (now.getDate() > dayOfCreation) {
+                dueDate.setMonth(dueDate.getMonth() + 1);
+            }
+
+            return dueDate.toLocaleDateString('pt-BR');
+        } catch (error) {
+            return 'Erro na Data';
+        }
+    };
     // --- HELPERS VISUAIS ---
     const renderBillingBadge = (status) => {
         switch (status) {
@@ -286,37 +316,64 @@ export default function AdminSaaS() {
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {storesList.map(loja => (
                             <div key={loja.id} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col justify-between">
-                                <div className="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
+                                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 border-b border-slate-800 pb-6 gap-4">
                                     <div>
-                                        <h3 className="font-bold text-white text-xl">{loja.name || loja.velopayData?.legalName || '⚠️ LOJA FANTASMA'}</h3>
-                                        <div className="mt-2">{renderBillingBadge(loja.billingStatus)}</div>
+                                        <h3 className="font-bold text-white text-xl uppercase">{loja.name || loja.velopayData?.legalName || '⚠️ LOJA FANTASMA'}</h3>
+                                        <div className="mt-2 flex items-center gap-2">
+                                            {renderBillingBadge(loja.billingStatus)}
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-800 px-2 py-1 rounded">
+                                                Vencimento: <span className="text-blue-400">{calculateDueDate(loja.createdAt)}</span>
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 text-right">
-                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'pago')} className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded text-xs font-bold">Pago</button>
-                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'pendente')} className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 px-3 py-1 rounded text-xs font-bold">Pendente</button>
-                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'teste')} className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-3 py-1 rounded text-xs font-bold">Teste</button>
-                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'gratis_vitalicio')} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 px-3 py-1 rounded text-xs font-bold">Cortesia</button>
+                                    <div className="flex flex-wrap gap-2 text-right">
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'pago')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${loja.billingStatus === 'pago' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'}`}>Pago</button>
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'pendente')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${loja.billingStatus === 'pendente' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'}`}>Pendente</button>
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'teste')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${loja.billingStatus === 'teste' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}>Teste</button>
+                                        <button onClick={() => handleUpdateBillingStatus(loja.id, 'bloqueado')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${loja.billingStatus === 'bloqueado' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'}`}>Bloquear</button>
                                     </div>
                                 </div>
                                 
-                                <div>
+                                <div className="flex-1">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h4 className="font-bold text-slate-300 text-sm">Histórico de Faturas</h4>
-                                        <button onClick={() => handleAddInvoice(loja.id)} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><Plus size={14}/> Nova</button>
+                                        <h4 className="font-black text-slate-300 text-xs uppercase tracking-widest">Histórico de Faturas</h4>
+                                        <button onClick={() => handleAddInvoice(loja.id)} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors">
+                                            <Plus size={14}/> Lançar Fatura Antiga
+                                        </button>
                                     </div>
-                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                         {(!loja.faturasHistorico || loja.faturasHistorico.length === 0) ? (
-                                            <p className="text-xs text-slate-500 italic">Nenhum registro de pagamento adicionado.</p>
+                                            <div className="bg-slate-950/50 border border-dashed border-slate-800 rounded-xl p-6 text-center">
+                                                <p className="text-xs text-slate-500 font-bold">Nenhuma fatura registrada.</p>
+                                                <p className="text-[10px] text-slate-600 mt-1">Clique no botão acima para adicionar o histórico (Ex: Jan, Fev, Mar).</p>
+                                            </div>
                                         ) : (
-                                            loja.faturasHistorico.slice().reverse().map(fat => (
-                                                <div key={fat.id} className="flex justify-between items-center bg-slate-950/50 border border-slate-800 p-3 rounded-lg">
+                                            [...loja.faturasHistorico]
+                                                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) // Ordena da mais nova pra mais velha
+                                                .map(fat => (
+                                                <div key={fat.id} className="flex justify-between items-center bg-slate-950/80 border border-slate-800 p-4 rounded-xl hover:border-slate-700 transition-colors">
                                                     <div>
-                                                        <p className="text-sm font-bold text-slate-200">{fat.month}</p>
-                                                        <p className="text-xs text-slate-500">{fat.amount}</p>
+                                                        <p className="text-sm font-black text-slate-200 uppercase">{fat.month}</p>
+                                                        <p className="text-xs font-bold text-slate-500 mt-0.5">{fat.amount}</p>
                                                     </div>
-                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded ${fat.status === 'PAGO' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                                                        {fat.status}
-                                                    </span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${fat.status === 'PAGO' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                                            {fat.status}
+                                                        </span>
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if(window.confirm(`Excluir o registro da fatura de ${fat.month}?`)) {
+                                                                    const novasFaturas = loja.faturasHistorico.filter(f => f.id !== fat.id);
+                                                                    await updateDoc(doc(db, 'stores', loja.id), { faturasHistorico: novasFaturas });
+                                                                    fetchSaaSData();
+                                                                }
+                                                            }} 
+                                                            className="text-slate-600 hover:text-red-500 p-1 transition-colors"
+                                                            title="Excluir Registro"
+                                                        >
+                                                            <Trash2 size={16}/>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))
                                         )}
