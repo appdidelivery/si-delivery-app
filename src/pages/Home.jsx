@@ -544,7 +544,7 @@ export default function Home() {
 
       // Começa a brincadeira 10 segundos após a página abrir, e repete a cada 40 segundos
       const initialTimer = setTimeout(triggerSocialProof, 10000);
-      const intervalTimer = setInterval(triggerSocialProof, 40000);
+      const intervalTimer = setInterval(triggerSocialProof, 15000);
 
       return () => {
           clearTimeout(initialTimer);
