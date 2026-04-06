@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, arrayUnion, query, where } from 'firebase/firestore';
 import { 
     LayoutDashboard, Store, Radio, ShieldAlert, LogOut, Menu, X, Loader2, 
     CheckCircle, ToggleRight, ToggleLeft, Play, Zap, CreditCard, Clock, 
@@ -128,18 +128,18 @@ export default function AdminSaaS() {
     };
 // --- MOTOR MÁGICO: GERAR FATURAS RETROATIVAS NO BANCO ---
     const handleSyncPastInvoices = async () => {
-        if (!window.confirm("Isso vai varrer TODAS as lojas e gerar as faturas dos meses passados no banco de dados. Confirmar?")) return;
+        if (!window.confirm("Isso vai varrer as lojas e gerar as faturas dos meses passados com CUSTOS REAIS. Confirmar?")) return;
         
         setActionLoading('sync_invoices');
         try {
             const batchPromises = [];
             const hoje = new Date();
             
-            storesList.forEach(loja => {
+            // Trocado de forEach para for...of para permitir consultas (await) dentro do loop
+            for (const loja of storesList) {
                 let dataCriacao;
                 let isFixingDate = false;
 
-                // Se a loja não tem data, assume 10 de Janeiro para não quebrar
                 if (!loja.createdAt) {
                     dataCriacao = new Date(2026, 0, 10); 
                     isFixingDate = true;
@@ -157,21 +157,49 @@ export default function AdminSaaS() {
                 let historicoAtual = loja.faturasHistorico || [];
                 let novasFaturas = [];
 
-                // Roda o loop desde o mês seguinte à criação até o mês passado
+                // 🚨 O PULO DO GATO: Puxa todos os pedidos da loja DE UMA VEZ SÓ para não sobrecarregar o banco
+                const ordersSnap = await getDocs(query(collection(db, 'orders'), where('storeId', '==', loja.id)));
+                const todosPedidosLoja = ordersSnap.docs.map(d => d.data());
+
                 while (iteradorMes < hoje && (iteradorMes.getMonth() !== hoje.getMonth() || iteradorMes.getFullYear() !== hoje.getFullYear())) {
                     const nomeMesAno = iteradorMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                    const dataVencimentoReal = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
+                    
+                    const startOfCycle = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth() - 1, diaVencimento);
+                    const endOfCycle = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
                     
                     const jaExiste = historicoAtual.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
                     
                     if (!jaExiste) {
+                        // CALCULA OS PEDIDOS REAIS QUE A LOJA FEZ NESTE CICLO ESPECÍFICO DO PASSADO
+                        const pedidosNoCiclo = todosPedidosLoja.filter(oData => {
+                            if (oData.status === 'canceled') return false;
+                            let dt;
+                            if (oData.createdAt && typeof oData.createdAt.toDate === 'function') {
+                                dt = oData.createdAt.toDate();
+                            } else {
+                                dt = new Date(oData.createdAt || 0);
+                            }
+                            return dt >= startOfCycle && dt < endOfCycle;
+                        }).length;
+
+                        const extraOrders = Math.max(0, pedidosNoCiclo - 100);
+                        const extraCost = extraOrders * 0.25;
                         const isCortesia = loja.billingStatus === 'gratis_vitalicio';
+                        const totalFatura = 49.90 + extraCost;
+
                         novasFaturas.push({
                             id: `auto_${loja.id}_${iteradorMes.getTime()}`,
                             month: nomeMesAno,
-                            amount: 'R$ 49,90', // Sempre salva o valor cheio para riscar visualmente se for cortesia
+                            amount: `R$ ${totalFatura.toFixed(2).replace('.', ',')}`,
                             status: isCortesia ? 'ISENTO' : 'PAGO',
-                            createdAt: dataVencimentoReal.toISOString()
+                            createdAt: endOfCycle.toISOString(), 
+                            dueDate: endOfCycle.toISOString(),
+                            isAuto: true,
+                            breakdown: {
+                                basePlan: 49.90,
+                                extraOrdersCost: extraCost,
+                                discount: isCortesia ? totalFatura : 0 // Isenta o valor TOTAL (Base + Excedentes)
+                            }
                         });
                     }
                     iteradorMes.setMonth(iteradorMes.getMonth() + 1);
@@ -184,15 +212,15 @@ export default function AdminSaaS() {
                         updateData.faturasHistorico = [...historicoAtual, ...novasFaturas];
                     }
                     if (isFixingDate) {
-                        updateData.createdAt = dataCriacao; // Salva a data corrigida no banco
+                        updateData.createdAt = dataCriacao;
                     }
                     batchPromises.push(updateDoc(lojaRef, updateData));
                 }
-            });
+            }
 
             if (batchPromises.length > 0) {
                 await Promise.all(batchPromises);
-                alert(`✅ Mágica feita! Faturas retroativas reais criadas para ${batchPromises.length} lojas no banco de dados.`);
+                alert(`✅ Mágica feita! Faturas retroativas com CUSTOS REAIS geradas.`);
                 await fetchSaaSData();
             } else {
                 alert("Tudo atualizado! Nenhuma fatura antiga estava faltando.");
