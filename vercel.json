@@ -52,6 +52,24 @@
           "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
         }
       ]
+    },
+    {
+      "source": "/(.*).(jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|css|js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     }
   ]
 }
