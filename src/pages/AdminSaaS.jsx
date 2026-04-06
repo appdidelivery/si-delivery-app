@@ -135,7 +135,6 @@ export default function AdminSaaS() {
             const batchPromises = [];
             const hoje = new Date();
             
-            // Trocado de forEach para for...of para permitir consultas (await) dentro do loop
             for (const loja of storesList) {
                 let dataCriacao;
                 let isFixingDate = false;
@@ -205,7 +204,10 @@ export default function AdminSaaS() {
                             }
                         });
                     }
-                    iteradorMes.setMonth(iteradorMes.getMonth() + 1);
+                    
+                    // Avança para o próximo ciclo (ex: de Fev-Mar para Mar-Abr)
+                    startOfCycle = new Date(endOfCycle);
+                    endOfCycle = new Date(endOfCycle.getFullYear(), endOfCycle.getMonth() + 1, diaVencimento);
                 }
 
                 if (novasFaturas.length > 0 || isFixingDate) {
