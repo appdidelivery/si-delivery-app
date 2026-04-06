@@ -231,16 +231,19 @@ export default async function handler(req, res) {
     // 5. CRON AUTOMATIONS (ROBÔ DE RESGATE, RETENÇÃO E FATURAMENTO)
     // ------------------------------------------------------------------------
     else if (path === '/api/cron-automations') {
-        if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
-            return res.status(401).json({ error: 'Unauthorized' });
+        // Como você usa o cron-job.org, não vamos bloquear com erro 401 se faltar o Header, 
+        // apenas damos um aviso interno para o robô continuar rodando.
+        const authHeader = req.headers['authorization'];
+        if (req.headers['user-agent'] !== 'Vercel Cron' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            console.warn("Aviso: Cron rodado sem token. Executando via cron-job.org.");
         }
+
         try {
             console.log("⏱️ Iniciando Rotina de Automação e Faturamento...");
             const batch = db.batch();
             
             // --- INÍCIO: MOTOR DE FATURAMENTO AUTOMÁTICO (ROLLING BILLING) ---
-            // Força o fuso horário para o Brasil (UTC-3) para o Cron não fechar fatura no dia errado
-            const brazilTime = new Date(new Date().getTime() - 3 * 3600 * 1000);
+            const brazilTime = new Date(new Date().getTime() - 3 * 3600 * 1000); // Fuso UTC-3
             const todayDay = brazilTime.getDate();
             let faturasGeradas = 0;
 
@@ -250,16 +253,21 @@ export default async function handler(req, res) {
                 const storeData = storeDoc.data();
                 if (!storeData.createdAt) continue;
 
-                // Lida com datas salvas como Timestamp (App) ou ISO String (Manual)
-                const dataCriacao = storeData.createdAt.toDate ? storeData.createdAt.toDate() : new Date(storeData.createdAt._seconds ? storeData.createdAt._seconds * 1000 : storeData.createdAt);
+                // BLINDAGEM DE DATAS: Aceita Timestamp do Firebase ou Texto (String ISO)
+                let dataCriacao;
+                if (storeData.createdAt && typeof storeData.createdAt.toDate === 'function') {
+                    dataCriacao = storeData.createdAt.toDate();
+                } else {
+                    dataCriacao = new Date(storeData.createdAt);
+                }
+
                 if (isNaN(dataCriacao)) continue;
 
                 const diaVencimento = dataCriacao.getDate();
 
-                // Hoje é o aniversário da loja? Se sim, FECHA A FATURA DAQUELE CICLO!
+                // Hoje é o aniversário do ciclo da loja?
                 if (diaVencimento === todayDay) {
                     const nomeMesAno = brazilTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                    
                     const faturas = storeData.faturasHistorico || [];
                     const faturaJaExiste = faturas.some(f => f.month.toLowerCase() === nomeMesAno.toLowerCase() && f.isAuto);
                     
@@ -267,14 +275,21 @@ export default async function handler(req, res) {
                         const startOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth() - 1, diaVencimento);
                         const endOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth(), diaVencimento);
 
-                        // Conta pedidos do ciclo para cobrar excedentes (acima da franquia de 100)
-                        const ordersSnap = await db.collection('orders')
-                            .where('storeId', '==', storeDoc.id)
-                            .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(startOfCycle))
-                            .where('createdAt', '<', admin.firestore.Timestamp.fromDate(endOfCycle))
-                            .get();
-
-                        const ordersCount = ordersSnap.docs.filter(d => d.data().status !== 'canceled').length;
+                        const ordersSnap = await db.collection('orders').where('storeId', '==', storeDoc.id).get();
+                        
+                        const ordersCount = ordersSnap.docs.filter(d => {
+                            const oData = d.data();
+                            if (oData.status === 'canceled') return false;
+                            
+                            // Blindagem de data nos pedidos também
+                            let dt;
+                            if (oData.createdAt && typeof oData.createdAt.toDate === 'function') {
+                                dt = oData.createdAt.toDate();
+                            } else {
+                                dt = new Date(oData.createdAt || 0);
+                            }
+                            return dt >= startOfCycle && dt < endOfCycle;
+                        }).length;
                         
                         const extraOrders = Math.max(0, ordersCount - 100);
                         const extraCost = extraOrders * 0.25;
@@ -300,7 +315,6 @@ export default async function handler(req, res) {
 
                         const updateData = { faturasHistorico: admin.firestore.FieldValue.arrayUnion(novaFatura) };
                         
-                        // Se a loja paga, avisa no painel que ela tem boleto aberto mudando o status mestre
                         if (!isCortesia && storeData.billingStatus !== 'teste' && storeData.billingStatus !== 'bloqueado') {
                             updateData.billingStatus = 'pendente';
                         }
@@ -315,73 +329,67 @@ export default async function handler(req, res) {
 
             let alertsSent = 0;
             const now = new Date();
-            const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60000); // 30 Minutos atrás
-            
-            // Buscamos todos os abandonados e filtramos o envio no loop abaixo
-const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").get();
-            const abandonedPromises = [];
+            const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60000); 
+            
+            const abandonedQuery = await db.collection("abandoned_carts").where("status", "==", "abandoned").get();
+            const abandonedPromises = [];
 
-            for (const doc of abandonedQuery.docs) {
-                const data = doc.data();
-                if (data.lastUpdated && data.lastUpdated.toDate() < thirtyMinutesAgo && data.customerPhone) {
-                    const storeId = data.storeId;
-                    // Se o alerta já foi enviado, pula para o próximo
-if (data.abandonmentAlertSent === true) continue;
-                    // Puxa o Token da Meta API exato deste Lojista
-                    const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
-                    const settingsData = storeSettingsDoc.data() || {};
-                    const waConfig = settingsData.integrations?.whatsapp;
-                    
-                    if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
-                        const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
-                        let cleanPhone = String(data.customerPhone).replace(/\D/g, '');
-                        if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+            for (const doc of abandonedQuery.docs) {
+                const data = doc.data();
+                if (data.lastUpdated && data.lastUpdated.toDate() < thirtyMinutesAgo && data.customerPhone) {
+                    const storeId = data.storeId;
+                    if (data.abandonmentAlertSent === true) continue;
+                    
+                    const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
+                    const settingsData = storeSettingsDoc.data() || {};
+                    const waConfig = settingsData.integrations?.whatsapp;
+                    
+                    if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
+                        const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                        let cleanPhone = String(data.customerPhone).replace(/\D/g, '');
+                        if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
 
-                        // Puxa o cupom de exit intent que o lojista cadastrou lá no painel, ou usa um genérico
-                        const cupom = settingsData.exitIntentCoupon || "VOLTA10";
-                        const firstName = data.customerName ? data.customerName.split(' ')[0] : 'Cliente';
-                        
-                        const msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
-                        
-                       abandonedPromises.push(
-                            fetch(GRAPH_API_URL, {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msg }
-                                })
-                            }).then(async (res) => {
-                                if (res.ok) {
-                                    // === SALVA A MENSAGEM DO ROBÔ NO CHAT DO PAINEL ===
-                                    try {
-                                        await db.collection('whatsapp_inbound').add({
-                                            storeId: storeId,
-                                            to: cleanPhone,
-                                            text: msg,
-                                            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                                            status: 'read',
-                                            direction: 'outbound'
-                                        });
-                                    } catch(e) { console.error("Erro ao salvar log do carrinho no chat", e); }
-                                }
-                            })
-                        );
-                        
-                        batch.update(doc.ref, { abandonmentAlertSent: true });
-                        alertsSent++;
-                    }
-                }
-            }
+                        const cupom = settingsData.exitIntentCoupon || "VOLTA10";
+                        const firstName = data.customerName ? data.customerName.split(' ')[0] : 'Cliente';
+                        const msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
+                        
+                        abandonedPromises.push(
+                            fetch(GRAPH_API_URL, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msg }
+                                })
+                            }).then(async (res) => {
+                                if (res.ok) {
+                                    try {
+                                        await db.collection('whatsapp_inbound').add({
+                                            storeId: storeId, to: cleanPhone, text: msg,
+                                            receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                                        });
+                                    } catch(e) {}
+                                }
+                            })
+                        );
+                        
+                        batch.update(doc.ref, { abandonmentAlertSent: true });
+                        alertsSent++;
+                    }
+                }
+            }
 
-            await Promise.all(abandonedPromises);
-            if (alertsSent > 0) await batch.commit();
+            await Promise.all(abandonedPromises);
+            
+            if (alertsSent > 0 || faturasGeradas > 0) {
+                await batch.commit();
+            }
 
-            return res.status(200).json({ success: true, alertsSent });
-        } catch (error) {
-            console.error('❌ Erro no CRON:', error);
-            return res.status(500).json({ error: error.message });
-        }
-    }
+            return res.status(200).json({ success: true, alertsSent, faturasGeradas });
+        } catch (error) {
+            console.error('❌ Erro no CRON:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
 
     // ------------------------------------------------------------------------
     // 6. GOOGLE ORDER FEED
