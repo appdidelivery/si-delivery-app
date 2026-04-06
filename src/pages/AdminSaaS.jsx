@@ -152,45 +152,36 @@ export default function AdminSaaS() {
                 }
 
                 const diaVencimento = dataCriacao.getDate();
-                let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1); 
-                
                 let historicoAtual = loja.faturasHistorico || [];
                 let novasFaturas = [];
 
-                // 🚨 O PULO DO GATO: Puxa todos os pedidos da loja DE UMA VEZ SÓ para não sobrecarregar o banco
+                // LÓGICA CIRÚRGICA DE CICLOS (Rolling Billing)
+                let startOfCycle = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth(), diaVencimento);
+                let endOfCycle = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, diaVencimento);
+                
+                // Puxa todos os pedidos da loja de uma vez
                 const ordersSnap = await getDocs(query(collection(db, 'orders'), where('storeId', '==', loja.id)));
                 const todosPedidosLoja = ordersSnap.docs.map(d => d.data());
 
-                while (iteradorMes < hoje && (iteradorMes.getMonth() !== hoje.getMonth() || iteradorMes.getFullYear() !== hoje.getFullYear())) {
-                    const nomeMesAno = iteradorMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                    
-                    const startOfCycle = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth() - 1, diaVencimento);
-                    const endOfCycle = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
-                    
+                // Enquanto a data de fim do ciclo for Menor ou Igual a Hoje, o ciclo fechou e gera fatura!
+                while (endOfCycle <= hoje) {
+                    const nomeMesAno = endOfCycle.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                     const jaExiste = historicoAtual.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
                     
                     if (!jaExiste) {
-                        // CALCULA OS PEDIDOS REAIS QUE A LOJA FEZ NESTE CICLO ESPECÍFICO DO PASSADO
                         const pedidosNoCiclo = todosPedidosLoja.filter(oData => {
-                            // Ignora cancelados
                             if (oData.status === 'canceled' || oData.status === 'cancelado') return false;
-                            
                             if (!oData.createdAt) return false;
 
                             let dt;
-                            // Tenta todos os formatos possíveis que o Firebase pode ter salvo no passado
-                            if (typeof oData.createdAt.toDate === 'function') {
-                                dt = oData.createdAt.toDate();
-                            } else if (oData.createdAt.seconds) {
-                                dt = new Date(oData.createdAt.seconds * 1000);
-                            } else if (oData.createdAt._seconds) {
-                                dt = new Date(oData.createdAt._seconds * 1000);
-                            } else {
-                                dt = new Date(oData.createdAt);
-                            }
+                            if (typeof oData.createdAt.toDate === 'function') dt = oData.createdAt.toDate();
+                            else if (oData.createdAt.seconds) dt = new Date(oData.createdAt.seconds * 1000);
+                            else if (oData.createdAt._seconds) dt = new Date(oData.createdAt._seconds * 1000);
+                            else dt = new Date(oData.createdAt);
                             
                             if (isNaN(dt)) return false;
-
+                            
+                            // O pedido tem que ter acontecido EXATAMENTE dentro do ciclo daquele mês
                             return dt >= startOfCycle && dt < endOfCycle;
                         }).length;
 
@@ -200,7 +191,7 @@ export default function AdminSaaS() {
                         const totalFatura = 49.90 + extraCost;
 
                         novasFaturas.push({
-                            id: `auto_${loja.id}_${iteradorMes.getTime()}`,
+                            id: `auto_${loja.id}_${endOfCycle.getTime()}`,
                             month: nomeMesAno,
                             amount: `R$ ${totalFatura.toFixed(2).replace('.', ',')}`,
                             status: isCortesia ? 'ISENTO' : 'PAGO',
@@ -210,7 +201,7 @@ export default function AdminSaaS() {
                             breakdown: {
                                 basePlan: 49.90,
                                 extraOrdersCost: extraCost,
-                                discount: isCortesia ? totalFatura : 0 // Isenta o valor TOTAL (Base + Excedentes)
+                                discount: isCortesia ? totalFatura : 0 
                             }
                         });
                     }
