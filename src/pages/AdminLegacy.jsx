@@ -1945,19 +1945,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <RefreshCw size={10} /> Atualizar Painel
                     </button>
                 </div>
-                <div className="mt-auto pt-4"> {/* Empurra para o fundo */}
+                <div className="mt-auto pt-4 flex flex-col gap-2"> {/* Empurra para o fundo */}
                     {storeId && (
                         <a 
                             href={`https://${storeId}.velodelivery.com.br`} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="w-full flex items-center gap-3 p-4 bg-blue-50 text-blue-600 rounded-2xl font-bold text-[10px] uppercase hover:bg-blue-100 transition-all mb-2"
+                            className="w-full flex items-center justify-center gap-2 p-4 bg-blue-50 text-blue-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all"
                         >
-                            <ExternalLink size={18} /> Ver Loja Online
+                            <ExternalLink size={16} /> Ver Loja Online
                         </a>
                     )}
+                    
+                    {/* IDENTIFICADOR DO USUÁRIO LOGADO */}
+                    <div className="w-full flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 mt-2 shadow-sm">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-xs flex-shrink-0">
+                                {auth.currentUser?.displayName ? auth.currentUser.displayName.charAt(0).toUpperCase() : (auth.currentUser?.email ? auth.currentUser.email.charAt(0).toUpperCase() : 'U')}
+                            </div>
+                            <div className="flex flex-col truncate">
+                                <span className="text-[10px] font-black text-slate-800 uppercase truncate" title={auth.currentUser?.displayName || 'Usuário'}>
+                                    {auth.currentUser?.displayName || 'Usuário'}
+                                </span>
+                                <span className="text-[9px] font-bold text-slate-400 truncate" title={auth.currentUser?.email}>
+                                    {auth.currentUser?.email}
+                                </span>
+                            </div>
+                        </div>
+                        <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all flex-shrink-0" title="Sair do Sistema">
+                            <LogOut size={16} />
+                        </button>
+                    </div>
                 </div>
-                <button onClick={handleLogout} className="mt-6 w-full flex items-center gap-3 p-4 text-red-500 hover:bg-red-50 font-bold text-[10px] uppercase"><LogOut size={18} /> Sair</button>
             </aside>
 
             <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
