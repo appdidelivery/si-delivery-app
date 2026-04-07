@@ -4347,8 +4347,50 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
+                            )}
+                        </div>
+
+                        {/* --- HISTÓRICO DE SAQUES VELOPAY --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mb-8">
+                            <h3 className="text-2xl font-black uppercase text-slate-800 italic mb-6 flex items-center gap-2"><Banknote size={24} className="text-blue-600"/> Histórico de Repasses</h3>
+                            <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+                                {withdrawalsList.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center">
+                                        <p className="font-bold text-slate-500">Nenhum saque solicitado ainda.</p>
+                                    </div>
+                                ) : (
+                                    withdrawalsList.sort((a, b) => (b.requestedAt?.toMillis() || 0) - (a.requestedAt?.toMillis() || 0)).map(withdrawal => (
+                                        <div key={withdrawal.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-400 hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 rounded-xl ${withdrawal.status === 'paid' ? 'bg-green-100 text-green-600' : withdrawal.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                    <Wallet size={20}/>
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-slate-700 uppercase">Saque VeloPay</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                        Solicitado: {withdrawal.requestedAt?.toDate ? new Date(withdrawal.requestedAt.toDate()).toLocaleDateString('pt-BR') : 'N/A'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex items-center gap-4">
+                                                <div>
+                                                    <p className="font-black text-lg text-slate-800">R$ {Number(withdrawal.amount).toFixed(2)}</p>
+                                                    <p className={`text-[10px] font-black uppercase tracking-widest ${withdrawal.status === 'paid' ? 'text-green-600' : withdrawal.status === 'rejected' ? 'text-red-600' : 'text-amber-500'}`}>
+                                                        {withdrawal.status === 'paid' ? '✅ CONCLUÍDO' : withdrawal.status === 'rejected' ? '❌ RECUSADO' : '⏳ PENDENTE'}
+                                                    </p>
+                                                </div>
+                                                {/* Botão de Comprovante - Só aparece se o Admin colar o link lá no Firebase */}
+                                                {withdrawal.receiptUrl && (
+                                                    <a href={withdrawal.receiptUrl} target="_blank" rel="noopener noreferrer" className="p-3 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 transition-colors" title="Ver Comprovante">
+                                                        <FileText size={20} />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
                         
                         {/* NOVO CARD: STRIPE CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">

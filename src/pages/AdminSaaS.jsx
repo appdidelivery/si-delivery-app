@@ -22,6 +22,13 @@ export default function AdminSaaS() {
     const [storesList, setStoresList] = useState([]);
     const [actionLoading, setActionLoading] = useState(null);
 
+    // --- ESTADOS DO MODAL DE REPASSE ---
+    const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+    const [selectedStoreForPayout, setSelectedStoreForPayout] = useState(null);
+    const [storeWithdrawals, setStoreWithdrawals] = useState([]);
+    const [receiptFile, setReceiptFile] = useState(null);
+    const [uploadingReceiptId, setUploadingReceiptId] = useState(null);
+
     // 🔒 TRAVA DE SEGURANÇA MULTI-CONTAS
     const MASTER_EMAILS = [
         'projetosdiego.l@gmail.com', 
@@ -115,16 +122,68 @@ export default function AdminSaaS() {
         finally { setActionLoading(null); }
     };
 
-    const handleDeleteStore = async (storeId, storeName) => {
-        const displayName = storeName || 'LOJA SEM NOME';
-        if (!window.confirm(`⚠️ DELETAR "${displayName}"? Isso apaga os dados do banco permanentemente!`)) return;
-        if (window.prompt(`Digite DELETAR para confirmar a exclusão:`) !== 'DELETAR') return;
-        setActionLoading(`delete_${storeId}`);
+    // --- FUNÇÕES DO MODAL DE REPASSE VELOPAY ---
+    const handleOpenPayoutModal = async (store) => {
+        setSelectedStoreForPayout(store);
+        setIsPayoutModalOpen(true);
+        setStoreWithdrawals([]); // Limpa o estado anterior por garantia
+        
         try {
-            await deleteDoc(doc(db, 'stores', storeId));
-            alert('Loja excluída.'); await fetchSaaSData();
-        } catch (error) { alert('Erro: ' + error.message); }
-        finally { setActionLoading(null); }
+            // Busca apenas os saques da loja selecionada
+            const q = query(collection(db, 'withdrawals'), where('storeId', '==', store.id));
+            const querySnapshot = await getDocs(q);
+            const withdrawals = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Ordena para mostrar os mais recentes (ou os pendentes) primeiro
+            withdrawals.sort((a, b) => (b.requestedAt?.toMillis() || 0) - (a.requestedAt?.toMillis() || 0));
+            setStoreWithdrawals(withdrawals);
+        } catch (error) {
+            console.error("Erro ao buscar saques:", error);
+            alert("Erro ao carregar o histórico de saques desta loja.");
+        }
+    };
+
+    const handleUploadReceiptAndPay = async (withdrawalId) => {
+        if (!receiptFile) return alert("Selecione o arquivo PDF do comprovante primeiro!");
+        
+        setUploadingReceiptId(withdrawalId);
+        try {
+            // 1. Upload do PDF para o Cloudinary
+            const formData = new FormData();
+            formData.append('file', receiptFile);
+            // Usamos as mesmas credenciais que você já tem configuradas no projeto principal
+            formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'velo_preset'); 
+            
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`, { 
+                method: 'POST', 
+                body: formData 
+            });
+            
+            if (!response.ok) throw new Error('Falha no upload do arquivo.');
+            const data = await response.json();
+            const fileUrl = data.secure_url;
+
+            // 2. Atualiza o documento no Firestore
+            await updateDoc(doc(db, 'withdrawals', withdrawalId), {
+                status: 'paid',
+                receiptUrl: fileUrl,
+                paidAt: new Date()
+            });
+
+            // 3. Atualiza a lista na tela para o botão ficar verde
+            setStoreWithdrawals(prev => prev.map(w => 
+                w.id === withdrawalId ? { ...w, status: 'paid', receiptUrl: fileUrl } : w
+            ));
+            
+            setReceiptFile(null);
+            alert("✅ Comprovante anexado e saque marcado como pago com sucesso!");
+            
+        } catch (error) {
+            console.error("Erro no repasse:", error);
+            alert("Erro ao processar o comprovante: " + error.message);
+        } finally {
+            setUploadingReceiptId(null);
+        }
     };
 // --- MOTOR MÁGICO: GERAR FATURAS RETROATIVAS NO BANCO ---
     const handleSyncPastInvoices = async () => {
@@ -436,7 +495,7 @@ export default function AdminSaaS() {
                                                     <button onClick={() => handleApprovePix(loja.id)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CheckCircle size={14}/> Aprovar Pix</button>
                                                 )}
                                                 
-                                                <button onClick={() => handleUpdatePayout(loja.id)} className="bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CreditCard size={14} /> Repasse</button>
+                                                <button onClick={() => handleOpenPayoutModal(loja)} className="bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/30 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CreditCard size={14} /> Repasse</button>
                                                 <button onClick={() => handleImpersonate(loja.id)} className="bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Play size={14} /> Impersonate</button>
                                                 <button onClick={() => handleUpdateBillingStatus(loja.id, loja.billingStatus === 'bloqueado' ? 'pago' : 'bloqueado')} className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Lock size={14} /> Bloquear Loja</button>
                                                 <button onClick={() => handleDeleteStore(loja.id, loja.name)} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors"><Trash2 size={14} /></button>
@@ -587,9 +646,99 @@ export default function AdminSaaS() {
                     <button onClick={async () => { await signOut(auth); navigate('/login'); }} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 font-bold hover:bg-red-500/10 rounded-xl transition-colors"><LogOut size={18} /> Sair</button>
                 </div>
             </aside>
-            <main className="flex-1 overflow-y-auto bg-[#0B0F19] p-6 md:p-10">
+            <main className="flex-1 overflow-y-auto bg-[#0B0F19] p-6 md:p-10 relative">
                 <header className="md:hidden mb-6 flex justify-between"><button onClick={() => setIsMobileMenuOpen(true)} className="text-white"><Menu /></button></header>
                 <div className="max-w-7xl mx-auto">{renderContent()}</div>
+
+                {/* --- MODAL DE REPASSE (DARK OPS) --- */}
+                {isPayoutModalOpen && selectedStoreForPayout && (
+                    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+                            <button onClick={() => setIsPayoutModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors"><X size={20}/></button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-white mb-1 flex items-center gap-3">
+                                <CreditCard className="text-purple-500" size={28}/> Saques da Loja
+                            </h2>
+                            <p className="text-xs font-bold text-slate-400 mb-6 border-b border-slate-800 pb-6 uppercase tracking-widest">
+                                Loja: <span className="text-white">{selectedStoreForPayout.name || selectedStoreForPayout.velopayData?.legalName || 'N/A'}</span>
+                                <br/><span className="text-emerald-400 mt-1 inline-block">Chave PIX: {selectedStoreForPayout.velopayData?.pixKey || 'Não cadastrada'}</span>
+                            </p>
+
+                            <div className="space-y-4 flex-1">
+                                {storeWithdrawals.length === 0 ? (
+                                    <div className="text-center py-10 bg-slate-800/50 rounded-2xl border border-dashed border-slate-700">
+                                        <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Nenhum saque solicitado.</p>
+                                    </div>
+                                ) : (
+                                    storeWithdrawals.map(w => (
+                                        <div key={w.id} className="bg-slate-950 border border-slate-800 p-5 rounded-2xl flex flex-col gap-4">
+                                            <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1">Data da Solicitação</p>
+                                                    <p className="text-sm font-bold text-slate-300">
+                                                        {w.requestedAt?.toDate ? new Date(w.requestedAt.toDate()).toLocaleString('pt-BR') : 'N/A'}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1">Valor do Saque</p>
+                                                    <p className="text-2xl font-black text-white italic">R$ {Number(w.amount).toFixed(2)}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
+                                                <div className="flex-1 w-full">
+                                                    {w.status === 'paid' ? (
+                                                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
+                                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+                                                                <CheckCircle2 size={14}/> Saque Pago
+                                                            </span>
+                                                            {w.receiptUrl && (
+                                                                <a href={w.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-white hover:text-emerald-300 underline">
+                                                                    Ver Comprovante
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    ) : w.status === 'rejected' ? (
+                                                        <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl">
+                                                            <span className="text-[10px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1">
+                                                                <Ban size={14}/> Saque Recusado
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <input 
+                                                                type="file" 
+                                                                accept=".pdf,image/*" 
+                                                                onChange={(e) => setReceiptFile(e.target.files[0])} 
+                                                                className="hidden" 
+                                                                id={`receipt-upload-${w.id}`} 
+                                                            />
+                                                            <label 
+                                                                htmlFor={`receipt-upload-${w.id}`} 
+                                                                className={`flex-1 p-3 rounded-xl font-bold text-[10px] uppercase text-center cursor-pointer border border-dashed transition-all ${receiptFile ? 'bg-blue-900/40 border-blue-500 text-blue-300' : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-slate-700'}`}
+                                                            >
+                                                                {receiptFile ? '📄 ' + receiptFile.name : '📎 Selecionar Comprovante (PDF)'}
+                                                            </label>
+                                                            
+                                                            <button 
+                                                                onClick={() => handleUploadReceiptAndPay(w.id)}
+                                                                disabled={uploadingReceiptId === w.id || !receiptFile}
+                                                                className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center gap-2"
+                                                            >
+                                                                {uploadingReceiptId === w.id ? <Loader2 size={14} className="animate-spin"/> : <CheckCircle size={14}/>}
+                                                                Pagar
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );
