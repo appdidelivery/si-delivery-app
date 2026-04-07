@@ -4177,22 +4177,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <p className="text-slate-300 text-xs font-medium transition-all duration-300 group-hover:opacity-0">As transações estão sendo processadas nativamente pela sua conta Efí.</p>
                                         
                                         {/* BOTÃO DE DESATIVAR (APARECE NO HOVER) */}
-                                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                            <button 
-                                                onClick={async () => {
-                                                    if (window.confirm("⚠️ Tem certeza que deseja desativar o VeloPay? \n\nSua loja perderá as taxas reduzidas e o checkout nativo instantâneo.")) {
-                                                        await updateDoc(doc(db, "stores", storeId), { 
-                                                            velopayStatus: 'inactive',
-                                                            velopayCreditStatus: 'inactive'
-                                                        });
-                                                        alert("VeloPay desativado com sucesso.");
-                                                    }
-                                                }}
-                                                className="bg-red-500/20 text-red-400 border border-red-500/50 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                                            >
-                                                <X size={16}/> Desativar Conta
-                                            </button>
-                                        </div>
+                                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
+                                        <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
+                                        <p className="text-slate-300 text-xs font-medium mb-4">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
+                                        
+                                        <button 
+                                            onClick={async () => {
+                                                if (window.confirm("⚠️ Tem certeza que deseja desativar o VeloPay? \n\nSua loja perderá as taxas reduzidas e o checkout nativo instantâneo.")) {
+                                                    await updateDoc(doc(db, "stores", storeId), { 
+                                                        velopayStatus: 'inactive',
+                                                        velopayCreditStatus: 'inactive'
+                                                    });
+                                                    alert("VeloPay desativado com sucesso.");
+                                                }
+                                            }}
+                                            className="bg-red-500/10 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
+                                        >
+                                            <X size={14}/> Desativar VeloPay
+                                        </button>
+                                    </div>
                                     </div>
                                 </div>
                             )}
