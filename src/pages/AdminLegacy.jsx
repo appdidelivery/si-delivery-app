@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
-import { signOut } from 'firebase/auth';
+import { signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
@@ -769,6 +769,17 @@ export default function Admin() {
 
     const handleLogout = async () => {
         try { await signOut(auth); navigate('/login'); } catch (error) { console.error("Erro logout:", error); }
+    };
+
+    const handleResetPassword = async (emailUsuario) => {
+        if (!emailUsuario) return alert("E-mail do usuário não encontrado.");
+        try {
+            await sendPasswordResetEmail(auth, emailUsuario);
+            alert(`E-mail de redefinição enviado com sucesso para ${emailUsuario}! Peça para o usuário checar a caixa de entrada e o lixo eletrônico (spam).`);
+        } catch (error) {
+            console.error("Erro ao enviar e-mail de redefinição:", error);
+            alert("Ocorreu um erro ao tentar enviar o e-mail. Verifique se o e-mail está correto e cadastrado na aba Authentication do Firebase.");
+        }
     };
 
     // --- LISTENERS FIREBASE ---
@@ -3904,9 +3915,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="flex gap-2 border-t border-slate-50 pt-4 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => { setEditingTeamId(member.id); setTeamForm(member); setIsTeamModalOpen(true); }} className="flex-1 p-2 bg-slate-50 rounded-xl text-blue-600 font-bold text-xs uppercase hover:bg-blue-100 transition-all flex justify-center items-center gap-2"><Edit3 size={16} /> Editar</button>
-                                            <button onClick={() => window.confirm("Remover usuário?") && deleteDoc(doc(db, "team", member.id))} className="flex-1 p-2 bg-slate-50 rounded-xl text-red-600 font-bold text-xs uppercase hover:bg-red-100 transition-all flex justify-center items-center gap-2"><Trash2 size={16} /> Excluir</button>
+                                        <div className="flex flex-col gap-2 border-t border-slate-50 pt-4 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingTeamId(member.id); setTeamForm(member); setIsTeamModalOpen(true); }} className="flex-1 p-2 bg-slate-50 rounded-xl text-blue-600 font-bold text-xs uppercase hover:bg-blue-100 transition-all flex justify-center items-center gap-2"><Edit3 size={16} /> Editar</button>
+                                                <button onClick={() => window.confirm("Remover usuário?") && deleteDoc(doc(db, "team", member.id))} className="flex-1 p-2 bg-slate-50 rounded-xl text-red-600 font-bold text-xs uppercase hover:bg-red-100 transition-all flex justify-center items-center gap-2"><Trash2 size={16} /> Excluir</button>
+                                            </div>
+                                            <button onClick={() => handleResetPassword(member.email)} className="w-full p-2 bg-slate-50 rounded-xl text-slate-600 font-bold text-xs uppercase hover:bg-slate-200 transition-all flex justify-center items-center gap-2"><RefreshCw size={16} /> Enviar Nova Senha</button>
                                         </div>
                                     </div>
                                 ))
