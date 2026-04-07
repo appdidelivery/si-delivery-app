@@ -4131,73 +4131,92 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-orange-200/70 text-sm font-medium">Sua documentação foi enviada com segurança para a Efí Bank. Em breve o Pix Nativo estará liberado.</p>
                                 </div>
                             ) : (
-                                /* Conta Ativa - Dashboard Interno */
-                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Total VeloPay</p>
-                                        <h2 className="text-4xl font-black italic text-white mb-2">R$ {velopayBalance.toFixed(2)}</h2>
-                                        
-                                        <div className="flex flex-col gap-2 mb-4">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Ciclo de Repasse (Pix)</label>
-                                            <select 
-                                                className="bg-slate-900 text-blue-400 text-xs font-black uppercase rounded-xl border border-slate-700 p-3 outline-none cursor-pointer w-full shadow-inner"
-                                                value={storeStatus?.velopayPixPlan || 'd30'}
-                                                onChange={async (e) => {
-                                                    if(window.confirm("Alterar o ciclo mudará a taxa cobrada por transação. Confirmar?")) {
-                                                        await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value }, { merge: true });
-                                                    }
-                                                }}
-                                            >
-                                                <option value="d30">Em 30 dias (Taxa 2,59%)</option>
-                                                <option value="d14">Em 15 dias (Taxa 2,99%)</option>
-                                                <option value="d1">Em 24h/D+1 (Taxa 3,59%)</option>
-                                                <option value="d0">Na Hora / D+0 (Taxa 3,99%)</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl mb-6">
-                                            <p className="text-orange-400 text-xs font-bold flex items-center gap-2">
-                                                <Shield size={16}/> Atenção: Repasse Manual
-                                            </p>
-                                            <p className="text-slate-400 text-[10px] mt-1">
-                                                Para sua segurança, os pedidos são auditados. Seu saque será enviado para a chave PIX cadastrada ({storeStatus?.velopayData?.pixKey}) conforme o prazo do seu plano.
-                                            </p>
-                                        </div>
-
-                                        <button 
-                                            onClick={handleRequestWithdraw}
-                                            disabled={storeStatus?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
-                                            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
-                                        >
-                                            {isProcessingWithdraw ? 'Processando...' : (storeStatus?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora')}
-                                        </button>
-                                    </div>
-                                   <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center relative overflow-hidden group">
-                                        <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2 transition-all duration-300 group-hover:-translate-y-1">✅ VeloPay Ativo</p>
-                                        <p className="text-slate-300 text-xs font-medium transition-all duration-300 group-hover:opacity-0">As transações estão sendo processadas nativamente pela sua conta Efí.</p>
+                                /* Conta Ativa / Pausada - Dashboard Interno */
+                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Coluna 1: Saldo e Saque */}
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-between">
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Saldo Total VeloPay</p>
+                                        <h2 className="text-4xl font-black italic text-white mb-2">R$ {velopayBalance.toFixed(2)}</h2>
                                         
-                                        {/* BOTÃO DE DESATIVAR (APARECE NO HOVER) */}
-                                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
-                                        <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
-                                        <p className="text-slate-300 text-xs font-medium mb-4">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
-                                        
+                                        <div className="flex flex-col gap-2 mb-4">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Ciclo de Repasse (Pix)</label>
+                                            <select 
+                                                className="bg-slate-900 text-blue-400 text-xs font-black uppercase rounded-xl border border-slate-700 p-3 outline-none cursor-pointer w-full shadow-inner disabled:opacity-50"
+                                                disabled={storeStatus?.velopayStatus !== 'active'}
+                                                value={storeStatus?.velopayPixPlan || 'd30'}
+                                                onChange={async (e) => {
+                                                    if(window.confirm("Alterar o ciclo mudará a taxa cobrada por transação. Confirmar?")) {
+                                                        await updateDoc(doc(db, "stores", storeId), { velopayPixPlan: e.target.value }, { merge: true });
+                                                    }
+                                                }}
+                                            >
+                                                <option value="d30">Em 30 dias (Taxa 2,59%)</option>
+                                                <option value="d14">Em 15 dias (Taxa 2,99%)</option>
+                                                <option value="d1">Em 24h/D+1 (Taxa 3,59%)</option>
+                                                <option value="d0">Na Hora / D+0 (Taxa 3,99%)</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl mb-6">
+                                            <p className="text-orange-400 text-xs font-bold flex items-center gap-2">
+                                                <Shield size={16}/> Atenção: Repasse Manual
+                                            </p>
+                                            <p className="text-slate-400 text-[10px] mt-1">
+                                                Para sua segurança, os pedidos são auditados. Seu saque será enviado para a chave PIX cadastrada ({storeStatus?.velopayData?.pixKey}) conforme o prazo do seu plano.
+                                            </p>
+                                        </div>
+
                                         <button 
-                                            onClick={async () => {
-                                                if (window.confirm("⚠️ Tem certeza que deseja desativar o VeloPay? \n\nSua loja perderá as taxas reduzidas e o checkout nativo instantâneo.")) {
-                                                    await updateDoc(doc(db, "stores", storeId), { 
-                                                        velopayStatus: 'inactive',
-                                                        velopayCreditStatus: 'inactive'
-                                                    });
-                                                    alert("VeloPay desativado com sucesso.");
-                                                }
-                                            }}
-                                            className="bg-red-500/10 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
+                                            onClick={handleRequestWithdraw}
+                                            disabled={storeStatus?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
+                                            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
                                         >
-                                            <X size={14}/> Desativar VeloPay
+                                            {isProcessingWithdraw ? 'Processando...' : (storeStatus?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora')}
                                         </button>
                                     </div>
-                                    </div>
-                                </div>
+                                    
+                                    {/* Coluna 2: Status do VeloPay (Ativo ou Pausado) */}
+                                    {storeStatus?.velopayStatus === 'active' ? (
+                                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
+                                            <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
+                                            <p className="text-slate-300 text-xs font-medium mb-4">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
+                                            
+                                            <button 
+                                                onClick={async () => {
+                                                    if (window.confirm("⚠️ Tem certeza que deseja desativar o VeloPay? \n\nSua loja perderá as taxas reduzidas e o checkout nativo instantâneo.")) {
+                                                        await updateDoc(doc(db, "stores", storeId), { 
+                                                            velopayStatus: 'inactive',
+                                                            velopayCreditStatus: 'inactive'
+                                                        });
+                                                        alert("VeloPay desativado com sucesso.");
+                                                    }
+                                                }}
+                                                className="bg-red-500/10 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
+                                            >
+                                                <X size={14}/> Desativar VeloPay
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-slate-900/50 border border-slate-700 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
+                                            <p className="text-slate-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">⏸️ VeloPay Pausado</p>
+                                            <p className="text-slate-500 text-xs font-medium mb-6">Sua conta está inativa. Seus clientes não poderão usar o checkout nativo.</p>
+                                            
+                                            <button 
+                                                onClick={async () => {
+                                                    if (window.confirm("Deseja reativar o VeloPay para receber pagamentos novamente?")) {
+                                                        await updateDoc(doc(db, "stores", storeId), { 
+                                                            velopayStatus: 'active'
+                                                        });
+                                                        alert("VeloPay reativado com sucesso!");
+                                                    }
+                                                }}
+                                                className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-500 transition-all active:scale-95"
+                                            >
+                                                Reativar VeloPay
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                         
