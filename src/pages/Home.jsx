@@ -2509,7 +2509,7 @@ if (window.fbq) {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50">
         <AnimatePresence>
           {activeOrderId && (
-            <motion.button onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
+            <motion.button aria-label="Acompanhar Pedido Ativo" onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
               <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
             </motion.button>
           )}
@@ -2517,6 +2517,7 @@ if (window.fbq) {
 
         <div className="relative flex items-center justify-center">
             <motion.button 
+                aria-label="Abrir Carrinho"
                 onClick={() => setShowCheckout(true)} 
                 className={`${currentTheme.primary} text-white rounded-full p-4 shadow-xl ${currentTheme.hoverPrimary} active:scale-90`} 
                 initial={{ scale: 0 }} 
@@ -2531,6 +2532,7 @@ if (window.fbq) {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
                     className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
+                    aria-hidden="true"
                 >
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
                 </motion.div>
@@ -2539,6 +2541,7 @@ if (window.fbq) {
         </div>
 
         <motion.button
+          aria-label="Ver Últimos Pedidos"
           onClick={() => setShowLastOrders(true)}
           className="bg-orange-600 text-white rounded-full p-4 shadow-xl hover:bg-orange-700 active:scale-90 flex items-center gap-2"
           initial={{ scale: 0 }}
@@ -2548,6 +2551,7 @@ if (window.fbq) {
         </motion.button>
 
         <motion.button
+          aria-label="Acessar Clube VIP"
           onClick={() => setShowVipArea(true)}
           className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-slate-900 rounded-full p-4 shadow-xl hover:from-yellow-300 hover:to-yellow-500 active:scale-90 flex items-center gap-2 border-2 border-yellow-300"
           initial={{ scale: 0 }}
