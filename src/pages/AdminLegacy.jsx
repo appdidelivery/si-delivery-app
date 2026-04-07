@@ -443,7 +443,7 @@ export default function Admin() {
     const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const [editingTeamId, setEditingTeamId] = useState(null);
     const [teamForm, setTeamForm] = useState({
-        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
+        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false, marketing: false, finance: false, team: false }
     });
 
     // --- LÓGICA DE CONTROLE DE ACESSO (REATIVA E BLINDADA) ---
@@ -470,20 +470,29 @@ export default function Admin() {
         // Se for funcionário, checa a permissão exata
         switch(menuId) {
             case 'dashboard': return true;
+            
             case 'orders': 
             case 'manual': 
             case 'abandoned': 
             case 'chat': return userPermissions.orders === true; 
+            
             case 'products': 
             case 'categories': 
             case 'ingredients': return userPermissions.products === true; 
+            
             case 'customers': return userPermissions.customers === true; 
-            case 'store_settings': 
+            
+            case 'store_settings': return userPermissions.store_settings === true; 
+            
             case 'banners': 
-            case 'marketing': 
-            case 'finance': 
-            case 'team': return userPermissions.store_settings === true; 
+            case 'marketing': return userPermissions.marketing === true; 
+            
+            case 'finance': return userPermissions.finance === true; 
+            
+            case 'team': return userPermissions.team === true; 
+            
             case 'integrations': return userPermissions.integrations === true; 
+            
             default: return false;
         }
     };
@@ -7267,10 +7276,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">Permissões de Acesso</label>
                                     <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                         {[
-                                            { key: 'orders', label: 'Gestão de Pedidos', desc: 'Ver, aceitar e cancelar pedidos' },
-                                            { key: 'products', label: 'Cardápio / Estoque', desc: 'Adicionar produtos e categorias' },
+                                            { key: 'orders', label: 'Gestão de Pedidos', desc: 'Ver pedidos, lançar manuais e chat' },
+                                            { key: 'products', label: 'Cardápio / Estoque', desc: 'Adicionar produtos, insumos e categorias' },
                                             { key: 'customers', label: 'Clientes VIP', desc: 'Ver clientes e Clube Fidelidade' },
-                                            { key: 'store_settings', label: 'Loja / Status', desc: 'Abrir/fechar loja e alterar regras' },
+                                            { key: 'store_settings', label: 'Loja / Status', desc: 'Abrir/fechar loja, horários e endereço' },
+                                            { key: 'marketing', label: 'Marketing / Banners', desc: 'Gerenciar cupons, roleta e destaques' },
+                                            { key: 'finance', label: 'Financeiro', desc: 'Ver saldo, saques e faturas' },
+                                            { key: 'team', label: 'Equipe', desc: 'Adicionar ou remover funcionários' },
                                             { key: 'integrations', label: 'Integrações', desc: 'Pixel, GA4, GTM e WhatsApp API' }
                                         ].map(perm => (
                                             <label key={perm.key} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl cursor-pointer transition-colors border border-transparent hover:border-slate-200">
