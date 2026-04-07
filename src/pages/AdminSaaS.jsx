@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, arrayUnion, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, arrayUnion, query, where, addDoc } from 'firebase/firestore';
 import { 
     LayoutDashboard, Store, Radio, ShieldAlert, LogOut, Menu, X, Loader2, 
     CheckCircle, ToggleRight, ToggleLeft, Play, Zap, CreditCard, Clock, 
@@ -143,7 +143,7 @@ export default function AdminSaaS() {
         }
     };
 
-    const handleUploadReceiptAndPay = async (withdrawalId) => {
+   const handleUploadReceiptAndPay = async (withdrawalId) => {
         if (!receiptFile) return alert("Selecione o arquivo PDF do comprovante primeiro!");
         
         setUploadingReceiptId(withdrawalId);
@@ -185,7 +185,37 @@ export default function AdminSaaS() {
             setUploadingReceiptId(null);
         }
     };
-// --- MOTOR MÁGICO: GERAR FATURAS RETROATIVAS NO BANCO ---
+
+    const handleForceWithdrawalEntry = async () => {
+        const amountStr = window.prompt("Qual o valor numérico deste repasse? (Ex: 192.80)");
+        if (!amountStr) return;
+        
+        const amount = Number(amountStr.replace(',', '.'));
+        if (isNaN(amount) || amount <= 0) return alert("Valor inválido.");
+
+        try {
+            const newWithdrawal = {
+                storeId: selectedStoreForPayout.id,
+                storeName: selectedStoreForPayout.name || selectedStoreForPayout.velopayData?.legalName || 'Loja',
+                amount: amount,
+                status: 'pending', // Fica pendente para você poder fazer o upload do PDF
+                pixKey: selectedStoreForPayout.velopayData?.pixKey || '',
+                requestedAt: new Date(),
+                plan: 'manual_admin'
+            };
+
+            const docRef = await addDoc(collection(db, 'withdrawals'), newWithdrawal);
+            
+            // Atualiza a lista na tela na mesma hora
+            setStoreWithdrawals(prev => [{ id: docRef.id, ...newWithdrawal }, ...prev]);
+            alert("Lançamento criado! Agora clique em 'Selecionar Comprovante' na caixinha dele.");
+            
+        } catch (error) {
+            alert("Erro ao forçar lançamento: " + error.message);
+        }
+    };
+
+    // --- MOTOR MÁGICO: GERAR FATURAS RETROATIVAS NO BANCO ---
     const handleSyncPastInvoices = async () => {
         if (!window.confirm("Isso vai varrer as lojas e gerar as faturas dos meses passados com CUSTOS REAIS. Confirmar?")) return;
         
@@ -656,10 +686,15 @@ export default function AdminSaaS() {
                         <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                             <button onClick={() => setIsPayoutModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors"><X size={20}/></button>
                             
-                            <h2 className="text-2xl font-black italic uppercase text-white mb-1 flex items-center gap-3">
-                                <CreditCard className="text-purple-500" size={28}/> Saques da Loja
-                            </h2>
-                            <p className="text-xs font-bold text-slate-400 mb-6 border-b border-slate-800 pb-6 uppercase tracking-widest">
+                            <div className="flex justify-between items-start mb-1 pr-8">
+                                <h2 className="text-2xl font-black italic uppercase text-white flex items-center gap-3">
+                                    <CreditCard className="text-purple-500" size={28}/> Saques da Loja
+                                </h2>
+                                <button onClick={handleForceWithdrawalEntry} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md">
+                                    + Forçar Lançamento
+                                </button>
+                            </div>
+                            <p className="text-xs font-bold text-slate-400 mb-6 border-b border-slate-800 pb-6 uppercase tracking-widest mt-2">
                                 Loja: <span className="text-white">{selectedStoreForPayout.name || selectedStoreForPayout.velopayData?.legalName || 'N/A'}</span>
                                 <br/><span className="text-emerald-400 mt-1 inline-block">Chave PIX: {selectedStoreForPayout.velopayData?.pixKey || 'Não cadastrada'}</span>
                             </p>
