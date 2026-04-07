@@ -1900,15 +1900,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
 
-    // --- LÓGICA DE CONTROLE DE ACESSO (PERMISSÕES DA EQUIPE) ---
-    const currentTeamMember = teamMembers.find(m => m.email === auth.currentUser?.email);
-    
-    const hasPermission = (menuId) => {
-        // Se a pessoa logada NÃO estiver na lista da equipe, assumimos que é o Lojista/Dono (Acesso Total)
-        if (!currentTeamMember) return true; 
+    // --- LÓGICA DE CONTROLE DE ACESSO (REATIVA E BLINDADA) ---
+    const [userPermissions, setUserPermissions] = useState(null);
 
-        const p = currentTeamMember.permissions || {};
+    // Efeito para sincronizar as permissões assim que a equipe ou o usuário carregar
+    useEffect(() => {
+        if (auth.currentUser && teamMembers.length > 0) {
+            const member = teamMembers.find(m => m.email === auth.currentUser.email);
+            if (member) {
+                setUserPermissions(member.permissions || {}); // É funcionário, salva as regras dele
+            } else {
+                setUserPermissions('owner'); // Não está na equipe, é o dono
+            }
+        }
+    }, [auth.currentUser, teamMembers]);
+
+    const hasPermission = (menuId) => {
+        // Se ainda não carregou as permissões, bloqueia tudo (exceto dashboard por segurança)
+        if (userPermissions === null) return menuId === 'dashboard'; 
         
+        // Se for o dono (owner), libera tudo
+        if (userPermissions === 'owner') return true;
+
+        // Se for membro, aplica as regras específicas do banco de dados
         switch(menuId) {
             case 'dashboard': 
                 return true; // O Início sempre aparece para todos
@@ -1916,21 +1930,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             case 'manual': 
             case 'abandoned': 
             case 'chat': 
-                return p.orders; // Aba de pedidos e chat
+                return userPermissions.orders === true; 
             case 'products': 
             case 'categories': 
             case 'ingredients': 
-                return p.products; // Aba de cardápio e insumos
+                return userPermissions.products === true; 
             case 'customers': 
-                return p.customers; // Aba de clientes VIP
+                return userPermissions.customers === true; 
             case 'store_settings': 
             case 'banners': 
             case 'marketing': 
             case 'finance': 
             case 'team': 
-                return p.store_settings; // Aba de configuração de loja, marketing, equipe e faturamento
+                return userPermissions.store_settings === true; 
             case 'integrations': 
-                return p.integrations; // Aba de integrações
+                return userPermissions.integrations === true; 
             default: 
                 return false;
         }
