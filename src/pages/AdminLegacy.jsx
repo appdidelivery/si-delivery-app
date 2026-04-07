@@ -441,10 +441,52 @@ export default function Admin() {
     // --- ESTADOS DE EQUIPE / USUÁRIOS ---
     const [teamMembers, setTeamMembers] = useState([]);
     const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-    const[editingTeamId, setEditingTeamId] = useState(null);
+    const [editingTeamId, setEditingTeamId] = useState(null);
     const [teamForm, setTeamForm] = useState({
-        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
-    });
+        name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false }
+    });
+
+    // --- LÓGICA DE CONTROLE DE ACESSO (REATIVA E BLINDADA) ---
+    const [userPermissions, setUserPermissions] = useState(null);
+
+    useEffect(() => {
+        if (auth.currentUser) {
+            const member = teamMembers.find(m => m.email === auth.currentUser.email);
+            if (member) {
+                setUserPermissions(member.permissions || {}); // É funcionário, pega as regras
+            } else {
+                setUserPermissions('owner'); // Não está na equipe, assume acesso total (Dono)
+            }
+        }
+    }, [auth.currentUser, teamMembers]);
+
+    const hasPermission = (menuId) => {
+        // Se ainda não carregou as regras, mostra só o início
+        if (userPermissions === null) return menuId === 'dashboard'; 
+        
+        // Se for o dono, libera tudo
+        if (userPermissions === 'owner') return true;
+
+        // Se for funcionário, checa a permissão exata
+        switch(menuId) {
+            case 'dashboard': return true;
+            case 'orders': 
+            case 'manual': 
+            case 'abandoned': 
+            case 'chat': return userPermissions.orders === true; 
+            case 'products': 
+            case 'categories': 
+            case 'ingredients': return userPermissions.products === true; 
+            case 'customers': return userPermissions.customers === true; 
+            case 'store_settings': 
+            case 'banners': 
+            case 'marketing': 
+            case 'finance': 
+            case 'team': return userPermissions.store_settings === true; 
+            case 'integrations': return userPermissions.integrations === true; 
+            default: return false;
+        }
+    };
     const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
     const [withdrawalsList, setWithdrawalsList] = useState([]); // NOVO: Lista de Saques para abater do saldo
 
@@ -1900,55 +1942,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
 
-    // --- LÓGICA DE CONTROLE DE ACESSO (REATIVA E BLINDADA) ---
-    const [userPermissions, setUserPermissions] = useState(null);
-
-    // Efeito para sincronizar as permissões assim que a equipe ou o usuário carregar
-    useEffect(() => {
-        if (auth.currentUser && teamMembers.length > 0) {
-            const member = teamMembers.find(m => m.email === auth.currentUser.email);
-            if (member) {
-                setUserPermissions(member.permissions || {}); // É funcionário, salva as regras dele
-            } else {
-                setUserPermissions('owner'); // Não está na equipe, é o dono
-            }
-        }
-    }, [auth.currentUser, teamMembers]);
-
-    const hasPermission = (menuId) => {
-        // Se ainda não carregou as permissões, bloqueia tudo (exceto dashboard por segurança)
-        if (userPermissions === null) return menuId === 'dashboard'; 
-        
-        // Se for o dono (owner), libera tudo
-        if (userPermissions === 'owner') return true;
-
-        // Se for membro, aplica as regras específicas do banco de dados
-        switch(menuId) {
-            case 'dashboard': 
-                return true; // O Início sempre aparece para todos
-            case 'orders': 
-            case 'manual': 
-            case 'abandoned': 
-            case 'chat': 
-                return userPermissions.orders === true; 
-            case 'products': 
-            case 'categories': 
-            case 'ingredients': 
-                return userPermissions.products === true; 
-            case 'customers': 
-                return userPermissions.customers === true; 
-            case 'store_settings': 
-            case 'banners': 
-            case 'marketing': 
-            case 'finance': 
-            case 'team': 
-                return userPermissions.store_settings === true; 
-            case 'integrations': 
-                return userPermissions.integrations === true; 
-            default: 
-                return false;
-        }
-    };
+    
 
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
