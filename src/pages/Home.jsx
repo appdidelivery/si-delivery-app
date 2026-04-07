@@ -33,8 +33,8 @@ const AgeGate = React.lazy(() => import('../components/AgeGate'));
 const optimizeCloudinary = (url, width = 400) => {
     if (!url || typeof url !== 'string') return url;
     if (!url.includes('cloudinary.com')) return url;
-    // Motor agressivo: Remove configurações antigas ou gigantes da URL e força a nossa otimização leve
-    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto,w_${width},c_limit/v`);
+    // Motor EXTREMO: Força a conversão para WEBP (o formato favorito do Google PageSpeed)
+    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_webp,q_auto,w_${width},c_limit/v`);
 };
 
 const renderCategoryIcon = (iconName, categoryName) => {

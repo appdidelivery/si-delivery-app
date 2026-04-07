@@ -8,6 +8,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      injectRegister: 'inline', // <-- ADICIONE ESTA LINHA AQUI
+      registerType: 'autoUpdate',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'logo-square.png', 'logo-padrao-velo.png', 'logo-loja.png', 'logo retangular Vero Delivery.png'],
       manifest: {
