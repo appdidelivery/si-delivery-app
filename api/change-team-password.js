@@ -17,7 +17,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Método não permitido.' });
     }
 
-    const { email, newPassword } = req.body;
+    const { email, newPassword, name } = req.body;
 
     if (!email || !newPassword) {
         return res.status(400).json({ error: 'E-mail e nova senha são obrigatórios.' });
@@ -28,22 +28,33 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. Busca o usuário secreto no Auth usando o e-mail dele
-        const userRecord = await admin.auth().getUserByEmail(email);
-
-        // 2. Força a atualização da senha no sistema
-        await admin.auth().updateUser(userRecord.uid, {
-            password: newPassword,
-        });
-
-        res.status(200).json({ success: true, message: 'Senha atualizada com sucesso!' });
-    } catch (error) {
-        console.error('Erro na alteração de senha:', error);
-        
-        if (error.code === 'auth/user-not-found') {
-            return res.status(404).json({ error: 'Usuário não encontrado. Ele precisa criar a conta primeiro.' });
+        // Tenta buscar o usuário existente
+        try {
+            const userRecord = await admin.auth().getUserByEmail(email);
+            
+            // Se achou, apenas atualiza a senha
+            await admin.auth().updateUser(userRecord.uid, {
+                password: newPassword,
+            });
+            
+            return res.status(200).json({ success: true, message: 'Senha atualizada com sucesso!' });
+            
+        } catch (authError) {
+            // SE O USUÁRIO NÃO EXISTIR, CRIA ELE AGORA!
+            if (authError.code === 'auth/user-not-found') {
+                await admin.auth().createUser({
+                    email: email,
+                    password: newPassword,
+                    displayName: name || 'Equipe Velo',
+                });
+                
+                return res.status(200).json({ success: true, message: 'Conta criada e senha definida com sucesso!' });
+            } else {
+                throw authError; // Se for outro erro, repassa para o catch principal
+            }
         }
-        
-        res.status(500).json({ error: 'Erro interno ao atualizar a senha no servidor.' });
+    } catch (error) {
+        console.error('Erro na alteração/criação de senha:', error);
+        res.status(500).json({ error: 'Erro interno ao processar a senha no servidor.' });
     }
 }
