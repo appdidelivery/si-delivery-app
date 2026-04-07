@@ -404,10 +404,41 @@ export default function AdminSaaS() {
                                         </td>
                                         <td className="p-4">
                                             <div className="flex justify-end flex-wrap items-center gap-2">
-                                                <button onClick={() => handleApprovePix(loja.id)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors">Aprovar Pix</button>
+                                                {loja.velopayStatus === 'active' ? (
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const password = window.prompt("⚠️ AÇÃO RESTRITA: Digite a senha master para desativar o VeloPay desta loja:");
+                                                            if (password === "master123") { // Substitua pela sua senha de segurança real
+                                                                setActionLoading(`disable_${loja.id}`);
+                                                                try {
+                                                                    await updateDoc(doc(db, "stores", loja.id), { 
+                                                                        velopayStatus: 'inactive',
+                                                                        velopayCreditStatus: 'inactive'
+                                                                    });
+                                                                    alert("VeloPay da loja foi bloqueado e resetado com sucesso!");
+                                                                    await fetchSaaSData();
+                                                                } catch (error) {
+                                                                    alert("Erro ao bloquear: " + error.message);
+                                                                } finally {
+                                                                    setActionLoading(null);
+                                                                }
+                                                            } else if (password !== null) {
+                                                                alert("Senha incorreta. Ação cancelada.");
+                                                            }
+                                                        }}
+                                                        disabled={actionLoading === `disable_${loja.id}`}
+                                                        className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                                    >
+                                                        {actionLoading === `disable_${loja.id}` ? <Loader2 size={14} className="animate-spin"/> : <Ban size={14}/>} 
+                                                        Derrubar VeloPay
+                                                    </button>
+                                                ) : (
+                                                    <button onClick={() => handleApprovePix(loja.id)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CheckCircle size={14}/> Aprovar Pix</button>
+                                                )}
+                                                
                                                 <button onClick={() => handleUpdatePayout(loja.id)} className="bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CreditCard size={14} /> Repasse</button>
                                                 <button onClick={() => handleImpersonate(loja.id)} className="bg-blue-600/10 text-blue-500 hover:bg-blue-600/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Play size={14} /> Impersonate</button>
-                                                <button onClick={() => handleUpdateBillingStatus(loja.id, loja.billingStatus === 'bloqueado' ? 'pago' : 'bloqueado')} className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Lock size={14} /> Bloquear</button>
+                                                <button onClick={() => handleUpdateBillingStatus(loja.id, loja.billingStatus === 'bloqueado' ? 'pago' : 'bloqueado')} className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><Lock size={14} /> Bloquear Loja</button>
                                                 <button onClick={() => handleDeleteStore(loja.id, loja.name)} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors"><Trash2 size={14} /></button>
                                             </div>
                                         </td>
