@@ -376,10 +376,59 @@ export default function Admin() {
     const[generalBanners, setGeneralBanners] = useState([]);
     // --- ESTADOS DO MODAL DE RELATÓRIO ---
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-    const [reportDateRange, setReportDateRange] = useState('hoje'); // 'hoje', '7dias', '30dias', 'mes'
+    const [reportDateRange, setReportDateRange] = useState('hoje'); // 'hoje', '7dias', '30dias', 'mes', 'personalizado'
     const [reportSeller, setReportSeller] = useState('todos'); // 'todos', 'online', 'manual'
-    const [showReportResults, setShowReportResults] = useState(false); // NOVO: Controla a exibição
-    const [selectedInvoice, setSelectedInvoice] = useState(null); // NOVO: Controla o Modal da Fatura Detalhada
+    const [showReportResults, setShowReportResults] = useState(false); 
+    const [selectedInvoice, setSelectedInvoice] = useState(null); 
+    
+    // --- NOVOS ESTADOS PARA O RELATÓRIO E CUPOM ---
+    const [reportCustomStart, setReportCustomStart] = useState('');
+    const [reportCustomEnd, setReportCustomEnd] = useState('');
+    const [couponProductSearch, setCouponProductSearch] = useState('');
+
+    const handlePrintReport = () => {
+        const w = window.open('', '_blank');
+        const dataInicioFormatada = reportDateRange === 'personalizado' && reportCustomStart ? new Date(reportCustomStart).toLocaleString('pt-BR') : 'Início do Período';
+        const dataFimFormatada = reportDateRange === 'personalizado' && reportCustomEnd ? new Date(reportCustomEnd).toLocaleString('pt-BR') : 'Fim do Período';
+        const periodoTexto = reportDateRange === 'personalizado' ? `${dataInicioFormatada} até ${dataFimFormatada}` : reportDateRange.toUpperCase();
+        
+        w.document.write(`
+            <html>
+            <head>
+                <title>Fechamento de Caixa - ${storeStatus.name}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                    .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 20px; margin-bottom: 20px; }
+                    .row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+                    .total { font-size: 24px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-top: 20px; display: flex; justify-content: space-between; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>${storeStatus.name || 'LOJA'}</h2>
+                    <h3>FECHAMENTO DE CAIXA</h3>
+                    <p>Período: ${periodoTexto}</p>
+                    <p>Vendedor/Filtro: ${reportSeller}</p>
+                    <p>Impresso em: ${new Date().toLocaleString('pt-BR')}</p>
+                </div>
+                
+                <h3>Resumo de Entradas</h3>
+                <div class="row"><span>Via PIX:</span> <strong>R$ ${reportTotals.pix.toFixed(2)}</strong></div>
+                <div class="row"><span>Cartão (Crédito/Débito):</span> <strong>R$ ${reportTotals.cartao.toFixed(2)}</strong></div>
+                <div class="row"><span>Dinheiro:</span> <strong>R$ ${reportTotals.dinheiro.toFixed(2)}</strong></div>
+                
+                <div class="total"><span>TOTAL BRUTO:</span> <span>R$ ${reportTotals.totalGeral.toFixed(2)}</span></div>
+                <div class="row" style="margin-top: 15px; border:none;"><span>Volume de Pedidos Pagos:</span> <strong>${reportTotals.qtdPedidos}</strong></div>
+                
+                <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #666;">
+                    <p>Relatório gerado pelo Veloapp</p>
+                </div>
+                <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+            </body>
+            </html>
+        `);
+        w.document.close();
+    };
     // -------------------------------------
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     // NOVO: Estado que vai receber as novidades do Firebase em tempo real
@@ -1711,12 +1760,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 const sevenDaysAgo = new Date(now);
                 sevenDaysAgo.setDate(now.getDate() - 7);
                 return orderDate >= sevenDaysAgo;
-            } else if (reportDateRange === '30dias') {
+           } else if (reportDateRange === '30dias') {
                 const thirtyDaysAgo = new Date(now);
                 thirtyDaysAgo.setDate(now.getDate() - 30);
                 return orderDate >= thirtyDaysAgo;
             } else if (reportDateRange === 'mes') {
                 return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+            } else if (reportDateRange === 'personalizado') {
+                if (!reportCustomStart || !reportCustomEnd) return true;
+                const start = new Date(reportCustomStart);
+                const end = new Date(reportCustomEnd);
+                return orderDate >= start && orderDate <= end;
             }
             return true;
         });
@@ -3591,38 +3645,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {settings.buyAndGetPromo?.active && (
-                                        <div className="pt-6 border-t border-teal-500/50 space-y-4 animate-in fade-in slide-in-from-top-4">
-                                            {/* Regras de Ativação (Data/Hora) */}
-                                            <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500">
-                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Clock size={14}/> Regras de Horário</p>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div>
-                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-100">Dias da Semana</label>
-                                                        <select value={settings.buyAndGetPromo?.recurringDay || 'all'} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringDay: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-800 text-white border-none focus:ring-2 ring-teal-400">
-                                                            <option value="all">Todos os Dias</option>
-                                                            <option value="1">Só Segunda</option>
-                                                            <option value="2">Só Terça</option>
-                                                            <option value="3">Só Quarta</option>
-                                                            <option value="4">Só Quinta</option>
-                                                            <option value="5">Só Sexta</option>
-                                                            <option value="6">Só Sábado</option>
-                                                            <option value="0">Só Domingo</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-100">Hora Início</label>
-                                                        <input type="time" value={settings.buyAndGetPromo?.recurringStart || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringStart: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-800 text-white border-none focus:ring-2 ring-teal-400" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-100">Hora Fim</label>
-                                                        <input type="time" value={settings.buyAndGetPromo?.recurringEnd || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringEnd: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-800 text-white border-none focus:ring-2 ring-teal-400" />
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div className="pt-6 border-t border-teal-500/50 space-y-4 animate-in fade-in slide-in-from-top-4">
+                                            
+                                            {/* NOVO: Texto Opcional da Promoção */}
+                                            <div className="bg-teal-900/30 p-4 rounded-2xl border border-teal-500/50">
+                                                <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção (Opcional)</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ex: Compre 2 Baly e Ganhe 1 Vodka" 
+                                                    value={settings.buyAndGetPromo?.promoText || ''} 
+                                                    onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, promoText: e.target.value } }, { merge: true })} 
+                                                    className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-800 text-white border-none focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
+                                                />
+                                                <p className="text-[9px] text-teal-300 mt-2 font-medium">Se preenchido, este texto aparecerá em destaque na vitrine para o cliente saber da regra.</p>
+                                            </div>
 
-                                            {/* Produtos Gatilho */}
-                                            <div className="bg-white/10 p-4 rounded-2xl border border-teal-500">
-                                                <p className="text-[10px] font-black uppercase text-teal-100 tracking-widest mb-2 flex items-center gap-2"><ShoppingBag size={14}/> Comprando qualquer um destes:</p>
+                                            {/* Regras de Ativação (Data/Hora) */}
+                                            <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500">
+                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Clock size={14}/> Regras de Horário</p>
                                                 <div className="max-h-32 overflow-y-auto custom-scrollbar border border-teal-500/50 rounded-xl p-2 bg-teal-800/30 flex flex-col gap-1">
                                                     {products.map(p => {
                                                         const isSelected = (settings.buyAndGetPromo?.triggerProductIds || []).includes(p.id);
@@ -6241,8 +6281,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Itens Válidos para este Cupom</label>
                                         <span className="text-[9px] bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-bold">Vazio = Vale para a Loja Toda</span>
                                     </div>
+                                    
+                                    {/* NOVA BARRA DE BUSCA DE CUPOM */}
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            placeholder="🔍 Filtrar produtos..." 
+                                            className="w-full p-3 pl-10 bg-white rounded-xl font-bold text-xs border border-slate-200 outline-none focus:ring-2 ring-blue-300"
+                                            value={couponProductSearch}
+                                            onChange={(e) => setCouponProductSearch(e.target.value)}
+                                        />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                                    </div>
+
                                     <div className="max-h-32 overflow-y-auto custom-scrollbar border border-slate-200 rounded-2xl p-2 bg-white flex flex-col gap-1">
-                                        {products.map(p => {
+                                        {products.filter(p => p.name.toLowerCase().includes(couponProductSearch.toLowerCase())).map(p => {
                                             const isSelected = (couponForm.applicableProducts || []).includes(p.id);
                                             return (
                                                 <label key={p.id} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'}`}>
@@ -7197,12 +7250,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             {/* FILTROS DE PERÍODO */}
                             <div className="mb-8">
                                 <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">1. Selecione o Período</label>
-                                <div className="flex flex-wrap gap-3">
+                                <div className="flex flex-wrap gap-3 mb-4">
                                     {[
                                         { id: 'hoje', label: 'Hoje (Diário)' },
                                         { id: '7dias', label: 'Últimos 7 Dias' },
                                         { id: 'mes', label: 'Este Mês Atual' },
                                         { id: '30dias', label: 'Últimos 30 Dias' },
+                                        { id: 'personalizado', label: '⏱️ Horário Personalizado' },
                                     ].map(period => (
                                         <button 
                                             key={period.id}
@@ -7217,6 +7271,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </button>
                                     ))}
                                 </div>
+                                
+                                {reportDateRange === 'personalizado' && (
+                                    <div className="flex flex-col md:flex-row gap-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-in fade-in">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Início (Data e Hora)</label>
+                                            <input 
+                                                type="datetime-local" 
+                                                value={reportCustomStart} 
+                                                onChange={(e) => { setReportCustomStart(e.target.value); setShowReportResults(false); }}
+                                                className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-slate-700 focus:ring-2 ring-blue-400"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Fim (Data e Hora)</label>
+                                            <input 
+                                                type="datetime-local" 
+                                                value={reportCustomEnd} 
+                                                onChange={(e) => { setReportCustomEnd(e.target.value); setShowReportResults(false); }}
+                                                className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-slate-700 focus:ring-2 ring-blue-400"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                            {/* FILTRO DE VENDEDOR / EQUIPE */}
@@ -7257,7 +7334,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         exit={{ opacity: 0, height: 0 }}
                                         className="space-y-4 border-t border-slate-100 pt-8"
                                     >
-                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">3. Resultados do Período</label>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">3. Resultados do Período</label>
+                                            <button onClick={handlePrintReport} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                <Printer size={16}/> Imprimir
+                                            </button>
+                                        </div>
                                         
                                         {/* DESTAQUE TOTAL GERAL */}
                                         <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
