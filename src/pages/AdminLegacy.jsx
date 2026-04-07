@@ -774,6 +774,7 @@ export default function Admin() {
     const handleResetPassword = async (emailUsuario) => {
         if (!emailUsuario) return alert("E-mail do usuário não encontrado.");
         try {
+            auth.languageCode = 'pt'; // <-- FORÇA O FIREBASE A TRADUZIR O E-MAIL PADRÃO
             await sendPasswordResetEmail(auth, emailUsuario);
             alert(`E-mail de redefinição enviado com sucesso para ${emailUsuario}! Peça para o usuário checar a caixa de entrada e o lixo eletrônico (spam).`);
         } catch (error) {
