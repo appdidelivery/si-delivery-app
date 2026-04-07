@@ -1900,6 +1900,42 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
 
+    // --- LÓGICA DE CONTROLE DE ACESSO (PERMISSÕES DA EQUIPE) ---
+    const currentTeamMember = teamMembers.find(m => m.email === auth.currentUser?.email);
+    
+    const hasPermission = (menuId) => {
+        // Se a pessoa logada NÃO estiver na lista da equipe, assumimos que é o Lojista/Dono (Acesso Total)
+        if (!currentTeamMember) return true; 
+
+        const p = currentTeamMember.permissions || {};
+        
+        switch(menuId) {
+            case 'dashboard': 
+                return true; // O Início sempre aparece para todos
+            case 'orders': 
+            case 'manual': 
+            case 'abandoned': 
+            case 'chat': 
+                return p.orders; // Aba de pedidos e chat
+            case 'products': 
+            case 'categories': 
+            case 'ingredients': 
+                return p.products; // Aba de cardápio e insumos
+            case 'customers': 
+                return p.customers; // Aba de clientes VIP
+            case 'store_settings': 
+            case 'banners': 
+            case 'marketing': 
+            case 'finance': 
+            case 'team': 
+                return p.store_settings; // Aba de configuração de loja, marketing, equipe e faturamento
+            case 'integrations': 
+                return p.integrations; // Aba de integrações
+            default: 
+                return false;
+        }
+    };
+
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
@@ -1909,7 +1945,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
                <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
-    {allNavItems.filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl).map(item => {
+    {allNavItems
+        .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
+        .filter(item => hasPermission(item.id)) // <--- FILTRO DE PERMISSÃO APLICADO AQUI
+        .map(item => {
         const badgeCount = getBadgeCount(item.id);
         const isManual = item.id === 'manual';
         return (
@@ -5464,7 +5503,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
                 {/* Botões de Navegação */}
                 <div className="flex justify-around overflow-x-auto whitespace-nowrap p-2 gap-2">
-                    {allNavItems.map(item => {
+                    {allNavItems
+                        .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
+                        .filter(item => hasPermission(item.id)) // <--- FILTRO DE PERMISSÃO APLICADO AQUI
+                        .map(item => {
                         const badgeCount = getBadgeCount(item.id);
                         return (
                             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center relative px-3 py-1 rounded-lg flex-shrink-0 ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
