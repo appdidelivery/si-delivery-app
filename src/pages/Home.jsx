@@ -198,10 +198,9 @@ export default function Home() {
           const v = parseInt(Math.random() * 1000000);
           
           script.type = 'text/javascript';
-          script.async = true; // <-- ISSO LIBERA A TELA PARA CARREGAR IMEDIATAMENTE
-          script.defer = true; // <-- GARANTE QUE NÃO BLOQUEIA O REACT
+          script.async = true;
+          script.defer = true;
           script.id = 'efi-sdk';
-          script.src = `https://api.gerencianet.com.br/v1/cdn/${efiAccountId}/${v}`;
           
           document.head.appendChild(script);
           
@@ -1943,8 +1942,8 @@ if (window.fbq) {
         <div className="relative z-10 flex flex-col gap-5">
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-4">
-                    <img src={storeSettings.storeLogoUrl} alt={storeSettings.name || "Logo da Loja"} width="64" height="64" loading="eager" fetchpriority="high" decoding="sync" className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
-                    <div className="text-left">
+                    <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 150)} alt={storeSettings.name || "Logo da Loja"} width="64" height="64" loading="eager" fetchpriority="high" decoding="sync" className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl bg-slate-100" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+                    <div className="text-left">
                         <h1 className="text-2xl font-black text-white leading-none uppercase drop-shadow-md">{storeSettings.name || "Sua Loja"}</h1>
                         {storeSettings.slogan && <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1 drop-shadow-sm">{storeSettings.slogan}</p>}
                     </div>
