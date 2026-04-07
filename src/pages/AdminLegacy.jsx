@@ -7082,14 +7082,30 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    const dataToSave = { ...teamForm, storeId: storeId, updatedAt: serverTimestamp() };
+                                    // 1. CHAMA O BACKEND PARA MUDAR A SENHA (Se preencheu o campo)
+                                    if (editingTeamId && teamForm.newPassword) {
+                                        const res = await fetch('/api/change-team-password', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ email: teamForm.email, newPassword: teamForm.newPassword })
+                                        });
+                                        const result = await res.json();
+                                        if (!res.ok) throw new Error(result.error || "Erro ao alterar a senha no servidor.");
+                                    }
+
+                                    // 2. SALVA AS PERMISSÕES NO FIRESTORE
+                                    // Remove a senha do objeto antes de salvar para não ficar exposta no banco de dados
+                                    const { newPassword, ...restFormData } = teamForm;
+                                    const dataToSave = { ...restFormData, storeId: storeId, updatedAt: serverTimestamp() };
+                                    
                                     if (editingTeamId) {
                                         await updateDoc(doc(db, "team", editingTeamId), dataToSave);
                                     } else {
                                         await addDoc(collection(db, "team"), { ...dataToSave, createdAt: serverTimestamp() });
                                     }
+                                    
                                     setIsTeamModalOpen(false);
-                                    alert("Usuário salvo com sucesso!");
+                                    alert("Usuário e acessos salvos com sucesso!");
                                 } catch (error) {
                                     alert("Erro ao salvar: " + error.message);
                                 }
@@ -7104,6 +7120,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <label className="text-xs font-bold text-slate-500 ml-2">E-mail de Acesso</label>
                                     <input type="email" placeholder="joao@email.com" required className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={teamForm.email} onChange={e => setTeamForm({ ...teamForm, email: e.target.value })} />
                                 </div>
+
+                                {editingTeamId && (
+                                    <div className="space-y-1 mt-4 p-4 bg-orange-50 border border-orange-100 rounded-3xl">
+                                        <label className="text-xs font-black uppercase tracking-widest text-orange-600 ml-2 flex items-center gap-2">
+                                            🔒 Forçar Nova Senha (Opcional)
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Mínimo de 6 caracteres..." 
+                                            className="w-full p-4 mt-2 bg-white rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-orange-400 text-slate-700" 
+                                            value={teamForm.newPassword || ''} 
+                                            onChange={e => setTeamForm({ ...teamForm, newPassword: e.target.value })} 
+                                        />
+                                        <p className="text-[10px] text-orange-500/70 font-bold mt-2 ml-2">
+                                            Se você digitar algo aqui, a senha do usuário será substituída imediatamente ao salvar. Deixe vazio para manter a atual.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="pt-4 border-t border-slate-100">
                                     <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">Permissões de Acesso</label>
