@@ -33,8 +33,8 @@ const AgeGate = React.lazy(() => import('../components/AgeGate'));
 const optimizeCloudinary = (url, width = 400) => {
     if (!url || typeof url !== 'string') return url;
     if (!url.includes('cloudinary.com')) return url;
-    // Motor EXTREMO: Força a conversão para WEBP (o formato favorito do Google PageSpeed)
-    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_webp,q_auto,w_${width},c_limit/v`);
+    // Força formato WEBP e compressão máxima
+    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_webp,q_80,w_${width},c_limit/v`);
 };
 
 const renderCategoryIcon = (iconName, categoryName) => {
@@ -1942,7 +1942,7 @@ if (window.fbq) {
         <div className="relative z-10 flex flex-col gap-5">
             <div className="flex justify-between items-start">
                 <div className="flex items-center gap-4">
-                    <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 150)} alt={storeSettings.name || "Logo da Loja"} width="64" height="64" loading="eager" fetchpriority="high" decoding="sync" className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl bg-slate-100" onError={(e)=>e.target.src="https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
+                    <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 150)} alt={storeSettings.name || "Logo da Loja"} width="64" height="64" loading="eager" fetchpriority="high" decoding="sync" className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl bg-slate-100" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="} />
                     <div className="text-left">
                         <h1 className="text-2xl font-black text-white leading-none uppercase drop-shadow-md">{storeSettings.name || "Sua Loja"}</h1>
                         {storeSettings.slogan && <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1 drop-shadow-sm">{storeSettings.slogan}</p>}
