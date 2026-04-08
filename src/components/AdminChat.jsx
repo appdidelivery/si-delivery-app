@@ -65,11 +65,24 @@ export default function AdminChat() {
     const timerIntervalRef = useRef(null);
     const fileInputRef = useRef(null);
     // --- ESTADOS PARA NOVA CONVERSA ---
-    const [showNewChatModal, setShowNewChatModal] = useState(false);
-    const [newChatPhone, setNewChatPhone] = useState('');
-    const [isImporting, setIsImporting] = useState(false); // Novo: Controle de importação
+    // --- FUNÇÃO AUXILIAR PARA FORMATAR DATA E HORA ---
+    const formatMessageTime = (dateObj) => {
+        if (!dateObj || isNaN(dateObj.getTime())) return '';
+        
+        const now = new Date();
+        const isToday = dateObj.getDate() === now.getDate() && 
+                        dateObj.getMonth() === now.getMonth() && 
+                        dateObj.getFullYear() === now.getFullYear();
 
-    // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
+        const timeString = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        
+        if (isToday) {
+            return timeString; // Só a hora se for hoje
+        } else {
+            const dateString = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            return `${dateString} ${timeString}`; // Data + Hora se for de outro dia
+        }
+    };
     useEffect(() => {
         if (!storeId) return;
 
@@ -638,7 +651,7 @@ export default function AdminChat() {
                     {chatList.map((chat) => {
                         const lastMsg = chat.msgs[chat.msgs.length - 1];
                         const dateObj = lastMsg?.receivedAt?.toDate ? lastMsg.receivedAt.toDate() : new Date(lastMsg?.receivedAt?.seconds * 1000 || Date.now());
-                        const timeString = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        const timeString = formatMessageTime(dateObj); // <--- ATUALIZADO AQUI
                         
                         return (
                             <div 
@@ -738,7 +751,7 @@ export default function AdminChat() {
                            {activeMessages.map((msg) => {
                                 const isOutbound = msg.direction === 'outbound';
                                 const msgDate = msg.receivedAt?.toDate ? msg.receivedAt.toDate() : new Date(msg.receivedAt?.seconds * 1000 || Date.now());
-                                const timeStr = msgDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                const timeStr = formatMessageTime(msgDate); // <--- ATUALIZADO AQUI
 
                                 return (
                                     <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>

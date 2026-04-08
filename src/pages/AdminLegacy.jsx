@@ -3215,8 +3215,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             </div>
 
-                            {/* Área de Itens (Scroll) */}
-                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50">
+                            {/* ÁREA DE SCROLL UNIFICADA (ITENS + PAGAMENTO) */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 flex flex-col">
+                                {/* Lista de Itens (Cresce livremente) */}
+                                <div className="p-4 flex-1">
                                 {manualCart.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-4 opacity-50">
                                         <ShoppingCart size={64} />
@@ -3251,9 +3253,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 )}
                             </div>
 
-                            {/* Área de Cliente (Condicional) e Totais (Fixa no rodapé) */}
-                            <div className="p-6 border-t border-slate-100 bg-white">
-                               {/* Acordeão de Cliente/Entrega (Só aparece se tiver item) */}
+                            {/* Área de Cliente e Totais (Agora no fluxo da rolagem) */}
+                            <div className="p-6 border-t-2 border-slate-200 bg-white mt-auto flex-shrink-0">
+                                {/* Acordeão de Cliente/Entrega (Só aparece se tiver item) */}
                                 {manualCart.length > 0 && (
                                     <div className="mb-6 space-y-3">
                                         {/* LINHA 1: NOME E MESA / WHATSAPP */}
@@ -3434,8 +3436,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     disabled={manualCart.length === 0}
                                     className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    Lançar Pedido {manualCart.length > 0 ? `(R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0))).toFixed(2)})` : ''}
+                                   Lançar Pedido {manualCart.length > 0 ? `(R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0))).toFixed(2)})` : ''}
                                 </button>
+                            </div>
+                            {/* FIM DA ÁREA DE SCROLL UNIFICADA */}
                             </div>
                         </div>
                     </div>
