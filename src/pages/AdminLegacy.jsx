@@ -3741,7 +3741,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                             {/* Regras de Ativação (Data/Hora) */}
                                             <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500">
-                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Clock size={14}/> Regras de Horário</p>
+                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Gift size={14}/> Produtos Gatilho (Quais itens dão o brinde?)</p>
                                                 <div className="max-h-32 overflow-y-auto custom-scrollbar border border-teal-500/50 rounded-xl p-2 bg-teal-800/30 flex flex-col gap-1">
                                                     {products.map(p => {
                                                         const isSelected = (settings.buyAndGetPromo?.triggerProductIds || []).includes(p.id);

@@ -2034,17 +2034,22 @@ if (window.fbq) {
       <div className="p-6">
         {/* --- INÍCIO: BANNER COMPRE E GANHE (BOGO) --- */}
         <AnimatePresence>
-            {marketingSettings?.buyAndGetPromo?.active && 
-             marketingSettings?.buyAndGetPromo?.rewardProductId &&
-             isWithinRecurringSchedule(marketingSettings.buyAndGetPromo.recurringDay, marketingSettings.buyAndGetPromo.recurringStart, marketingSettings.buyAndGetPromo.recurringEnd) && (() => {
-                const rewardProd = products.find(p => p.id === marketingSettings.buyAndGetPromo.rewardProductId);
-                if (!rewardProd) return null;
+            {marketingSettings?.buyAndGetPromo?.active && 
+             marketingSettings?.buyAndGetPromo?.rewardProductId &&
+             isWithinRecurringSchedule(marketingSettings.buyAndGetPromo.recurringDay, marketingSettings.buyAndGetPromo.recurringStart, marketingSettings.buyAndGetPromo.recurringEnd) && (() => {
+                const rewardProd = products.find(p => p.id === marketingSettings.buyAndGetPromo.rewardProductId);
+                if (!rewardProd) return null;
 
-                // Lógica para puxar os nomes exatos dos produtos gatilho
-                const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
-                const triggerProducts = products.filter(p => triggerIds.includes(p.id));
-                
-                let triggerText = "os itens participantes";
+                const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
+                const triggerProducts = products.filter(p => triggerIds.includes(p.id));
+                
+                // VALIDAÇÃO CORRIGIDA: Se o lojista definiu gatilhos, o cliente precisa ter PELO MENOS UM deles no carrinho.
+                // Se a lista de gatilhos estiver vazia, significa que a promo vale para a loja toda.
+                const hasEligibleTrigger = triggerIds.length === 0 || cart.some(cartItem => triggerIds.includes(cartItem.id));
+
+                if (!hasEligibleTrigger) return null; // Aborta a exibição se não cumpriu a regra
+
+                let triggerText = "os itens participantes";
                 if (triggerProducts.length === 1) {
                     triggerText = triggerProducts[0].name;
                 } else if (triggerProducts.length === 2) {
