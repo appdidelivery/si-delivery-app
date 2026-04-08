@@ -65,6 +65,15 @@ export default function AdminChat() {
     const timerIntervalRef = useRef(null);
     const fileInputRef = useRef(null);
     // --- ESTADOS PARA NOVA CONVERSA ---
+    const [showNewChatModal, setShowNewChatModal] = useState(false);
+    const [newChatPhone, setNewChatPhone] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+
+    // Função provisória para evitar erro ao clicar em importar (Será implementada no futuro)
+    const handleImportCSV = (e) => {
+        alert("Função de importação em lote será ativada em breve.");
+    };
+
     // --- FUNÇÃO AUXILIAR PARA FORMATAR DATA E HORA ---
     const formatMessageTime = (dateObj) => {
         if (!dateObj || isNaN(dateObj.getTime())) return '';
@@ -77,12 +86,14 @@ export default function AdminChat() {
         const timeString = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         
         if (isToday) {
-            return timeString; // Só a hora se for hoje
+            return timeString; 
         } else {
             const dateString = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-            return `${dateString} ${timeString}`; // Data + Hora se for de outro dia
+            return `${dateString} ${timeString}`; 
         }
     };
+
+    // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
         if (!storeId) return;
 
