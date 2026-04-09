@@ -1,17 +1,4 @@
 {
-  "redirects": [
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "csi.velodelivery.com.br"
-        }
-      ],
-      "destination": "https://csi.com.br/$1",
-      "permanent": true
-    }
-  ],
   "crons": [
     {
       "path": "/api/cron-automations",
