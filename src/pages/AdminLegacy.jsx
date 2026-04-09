@@ -2501,19 +2501,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
                                                 <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
                                                 
-                                                {/* 1. STATUS DEa PAGAMENTO SEPARADO */}
-                                                {(() => {
-                                                    const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'link_mp'].includes(o.paymentMethod);
-                                                    const pStatus = o.paymentStatus || 'pending';
-                                                    
-                                                    if (isOnline) {
-                                                        if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'concluida' || pStatus === 'CONCLUIDA') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO ONLINE</span>;
-                                                        if (pStatus === 'failed' || pStatus === 'rejected') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">❌ RECUSADO</span>;
-                                                        return <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse">⏳ AGUARDANDO PAGTO</span>;
-                                                    }
-                                                    if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
-                                                    return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
-                                                })()}
+                                                {/* 1. STATUS DE PAGAMENTO SEPARADO */}
+                                                {(() => {
+                                                    const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
+                                                    const pStatus = o.paymentStatus || 'pending';
+                                                    
+                                                    if (isOnline) {
+                                                        if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'concluida' || pStatus === 'CONCLUIDA') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">✅ PAGO ONLINE</span>;
+                                                        if (pStatus === 'failed' || pStatus === 'rejected') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">❌ RECUSADO</span>;
+                                                        return <span className="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">⏳ AGUARDANDO PAGTO</span>;
+                                                    }
+                                                    if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
+                                                    return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
+                                                })()}
 
                                                 {/* 2. STATUS DO PEDIDO 2(COZINHA/ENTREGA) */}
                                                 {(() => {
@@ -2720,13 +2720,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <h4 className="font-black text-slate-800 text-sm leading-tight mb-1 truncate flex items-center gap-2">
                                                             {o.customerName}
                                                         </h4>
-                                                        <div className="mb-2">
-                                                            {(() => {
-                                                                if (o.source === 'manual' || o.source === 'manual_pdv') return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-purple-200 shadow-sm inline-flex items-center gap-1">💻 PDV</span>;
-                                                                if (o.source === 'google_food_marketplace') return <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200 shadow-sm inline-flex items-center gap-1">🌐 GOOGLE MAPS</span>;
-                                                                return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>;
-                                                            })()}
-                                                        </div>
+                                                        <div className="mb-2 flex flex-col gap-1 items-start">
+                                                            {(() => {
+                                                                if (o.source === 'manual' || o.source === 'manual_pdv') return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-purple-200 shadow-sm inline-flex items-center gap-1">💻 PDV</span>;
+                                                                if (o.source === 'google_food_marketplace') return <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200 shadow-sm inline-flex items-center gap-1">🌐 GOOGLE MAPS</span>;
+                                                                return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>;
+                                                            })()}
+                                                            {(() => {
+                                                                const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
+                                                                const pStatus = o.paymentStatus || 'pending';
+                                                                if (isOnline) {
+                                                                    if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'concluida' || pStatus === 'CONCLUIDA') return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">✅ PAGO ONLINE</span>;
+                                                                    if (pStatus === 'failed' || pStatus === 'rejected') return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">❌ RECUSADO</span>;
+                                                                    return <span className="bg-orange-500 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse">⏳ AGUARDANDO PAGTO</span>;
+                                                                }
+                                                                return null;
+                                                            })()}
+                                                        </div>
                                                         
                                                         <div className="text-[10px] font-bold text-slate-500 mb-4 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-lg">
                                                             {o.tipo === 'local' ? (
