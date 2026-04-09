@@ -353,14 +353,15 @@ export default function Admin() {
     // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
-    const [currentTime, setCurrentTime] = useState(new Date()); // NOVO: Relógio interno para os atrasos
+    const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
+    const [orderSearchTerm, setOrderSearchTerm] = useState(''); // Estado para busca de pedidos
+    const [currentTime, setCurrentTime] = useState(new Date()); // <-- ADICIONADO PARA CORRIGIR A TELA BRANCA
 
-    // Faz o relógio "bater" a cada 30 segundos para mudar as cores dos atrasos ao vivo
-    useEffect(() => {
-        const interval = setInterval(() => setCurrentTime(new Date()), 30000); 
-        return () => clearInterval(interval);
-    }, []);
+    // Faz o relógio "bater" a cada 30 segundos para mudar as cores dos atrasos ao vivo
+    useEffect(() => {
+        const interval = setInterval(() => setCurrentTime(new Date()), 30000); 
+        return () => clearInterval(interval);
+    }, []);
     const [visitasHoje, setVisitasHoje] = useState(0);
     const [orders, setOrders] = useState([]);
     const[abandonedCarts, setAbandonedCarts] = useState([]); // NOVO: Estado dos abandonados
@@ -413,9 +414,10 @@ export default function Admin() {
                 </div>
                 
                 <h3>Resumo de Entradas</h3>
-                <div class="row"><span>Via PIX:</span> <strong>R$ ${reportTotals.pix.toFixed(2)}</strong></div>
-                <div class="row"><span>Cartão (Crédito/Débito):</span> <strong>R$ ${reportTotals.cartao.toFixed(2)}</strong></div>
-                <div class="row"><span>Dinheiro:</span> <strong>R$ ${reportTotals.dinheiro.toFixed(2)}</strong></div>
+                <div class="row"><span>Via PIX (${reportTotals.pix.count} ped.):</span> <strong>R$ ${reportTotals.pix.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Cartão (${reportTotals.cartao.count} ped.):</span> <strong>R$ ${reportTotals.cartao.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Dinheiro (${reportTotals.dinheiro.count} ped.):</span> <strong>R$ ${reportTotals.dinheiro.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Outros/Mesa (${reportTotals.outros.count} ped.):</span> <strong>R$ ${reportTotals.outros.total.toFixed(2)}</strong></div>
                 
                 <div class="total"><span>TOTAL BRUTO:</span> <span>R$ ${reportTotals.totalGeral.toFixed(2)}</span></div>
                 <div class="row" style="margin-top: 15px; border:none;"><span>Volume de Pedidos Pagos:</span> <strong>${reportTotals.qtdPedidos}</strong></div>
@@ -445,6 +447,31 @@ export default function Admin() {
     const [teamForm, setTeamForm] = useState({
         name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false, marketing: false, finance: false, team: false }
     });
+    const [posLogs, setPosLogs] = useState([]); // Guarda os logs de quem abriu/fechou o caixa
+    const [isCaixaAberto, setIsCaixaAberto] = useState(() => localStorage.getItem('caixa_status') === 'aberto');
+
+    const handleToggleCaixa = async () => {
+        const newStatus = isCaixaAberto ? 'fechado' : 'aberto';
+        const actionText = isCaixaAberto ? 'FECHAR O CAIXA' : 'ABRIR O CAIXA';
+        
+        if(!window.confirm(`Deseja registrar que você ${actionText} agora?`)) return;
+
+        try {
+            await addDoc(collection(db, "pos_logs"), {
+                storeId: storeId,
+                userEmail: auth.currentUser?.email || 'Desconhecido',
+                userName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe',
+                action: isCaixaAberto ? 'FECHOU O CAIXA' : 'ABRIU O CAIXA',
+                timestamp: serverTimestamp()
+            });
+            
+            setIsCaixaAberto(!isCaixaAberto);
+            localStorage.setItem('caixa_status', newStatus);
+            alert(`✅ Sucesso: Registro salvo para auditoria do administrador!`);
+        } catch (error) {
+            alert("Erro ao registrar no caixa: " + error.message);
+        }
+    };
 
     // --- LÓGICA DE CONTROLE DE ACESSO (REATIVA E BLINDADA) ---
     const [userPermissions, setUserPermissions] = useState(null);
@@ -1006,9 +1033,9 @@ export default function Admin() {
             fetchedMissions.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setVipMissions(fetchedMissions);
         });
-
-        const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-
+        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc")), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+// --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
+        const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
         const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
             s.docChanges().forEach((change) => {
@@ -1034,10 +1061,10 @@ export default function Admin() {
         // NOVO: MOTOR DE SAQUES VELOPAY (Substitui o stats que não estava atualizando)
         const unsubWithdrawals = onSnapshot(query(collection(db, "withdrawals"), where("storeId", "==", storeId)), (s) => setWithdrawalsList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        return () => { 
-            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp();
-        };
+        return () => { 
+            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
+        };
     },[storeId]);
     
     // --- FUNÇÕES AUXILIARES ---
@@ -1839,14 +1866,36 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
     const filteredReportOrders = getFilteredOrdersForReport();
     
-    // MODO INTELIGENTE: Procura pela palavra-chave, assim nunca zera independente de como foi salvo no passado
+    // MODO INTELIGENTE E BLINDADO: Separa com exatidão e conta quantidades
     const reportTotals = {
-        pix: filteredReportOrders.filter(o => String(o.paymentMethod || '').toLowerCase().includes('pix') || String(o.paymentMethod || '').toLowerCase().includes('link')).reduce((acc, o) => acc + Number(o.total || 0), 0),
-        cartao: filteredReportOrders.filter(o => String(o.paymentMethod || '').toLowerCase().includes('cartao') || String(o.paymentMethod || '').toLowerCase().includes('card') || String(o.paymentMethod || '').toLowerCase().includes('stripe')).reduce((acc, o) => acc + Number(o.total || 0), 0),
-        dinheiro: filteredReportOrders.filter(o => String(o.paymentMethod || '').toLowerCase().includes('dinheiro') || String(o.paymentMethod || '').toLowerCase().includes('cash')).reduce((acc, o) => acc + Number(o.total || 0), 0),
-        totalGeral: filteredReportOrders.reduce((acc, o) => acc + Number(o.total || 0), 0),
+        pix: { total: 0, count: 0 },
+        cartao: { total: 0, count: 0 },
+        dinheiro: { total: 0, count: 0 },
+        outros: { total: 0, count: 0 },
+        totalGeral: 0,
         qtdPedidos: filteredReportOrders.length
     };
+
+    filteredReportOrders.forEach(o => {
+        const valor = Number(o.total || 0);
+        reportTotals.totalGeral += valor;
+        
+        const method = String(o.paymentMethod || '').toLowerCase();
+        
+        if (method.includes('pix') || method.includes('link')) {
+            reportTotals.pix.total += valor;
+            reportTotals.pix.count += 1;
+        } else if (method.includes('cartao') || method.includes('card') || method.includes('stripe') || method.includes('online')) {
+            reportTotals.cartao.total += valor;
+            reportTotals.cartao.count += 1;
+        } else if (method.includes('dinheiro') || method.includes('cash')) {
+            reportTotals.dinheiro.total += valor;
+            reportTotals.dinheiro.count += 1;
+        } else {
+            reportTotals.outros.total += valor;
+            reportTotals.outros.count += 1;
+        }
+    });
     // --------------------------------------------------------
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
@@ -2391,9 +2440,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(24 Horas)</span>
                                                     </button>
                                                 </div>
-                                                <button onClick={() => alert("Ação temporariamente desativada para testes e análise de dados.")} className="w-full mt-3 p-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1 opacity-50 cursor-not-allowed">
-                                                        <Trash2 size={12} /> Descartar Carrinho
-                                                    </button>
+                                                <button onClick={async () => {
+    if(window.confirm("Deseja realmente apagar este carrinho abandonado?")) {
+        await deleteDoc(doc(db, "abandoned_carts", cart.id));
+    }
+}} className="w-full mt-3 p-2 text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl uppercase tracking-widest flex items-center justify-center gap-1 transition-all">
+    <Trash2 size={12} /> Descartar Carrinho
+</button>
                                             </div>
                                         </div>
                                     );
@@ -2405,10 +2458,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {activeTab === 'orders' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                            <div>
-                                <h1 className="text-4xl font-black italic uppercase text-slate-900">Pedidos</h1>
-                                <p className="text-slate-400 font-bold mt-1 text-sm">Gerencie o fluxo da sua operação.</p>
-                            </div>
+    <div>
+        <h1 className="text-4xl font-black italic uppercase text-slate-900">Pedidos</h1>
+        <p className="text-slate-400 font-bold mt-1 text-sm">Gerencie o fluxo da sua operação.</p>
+    </div>
+    
+    <div className="flex-1 max-w-md relative">
+        <input 
+            type="text" 
+            placeholder="🔍 Buscar por ID, Nome ou Telefone..." 
+            className="w-full p-3 pl-10 bg-white rounded-xl font-bold text-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 shadow-sm"
+            value={orderSearchTerm}
+            onChange={(e) => setOrderSearchTerm(e.target.value)}
+        />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+        {orderSearchTerm && (
+            <button onClick={() => setOrderSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                <X size={18}/>
+            </button>
+        )}
+    </div>
                             <div className="flex bg-slate-200 p-1 rounded-xl w-fit">
                                 <button onClick={() => setOrderViewMode('list')} className={`px-5 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${orderViewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                                     <List size={16} /> Lista Padrão
@@ -2421,7 +2490,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                         {orderViewMode === 'list' ? (
                             <div className="space-y-4">
-                                {orders.map(o => (
+                                {orders.filter(o => 
+                                    !orderSearchTerm || 
+                                    o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                    (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
+                                    (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
+                                ).map(o => (
                                     <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
                                         <div className="flex flex-col flex-1">
                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -2615,7 +2689,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </h3>
                                         
                                         <div className="space-y-4 overflow-y-auto flex-1 custom-scrollbar pr-2 pb-20">
-                                            {orders.filter(o => o.status === col.id).map(o => {
+                                            {orders.filter(o => 
+                                                o.status === col.id && (
+                                                    !orderSearchTerm || 
+                                                    o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                                    (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
+                                                    (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
+                                                )
+                                            ).map(o => {
                                                 // --- LÓGICA DO CRONÔMETRO (CORES POR TEMPO) ---
                                                 const date = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt?.seconds * 1000 || Date.now());
                                                 const diffMin = Math.floor((currentTime - date) / 60000);
@@ -3132,9 +3213,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex-1 flex flex-col bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
                             {/* Cabeçalho de Busca e Categorias */}
                             <div className="p-6 border-b border-slate-100 bg-slate-50 space-y-4">
-                                <h2 className="text-3xl font-black italic uppercase text-slate-800 flex items-center gap-2">
-                                    <Store size={28} className="text-blue-600"/> Frente de Caixa (PDV)
-                                </h2>
+                                <div className="flex justify-between items-center">
+                                    <h2 className="text-3xl font-black italic uppercase text-slate-800 flex items-center gap-2">
+                                        <Store size={28} className="text-blue-600"/> Frente de Caixa
+                                    </h2>
+                                    <button 
+                                        onClick={handleToggleCaixa}
+                                        className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all flex items-center gap-2 ${isCaixaAberto ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-500 text-white hover:bg-green-600 animate-pulse'}`}
+                                    >
+                                        {isCaixaAberto ? <><XCircle size={16}/> Fechar Meu Caixa</> : <><CheckCircle size={16}/> Abrir Meu Caixa</>}
+                                    </button>
+                                </div>
                                 <div className="relative">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                                     <input 
@@ -4066,10 +4155,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                             <button onClick={() => handleResetPassword(member.email)} className="w-full p-2 bg-slate-50 rounded-xl text-slate-600 font-bold text-xs uppercase hover:bg-slate-200 transition-all flex justify-center items-center gap-2"><RefreshCw size={16} /> Enviar Nova Senha</button>
                                         </div>
-                                    </div>
+                                   </div>
                                 ))
                             )}
                         </div>
+
+                        {/* NOVO: AUDITORIA DE CAIXA (SÓ ADMIN VÊ) */}
+                        <div className="mt-12 pt-8 border-t border-slate-200">
+                            <h2 className="text-2xl font-black italic tracking-tighter uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Clock size={24} className="text-blue-600"/> Auditoria de Caixa (Log de PDV)
+                            </h2>
+                            <p className="text-slate-400 font-bold mb-6 text-sm">Monitore a que horas seus funcionários abriram e fecharam o sistema.</p>
+                            
+                            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden max-h-96 overflow-y-auto custom-scrollbar p-2">
+                                {posLogs.length === 0 ? (
+                                    <p className="text-center text-slate-400 font-bold p-8">Nenhum registro de caixa encontrado.</p>
+                                ) : (
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="text-[10px] text-slate-400 uppercase tracking-widest bg-slate-50">
+                                                <th className="p-4 rounded-tl-xl">Data / Hora</th>
+                                                <th className="p-4">Funcionário</th>
+                                                <th className="p-4">E-mail</th>
+                                                <th className="p-4 rounded-tr-xl">Ação no Sistema</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="text-sm font-bold text-slate-700">
+                                            {posLogs.map(log => (
+                                                <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4">
+                                                        {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString('pt-BR') : 'Agora mesmo...'}
+                                                    </td>
+                                                    <td className="p-4 flex items-center gap-2">
+                                                        <div className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] uppercase">
+                                                            {log.userName.charAt(0)}
+                                                        </div>
+                                                        {log.userName}
+                                                    </td>
+                                                    <td className="p-4 text-xs text-slate-500">{log.userEmail}</td>
+                                                    <td className="p-4">
+                                                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${log.action === 'ABRIU O CAIXA' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                            {log.action}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+
                     </div>
                 )}
 {/* --- ABA FINANCEIRO (NOVA) --- */}
@@ -7572,28 +7708,71 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         {/* DIVISÃO POR MÉTODO DE PAGAMENTO */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                                            {/* PIX */}
-                                            <div className="bg-cyan-50 p-6 rounded-3xl border border-cyan-100 flex flex-col justify-center items-center text-center">
-                                                <QrCode size={24} className="text-cyan-600 mb-2"/>
-                                                <p className="text-[10px] font-black uppercase text-cyan-800 tracking-widest mb-1">Via PIX</p>
-                                                <p className="text-2xl font-black text-cyan-600 italic">R$ {reportTotals.pix.toFixed(2)}</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                                            <div className="bg-cyan-50 p-4 rounded-3xl border border-cyan-100 text-center">
+                                                <QrCode size={20} className="text-cyan-600 mx-auto mb-1"/>
+                                                <p className="text-[9px] font-black uppercase text-cyan-800 tracking-widest">Via PIX</p>
+                                                <p className="text-lg font-black text-cyan-600 italic">R$ {reportTotals.pix.total.toFixed(2)}</p>
+                                                <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-2 py-0.5 rounded-md">{reportTotals.pix.count} pedidos</span>
                                             </div>
                                             
-                                            {/* CARTÃO */}
-                                            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex flex-col justify-center items-center text-center">
-                                                <CreditCard size={24} className="text-blue-600 mb-2"/>
-                                                <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1">Via Cartão</p>
-                                                <p className="text-2xl font-black text-blue-600 italic">R$ {reportTotals.cartao.toFixed(2)}</p>
+                                            <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center">
+                                                <CreditCard size={20} className="text-blue-600 mx-auto mb-1"/>
+                                                <p className="text-[9px] font-black uppercase text-blue-800 tracking-widest">Via Cartão</p>
+                                                <p className="text-lg font-black text-blue-600 italic">R$ {reportTotals.cartao.total.toFixed(2)}</p>
+                                                <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">{reportTotals.cartao.count} pedidos</span>
                                             </div>
                                             
-                                            {/* DINHEIRO */}
-                                            <div className="bg-green-50 p-6 rounded-3xl border border-green-100 flex flex-col justify-center items-center text-center">
-                                                <Banknote size={24} className="text-green-600 mb-2"/>
-                                                <p className="text-[10px] font-black uppercase text-green-800 tracking-widest mb-1">Em Dinheiro</p>
-                                                <p className="text-2xl font-black text-green-600 italic">R$ {reportTotals.dinheiro.toFixed(2)}</p>
+                                            <div className="bg-green-50 p-4 rounded-3xl border border-green-100 text-center">
+                                                <Banknote size={20} className="text-green-600 mx-auto mb-1"/>
+                                                <p className="text-[9px] font-black uppercase text-green-800 tracking-widest">Em Dinheiro</p>
+                                                <p className="text-lg font-black text-green-600 italic">R$ {reportTotals.dinheiro.total.toFixed(2)}</p>
+                                                <span className="text-[9px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-md">{reportTotals.dinheiro.count} pedidos</span>
+                                            </div>
+
+                                            <div className="bg-slate-100 p-4 rounded-3xl border border-slate-200 text-center">
+                                                <Package size={20} className="text-slate-500 mx-auto mb-1"/>
+                                                <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest">Outros/Mesa</p>
+                                                <p className="text-lg font-black text-slate-600 italic">R$ {reportTotals.outros.total.toFixed(2)}</p>
+                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-md">{reportTotals.outros.count} pedidos</span>
                                             </div>
                                         </div>
+
+                                        {/* LISTAGEM DETALHADA DOS PEDIDOS DO CAIXA */}
+                                        <div className="mt-6 border-t border-slate-200 pt-6">
+                                            <h4 className="text-sm font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
+                                                <List size={18}/> Lista de Pedidos ({reportSeller === 'todos' ? 'Geral' : reportSeller})
+                                            </h4>
+                                            <div className="max-h-60 overflow-y-auto custom-scrollbar bg-slate-50 rounded-2xl border border-slate-200 p-2">
+                                                {filteredReportOrders.length === 0 ? (
+                                                    <p className="text-center text-slate-400 font-bold p-4 text-xs">Nenhum pedido encontrado neste filtro.</p>
+                                                ) : (
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="text-[9px] text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                                                                <th className="p-2">ID</th>
+                                                                <th className="p-2">Hora</th>
+                                                                <th className="p-2">Cliente</th>
+                                                                <th className="p-2">Pagamento</th>
+                                                                <th className="p-2 text-right">Valor</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="text-xs font-bold text-slate-700">
+                                                            {filteredReportOrders.map(o => (
+                                                                <tr key={o.id} className="border-b border-slate-100 hover:bg-white">
+                                                                    <td className="p-2 text-blue-600">#{o.id.slice(-5).toUpperCase()}</td>
+                                                                    <td className="p-2">{o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
+                                                                    <td className="p-2 truncate max-w-[100px]">{o.customerName}</td>
+                                                                    <td className="p-2 text-[9px] uppercase">{o.paymentMethod}</td>
+                                                                    <td className="p-2 text-right text-green-600">R$ {Number(o.total || 0).toFixed(2)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )}
+                                            </div>
+                                        </div>
+
                                         <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">Valores baseados em pedidos não cancelados. Taxas de entrega inclusas.</p>
                                     </motion.div>
                                 )}

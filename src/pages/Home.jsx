@@ -487,12 +487,12 @@ export default function Home() {
       const timeout = setTimeout(async () => {
           const cartId = `cart_${storeId}_${visitorId}`; 
           
-          // 🚨 SE O CARRINHO ESTIVER VAZIO, APAGA DO BANCO (Evita os R$ 0.00)
-          if (cart.length === 0) {
+          // 🚨 SE O CARRINHO ESTIVER VAZIO OU SEM TELEFONE, APAGA/NÃO SALVA
+          const cleanPhone = phoneStr.replace(/\D/g, '');
+          if (cart.length === 0 || cleanPhone.length < 10) {
               try { await deleteDoc(doc(db, "abandoned_carts", cartId)); } catch(e){}
               return;
           }
-
           // Se tiver itens, salva as informações
           try {
               await setDoc(doc(db, "abandoned_carts", cartId), {
