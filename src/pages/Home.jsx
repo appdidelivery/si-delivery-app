@@ -2814,10 +2814,10 @@ if (window.fbq) {
                                     
                                     let allMethods =[
                                         { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
-                                        { id: 'pix', name: `${gatewayName} (PIX)`, icon: <QrCode size={20}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix },
+                                        { id: 'pix', name: `${gatewayName} (PIX)`, icon: <QrCode size={20}/>, showIf: hasGateway && !hasVeloPayPix },
                                         { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
                                         { id: 'online', name: `${gatewayName} (CARTÃO)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
-                                        { id: 'offline_pix', name: 'PIX (COPIA E COLA)', icon: <QrCode size={20}/>, showIf: pmConfig.offline_pix !== false },
+                                        { id: 'offline_pix', name: 'PIX DIRETO (CHAVE DA LOJA)', icon: <QrCode size={20}/>, showIf: pmConfig.offline_pix !== false },
                                         { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
                                         { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
                                         { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
