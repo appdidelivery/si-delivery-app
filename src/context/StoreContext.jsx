@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db, auth } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'; 
+import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 const StoreContext = createContext();
 
@@ -19,19 +20,9 @@ export const StoreProvider = ({ children }) => {
       unsubscribeStore();
       unsubscribeUser();
       
-      // 1. NOVA EXTRAÇÃO DE SLUG (Mais robusta para domínios .com.br)
+      // 1. NOVA EXTRAÇÃO DE SLUG (Híbrida via domainHelper)
       const hostname = window.location.hostname;
-      let currentSlug = null;
-
-      if (
-        hostname !== 'localhost' &&
-        !hostname.startsWith('www.') &&
-        !hostname.startsWith('app.') &&
-        hostname.includes('.')
-      ) {
-          // Pega exatamente a primeira parte antes do ponto
-          currentSlug = hostname.split('.')[0]; 
-      }
+      let currentSlug = getStoreIdFromHostname();
 
       // 2. AMBIENTE DE DESENVOLVIMENTO
       if (hostname.includes('github.dev') || hostname === 'localhost') {

@@ -36,12 +36,20 @@ export const getStoreIdFromHostname = () => {
     return parts[parts.length - 1]; 
   }
   
-  // 5. Caso de Domínios Customizados (Futuro: bar-do-joao.com.br)
-  // Se o hostname não for o seu domínio principal nem localhost, 
-  // assumimos que é um domínio próprio apontando para o seu SaaS.
+  // 5. Caso de Domínios Customizados (Modo Híbrido com Dicionário)
   if (hostname !== baseDomain && !hostname.endsWith(`.${baseDomain}`)) {
-     // Aqui você pode retornar o hostname limpo para buscar no banco qual loja é dona desse domínio
-     return hostname.replace('www.', '');
+     const cleanHost = hostname.replace('www.', '');
+     
+     // Dicionário (De/Para): Traduz o domínio para o ID original da loja.
+     // Isso impede que os produtos sumam, pois no Firebase eles estão salvos com o slug antigo.
+     // Quando um cliente novo comprar um domínio, basta adicionar uma linha aqui.
+     const domainMap = {
+        "csi.com.br": "csi",
+        "cowburguer.com.br": "cowburguer",
+        "ng.com.br": "ng"
+     };
+
+     return domainMap[cleanHost] || cleanHost;
   }
 
   return 'unknown-store'; 

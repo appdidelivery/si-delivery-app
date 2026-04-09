@@ -1682,8 +1682,9 @@ export default async function handler(req, res) {
             };
             const gerencianet = new Gerencianet(efiOptions);
 
-            // Pega o domínio principal que está rodando a Vercel dinamicamente
-            const webhookUrl = `https://${req.headers.host}/api/velopay-webhook`;
+            // 🚨 BLINDAGEM MESTRA: Força o webhook da Efí a sempre bater na API central da Velo,
+            // independentemente de qual domínio (ou subdomínio) o lojista estava acessando.
+            const webhookUrl = 'https://app.velodelivery.com.br/api/velopay-webhook';
 
             await gerencianet.pixConfigWebhook(
                 { chave: process.env.EFI_PIX_KEY }, // A chave pix do seu .env
