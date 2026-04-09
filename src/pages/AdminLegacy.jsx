@@ -6881,23 +6881,33 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
                 {showPixModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center">
-                            <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X /></button>
-                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2">Pagar Fatura</h2>
-                            <p className="text-slate-500 font-bold mb-8">Valor Total: R$ {invoiceData.total.toFixed(2)}</p>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center shadow-2xl">
+                            <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X size={24}/></button>
                             
-                            <div className="bg-slate-100 p-6 rounded-2xl mb-6 flex items-center justify-center">
-                                <QrCode size={180} className="text-slate-800"/>
-                            </div>
-                            
-                            <p className="text-xs text-slate-400 font-bold uppercase mb-2">Código Copia e Cola</p>
-                            <div className="bg-slate-50 p-4 rounded-xl text-xs text-slate-500 break-all mb-6 font-mono border border-slate-200">
-                                00020126360014BR.GOV.BCB.PIX0114+554899999999520400005303986540549.905802BR5925VELO DELIVERY TECNOLOGIA6009SAO PAULO62070503***6304E2CA
+                            <div className="bg-emerald-100 text-emerald-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <QrCode size={40} />
                             </div>
 
-                            <button onClick={() => alert("Código copiado!")} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase shadow-lg active:scale-95 transition-all">
-                                Copiar Código Pix
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2">Pagamento PIX</h2>
+                            <p className="text-slate-500 font-bold mb-6">Realize a transferência para liberar seu painel.</p>
+                            
+                            <div className="bg-slate-50 border border-slate-200 p-6 rounded-3xl mb-6">
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Valor Exato da Fatura</p>
+                                <p className="text-4xl font-black text-emerald-600 italic">R$ {invoiceData.total.toFixed(2)}</p>
+                            </div>
+                            
+                            <div className="text-left bg-blue-50 border border-blue-100 p-6 rounded-3xl mb-8">
+                                <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-3 border-b border-blue-200 pb-2">Dados para Transferência</p>
+                                <p className="text-sm font-bold text-slate-700 mb-2"><span className="text-slate-500">Chave PIX (Efí):</span><br/> <span className="text-blue-700 font-black text-lg select-all">53620109000198</span></p>
+                                <p className="text-sm font-bold text-slate-700"><span className="text-slate-500">Beneficiário:</span><br/> Velo Delivery Tecnologia</p>
+                            </div>
+
+                            <button onClick={() => {
+                                navigator.clipboard.writeText("53620109000198");
+                                alert("Chave PIX copiada! Após realizar o pagamento, chame o suporte no WhatsApp para liberação.");
+                            }} className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <Copy size={18}/> Copiar Chave PIX
                             </button>
                         </motion.div>
                     </motion.div>
@@ -6920,8 +6930,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
                             <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
                         </div>
-                        <button onClick={handleAssinarPro} className="w-full bg-green-600 hover:bg-green-700 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
-                            <CreditCard size={20}/> Pagar com Cartão
+                        <button onClick={() => setShowPixModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <QrCode size={20}/> Pagar via PIX
                         </button>
                     </div>
                 </div>
@@ -7625,8 +7635,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {selectedInvoice.status === 'PENDENTE' && (
-                                <button onClick={handleAssinarPro} className="w-full mt-4 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
-                                    <CreditCard size={18} /> Pagar Fatura Agora
+                                <button onClick={() => setShowPixModal(true)} className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
+                                    <QrCode size={18} /> Pagar Fatura via PIX
                                 </button>
                             )}
                         </motion.div>
