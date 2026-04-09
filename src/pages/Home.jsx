@@ -1534,7 +1534,7 @@ export default function Home() {
      // No modo Garçom, força o envio direto e ignora o Gateway para não travar
       const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup'].includes(customer.payment);
 
-     const orderData = {
+    const orderData = {
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
@@ -1545,7 +1545,7 @@ export default function Home() {
         subtotal: subtotal || 0, 
         shippingFee: (isWaiterMode || isPickup) ? 0 : (shippingFee || 0), 
         total: finalTotal || 0, 
-        status: isOfflinePayment ? 'pending' : 'aguardando_pagamento',
+        status: isOfflinePayment ? 'pending' : 'aguardando_pagamento', 
         createdAt: serverTimestamp(),
         storeId: storeId || "",
         // Adicionando as TAGs para o Modo Garçom e Retirada:
