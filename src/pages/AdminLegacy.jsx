@@ -349,8 +349,7 @@ export default function Admin() {
     }
   // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
     const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
-    // Se você clicar em "Bloquear" no Admin SaaS, essa variável vira 'true' e levanta a tela vermelha na cara do lojista.
-    const isOverdue = storeStatus?.billingStatus === 'bloqueado'; 
+    // A variável isOverdue desceu para evitar o erro de tela branca!
     // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -730,11 +729,12 @@ export default function Admin() {
             const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
             setInvoiceData({
-                basePlan: isCortesiaAtual ? 0 : 49.90, // Se for cortesia agora, o base é 0. Senão é 49.90
-                extraOrdersCost: extraCost, // O excedente SEMPRE é calculado e cobrado, mesmo se a base for 0
+                basePlan: isCortesiaAtual ? 0 : 49.90, 
+                extraOrdersCost: extraCost, 
+                cycleOrdersCount: currentMonthOrders, // <-- Adicionado: Envia o valor exato do ciclo pra barrinha azul usar!
                 storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
                 dbUsage: products.length + orders.length + 50,
-                total: (isCortesiaAtual ? 0 : 49.90) + extraCost, // Total = Base + Excedente
+                total: (isCortesiaAtual ? 0 : 49.90) + extraCost, 
                 status: 'open',
                 cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
                 cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})
@@ -839,6 +839,9 @@ export default function Admin() {
         whatsapp: '', // Adicionado para consistência
         cnpj: '', // CNPJ da Loja
     });
+
+    // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
+    const isOverdue = storeStatus?.billingStatus === 'bloqueado';
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
     const[uploadingLogo, setUploadingLogo] = useState(false);
@@ -4678,26 +4681,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="flex justify-between items-end mb-2">
                                             <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><Trophy size={14}/> Franquia de Processamento</label>
                                             <span className="text-xs font-bold text-blue-600">
-                                                {orders.filter(o => {
-                                                    if(!o.createdAt) return false;
-                                                    const d = o.createdAt.toDate();
-                                                    const now = new Date();
-                                                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                                }).length} / 100 Req.
+                                                {invoiceData.cycleOrdersCount || 0} / 100 Req.
                                             </span>
                                         </div>
                                         <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
                                             <div 
                                                 className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-1000"
-                                                style={{ width: `${Math.min(100, (orders.filter(o => {
-                                                    if(!o.createdAt) return false;
-                                                    const d = o.createdAt.toDate();
-                                                    const now = new Date();
-                                                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                                }).length / 100) * 100)}%` }}
+                                                style={{ width: `${Math.min(100, ((invoiceData.cycleOrdersCount || 0) / 100) * 100)}%` }}
                                             ></div>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 mt-1">Requisições de pedidos, status e integrações. Acima de 100, custo de R$ 0,25/req.</p>
+                                        <p className="text-[10px] text-slate-400 mt-1">Ciclo atual ({invoiceData.cycleStartStr} a {invoiceData.cycleEndStr}). Acima de 100, custo de R$ 0,25/req.</p>
                                     </div>
 
                                     {/* 2. Storage (Imagens) */}
