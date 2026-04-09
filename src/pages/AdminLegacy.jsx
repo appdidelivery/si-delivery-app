@@ -347,10 +347,7 @@ export default function Admin() {
             </div>
          );
     }
-  // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
-    const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
-    // A variável isOverdue desceu para evitar o erro de tela branca!
-    // ----------------------------------------------
+  const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
@@ -839,6 +836,9 @@ export default function Admin() {
         whatsapp: '', // Adicionado para consistência
         cnpj: '', // CNPJ da Loja
     });
+
+    // 🚨 TRAVA DO PAINEL SAAS (AGORA NO LUGAR CERTO, DEPOIS DA VARIÁVEL TER SIDO CRIADA)
+    const isOverdue = storeStatus?.billingStatus === 'bloqueado';
 
     // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
     const isOverdue = storeStatus?.billingStatus === 'bloqueado';
