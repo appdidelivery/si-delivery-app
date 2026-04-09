@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
-    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star,
+    Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
     CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
@@ -4853,12 +4853,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </label>
                         </div>
 
-                        {/* 1. Status Geral (Botão Gigante) */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 text-center">
-                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Controle Mestre</h2>
-                            <button onClick={() => updateDoc(doc(db, "stores", storeId), { isOpen: !storeStatus.isOpen }, { merge: true })} className={`w-full py-6 rounded-2xl font-black text-2xl uppercase tracking-widest transition-all ${storeStatus.isOpen ? 'bg-green-500 text-white shadow-xl shadow-green-200' : 'bg-red-500 text-white shadow-xl shadow-red-200'}`}>{storeStatus.isOpen ? 'LOJA ABERTA' : 'LOJA FECHADA'}</button>
-                            <p className="mt-4 text-xs font-bold text-slate-400">Isso abre ou fecha a loja manualmente, ignorando o horário.</p>
-                        </div>
                         {/* --- BLOCO: RESTRIÇÃO DE IDADE (+18) --- */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mt-6">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -5086,6 +5080,78 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                                 
                             </div>
+                            {/* --- NOVO: DOMÍNIO PRÓPRIO (WHITE-LABEL) --- */}
+                                <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-xl border border-slate-700 space-y-6 mt-6 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none"><Globe size={150}/></div>
+                                    <div className="relative z-10">
+                                        <h2 className="text-2xl font-black text-white uppercase mb-2 flex items-center gap-3">
+                                            <Globe className="text-blue-400"/> Domínio Próprio
+                                        </h2>
+                                        <p className="text-sm font-medium text-slate-300 mb-6">Use seu próprio endereço (ex: www.sualoja.com.br) para passar mais autoridade e decolar seu ranqueamento no Google.</p>
+
+                                        <div className="bg-slate-800/50 border border-slate-600 p-6 md:p-8 rounded-3xl">
+                                            <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Qual domínio você deseja conectar?</label>
+                                            <div className="flex flex-col md:flex-row gap-4">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ex: cowburguer.com.br" 
+                                                    value={storeStatus.customDomain || ''} 
+                                                    onChange={(e) => setStoreStatus(prev => ({...prev, customDomain: e.target.value.toLowerCase().replace(/\s/g, '')}))}
+                                                    className="flex-1 p-5 bg-slate-900 rounded-2xl font-bold border border-slate-700 text-white outline-none focus:ring-2 ring-blue-500 transition-all placeholder-slate-600" 
+                                                    disabled={storeStatus.domainStatus === 'ativo'}
+                                                />
+                                                <button 
+                                                    onClick={async (e) => {
+                                                        e.preventDefault();
+                                                        if(!storeStatus.customDomain) return alert("Digite o domínio que você deseja configurar!");
+                                                        if(!storeStatus.customDomain.includes('.')) return alert("O formato do domínio está incorreto. Use ponto (ex: seudelivery.com.br)");
+                                                        
+                                                        try {
+                                                            await updateDoc(doc(db, "stores", storeId), { 
+                                                                customDomain: storeStatus.customDomain,
+                                                                domainStatus: 'pendente_dns'
+                                                            });
+                                                            alert("Domínio reservado! Veja as instruções de configuração que apareceram na tela.");
+                                                        } catch(err) {
+                                                            alert("Erro ao salvar domínio.");
+                                                        }
+                                                    }}
+                                                    className={`px-8 py-5 rounded-2xl font-black uppercase tracking-widest transition-all text-xs ${storeStatus.domainStatus === 'ativo' ? 'bg-green-500/20 text-green-400 cursor-not-allowed border border-green-500/30' : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-95 shadow-lg shadow-blue-900/50'}`}
+                                                    disabled={storeStatus.domainStatus === 'ativo'}
+                                                >
+                                                    {storeStatus.domainStatus === 'ativo' ? '✅ Domínio Ativo' : 'Solicitar Ativação'}
+                                                </button>
+                                            </div>
+
+                                            {/* INSTRUÇÕES DE DNS DINÂMICAS */}
+                                            {storeStatus.domainStatus === 'pendente_dns' && (
+                                                <div className="mt-6 bg-blue-900/20 border border-blue-500/30 p-6 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                                                    <h4 className="text-blue-400 font-black uppercase tracking-widest text-xs mb-3 flex items-center gap-2"><Server size={16}/> Configuração Obrigatória de DNS</h4>
+                                                    <p className="text-xs text-slate-300 mb-6 leading-relaxed">Para que o seu site carregue no novo domínio, acesse o painel onde você comprou o domínio (Registro.br, Hostinger, Locaweb, etc) e crie os dois apontamentos abaixo na Zona de DNS:</p>
+                                                    
+                                                    <div className="space-y-3 font-mono text-[10px] md:text-xs">
+                                                        <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+                                                            <span className="text-slate-400">TIPO: <strong className="text-white bg-slate-800 px-2 py-1 rounded">A</strong></span>
+                                                            <span className="text-slate-400">NOME (HOST): <strong className="text-white bg-slate-800 px-2 py-1 rounded">@</strong> <span className="text-[9px]">(ou deixe em branco)</span></span>
+                                                            <span className="text-slate-400">VALOR (DESTINO): <strong className="text-blue-400 bg-blue-900/30 px-2 py-1 rounded select-all">76.76.21.21</strong></span>
+                                                        </div>
+                                                        <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+                                                            <span className="text-slate-400">TIPO: <strong className="text-white bg-slate-800 px-2 py-1 rounded">CNAME</strong></span>
+                                                            <span className="text-slate-400">NOME (HOST): <strong className="text-white bg-slate-800 px-2 py-1 rounded">www</strong></span>
+                                                            <span className="text-slate-400">VALOR (DESTINO): <strong className="text-blue-400 bg-blue-900/30 px-2 py-1 rounded select-all">cname.vercel-dns.com</strong></span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-6 flex items-start gap-3 bg-slate-800/50 p-4 rounded-xl">
+                                                        <div className="animate-pulse"><Clock size={20} className="text-orange-400"/></div>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                                                            A propagação do DNS pode levar até 24h. <br/>Assim que você fizer a configuração acima, clique no botão do WhatsApp no canto da tela e avise nossa equipe para gerarmos seu Certificado de Segurança (SSL).
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             {/* --- NOVO BLOCO: LOCALIZAÇÃO E REGRAS --- */}
                             <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
                                 <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
