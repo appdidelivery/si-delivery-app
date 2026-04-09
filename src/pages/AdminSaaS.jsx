@@ -275,8 +275,15 @@ export default function AdminSaaS() {
 
                         const extraOrders = Math.max(0, pedidosNoCiclo - 100);
                         const extraCost = extraOrders * 0.25;
-                        const isCortesia = loja.billingStatus === 'gratis_vitalicio';
-                        const totalFatura = 49.90 + extraCost;
+                        // Verifica se a loja tem um plano isento
+                        const isCortesia = loja.billingStatus === 'gratis_vitalicio' || loja.billingStatus === 'cortesia';
+                        
+                        // A Fatura Base é 49.90, mas se for cortesia, a base zera e cobra apenas o extra!
+                        const valorBaseAplicado = isCortesia ? 0 : 49.90;
+                        const totalFatura = valorBaseAplicado + extraCost;
+                        
+                        // Status da Fatura: Se o total der 0, ela é isenta. Se der mais que 0 (por causa do extra), ela é PAGA (se for retroativa, assumimos que já pagou)
+                        const statusFinal = totalFatura === 0 ? 'ISENTO' : 'PAGO';
 
                         novasFaturas.push({
                             id: `auto_${loja.id}_${endOfCycle.getTime()}`,

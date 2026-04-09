@@ -723,18 +723,21 @@ export default function Admin() {
             }).length;
 
             const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
-            const extraCost = extraOrders * 0.25;
+            const extraCost = extraOrders * 0.25;
+            
+            // Verifica se a loja ainda possui o status de cortesia ativo NESTE EXATO MOMENTO
+            const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
-            setInvoiceData({
-                basePlan: 49.90,
-                extraOrdersCost: extraCost,
-                storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
-                dbUsage: products.length + orders.length + 50,
-                total: 49.90 + extraCost,
-                status: 'open',
-                cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
-                cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})
-            });
+            setInvoiceData({
+                basePlan: isCortesiaAtual ? 0 : 49.90, // Se for cortesia agora, o base é 0. Senão é 49.90
+                extraOrdersCost: extraCost, // O excedente SEMPRE é calculado e cobrado, mesmo se a base for 0
+                storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
+                dbUsage: products.length + orders.length + 50,
+                total: (isCortesiaAtual ? 0 : 49.90) + extraCost, // Total = Base + Excedente
+                status: 'open',
+                cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
+                cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})
+            });
 
             // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
             const totalPixRecebido = orders

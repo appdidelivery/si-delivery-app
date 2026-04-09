@@ -999,6 +999,14 @@ export default function Home() {
       if (d.exists()) {
         const data = d.data();
         setStoreSettings(data);
+        
+        // 🚨 TRAVA FINANCEIRA MESTRA (SAAS)
+        if (data.billingStatus === 'bloqueado') {
+            setIsStoreOpenNow(false);
+            setStoreMessage('Loja temporariamente suspensa. Contate o suporte.');
+            return; // Aborta a leitura de horários e força a loja a ficar fechada
+        }
+
         let finalStatus = data.isOpen; 
 
         if (data.isOpen && data.schedule) {
