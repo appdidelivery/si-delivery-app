@@ -515,6 +515,41 @@ export default function Home() {
         promoBannerUrls:[]
   });
   const[showExitModal, setShowExitModal] = useState(false);
+// --- NOVO MOTOR: INJEÇÃO AUTOMÁTICA DE BRINDE (COMPRE E GANHE) ---
+  useEffect(() => {
+      if (!marketingSettings?.buyAndGetPromo?.active || !marketingSettings?.buyAndGetPromo?.rewardProductId) return;
+
+      const promo = marketingSettings.buyAndGetPromo;
+      
+      // Checa se está no horário/dia da promoção
+      if (!isWithinRecurringSchedule(promo.recurringDay, promo.recurringStart, promo.recurringEnd)) return;
+
+      const rewardProd = products.find(p => p.id === promo.rewardProductId);
+      if (!rewardProd) return;
+
+      const triggerIds = promo.triggerProductIds || [];
+      
+      // Verifica se o cliente tem ALGUM dos produtos gatilho no carrinho
+      const hasTriggerInCart = cart.some(item => triggerIds.includes(item.id) && !item.isReward);
+      const hasRewardInCart = cart.some(item => item.id === rewardProd.id && item.isReward);
+
+      // Se ele colocou o gatilho e ainda não ganhou o brinde, dá 1 brinde
+      if (hasTriggerInCart && !hasRewardInCart) {
+          const rewardItem = {
+              ...rewardProd,
+              cartItemId: `reward_${rewardProd.id}`,
+              quantity: 1,
+              price: 0, // Custa R$ 0,00
+              isReward: true, // Tag que marca como brinde
+              observation: "Brinde Especial 🎁"
+          };
+          setCart(prev => [...prev, rewardItem]);
+      } 
+      // Se ele tirou o gatilho do carrinho, remove o brinde automaticamente
+      else if (!hasTriggerInCart && hasRewardInCart) {
+          setCart(prev => prev.filter(item => !item.isReward));
+      }
+  }, [cart, marketingSettings?.buyAndGetPromo, products]);
 
   // --- MOTOR DE PROVA SOCIAL (LIVE SALES) ---
   const [socialProof, setSocialProof] = useState({ visible: false, name: '', product: '' });
@@ -2051,51 +2086,49 @@ if (window.fbq) {
                 const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
                 const triggerProducts = products.filter(p => triggerIds.includes(p.id));
                 
-                // VALIDAÇÃO CORRIGIDA: Se o lojista definiu gatilhos, o cliente precisa ter PELO MENOS UM deles no carrinho.
-                // Se a lista de gatilhos estiver vazia, significa que a promo vale para a loja toda.
-                const hasEligibleTrigger = triggerIds.length === 0 || cart.some(cartItem => triggerIds.includes(cartItem.id));
-
-                if (!hasEligibleTrigger) return null; // Aborta a exibição se não cumpriu a regra
-
+                // Removida a trava do carrinho. O Banner deve ser uma propaganda fixa na Home.
                 let triggerText = "os itens participantes";
-                if (triggerProducts.length === 1) {
-                    triggerText = triggerProducts[0].name;
-                } else if (triggerProducts.length === 2) {
-                    triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
-                } else if (triggerProducts.length > 2) {
-                    triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais ${triggerProducts.length - 2} opções`;
-                }
+                if (triggerProducts.length === 1) {
+                    triggerText = triggerProducts[0].name;
+                } else if (triggerProducts.length === 2) {
+                    triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
+                } else if (triggerProducts.length > 2) {
+                    triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
+                }
 
-                return (
-                    <motion.div initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
-                        <div className="relative flex items-stretch rounded-2xl shadow-lg bg-teal-600 text-white overflow-hidden border border-teal-400">
-                            {/* Efeito de Fundo Pontilhado para dar textura */}
-                            <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
-                            
-                            {/* Lado Esquerdo (Ícone com Animação) */}
-                            <div className="w-[25%] min-w-[85px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
-                                <Gift size={36} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
-                                <span className="bg-yellow-400 text-teal-900 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
-                            </div>
+                // Puxa o texto personalizado do painel Admin
+                const customPromoText = marketingSettings.buyAndGetPromo.promoText;
 
-                            {/* Divisor Estilo Ticket */}
-                            <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
+                return (
+                    <motion.div initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
+                        <div className="relative flex items-stretch rounded-2xl shadow-lg bg-teal-600 text-white overflow-hidden border border-teal-400">
+                            {/* Efeito de Fundo Pontilhado para dar textura */}
+                            <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+                            
+                            {/* Lado Esquerdo (Ícone com Animação) */}
+                            <div className="w-[25%] min-w-[85px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
+                                <Gift size={36} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
+                                <span className="bg-yellow-400 text-teal-900 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
+                            </div>
 
-                            {/* Textos Magnéticos */}
-                            <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
-                                <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
-                                    <Zap size={10} className="text-yellow-400"/> Oferta Especial
-                                </p>
-                                <p className="font-black uppercase text-sm md:text-base leading-tight drop-shadow-md">
-                                    GANHE 1x {rewardProd.name}!
-                                </p>
-                                <p className="text-[10px] font-bold mt-1 text-teal-100 leading-snug">
-                                    Compre <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra de graça no carrinho.
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-                );
+                            {/* Divisor Estilo Ticket */}
+                            <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
+
+                            {/* Textos Magnéticos */}
+                            <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
+                                    <Zap size={10} className="text-yellow-400"/> Oferta Especial
+                                </p>
+                                <p className="font-black uppercase text-sm md:text-base leading-tight drop-shadow-md">
+                                    {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
+                                </p>
+                                <p className="text-[10px] font-bold mt-1 text-teal-100 leading-snug">
+                                    Adicione <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra de graça no carrinho.
+                                </p>
+                            </div>
+                        </div>
+                    </motion.div>
+                );
             })()}
         </AnimatePresence>
         {/* --- FIM: BANNER COMPRE E GANHE (BOGO) --- */}
