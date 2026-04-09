@@ -347,7 +347,8 @@ export default function Admin() {
             </div>
          );
     }
-  const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
+  // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
+    const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
@@ -837,11 +838,9 @@ export default function Admin() {
         cnpj: '', // CNPJ da Loja
     });
 
-    // 🚨 TRAVA DO PAINEL SAAS (AGORA NO LUGAR CERTO, DEPOIS DA VARIÁVEL TER SIDO CRIADA)
+    // 🚨 TRAVA DO PAINEL SAAS (Lendo direto do banco)
     const isOverdue = storeStatus?.billingStatus === 'bloqueado';
-
-    // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
-    const isOverdue = storeStatus?.billingStatus === 'bloqueado';
+    
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
     const[uploadingLogo, setUploadingLogo] = useState(false);
