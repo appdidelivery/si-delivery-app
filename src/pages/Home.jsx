@@ -2813,15 +2813,16 @@ if (window.fbq) {
                                     const gatewayName = hasMP ? 'MERCADO PAGO' : (hasStripe ? 'STRIPE' : 'ONLINE');
                                     
                                     let allMethods =[
-                                        { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
-                                        { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
-                                        { id: 'online', name: `${gatewayName} (CARTÃO/PIX)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
-                                        { id: 'offline_pix', name: 'PIX (COPIA E COLA)', icon: <QrCode size={20}/>, showIf: pmConfig.offline_pix !== false },
-                                        { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
-                                        { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
-                                        { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
-                                        { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
-                                    ];
+                                        { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
+                                        { id: 'pix', name: `${gatewayName} (PIX)`, icon: <QrCode size={20}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix },
+                                        { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
+                                        { id: 'online', name: `${gatewayName} (CARTÃO)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
+                                        { id: 'offline_pix', name: 'PIX (COPIA E COLA)', icon: <QrCode size={20}/>, showIf: pmConfig.offline_pix !== false },
+                                        { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
+                                        { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
+                                        { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
+                                        { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
+                                    ];
 
                                     return allMethods.filter(m => m.showIf).map(m => (
                                   <button 
