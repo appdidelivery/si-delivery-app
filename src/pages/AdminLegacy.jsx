@@ -349,6 +349,8 @@ export default function Admin() {
     }
   // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
     const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
+    // A variável isOverdue desceu para evitar o erro de tela branca!
+    // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
@@ -838,9 +840,8 @@ export default function Admin() {
         cnpj: '', // CNPJ da Loja
     });
 
-    // 🚨 TRAVA DO PAINEL SAAS (Lendo direto do banco)
+    // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
     const isOverdue = storeStatus?.billingStatus === 'bloqueado';
-    
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
     const[uploadingLogo, setUploadingLogo] = useState(false);
@@ -1799,13 +1800,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             if (o.status === 'canceled' || !o.createdAt) return false;
 
             // FILTRO 1: VENDEDOR / ORIGEM
-            if (reportSeller === 'online' && o.source === 'manual') return false;
+            const isManualOrder = o.source === 'manual' || o.source === 'manual_pdv';
+
+            if (reportSeller === 'online' && isManualOrder) return false;
             
-            // Se escolheu um vendedor específico (incluindo o dono), ignora os pedidos do App (online) 
-            // e os pedidos manuais que não foram feitos por aquele email
+            // Se escolheu um vendedor específico, ignora os pedidos do App (online) 
+            // e filtra estritamente pelo email salvo no pedido (ou assume 'owner' se for um pedido antigo manual sem email)
             if (reportSeller !== 'todos' && reportSeller !== 'online') {
-                if (o.source !== 'manual') return false;
-                if (o.sellerEmail !== reportSeller) return false;
+                if (!isManualOrder) return false;
+                const orderEmail = o.sellerEmail || 'owner'; 
+                if (orderEmail !== reportSeller) return false;
             }
             
             // FILTRO 2: DATA
@@ -1835,13 +1839,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
     const filteredReportOrders = getFilteredOrdersForReport();
     
+    // MODO INTELIGENTE: Procura pela palavra-chave, assim nunca zera independente de como foi salvo no passado
     const reportTotals = {
-        pix: filteredReportOrders.filter(o => o.paymentMethod === 'pix' || o.paymentMethod === 'offline_pix' || o.paymentMethod === 'velopay_pix').reduce((acc, o) => acc + Number(o.total || 0), 0),
-        cartao: filteredReportOrders.filter(o => o.paymentMethod === 'cartao' || o.paymentMethod === 'offline_credit_card' || o.paymentMethod === 'motoboy_card').reduce((acc, o) => acc + Number(o.total || 0), 0),
-        dinheiro: filteredReportOrders.filter(o => o.paymentMethod === 'dinheiro').reduce((acc, o) => acc + Number(o.total || 0), 0),
-        totalGeral: filteredReportOrders.reduce((acc, o) => acc + Number(o.total || 0), 0),
-        qtdPedidos: filteredReportOrders.length
-    };
+        pix: filteredReportOrders.filter(o => String(o.paymentMethod || '').toLowerCase().includes('pix') || String(o.paymentMethod || '').toLowerCase().includes('link')).reduce((acc, o) => acc + Number(o.total || 0), 0),
+        cartao: filteredReportOrders.filter(o => String(o.paymentMethod || '').toLowerCase().includes('cartao') || String(o.paymentMethod || '').toLowerCase().includes('card') || String(o.paymentMethod || '').toLowerCase().includes('stripe')).reduce((acc, o) => acc + Number(o.total || 0), 0),
+        dinheiro: filteredReportOrders.filter(o => String(o.paymentMethod || '').toLowerCase().includes('dinheiro') || String(o.paymentMethod || '').toLowerCase().includes('cash')).reduce((acc, o) => acc + Number(o.total || 0), 0),
+        totalGeral: filteredReportOrders.reduce((acc, o) => acc + Number(o.total || 0), 0),
+        qtdPedidos: filteredReportOrders.length
+    };
     // --------------------------------------------------------
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
@@ -2457,7 +2462,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
                                                 {o.customerName} 
                                                 {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
-                                                {o.source === 'google_food_marketplace' && <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 Via Google Maps</span>}
+                                                {(() => {
+                                                    if (o.source === 'manual' || o.source === 'manual_pdv') return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>;
+                                                    if (o.source === 'google_food_marketplace') return <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>;
+                                                    return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-blue-200 shadow-sm flex items-center gap-1">📱 APP (ONLINE)</span>;
+                                                })()}
                                             </h3>
                                             <p className="text-xs text-slate-500 font-medium">
                                                 {o.tipo === 'local' 
@@ -2627,7 +2636,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             </span>
                                                         </div>
                                                         
-                                                        <h4 className="font-black text-slate-800 text-sm leading-tight mb-1 truncate">{o.customerName}</h4>
+                                                        <h4 className="font-black text-slate-800 text-sm leading-tight mb-1 truncate flex items-center gap-2">
+                                                            {o.customerName}
+                                                        </h4>
+                                                        <div className="mb-2">
+                                                            {(() => {
+                                                                if (o.source === 'manual' || o.source === 'manual_pdv') return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-purple-200 shadow-sm inline-flex items-center gap-1">💻 PDV</span>;
+                                                                if (o.source === 'google_food_marketplace') return <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200 shadow-sm inline-flex items-center gap-1">🌐 GOOGLE MAPS</span>;
+                                                                return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>;
+                                                            })()}
+                                                        </div>
                                                         
                                                         <div className="text-[10px] font-bold text-slate-500 mb-4 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-lg">
                                                             {o.tipo === 'local' ? (
@@ -6903,7 +6921,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             <button onClick={() => {
-                                navigator.clipboard.writeText("53620109000198");
+                                navigator.clipboard.writeText("");
                                 alert("Chave PIX copiada! Após realizar o pagamento, chame o suporte no WhatsApp para liberação.");
                             }} className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2">
                                 <Copy size={18}/> Copiar Chave PIX
