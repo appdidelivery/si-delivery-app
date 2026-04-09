@@ -347,9 +347,10 @@ export default function Admin() {
             </div>
          );
     }
-  // --- LÓGICA DE VENCIMENTO REMOVIDA (LOJA SEMPRE LIBERADA) ---
+  // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
     const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
-    const isOverdue = false; 
+    // Se você clicar em "Bloquear" no Admin SaaS, essa variável vira 'true' e levanta a tela vermelha na cara do lojista.
+    const isOverdue = storeStatus?.billingStatus === 'bloqueado'; 
     // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
