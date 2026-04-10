@@ -353,10 +353,16 @@ export default function Admin() {
     // ----------------------------------------------
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
-    const [orderSearchTerm, setOrderSearchTerm] = useState(''); // Estado para busca de pedidos
-    const [currentTime, setCurrentTime] = useState(new Date()); // <-- ADICIONADO PARA CORRIGIR A TELA BRANCA
+    const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
+    const [orderSearchTerm, setOrderSearchTerm] = useState(''); // Estado para busca de pedidos
+    const [ordersPerPage, setOrdersPerPage] = useState(25); // NOVO: Limite de pedidos por página
+    const [currentPage, setCurrentPage] = useState(1); // NOVO: Página atual dos pedidos
+    const [currentTime, setCurrentTime] = useState(new Date()); // <-- ADICIONADO PARA CORRIGIR A TELA BRANCA
 
+    // NOVO: Reseta a página para 1 sempre que o termo de busca, a aba ou a quantidade mudar
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [orderSearchTerm, activeTab, ordersPerPage]);
     // Faz o relógio "bater" a cada 30 segundos para mudar as cores dos atrasos ao vivo
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(new Date()), 30000); 
@@ -2498,14 +2504,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        {orderViewMode === 'list' ? (
+                        {/* NOVO: Seletor de limite por página */}
+                        <div className="flex justify-end mb-4">
+                            <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Itens por tela:</span>
+                                {[25, 50, 100].map(limit => (
+                                    <button
+                                        key={limit}
+                                        onClick={() => setOrdersPerPage(limit)}
+                                        className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${ordersPerPage === limit ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                    >
+                                        {limit}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                       {orderViewMode === 'list' ? (
                             <div className="space-y-4">
-                                {orders.filter(o => 
-                                    !orderSearchTerm || 
-                                    o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
-                                    (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
-                                    (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
-                                ).map(o => (
+                                {(() => {
+                                    const filteredOrdersList = orders.filter(o => 
+                                        !orderSearchTerm || 
+                                        o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                        (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
+                                        (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
+                                    );
+                                    const totalPagesList = Math.max(1, Math.ceil(filteredOrdersList.length / ordersPerPage));
+                                    const paginatedOrdersList = filteredOrdersList.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
+
+                                    return (
+                                        <>
+                                            {paginatedOrdersList.map(o => (
                                     <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
                                         <div className="flex flex-col flex-1">
                                            <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -2683,6 +2712,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
                                 ))}
+                                            
+                                            {/* NOVO: Controles de Paginação (Lista) */}
+                                            {totalPagesList > 1 && (
+                                                <div className="flex justify-center items-center gap-4 mt-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                                    <button 
+                                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                                        disabled={currentPage === 1}
+                                                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                                    >
+                                                        Anterior
+                                                    </button>
+                                                    <span className="text-sm font-black text-slate-700">
+                                                        Página {currentPage} de {totalPagesList}
+                                                    </span>
+                                                    <button 
+                                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPagesList))}
+                                                        disabled={currentPage === totalPagesList}
+                                                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                                    >
+                                                        Próxima
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         ) : (
                             /* --- NOVO KANBAN (GRID STYLE) --- */
@@ -2706,7 +2761,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
                                                     (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
                                                 )
-                                            ).map(o => {
+                                            ).slice(0, ordersPerPage).map(o => {
                                                 // --- LÓGICA DO CRONÔMETRO (CORES POR TEMPO) ---
                                                 const date = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt?.seconds * 1000 || Date.now());
                                                 const diffMin = Math.floor((currentTime - date) / 60000);
