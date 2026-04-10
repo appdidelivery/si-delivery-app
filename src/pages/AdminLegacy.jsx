@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -2474,26 +2474,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {activeTab === 'orders' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-    <div>
-        <h1 className="text-4xl font-black italic uppercase text-slate-900">Pedidos</h1>
-        <p className="text-slate-400 font-bold mt-1 text-sm">Gerencie o fluxo da sua operação.</p>
-    </div>
-    
-    <div className="flex-1 max-w-md relative">
-        <input 
-            type="text" 
-            placeholder="🔍 Buscar por ID, Nome ou Telefone..." 
-            className="w-full p-3 pl-10 bg-white rounded-xl font-bold text-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 shadow-sm"
-            value={orderSearchTerm}
-            onChange={(e) => setOrderSearchTerm(e.target.value)}
-        />
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-        {orderSearchTerm && (
-            <button onClick={() => setOrderSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
-                <X size={18}/>
-            </button>
-        )}
-    </div>
+                            <div>
+                                <h1 className="text-4xl font-black italic uppercase text-slate-900">Pedidos</h1>
+                                <p className="text-slate-400 font-bold mt-1 text-sm">Gerencie o fluxo da sua operação.</p>
+                            </div>
+                            
+                            <div className="flex-1 max-w-md relative">
+                                <input 
+                                    type="text" 
+                                    placeholder="🔍 Buscar por ID, Nome ou Telefone..." 
+                                    className="w-full p-3 pl-10 bg-white rounded-xl font-bold text-sm border border-slate-200 outline-none focus:ring-2 ring-blue-500 shadow-sm"
+                                    value={orderSearchTerm}
+                                    onChange={(e) => setOrderSearchTerm(e.target.value)}
+                                />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                                {orderSearchTerm && (
+                                    <button onClick={() => setOrderSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                                        <X size={18}/>
+                                    </button>
+                                )}
+                            </div>
                             <div className="flex bg-slate-200 p-1 rounded-xl w-fit">
                                 <button onClick={() => setOrderViewMode('list')} className={`px-5 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${orderViewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                                     <List size={16} /> Lista Padrão
@@ -2504,7 +2504,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        {/* NOVO: Seletor de limite por página */}
                         <div className="flex justify-end mb-4">
                             <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Itens por tela:</span>
@@ -2520,14 +2519,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                       {orderViewMode === 'list' ? (
+                        {orderViewMode === 'list' ? (
                             <div className="space-y-4">
                                 {(() => {
                                     const filteredOrdersList = orders.filter(o => 
                                         !orderSearchTerm || 
-                                        o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
-                                        (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
-                                        (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
+                                        (o?.id || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                        (o?.customerName || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                        (o?.customerPhone || '').includes(orderSearchTerm)
                                     );
                                     const totalPagesList = Math.max(1, Math.ceil(filteredOrdersList.length / ordersPerPage));
                                     const paginatedOrdersList = filteredOrdersList.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
@@ -2535,185 +2534,160 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     return (
                                         <>
                                             {paginatedOrdersList.map(o => (
-                                    <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
-                                        <div className="flex flex-col flex-1">
-                                           <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
-                                                
-                                                {/* 1. STATUS DE PAGAMENTO SEPARADO */}
-                                                {(() => {
-                                                    const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
-                                                    const pStatus = o.paymentStatus || 'pending';
-                                                    
-                                                    if (isOnline) {
-                                                        if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'concluida' || pStatus === 'CONCLUIDA') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">✅ PAGO ONLINE</span>;
-                                                        if (pStatus === 'failed' || pStatus === 'rejected') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">❌ RECUSADO</span>;
-                                                        return <span className="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">⏳ AGUARDANDO PAGTO</span>;
-                                                    }
-                                                    if (pStatus === 'paid') return <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>;
-                                                    return <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>;
-                                                })()}
+                                                <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
+                                                    <div className="flex flex-col flex-1">
+                                                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
+                                                            
+                                                            {['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod) ? (
+                                                                (o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA') ? (
+                                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">✅ PAGO ONLINE</span>
+                                                                ) : (o.paymentStatus === 'failed' || o.paymentStatus === 'rejected') ? (
+                                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">❌ RECUSADO</span>
+                                                                ) : (
+                                                                    <span className="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">⏳ AGUARDANDO PAGTO</span>
+                                                                )
+                                                            ) : o.paymentStatus === 'paid' ? (
+                                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>
+                                                            ) : (
+                                                                <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>
+                                                            )}
 
-                                                {/* 2. STATUS DO PEDIDO 2(COZINHA/ENTREGA) */}
-                                                {(() => {
-                                                    const statusMap = {
-                                                        pending: { label: 'Novo Pedido', color: 'bg-red-500 text-white animate-pulse shadow-md' },
-                                                        preparing: { label: 'Preparando', color: 'bg-orange-400 text-white' },
-                                                        delivery: { label: 'Saiu p/ Entrega', color: 'bg-blue-500 text-white' },
-                                                        completed: { label: 'Concluído', color: 'bg-green-500 text-white' },
-                                                        canceled: { label: 'Cancelado', color: 'bg-slate-800 text-white' }
-                                                    };
-                                                    const s = statusMap[o.status] || statusMap.pending;
-                                                    return <span className={`${s.color} px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider`}>{s.label}</span>;
-                                                })()}
+                                                            {o.status === 'pending' ? <span className="bg-red-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">Novo Pedido</span> :
+                                                             o.status === 'preparing' ? <span className="bg-orange-400 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Preparando</span> :
+                                                             o.status === 'delivery' ? <span className="bg-blue-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Saiu p/ Entrega</span> :
+                                                             o.status === 'completed' ? <span className="bg-green-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Concluído</span> :
+                                                             <span className="bg-slate-800 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Cancelado</span>}
 
-                                                {o.tipo === 'local' && (
-                                                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
-                                                )}
-                                                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                                            </div>
-                                            <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
-                                                {o.customerName} 
-                                                {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
-                                                {(() => {
-                                                    if (o.source === 'manual' || o.source === 'manual_pdv') return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>;
-                                                    if (o.source === 'google_food_marketplace') return <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>;
-                                                    return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-blue-200 shadow-sm flex items-center gap-1">📱 APP (ONLINE)</span>;
-                                                })()}
-                                            </h3>
-                                            <p className="text-xs text-slate-500 font-medium">
-                                                {o.tipo === 'local' 
-                                                    ? `Atendimento no Salão - Mesa ${o.mesa}`
-                                                    : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
-                                                }
-                                            </p>
-                                        </div>
-                                        {/* LISTAGEM SEGURA DE ITENS NO PEDIDO */}
-                                        <div className="py-3 my-2 border-y border-slate-50 space-y-2">
-                                            {o.items && Array.isArray(o.items) ? o.items.map((i, idx) => (
-                                                <div key={idx} className="flex flex-col">
-                                                    <div className="flex justify-between items-start text-sm">
-                                                        <span className="font-bold text-slate-700">
-                                                            {i.quantity}x {i.name}
-                                                        </span>
-                                                        <span className="text-slate-400 font-medium">
-                                                            R$ {(Number(i.price || 0) * Number(i.quantity || 1)).toFixed(2)}
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    {/* MOSTRAR OBSERVAÇÃO COM SEGURANÇA */}
-                                                    {i.observation && (
-                                                        <div className="text-[11px] text-orange-600 font-bold bg-orange-50 p-2 rounded-lg mt-1 border border-orange-100 italic leading-tight">
-                                                            ↳ Obs: {i.observation}
+                                                            {o.tipo === 'local' && (
+                                                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
+                                                            )}
+                                                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                                         </div>
-                                                    )}
+                                                        <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
+                                                            {o.customerName} 
+                                                            {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
+                                                            {o.source === 'manual' || o.source === 'manual_pdv' ? (
+                                                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>
+                                                            ) : o.source === 'google_food_marketplace' ? (
+                                                                <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>
+                                                            ) : (
+                                                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-blue-200 shadow-sm flex items-center gap-1">📱 APP (ONLINE)</span>
+                                                            )}
+                                                        </h3>
+                                                        <p className="text-xs text-slate-500 font-medium">
+                                                            {o.tipo === 'local' 
+                                                                ? `Atendimento no Salão - Mesa ${o.mesa}`
+                                                                : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                    <div className="py-3 my-2 border-y border-slate-50 space-y-2">
+                                                        {o.items && Array.isArray(o.items) ? o.items.map((i, idx) => (
+                                                            <div key={idx} className="flex flex-col">
+                                                                <div className="flex justify-between items-start text-sm">
+                                                                    <span className="font-bold text-slate-700">
+                                                                        {i.quantity}x {i.name}
+                                                                    </span>
+                                                                    <span className="text-slate-400 font-medium">
+                                                                        R$ {(Number(i.price || 0) * Number(i.quantity || 1)).toFixed(2)}
+                                                                    </span>
+                                                                </div>
+                                                                {i.observation && (
+                                                                    <div className="text-[11px] text-orange-600 font-bold bg-orange-50 p-2 rounded-lg mt-1 border border-orange-100 italic leading-tight">
+                                                                        ↳ Obs: {i.observation}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )) : (
+                                                            <span className="text-xs text-slate-400 italic">Nenhum item encontrado</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
+                                                        <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
+                                                        <div className="flex flex-wrap justify-end gap-2 md:gap-3">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const initialDataForModal = {
+                                                                        ...o, 
+                                                                        paymentMethod: o.paymentMethod || 'pix', 
+                                                                        items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) : [], 
+                                                                        shippingFee: o.shippingFee || 0,
+                                                                        customerName: o.customerName || '',
+                                                                        customerAddress: o.customerAddress || '',
+                                                                        customerPhone: o.customerPhone || ''
+                                                                    };
+                                                                    setEditingOrderData(initialDataForModal);
+                                                                    setIsOrderEditModalOpen(true);
+                                                                }} 
+                                                                className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
+                                                                title="Editar Pedido"
+                                                            >
+                                                                <Edit3 size={20} />
+                                                            </button>
+                                                            <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
+                                                            <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
+                                                            {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
+                                                                <button 
+                                                                    onClick={() => handleRefundMercadoPago(o)} 
+                                                                    className="p-3 bg-red-50 rounded-xl hover:bg-red-100 text-red-600 transition-colors" 
+                                                                    title="Estornar Pagamento (Mercado Pago)"
+                                                                >
+                                                                    <RefreshCw size={20} />
+                                                                </button>
+                                                            )}
+                                                            {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        const chavePixParaCobrar = o.pixCopiaECola || storeStatus?.velopayData?.pixKey || storeStatus?.pixKey || 'Chave não cadastrada';
+                                                                        const tipoChaveText = o.pixCopiaECola ? 'nosso PIX Copia e Cola abaixo' : 'nosso PIX Oficial';
+                                                                        const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da *${storeStatus?.name || 'loja'}*.\n\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar a produção, pague pelo ${tipoChaveText}:\n\n${chavePixParaCobrar}\n\nAssim que pagar, nos avise aqui para liberarmos sua comanda! 🚀`;
+                                                                        const phoneRaw = String(o.customerPhone || '').replace(/\D/g, '');
+                                                                        const cleanPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
+                                                                        const waConfig = settings?.integrations?.whatsapp;
+
+                                                                        if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && cleanPhone.length >= 12) {
+                                                                            try {
+                                                                                const res = await fetch('/api/whatsapp-send', {
+                                                                                    method: 'POST',
+                                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                                    body: JSON.stringify({
+                                                                                        action: 'chat_reply',
+                                                                                        storeId: storeId,
+                                                                                        toPhone: cleanPhone,
+                                                                                        dynamicParams: { text: msg }
+                                                                                    })
+                                                                                });
+                                                                                if (res.ok) alert("✅ Cobrança enviada direto pro WhatsApp do cliente!");
+                                                                                else throw new Error("Falha na API da Meta");
+                                                                            } catch(e) {
+                                                                                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                                            }
+                                                                        } else {
+                                                                            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                                        }
+                                                                        
+                                                                        await updateDoc(doc(db, "orders", o.id), { paymentStatus: 'aguardando_pix' });
+                                                                    }}
+                                                                    className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
+                                                                    title="Cobrar PIX no WhatsApp"
+                                                                >
+                                                                    <QrCode size={20}/>
+                                                                </button>
+                                                            )}
+
+                                                            <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
+                                                                <option value="pending">⏳ Novo Pedido</option>
+                                                                <option value="preparing">👨‍🍳 Preparando</option>
+                                                                <option value="delivery">🏍️ Saiu p/ Entrega</option>
+                                                                <option value="completed">✅ Concluído</option>
+                                                                <option value="canceled">❌ Cancelado</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            )) : (
-                                                <span className="text-xs text-slate-400 italic">Nenhum item encontrado</span>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
-                                            <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
-                                            <div className="flex flex-wrap justify-end gap-2 md:gap-3">
-                                                <button 
-                                                    onClick={() => {
-                                                        const initialDataForModal = {
-                                                            ...o, // Começa com os dados originais do pedido
-                                                            paymentMethod: o.paymentMethod || 'pix', // Define um fallback caso o campo não exista
-                                                            items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], // Garante que 'items' é array
-                                                            shippingFee: o.shippingFee || 0,
-                                                            customerName: o.customerName || '',
-                                                            customerAddress: o.customerAddress || '',
-                                                            customerPhone: o.customerPhone || ''
-                                                        };
-                                                        setEditingOrderData(initialDataForModal);
-                                                        setIsOrderEditModalOpen(true);
-                                                    }} 
-                                                    className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
-                                                    title="Editar Pedido"
-                                                >
-                                                    <Edit3 size={20} />
-                                                </button>
-                                                <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
-                                                <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
-                                                {/* BOTÃO DE ESTORNO MERCADO PAGO */}
-                                                {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
-                                                    <button 
-                                                        onClick={() => handleRefundMercadoPago(o)} 
-                                                        className="p-3 bg-red-50 rounded-xl hover:bg-red-100 text-red-600 transition-colors" 
-                                                        title="Estornar Pagamento (Mercado Pago)"
-                                                    >
-                                                        <RefreshCw size={20} />
-                                                    </button>
-                                                )}
-                                                {/* BOTÃO MÁGICO DE COBRANÇA PIX (SÓ APARECE SE ESTIVER PENDENTE) */}
-                                                {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
-                                                    <button 
-                                                        onClick={async () => {
-                                                            // 1. Verifica se tem PIX Dinâmico, senão usa o Fixo
-                                                            const chavePixParaCobrar = o.pixCopiaECola || storeStatus?.velopayData?.pixKey || storeStatus?.pixKey || 'Chave não cadastrada';
-                                                            const tipoChaveText = o.pixCopiaECola ? 'nosso PIX Copia e Cola abaixo' : 'nosso PIX Oficial';
-                                                            
-                                                            // 2. Monta a Mensagem
-                                                            const msg = `Olá ${o.customerName.split(' ')[0]}! Aqui é da *${storeStatus?.name || 'loja'}*.\n\nSeu pedido deu *R$ ${Number(o.total).toFixed(2)}*.\n\nPara agilizar a produção, pague pelo ${tipoChaveText}:\n\n${chavePixParaCobrar}\n\nAssim que pagar, nos avise aqui para liberarmos sua comanda! 🚀`;
-
-                                                            // 3. Trata o Telefone
-                                                            const phoneRaw = String(o.customerPhone || '').replace(/\D/g, '');
-                                                            const cleanPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
-                                                            const waConfig = settings?.integrations?.whatsapp;
-
-                                                            // 4. Valida se a Meta API está conectada
-                                                            if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && cleanPhone.length >= 12) {
-                                                                try {
-                                                                    const res = await fetch('/api/whatsapp-send', {
-                                                                        method: 'POST',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({
-                                                                            action: 'chat_reply',
-                                                                            storeId: storeId,
-                                                                            toPhone: cleanPhone,
-                                                                            dynamicParams: { text: msg }
-                                                                        })
-                                                                    });
-                                                                    if (res.ok) {
-                                                                        alert("✅ Cobrança enviada direto pro WhatsApp do cliente!");
-                                                                    } else {
-                                                                        throw new Error("Falha na API da Meta");
-                                                                    }
-                                                                } catch(e) {
-                                                                    // Fallback: se der erro na Meta, abre o WPP Web
-                                                                    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-                                                                }
-                                                    } else {
-                                                        // Se não tiver a API da Meta, abre o WPP Web direto
-                                                        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-                                                    }
-                                                    
-                                                    // Muda o status automaticamente para evitar cobrar duas vezes
-                                                    await updateDoc(doc(db, "orders", o.id), { 
-                                                        paymentStatus: 'aguardando_pix' 
-                                                    });
-                                                }}
-                                                        className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
-                                                        title="Cobrar PIX no WhatsApp"
-                                                    >
-                                                        <QrCode size={20}/>
-                                                    </button>
-                                                )}
-
-                                                <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
-                                                    <option value="pending">⏳ Novo Pedido</option>
-                                                    <option value="preparing">👨‍🍳 Preparando</option>
-                                                    <option value="delivery">🏍️ Saiu p/ Entrega</option>
-                                                    <option value="completed">✅ Concluído</option>
-                                                    <option value="canceled">❌ Cancelado</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                            ))}
                                             
-                                            {/* NOVO: Controles de Paginação (Lista) */}
                                             {totalPagesList > 1 && (
                                                 <div className="flex justify-center items-center gap-4 mt-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                                                     <button 
@@ -2740,7 +2714,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 })()}
                             </div>
                         ) : (
-                            /* --- NOVO KANBAN (GRID STYLE) --- */
                             <div className="flex gap-4 overflow-x-auto pb-6 items-start custom-scrollbar min-h-[calc(100vh-250px)]">
                                 {[
                                     { id: 'pending', title: '⏳ Novos (Pendentes)', color: 'bg-red-100 text-red-800 border-red-200', next: 'preparing', nextLabel: 'Aceitar (Cozinha)' },
@@ -2757,12 +2730,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             {orders.filter(o => 
                                                 o.status === col.id && (
                                                     !orderSearchTerm || 
-                                                    o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
-                                                    (o.customerName && o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase())) || 
-                                                    (o.customerPhone && o.customerPhone.includes(orderSearchTerm))
+                                                    (o?.id || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                                    (o?.customerName || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                                    (o?.customerPhone || '').includes(orderSearchTerm)
                                                 )
                                             ).slice(0, ordersPerPage).map(o => {
-                                                // --- LÓGICA DO CRONÔMETRO (CORES POR TEMPO) ---
                                                 const date = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt?.seconds * 1000 || Date.now());
                                                 const diffMin = Math.floor((currentTime - date) / 60000);
                                                 
@@ -2786,22 +2758,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             {o.customerName}
                                                         </h4>
                                                         <div className="mb-2 flex flex-col gap-1 items-start">
-                                                            {(() => {
-                                                                if (o.source === 'manual' || o.source === 'manual_pdv') return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-purple-200 shadow-sm inline-flex items-center gap-1">💻 PDV</span>;
-                                                                if (o.source === 'google_food_marketplace') return <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200 shadow-sm inline-flex items-center gap-1">🌐 GOOGLE MAPS</span>;
-                                                                return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>;
-                                                            })()}
-                                                            {(() => {
-                                                                const isOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
-                                                                const pStatus = o.paymentStatus || 'pending';
-                                                                if (isOnline) {
-                                                                    if (pStatus === 'paid' || pStatus === 'approved' || pStatus === 'concluida' || pStatus === 'CONCLUIDA') return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">✅ PAGO ONLINE</span>;
-                                                                    if (pStatus === 'failed' || pStatus === 'rejected') return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">❌ RECUSADO</span>;
-                                                                    return <span className="bg-orange-500 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse">⏳ AGUARDANDO PAGTO</span>;
-                                                                }
-                                                                return null;
-                                                            })()}
-                                                        </div>
+                                                            {o.source === 'manual' || o.source === 'manual_pdv' ? (
+                                                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-purple-200 shadow-sm inline-flex items-center gap-1">💻 PDV</span>
+                                                            ) : o.source === 'google_food_marketplace' ? (
+                                                                <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200 shadow-sm inline-flex items-center gap-1">🌐 GOOGLE MAPS</span>
+                                                            ) : (
+                                                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>
+                                                            )}
+                                                            
+                                                            {['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod) && (
+                                                                (o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA') ? (
+                                                                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">✅ PAGO ONLINE</span>
+                                                                ) : (o.paymentStatus === 'failed' || o.paymentStatus === 'rejected') ? (
+                                                                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">❌ RECUSADO</span>
+                                                                ) : (
+                                                                    <span className="bg-orange-500 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse">⏳ AGUARDANDO PAGTO</span>
+                                                                )
+                                                            )}
+                                                        </div>
                                                         
                                                         <div className="text-[10px] font-bold text-slate-500 mb-4 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-lg">
                                                             {o.tipo === 'local' ? (
@@ -2811,7 +2785,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             )}
                                                         </div>
 
-                                                        {/* Lista Rápida de Itens */}
                                                         <div className="mb-4 space-y-1">
                                                             {o.items?.slice(0, 3).map((i, idx) => (
                                                                 <p key={idx} className="text-xs font-bold text-slate-700 truncate">
@@ -2829,24 +2802,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                         <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-auto">
                                                             <div className="flex gap-1">
-                                                            <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
-                                                            <button onClick={() => {
-                                                                const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) :[], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };
-                                                                setEditingOrderData(initialDataForModal);
-                                                                setIsOrderEditModalOpen(true);
-                                                            }} className="p-2 bg-slate-100 rounded-lg hover:bg-orange-100 text-orange-600 transition-colors" title="Ver Detalhes/Editar"><Edit3 size={16} /></button>
-                                                            
-                                                            {/* BOTÃO DE ESTORNO MERCADO PAGO */}
-                                                            {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
-                                                                <button 
-                                                                    onClick={() => handleRefundMercadoPago(o)} 
-                                                                    className="p-2 bg-red-50 rounded-lg hover:bg-red-100 text-red-600 transition-colors" 
-                                                                    title="Estornar Pix/Cartão (Mercado Pago)"
-                                                                >
-                                                                    <RefreshCw size={16} />
-                                                                </button>
-                                                            )}
-                                                        </div>
+                                                                <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
+                                                                <button onClick={() => {
+                                                                    const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) : [], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };
+                                                                    setEditingOrderData(initialDataForModal);
+                                                                    setIsOrderEditModalOpen(true);
+                                                                }} className="p-2 bg-slate-100 rounded-lg hover:bg-orange-100 text-orange-600 transition-colors" title="Ver Detalhes/Editar"><Edit3 size={16} /></button>
+                                                                
+                                                                {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
+                                                                    <button 
+                                                                        onClick={() => handleRefundMercadoPago(o)} 
+                                                                        className="p-2 bg-red-50 rounded-lg hover:bg-red-100 text-red-600 transition-colors" 
+                                                                        title="Estornar Pix/Cartão (Mercado Pago)"
+                                                                    >
+                                                                        <RefreshCw size={16} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                             <button 
                                                                 onClick={() => updateStatusAndNotify(o, col.next)}
                                                                 className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
@@ -3040,10 +3012,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {products.filter(p =>
-                                p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
-                                p.category.toLowerCase().includes(productSearch.toLowerCase())
-                            ).map(p => (                                
+                            {products.filter(p => 
+                                    (p?.name || '').toLowerCase().includes((productSearch || '').toLowerCase()) || 
+                                    (p?.category || '').toLowerCase().includes((productSearch || '').toLowerCase())
+                                ).map(p => (                             
                                 <div key={p.id} className={`bg-white p-6 rounded-[2.5rem] border-2 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
                                     {/* Checkbox Multi-seleção */}
                                     <div className="absolute top-4 left-4 z-10">
