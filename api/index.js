@@ -1374,6 +1374,7 @@ export default async function handler(req, res) {
                     },
                     auto_return: "approved",
                     external_reference: orderId, // CRÍTICO: Usado para o webhook saber qual pedido foi pago
+                    notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`, // 🚨 BLINDAGEM: Força o MP a avisar o domínio atual!
                     marketplace_fee: marketplaceFee > 0 ? marketplaceFee : undefined, // Split de pagamento
                     statement_descriptor: "VELO DELIVERY",
                     payment_methods: {
@@ -1414,9 +1415,16 @@ export default async function handler(req, res) {
             if (isPayment && data && data.id) {
                 const paymentId = data.id;
 
-                // MULTI-TENANT: Busca o Access Token exato do Lojista que recebeu o Pix
+                // 🚨 BLINDAGEM MULTI-TENANT: Tenta pegar a loja que injetamos na URL do Webhook
+                const storeIdQuery = req.query.store;
                 let accessToken = process.env.MP_ACCESS_TOKEN;
-                if (user_id) {
+
+                if (storeIdQuery) {
+                    const settingsDoc = await db.collection('settings').doc(storeIdQuery).get();
+                    if (settingsDoc.exists && settingsDoc.data().integrations?.mercadopago?.accessToken) {
+                        accessToken = settingsDoc.data().integrations.mercadopago.accessToken;
+                    }
+                } else if (user_id) {
                     const settingsRef = await db.collection('settings').where('integrations.mercadopago.userId', 'in', [user_id, String(user_id)]).limit(1).get();
                     if (!settingsRef.empty) {
                         accessToken = settingsRef.docs[0].data().integrations.mercadopago.accessToken;
