@@ -942,14 +942,24 @@ export default function Admin() {
             setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-       // Carrinhos Abandonados (Com som de notificação macio)
+       // Carrinhos Abandonados (Com som de notificação macio e Filtro de Telefone)
         const unsubAbandoned = onSnapshot(query(collection(db, "abandoned_carts"), where("storeId", "==", storeId), orderBy("lastUpdated", "desc")), (s) => {
+            // 🚨 FILTRO INTELIGENTE: Pega apenas carrinhos com telefone preenchido (mínimo 10 dígitos)
+            const validCarts = s.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter(cart => cart.customerPhone && String(cart.customerPhone).replace(/\D/g, '').length >= 10);
+
             s.docChanges().forEach((change) => {
-                if (change.type === "added" && change.doc.data().lastUpdated?.toMillis() > Date.now() - 10000) {
+                const data = change.doc.data();
+                const hasPhone = data.customerPhone && String(data.customerPhone).replace(/\D/g, '').length >= 10;
+                
+                // Só toca o som de alerta se for um carrinho novo RELEVANTE (com telefone)
+                if (change.type === "added" && hasPhone && data.lastUpdated?.toMillis() > Date.now() - 10000) {
                     new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(() => { });
                 }
             });
-            setAbandonedCarts(s.docs.map(d => ({ id: d.id, ...d.data() })));
+            
+            setAbandonedCarts(validCarts);
         });
 
         // Produtos
