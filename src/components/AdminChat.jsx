@@ -64,7 +64,7 @@ export default function AdminChat() {
     const audioChunksRef = useRef([]);
     const timerIntervalRef = useRef(null);
     const fileInputRef = useRef(null);
-    // --- ESTADOS PARA NOVA CONVERSA ---
+    // --- ESTADOS PARA NOVAt CONVERSA ---
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatPhone, setNewChatPhone] = useState('');
     const [isImporting, setIsImporting] = useState(false);
