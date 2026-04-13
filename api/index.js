@@ -429,7 +429,7 @@ export default async function handler(req, res) {
             if (feedType === 'service') {
                 // Monta o link dinâmico da loja baseado no padrão do Velo
                 // Ex: https://csi.velodelivery.com.br
-                const storeUrl = `https://${storeId}.velodelivery.com.br`; 
+                const storeUrl = `https://${host}`; 
 
                 const serviceFeed = { 
                     data: [{ 
