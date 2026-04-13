@@ -3539,16 +3539,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         {/* LINHA 4: CONTROLE DE STATUS (COZINHA E PAGAMENTO) */}
                                         <div className="flex gap-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
                                             <div className="flex-1">
-                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cozinha</label>
-                                                <select 
-                                                    className="w-full bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer"
-                                                    value={manualCustomer.status || 'preparing'}
-                                                    onChange={e => setManualCustomer({ ...manualCustomer, status: e.target.value })}
-                                                >
-                                                    <option value="preparing">👨‍🍳 Mandar p/ Preparo</option>
-                                                    <option value="completed">✅ Entregar na Hora</option>
-                                                </select>
-                                            </div>
+    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cozinha/Estoque</label>
+    <select 
+        className="w-full bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer"
+        // 👇 IDENTIFICA SE É CONVENIÊNCIA/ADEGA PARA MUDAR O PADRÃO:
+        value={manualCustomer.status || (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing')}
+        onChange={e => setManualCustomer({ ...manualCustomer, status: e.target.value })}
+    >
+        {/* Se for conveniência, inverte a ordem para 'Entregar na Hora' aparecer primeiro visualmente */}
+        {['default', 'drinks'].includes(storeStatus?.storeNiche) ? (
+            <>
+                <option value="completed">✅ Entregar na Hora</option>
+                <option value="preparing">👨‍🍳 Mandar p/ Preparo</option>
+            </>
+        ) : (
+            <>
+                <option value="preparing">👨‍🍳 Mandar p/ Preparo</option>
+                <option value="completed">✅ Entregar na Hora</option>
+            </>
+        )}
+    </select>
+</div>
                                             <div className="w-px bg-slate-200 mx-2"></div>
                                             <div className="flex-1">
                                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Caixa</label>
@@ -3565,13 +3576,41 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 )}
 
-                                {/* Resumo Final */}
-                                <div className="flex justify-between items-end mb-6 pt-2 border-t border-dashed border-slate-200">
-                                    <span className="font-black text-slate-400 uppercase tracking-widest text-xs">Total A Pagar</span>
-                                    <span className="text-4xl font-black text-slate-900 italic leading-none">
-                                        R$ {Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0))).toFixed(2)}
-                                    </span>
-                                </div>
+                                {/* Resumo Final com Cálculo Inteligente de Troco */}
+{(() => {
+    // 1. Calcula o total do pedido
+    const cartSubtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
+    const cartTotal = Math.max(0, cartSubtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0));
+    
+    // 2. Calcula o troco digitado pelo caixa
+    const amountGiven = Number(manualCustomer.changeFor?.toString().replace(',', '.') || 0);
+    const isDinheiro = manualCustomer.payment === 'dinheiro';
+    const changeValue = amountGiven - cartTotal;
+
+    return (
+        <div className="flex flex-col gap-3 mb-6 pt-4 border-t border-dashed border-slate-200">
+            {/* Total Principal */}
+            <div className="flex justify-between items-end">
+                <span className="font-black text-slate-400 uppercase tracking-widest text-xs">Total A Pagar</span>
+                <span className="text-4xl font-black text-slate-900 italic leading-none">
+                    R$ {cartTotal.toFixed(2)}
+                </span>
+            </div>
+
+            {/* Display do Troco (Só aparece se for dinheiro e digitou algum valor) */}
+            {isDinheiro && amountGiven > 0 && (
+                <div className={`flex justify-between items-center p-3 rounded-2xl border-2 transition-all ${changeValue >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200 animate-pulse'}`}>
+                    <span className={`font-black text-[10px] uppercase tracking-widest ${changeValue >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                        {changeValue >= 0 ? 'Troco a Devolver:' : 'Valor Insuficiente (Falta):'}
+                    </span>
+                    <span className={`text-2xl font-black italic ${changeValue >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        R$ {Math.abs(changeValue).toFixed(2)}
+                    </span>
+                </div>
+            )}
+        </div>
+    );
+})()}
 
                                 <button 
                                     onClick={async () => {
@@ -3618,7 +3657,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 couponCode: '',
                                                 total: finalTotal,
                                                 // 🚨 ATENÇÃO: Agora o status respeita o que o caixa escolheu!
-                                                status: manualCustomer.status || 'preparing',
+                                                status: manualCustomer.status || (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'),
                                                 paymentStatus: manualCustomer.paymentStatus || 'pending',
                                                 changeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : null,
                                                 tipo: isPickup ? 'local' : 'delivery',
@@ -3630,7 +3669,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             });
 
                                             setManualCart([]);
-                                            setManualCustomer({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'pickup', mesa: '', status: 'preparing', paymentStatus: 'pending' }); 
+                                            setManualCustomer({ 
+    name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'pickup', mesa: '', 
+    status: (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'), 
+    paymentStatus: 'pending' 
+});
                                             setManualShippingFee(0);
                                             alert("✅ Comanda lançada com sucesso!");
                                         } catch (e) {
