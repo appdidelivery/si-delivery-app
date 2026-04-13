@@ -6925,12 +6925,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="flex gap-2 items-end">
                                         <div className="space-y-1 w-1/2">
                                             <label className="text-xs font-bold text-slate-400 ml-2">Tipo de Desconto</label>
-                                            <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-blue-500" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
-                                                <option value="percentage">% (Porcentagem)</option>
-                                                <option value="fixed_amount">R$ (Valor Fixo)</option>
-                                                <option value="bogo_50">🔥 2º Item c/ 50% OFF</option>
-                                            </select>
-                                        </div>
+                                                                    <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-blue-500" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
+                                                                        <option value="percentage">% (Porcentagem)</option>
+                                                                        <option value="fixed_amount">R$ (Valor Fixo)</option>
+                                                                        <option value="free_shipping">🚚 Frete Grátis</option>
+                                                                        <option value="bogo_50">🔥 2º Item c/ 50% OFF</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="space-y-1 flex-1">
+                                                                    <label className="text-xs font-bold text-slate-400 ml-2">Valor {['bogo_50', 'free_shipping'].includes(couponForm.type) ? '(Não se aplica)' : ''}</label>
+                                                                    <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required={!['bogo_50', 'free_shipping'].includes(couponForm.type)} disabled={['bogo_50', 'free_shipping'].includes(couponForm.type)} />
+                                                                </div>
                                         <div className="space-y-1 flex-1">
                                             <label className="text-xs font-bold text-slate-400 ml-2">Valor (Deixe 0 se for 2º Item)</label>
                                             <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required={couponForm.type !== 'bogo_50'} disabled={couponForm.type === 'bogo_50'} />
