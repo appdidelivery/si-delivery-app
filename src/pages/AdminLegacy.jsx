@@ -4151,29 +4151,53 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <p className="text-[9px] text-teal-300 mt-2 font-medium">Se preenchido, este texto aparecerá em destaque na vitrine para o cliente saber da regra.</p>
                                             </div>
 
-                                            {/* Regras de Ativação (Data/Hora) */}
+                                            {/* Regras de Horário e Dia (Agendamento) */}
+                                            <div className="bg-teal-800/40 p-4 rounded-2xl border border-teal-500/50">
+                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2">
+                                                    <Clock size={14}/> Regras de Exibição
+                                                </p>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div>
+                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Repete Quando?</label>
+                                                        <select 
+                                                            value={settings.buyAndGetPromo?.recurringDay || 'all'} 
+                                                            onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringDay: e.target.value } }, { merge: true })} 
+                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-700 text-white border-none focus:ring-2 ring-teal-400"
+                                                        >
+                                                            <option value="all">Todos os Dias</option>
+                                                            <option value="1">Toda Segunda</option>
+                                                            <option value="2">Toda Terça</option>
+                                                            <option value="3">Toda Quarta</option>
+                                                            <option value="4">Toda Quinta</option>
+                                                            <option value="5">Toda Sexta</option>
+                                                            <option value="6">Todo Sábado</option>
+                                                            <option value="0">Todo Domingo</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Início</label>
+                                                        <input 
+                                                            type="time" 
+                                                            value={settings.buyAndGetPromo?.recurringStart || ''} 
+                                                            onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringStart: e.target.value } }, { merge: true })} 
+                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-700 text-white border-none focus:ring-2 ring-teal-400" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Fim</label>
+                                                        <input 
+                                                            type="time" 
+                                                            value={settings.buyAndGetPromo?.recurringEnd || ''} 
+                                                            onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringEnd: e.target.value } }, { merge: true })} 
+                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-700 text-white border-none focus:ring-2 ring-teal-400" 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Produtos Gatilho */}
                                             <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500">
                                                 <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Gift size={14}/> Produtos Gatilho (Quais itens dão o brinde?)</p>
-                                                <div className="max-h-32 overflow-y-auto custom-scrollbar border border-teal-500/50 rounded-xl p-2 bg-teal-800/30 flex flex-col gap-1">
-                                                    {products.map(p => {
-                                                        const isSelected = (settings.buyAndGetPromo?.triggerProductIds || []).includes(p.id);
-                                                        return (
-                                                            <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-teal-500 border border-teal-300' : 'hover:bg-teal-700/50 border border-transparent'}`}>
-                                                                <input type="checkbox" checked={isSelected} onChange={async (e) => {
-                                                                    const current = settings.buyAndGetPromo?.triggerProductIds || [];
-                                                                    const newTriggers = e.target.checked ? [...current, p.id] : current.filter(id => id !== p.id);
-                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, triggerProductIds: newTriggers } }, { merge: true });
-                                                                }} className="w-4 h-4 accent-white cursor-pointer" />
-                                                                <span className="text-xs font-bold text-white truncate">{p.name}</span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            {/* Produto Brinde */}
-                                            <div className="bg-white/10 p-4 rounded-2xl border border-teal-500">
-                                                <p className="text-[10px] font-black uppercase text-teal-100 tracking-widest mb-2 flex items-center gap-2"><Gift size={14}/> O cliente GANHA este produto:</p>
                                                 <select value={settings.buyAndGetPromo?.rewardProductId || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rewardProductId: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer">
                                                     <option value="">Selecione o Brinde...</option>
                                                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
