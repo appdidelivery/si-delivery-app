@@ -597,10 +597,18 @@ export default function Admin() {
     const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
     const[selectedIntegration, setSelectedIntegration] = useState(null);
     const [integrationForm, setIntegrationForm] = useState({});
-    // Estado da Busca
+    // Estado da Busca e Filtros de Produtos
     const [productSearch, setProductSearch] = useState('');
+    const [productsPerPage, setProductsPerPage] = useState(25);
+    const [currentProductPage, setCurrentProductPage] = useState(1);
+    const [productFilterCategory, setProductFilterCategory] = useState('all');
+    const [productFilterStatus, setProductFilterStatus] = useState('all');
 
-    // --- NOVO: LÓGICA DE ATIVAÇÃO RÁPIDA E EM MASSA ---
+    useEffect(() => {
+        setCurrentProductPage(1);
+    }, [productSearch, activeTab, productsPerPage, productFilterCategory, productFilterStatus]);
+
+    // --- NOVO: LÓGICA DE ATIVAÇÃO RÁPIDA E EM MASSA ---
     const [selectedProductIds, setSelectedProductIds] = useState([]);
 
     const handleQuickToggleCategory = async (cat) => {
@@ -3092,22 +3100,63 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
                             </div>
                         </div>
-                        {/* --- BARRA DE BUSCA --- */}
-                        <div className="mb-6 mt-6 relative">
-                            <input 
-                                type="text" 
-                                placeholder="🔍 Buscar produto por nome..." 
-                                className="w-full p-4 pl-12 rounded-2xl border-none bg-white shadow-sm font-bold text-slate-600 focus:ring-2 ring-blue-500 outline-none"
-                                value={productSearch}
-                                onChange={(e) => setProductSearch(e.target.value)}
-                            />
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                            {productSearch && (
-                                <button onClick={() => setProductSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500">
-                                    <X size={20}/>
-                                </button>
-                            )}
-                        </div>
+                        {/* --- BARRA DE FILTROS E BUSCA (ESTOQUE) --- */}
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 mt-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <div className="flex-1 w-full relative">
+                                <input 
+                                    type="text" 
+                                    placeholder="🔍 Buscar produto..." 
+                                    className="w-full p-3 pl-10 rounded-xl border border-slate-200 bg-white shadow-sm font-bold text-sm text-slate-600 focus:ring-2 ring-blue-500 outline-none"
+                                    value={productSearch}
+                                    onChange={(e) => setProductSearch(e.target.value)}
+                                />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                                {productSearch && (
+                                    <button onClick={() => setProductSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                                        <X size={18}/>
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex w-full md:w-auto gap-4 flex-1 md:flex-none">
+                                <div className="flex-1 md:w-48">
+                                    <select 
+                                        className="w-full p-3 bg-white rounded-xl font-bold text-sm text-slate-700 border border-slate-200 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                        value={productFilterCategory}
+                                        onChange={(e) => setProductFilterCategory(e.target.value)}
+                                    >
+                                        <option value="all">Todas as Categorias</option>
+                                        {categories.map(c => (
+                                            <option key={c.id} value={c.name}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex-1 md:w-48">
+                                    <select 
+                                        className="w-full p-3 bg-white rounded-xl font-bold text-sm text-slate-700 border border-slate-200 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                        value={productFilterStatus}
+                                        onChange={(e) => setProductFilterStatus(e.target.value)}
+                                    >
+                                        <option value="all">Todos os Status</option>
+                                        <option value="active">✅ Ativos</option>
+                                        <option value="inactive">🚫 Ocultos</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto justify-center">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest hidden lg:inline">Itens:</span>
+                                {[25, 50, 100].map(limit => (
+                                    <button
+                                        key={limit}
+                                        onClick={() => setProductsPerPage(limit)}
+                                        className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${productsPerPage === limit ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                    >
+                                        {limit}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
                         {/* BARRA DE AÇÕES EM MASSA (PRODUTOS) */}
                         {selectedProductIds.length > 0 && (
@@ -3124,12 +3173,33 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {products.filter(p => 
-                                    (p?.name || '').toLowerCase().includes((productSearch || '').toLowerCase()) || 
-                                    (p?.category || '').toLowerCase().includes((productSearch || '').toLowerCase())
-                                ).map(p => (                             
-                                <div key={p.id} className={`bg-white p-6 rounded-[2.5rem] border-2 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
+                        {(() => {
+                            const filteredProductsList = products.filter(p => {
+                                const matchesSearch = !productSearch || 
+                                    (p?.name || '').toLowerCase().includes(productSearch.toLowerCase()) || 
+                                    (p?.category || '').toLowerCase().includes(productSearch.toLowerCase());
+                                
+                                const matchesCategory = productFilterCategory === 'all' || p.category === productFilterCategory;
+                                const matchesStatus = productFilterStatus === 'all' || (productFilterStatus === 'active' ? p.isActive !== false : p.isActive === false);
+                                
+                                return matchesSearch && matchesCategory && matchesStatus;
+                            });
+
+                            const totalProductPagesList = Math.max(1, Math.ceil(filteredProductsList.length / productsPerPage));
+                            const paginatedProductsList = filteredProductsList.slice((currentProductPage - 1) * productsPerPage, currentProductPage * productsPerPage);
+
+                            return (
+                                <>
+                                    {filteredProductsList.length === 0 ? (
+                                        <div className="bg-white p-12 rounded-[3rem] border-2 border-dashed border-slate-200 text-center flex flex-col items-center">
+                                            <Package size={48} className="text-slate-300 mb-4" />
+                                            <p className="text-slate-500 font-bold">Nenhum produto encontrado com esses filtros.</p>
+                                            <button onClick={() => {setProductFilterCategory('all'); setProductFilterStatus('all'); setProductSearch('');}} className="mt-4 text-blue-600 font-black text-xs uppercase tracking-widest hover:underline">Limpar Filtros</button>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {paginatedProductsList.map(p => (                             
+                                                <div key={p.id} className={`bg-white p-6 rounded-[2.5rem] border-2 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
                                     {/* Checkbox Multi-seleção */}
                                     <div className="absolute top-4 left-4 z-10">
                                         <input 
@@ -3169,11 +3239,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             {p.isActive === false ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                         <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '', isActive: p.isActive !== false }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
-                                        <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                            <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
+                                        </div>
+                                    </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {totalProductPagesList > 1 && (
+                                        <div className="flex justify-center items-center gap-4 mt-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                            <button 
+                                                onClick={() => setCurrentProductPage(prev => Math.max(prev - 1, 1))}
+                                                disabled={currentProductPage === 1}
+                                                className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                Anterior
+                                            </button>
+                                            <span className="text-sm font-black text-slate-700">
+                                                Página {currentProductPage} de {totalProductPagesList}
+                                            </span>
+                                            <button 
+                                                onClick={() => setCurrentProductPage(prev => Math.min(prev + 1, totalProductPagesList))}
+                                                disabled={currentProductPage === totalProductPagesList}
+                                                className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                Próxima
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 )}
 
