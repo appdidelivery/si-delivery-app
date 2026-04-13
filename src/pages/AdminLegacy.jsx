@@ -36,6 +36,7 @@ import {
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
+import { MissionTracker } from '../components/MissionTracker';
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
@@ -1913,6 +1914,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     });
     // --------------------------------------------------------
+    
+    // --- LÓGICA DO MISSION TRACKER (ONBOARDING) ---
+    // Local correto: APÓS os useStates e ANTES de qualquer "return" condicional (Regra do React).
+    const completedMissionsList = React.useMemo(() => {
+        const completed = [];
+        if (storeStatus?.name && storeStatus.name !== 'Carregando...' && storeStatus.name !== 'Nova Loja' && storeStatus?.storeLogoUrl && !storeStatus.storeLogoUrl.includes('3081840.png')) completed.push('store_data');
+        if (categories && categories.length > 0) completed.push('categories');
+        if (products && products.length > 0) completed.push('products');
+        if (storeStatus?.velopayStatus === 'active' || storeStatus?.stripeConnectId || settings?.integrations?.mercadopago?.accessToken || (storeStatus?.delivery_zones && storeStatus.delivery_zones.length > 0)) completed.push('payments');
+        if (settings?.integrations && Object.keys(settings.integrations).length > 0) completed.push('integrations');
+        return completed;
+    }, [storeStatus, categories, products, settings]);
+
     // RENDERIZAÇÃO PRINCIPAL
     if (products.length === 0 && activeTab === 'dashboard') {
         const leadPhone = new URLSearchParams(window.location.search).get('phone');
@@ -2026,8 +2040,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 return 0;
         }
     };
-
-    
 
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -2200,6 +2212,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
                             {/* -------------------------------------- */}
+                            
+                            {/* --- COMPONENTE ONBOARDING (MISSION TRACKER) --- */}
+                            {/* Só exibe se o usuário ainda não tiver completado as 5 missões */}
+                            {completedMissionsList.length < 5 && (
+                                <MissionTracker completedMissions={completedMissionsList} />
+                            )}
+
                             {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
                                 <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
                                     <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
