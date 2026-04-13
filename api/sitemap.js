@@ -15,7 +15,7 @@ if (!getApps().length) {
 
 const db = getFirestore();
 
-// Função idêntica ao Frontend para gerar slugs limpos
+// Função para gerar slugs limpos
 const slugify = (text) => {
   if (!text) return '';
   return text
@@ -30,8 +30,9 @@ const slugify = (text) => {
     .replace(/-+$/, ''); // Remove hífen do final
 };
 
-// Evita que caracteres como "&" ou "<" quebrem o XML (Erro fatal no Google Search Console)
+// Evita que caracteres quebrem o XML
 const escapeXml = (unsafe) => {
+  if (!unsafe) return '';
   return unsafe.replace(/[<>&'"]/g, (c) => {
     switch (c) {
       case '<': return '&lt;';
@@ -44,38 +45,64 @@ const escapeXml = (unsafe) => {
   });
 };
 
-// Extrator seguro de data do Firestore
+// Extrator seguro de data do Firestore (com validação extra contra NaN)
 const getSafeDate = (dateField) => {
-  if (!dateField) return new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  if (!dateField) return today;
   if (typeof dateField.toDate === 'function') return dateField.toDate().toISOString().split('T')[0];
-  try { return new Date(dateField).toISOString().split('T')[0]; } 
-  catch (e) { return new Date().toISOString().split('T')[0]; }
+  try { 
+    const d = new Date(dateField);
+    if (isNaN(d.getTime())) return today; // Fallback se a data for inválida
+    return d.toISOString().split('T')[0]; 
+  } 
+  catch (e) { return today; }
 };
 
 export default async function handler(req, res) {
   try {
-    // 1. Configuração de Cache (Vercel Edge Cache)
-    // s-maxage=43200 (12 horas de cache na CDN), stale-while-revalidate (Gera o novo em background)
+    // 1. Configuração de Cache (Vercel Edge Cache) MANTIDA EXATAMENTE COMO PEDIDO
     res.setHeader('Cache-Control', 'public, s-maxage=43200, stale-while-revalidate=1800');
     res.setHeader('Content-Type', 'application/xml');
 
-    // 2. Extração do storeId (tratando localhost com porta e www)
-    const host = req.headers.host || '';
+    // 2. Extração segura do host na Vercel (Usa o header de proxy reverso da Vercel)
+    const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const hostname = host.split(':')[0]; 
-    const parts = hostname.split('.');
-    let storeId = parts[0] === 'www' ? parts[1] : parts[0];
+    
+    // 3. LÓGICA CORRIGIDA DE RESOLUÇÃO DO STORE ID
+    let storeId = null;
 
-    // Se não identificar tenant, retorna 404 controladamente
-    if (!storeId || parts.length < 2) {
-      return res.status(404).send('<error>Tenant not identified</error>');
+    // A. Mapeamento de Domínios Próprios (Adicione futuros clientes aqui)
+    const customDomains = {
+      'convenienciasantaisabel.com.br': 'csi',
+      'www.convenienciasantaisabel.com.br': 'csi',
+      // 'outrocliente.com.br': 'id_do_banco',
+    };
+
+    if (customDomains[hostname]) {
+      // Se for um domínio próprio mapeado, pega o ID correto.
+      storeId = customDomains[hostname];
+    } else {
+      // B. Fallback: Lógica para subdomínios (ex: ng.velodelivery.com.br)
+      const parts = hostname.split('.');
+      if (parts.length >= 2) {
+        storeId = parts[0] === 'www' ? parts[1] : parts[0];
+      }
     }
 
+    // Se falhar completamente em descobrir quem é, retorna um sitemap vazio estruturado
+    if (!storeId) {
+      return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+    }
+
+    // Iniciando construção do XML
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
 
+    const protocol = 'https://'; // Vercel força HTTPS, não precisamos adivinhar
+
     // HOME
     xml += '  <url>\n';
-    xml += `    <loc>https://${host}/</loc>\n`;
+    xml += `    <loc>${protocol}${host}/</loc>\n`;
     xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
     xml += '    <changefreq>daily</changefreq>\n';
     xml += '    <priority>1.0</priority>\n';
@@ -83,43 +110,49 @@ export default async function handler(req, res) {
 
     // PRODUTOS
     const productsSnapshot = await db.collection('products').where('storeId', '==', storeId).get();
-    productsSnapshot.forEach(doc => {
-      const product = doc.data();
-      if (product.name) {
-        const slug = slugify(product.name);
-        // loc recebe escapeXml no caso de IDs complexos ou slugs com falha
-        const url = escapeXml(`https://${host}/p/${slug}`);
-        
-        xml += '  <url>\n';
-        xml += `    <loc>${url}</loc>\n`;
-        xml += `    <lastmod>${getSafeDate(product.updatedAt)}</lastmod>\n`;
-        xml += '    <priority>0.8</priority>\n';
-        xml += '  </url>\n';
-      }
-    });
+    if (!productsSnapshot.empty) {
+      productsSnapshot.forEach(doc => {
+        const product = doc.data();
+        if (product.name) {
+          const slug = slugify(product.name);
+          // O formato exigido: https://dominio.com.br/p/slug-do-produto
+          const url = escapeXml(`${protocol}${host}/p/${slug}`);
+          
+          xml += '  <url>\n';
+          xml += `    <loc>${url}</loc>\n`;
+          // Tenta updatedAt, se não existir, tenta createdAt
+          xml += `    <lastmod>${getSafeDate(product.updatedAt || product.createdAt)}</lastmod>\n`;
+          xml += '    <priority>0.8</priority>\n';
+          xml += '  </url>\n';
+        }
+      });
+    }
 
     // CATEGORIAS
     const categoriesSnapshot = await db.collection('categories').where('storeId', '==', storeId).get();
-    categoriesSnapshot.forEach(doc => {
-      const category = doc.data();
-      if (category.name) {
-        const slug = slugify(category.name);
-        const url = escapeXml(`https://${host}/categoria/${slug}`);
-          
-        xml += '  <url>\n';
-        xml += `    <loc>${url}</loc>\n`;
-        xml += `    <lastmod>${getSafeDate(category.updatedAt)}</lastmod>\n`;
-        xml += '    <priority>0.7</priority>\n';
-        xml += '  </url>\n';
-      }
-    });
+    if (!categoriesSnapshot.empty) {
+      categoriesSnapshot.forEach(doc => {
+        const category = doc.data();
+        if (category.name) {
+          const slug = slugify(category.name);
+          const url = escapeXml(`${protocol}${host}/categoria/${slug}`);
+            
+          xml += '  <url>\n';
+          xml += `    <loc>${url}</loc>\n`;
+          xml += `    <lastmod>${getSafeDate(category.updatedAt || category.createdAt)}</lastmod>\n`;
+          xml += '    <priority>0.7</priority>\n';
+          xml += '  </url>\n';
+        }
+      });
+    }
 
     xml += '</urlset>';
     res.status(200).send(xml);
 
   } catch (error) {
     console.error("Erro ao gerar sitemap:", error);
-    // Em caso de erro, retornar 500 sem quebrar a renderização XML (SEO amigável)
-    res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+    // IMPORTANTE PARA SEO: Retornar 200 com sitemap vazio em vez de 500 (Server Error). 
+    // O Google Search Console penaliza erros 500 crônicos em sitemaps.
+    res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
   }
 }
