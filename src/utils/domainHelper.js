@@ -44,6 +44,7 @@ export const getStoreIdFromHostname = () => {
      // Isso impede que os produtos sumam, pois no Firebase eles estão salvos com o slug antigo.
      // Quando um cliente novo comprar um domínio, basta adicionar uma linha aqui.
      const domainMap = {
+        "convenienciasantaisabel.com.br": "csi",
         "csi.com.br": "csi",
         "cowburguer.com.br": "cowburguer",
         "ng.com.br": "ng"
