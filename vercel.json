@@ -10,6 +10,17 @@
       ],
       "destination": "https://www.convenienciasantaisabel.com.br/$1",
       "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "cowburguer.velodelivery.com.br"
+        }
+      ],
+      "destination": "https://www.cowburguer.com.br/$1",
+      "permanent": true
     }
   ],
   "crons": [
