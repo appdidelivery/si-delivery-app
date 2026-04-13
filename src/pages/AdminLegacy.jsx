@@ -359,11 +359,13 @@ export default function Admin() {
     const [ordersPerPage, setOrdersPerPage] = useState(25); // NOVO: Limite de pedidos por página
     const [currentPage, setCurrentPage] = useState(1); // NOVO: Página atual dos pedidos
     const [currentTime, setCurrentTime] = useState(new Date()); // <-- ADICIONADO PARA CORRIGIR A TELA BRANCA
+    const [orderFilterStatus, setOrderFilterStatus] = useState('all'); // NOVO: Filtro de Status
+    const [orderFilterSource, setOrderFilterSource] = useState('all'); // NOVO: Filtro de Canal (App, PDV, Wpp)
 
-    // NOVO: Reseta a página para 1 sempre que o termo de busca, a aba ou a quantidade mudar
+   // NOVO: Reseta a página para 1 sempre que a busca, filtros, a aba ou a quantidade mudar
     useEffect(() => {
         setCurrentPage(1);
-    }, [orderSearchTerm, activeTab, ordersPerPage]);
+    }, [orderSearchTerm, activeTab, ordersPerPage, orderFilterStatus, orderFilterSource]);
     // Faz o relógio "bater" a cada 30 segundos para mudar as cores dos atrasos ao vivo
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(new Date()), 30000); 
@@ -2549,32 +2551,98 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        <div className="flex justify-end mb-4">
-                            <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Itens por tela:</span>
+                        {/* --- NOVA BARRA DE FILTROS --- */}
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <div className="flex w-full md:w-auto gap-4 flex-1">
+                                <div className="flex-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status</label>
+                                    <select 
+                                        className="w-full p-3 bg-white rounded-xl font-bold text-sm text-slate-700 border border-slate-200 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                        value={orderFilterStatus}
+                                        onChange={(e) => setOrderFilterStatus(e.target.value)}
+                                    >
+                                        <option value="all">Todos os Status</option>
+                                        <option value="pending">⏳ Novos / Pendentes</option>
+                                        <option value="preparing">👨‍🍳 Em Preparo</option>
+                                        <option value="delivery">🏍️ Em Rota / Retirada</option>
+                                        <option value="completed">✅ Concluídos</option>
+                                        <option value="canceled">❌ Cancelados</option>
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Canal de Venda</label>
+                                    <select 
+                                        className="w-full p-3 bg-white rounded-xl font-bold text-sm text-slate-700 border border-slate-200 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                        value={orderFilterSource}
+                                        onChange={(e) => setOrderFilterSource(e.target.value)}
+                                    >
+                                        <option value="all">Todos os Canais</option>
+                                        <option value="app">📱 Loja Online (App)</option>
+                                        <option value="pdv">💻 PDV (Balcão/Mesa)</option>
+                                        <option value="whatsapp">💬 WhatsApp / Bot</option>
+                                        <option value="google">🌐 Google Maps</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm md:mt-5">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest hidden md:inline">Itens:</span>
                                 {[25, 50, 100].map(limit => (
                                     <button
                                         key={limit}
                                         onClick={() => setOrdersPerPage(limit)}
-                                        className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${ordersPerPage === limit ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                        className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${ordersPerPage === limit ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                                     >
                                         {limit}
                                     </button>
                                 ))}
                             </div>
                         </div>
+                        {/* --- FIM DA BARRA DE FILTROS --- */}
 
                         {orderViewMode === 'list' ? (
                             <div className="space-y-4">
                                 {(() => {
-                                    const filteredOrdersList = orders.filter(o => 
-                                        !orderSearchTerm || 
-                                        (o?.id || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
-                                        (o?.customerName || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
-                                        (o?.customerPhone || '').includes(orderSearchTerm)
-                                    );
+                                    // 🚨 NOVA LÓGICA DE FILTRAGEM TRIPLA (Busca + Status + Canal)
+                                    const filteredOrdersList = orders.filter(o => {
+                                        // 1. Filtro de Busca (Texto)
+                                        const matchesSearch = !orderSearchTerm || 
+                                            (o?.id || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                            (o?.customerName || '').toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+                                            (o?.customerPhone || '').includes(orderSearchTerm);
+                                        
+                                        // 2. Filtro de Status
+                                        const matchesStatus = orderFilterStatus === 'all' || o.status === orderFilterStatus;
+                                        
+                                        // 3. Filtro de Canal (Origem)
+                                        let matchesSource = true;
+                                        if (orderFilterSource !== 'all') {
+                                            const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
+                                            const isGoogle = o.source === 'google_food_marketplace';
+                                            const isWpp = o.source === 'whatsapp';
+                                            const isApp = !isPDV && !isGoogle && !isWpp; // Tudo que não é os outros, é do App nativo
+                                            
+                                            if (orderFilterSource === 'pdv') matchesSource = isPDV;
+                                            else if (orderFilterSource === 'google') matchesSource = isGoogle;
+                                            else if (orderFilterSource === 'whatsapp') matchesSource = isWpp;
+                                            else if (orderFilterSource === 'app') matchesSource = isApp;
+                                        }
+
+                                        return matchesSearch && matchesStatus && matchesSource;
+                                    });
+
                                     const totalPagesList = Math.max(1, Math.ceil(filteredOrdersList.length / ordersPerPage));
                                     const paginatedOrdersList = filteredOrdersList.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
+
+                                    if (filteredOrdersList.length === 0) {
+                                        return (
+                                            <div className="bg-white p-12 rounded-[3rem] border-2 border-dashed border-slate-200 text-center flex flex-col items-center">
+                                                <List size={48} className="text-slate-300 mb-4" />
+                                                <p className="text-slate-500 font-bold">Nenhum pedido encontrado com esses filtros.</p>
+                                                <button onClick={() => {setOrderFilterStatus('all'); setOrderFilterSource('all'); setOrderSearchTerm('');}} className="mt-4 text-blue-600 font-black text-xs uppercase tracking-widest hover:underline">Limpar Filtros</button>
+                                            </div>
+                                        )
+                                    }
 
                                     return (
                                         <>
