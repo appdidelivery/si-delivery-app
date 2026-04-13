@@ -1915,15 +1915,41 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     });
     // --------------------------------------------------------
     
-    // --- LÓGICA DO MISSION TRACKER (ONBOARDING) ---
-    // Local correto: APÓS os useStates e ANTES de qualquer "return" condicional (Regra do React).
+   // --- LÓGICA DO MISSION TRACKER (ONBOARDING VELO) ---
+    // Mapeia o engajamento real do lojista nas ferramentas vitais do sistema.
     const completedMissionsList = React.useMemo(() => {
         const completed = [];
-        if (storeStatus?.name && storeStatus.name !== 'Carregando...' && storeStatus.name !== 'Nova Loja' && storeStatus?.storeLogoUrl && !storeStatus.storeLogoUrl.includes('3081840.png')) completed.push('store_data');
-        if (categories && categories.length > 0) completed.push('categories');
-        if (products && products.length > 0) completed.push('products');
-        if (storeStatus?.velopayStatus === 'active' || storeStatus?.stripeConnectId || settings?.integrations?.mercadopago?.accessToken || (storeStatus?.delivery_zones && storeStatus.delivery_zones.length > 0)) completed.push('payments');
-        if (settings?.integrations && Object.keys(settings.integrations).length > 0) completed.push('integrations');
+        
+        // 1. Identidade (Nome, Logo e WhatsApp preenchidos)
+        if (storeStatus?.name && storeStatus.name !== 'Nova Loja' && storeStatus?.storeLogoUrl && !storeStatus.storeLogoUrl.includes('3081840.png') && storeStatus?.whatsapp) {
+            completed.push('identity');
+        }
+        
+        // 2. Cardápio Digital (Fez o básico do setup: 1 categoria e 1 produto)
+        if (categories?.length > 0 && products?.length > 0) {
+            completed.push('catalog');
+        }
+        
+        // 3. Logística Mapeada (Usou a função do Mapa do Google)
+        if (storeStatus?.delivery_zones && storeStatus.delivery_zones.length > 0) {
+            completed.push('logistics');
+        }
+        
+        // 4. Dinheiro no Bolso (Ativou um método de cartão/pix)
+        if (storeStatus?.velopayStatus === 'active' || storeStatus?.stripeConnectId || settings?.integrations?.mercadopago?.accessToken) {
+            completed.push('payments');
+        }
+        
+        // 5. Marketing & Fidelidade (O ouro da plataforma: Ativou Roleta, Cashback, Promos ou VIP)
+        if (settings?.gamification?.roulette || settings?.gamification?.cashback || settings?.loyaltyActive || settings?.promoActive) {
+            completed.push('marketing');
+        }
+        
+        // 6. Profissionalização Máxima (Conectou WhatsApp Bot Oficial OU Solicitou Domínio)
+        if ((settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.phoneNumberId) || storeStatus?.customDomain) {
+            completed.push('launch');
+        }
+        
         return completed;
     }, [storeStatus, categories, products, settings]);
 
