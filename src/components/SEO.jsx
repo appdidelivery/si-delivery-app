@@ -79,6 +79,9 @@ export default function SEO({ title, description, image, productData }) {
                         addressObj.postalCode = addr.zip?.stringValue || "";
                     }
 
+                    // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
+                    const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
+                    
                     // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
                         "@id": `${baseUrl}#store`,
@@ -90,8 +93,27 @@ export default function SEO({ title, description, image, productData }) {
                         "telephone": fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "",
                         "priceRange": "$$",
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
-                        "address": addressObj
+                        "address": addressObj,
+                        ...( !isRetail ? { "hasMenu": `${baseUrl}/cardapio` } : {} )
                     };
+
+                    // Se for Varejo (Conveniência/Bebidas), forçamos a aba de Produtos lendo do contexto global (se disponível)
+                    const storeCatalog = store?.products || store?.produtos || store?.produtosPrincipais;
+                    if (isRetail && storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
+                        baseStoreSchema.containsPlace = storeCatalog.slice(0, 30).map((prod) => ({
+                            "@type": "Product",
+                            "name": prod.name || prod.nome || "",
+                            "image": prod.imageUrl || prod.fotoUrl || fetchedImage,
+                            "description": prod.description || prod.descricao || fetchedDesc,
+                            "offers": {
+                                "@type": "Offer",
+                                "price": prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0),
+                                "priceCurrency": "BRL",
+                                "availability": (prod.stock === undefined || Number(prod.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                                "url": `${baseUrl}/produto/${prod.id}`
+                            }
+                        }));
+                    }
 
                     // Injeta a nota da loja apenas se existir
                     if (ratingCount > 0) {
