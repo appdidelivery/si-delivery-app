@@ -47,7 +47,7 @@ export const getStoreIdFromHostname = () => {
         "convenienciasantaisabel.com.br": "csi",
         "csi.com.br": "csi",
         "cowburguer.com.br": "cowburguer",
-        "ng.com.br": "ng"
+        "ngconveniencia.com.br": "ng"
      };
 
      return domainMap[cleanHost] || cleanHost;
