@@ -2140,53 +2140,77 @@ if (window.fbq) {
             })()}
         </AnimatePresence>
         {/* --- FIM: BANNER COMPRE E GANHE (BOGO) --- */}
-        {/* --- INÍCIO: NOVO FORMATO DE CUPOM NA VITRINE --- */}
+       {/* --- INÍCIO: NOVO FORMATO DE CUPOM NA VITRINE (CARROSSEL) --- */}
         <AnimatePresence>
-            {marketingSettings?.promoActive && marketingSettings?.smartBanners && marketingSettings.smartBanners.map((banner, index) => {
-                if (!banner.topBarText || !isWithinRecurringSchedule(banner.recurringDay, banner.recurringStart, banner.recurringEnd)) return null;
-                
+            {(() => {
+                // 1. Filtra apenas os banners que estão ativos e dentro do horário
+                const activeSmartBanners = marketingSettings?.promoActive && marketingSettings?.smartBanners 
+                    ? marketingSettings.smartBanners.filter(b => b.topBarText && isWithinRecurringSchedule(b.recurringDay, b.recurringStart, b.recurringEnd))
+                    : [];
+
+                // 2. Se não tiver nenhum, não renderiza nada
+                if (activeSmartBanners.length === 0) return null;
+
+                // 3. Renderiza o Carrossel
                 return (
-                    <motion.div key={index} initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.95 }} className="mb-6 relative z-20 w-full">
-                        <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden`}>
-                            
-                            {/* Borda tracejada geral */}
-                            <div className="absolute inset-1 border-[2px] border-dashed border-white/30 rounded-xl pointer-events-none"></div>
-                            
-                            {/* Lado Esquerdo (Ícone) */}
-                            <div className="w-[25%] min-w-[70px] flex items-center justify-center p-3 relative z-10">
-                                <Gift size={32} className="text-white drop-shadow-md animate-pulse" />
-                            </div>
+                    <motion.div initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.95 }} className="mb-6 relative z-20 w-full">
+                        <Carousel 
+                            showThumbs={false} 
+                            showStatus={false} 
+                            showArrows={false} // Tira as setas laterais para ficar limpo no mobile
+                            infiniteLoop={activeSmartBanners.length > 1} 
+                            autoPlay={activeSmartBanners.length > 1} 
+                            interval={4000} // Troca a cada 4 segundos
+                            stopOnHover={true}
+                            swipeable={true}
+                            emulateTouch={true}
+                            showIndicators={activeSmartBanners.length > 1} // Só mostra as bolinhas se tiver mais de 1
+                        >
+                            {activeSmartBanners.map((banner, index) => (
+                                <div key={index} className="pb-8 px-1"> {/* pb-8 dá espaço para as bolinhas não cobrirem o ticket */}
+                                    <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden text-left h-full`}>
+                                        
+                                        {/* Borda tracejada geral */}
+                                        <div className="absolute inset-1 border-[2px] border-dashed border-white/30 rounded-xl pointer-events-none"></div>
+                                        
+                                        {/* Lado Esquerdo (Ícone) */}
+                                        <div className="w-[25%] min-w-[70px] flex items-center justify-center p-3 relative z-10">
+                                            <Gift size={32} className="text-white drop-shadow-md animate-pulse" />
+                                        </div>
 
-                            {/* Divisor Central com recortes (Ticket Style) */}
-                            <div className="relative w-0 border-l-[2px] border-dashed border-white/40 my-1 z-10">
-                                <div className="absolute -top-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
-                                <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
-                            </div>
+                                        {/* Divisor Central com recortes (Ticket Style) */}
+                                        <div className="relative w-0 border-l-[2px] border-dashed border-white/40 my-1 z-10">
+                                            <div className="absolute -top-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
+                                            <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
+                                        </div>
 
-                            {/* Lado Direito (Textos e Botão) */}
-                            <div className="flex-1 p-4 pl-6 flex flex-col justify-center z-10">
-                                <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1.5">
-                                    {banner.topBarText}
-                                </p>
-                                {banner.topBarCoupon ? (
-                                    <button onClick={() => {
-                                        navigator.clipboard.writeText(banner.topBarCoupon);
-                                        setCouponCode(banner.topBarCoupon);
-                                        alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
-                                        document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
-                                    }} className="self-start mt-1 bg-white text-slate-800 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-100 flex items-center gap-1 shadow-sm active:scale-95">
-                                        <Copy size={12} /> Copiar: {banner.topBarCoupon}
-                                    </button>
-                                ) : (
-                                    <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">Oferta Especial 🔥</span>
-                                )}
-                            </div>
-                        </div>
+                                        {/* Lado Direito (Textos e Botão) */}
+                                        <div className="flex-1 p-4 pl-6 flex flex-col justify-center z-10">
+                                            <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1.5">
+                                                {banner.topBarText}
+                                            </p>
+                                            {banner.topBarCoupon ? (
+                                                <button onClick={() => {
+                                                    navigator.clipboard.writeText(banner.topBarCoupon);
+                                                    setCouponCode(banner.topBarCoupon);
+                                                    alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
+                                                    document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
+                                                }} className="self-start mt-1 bg-white text-slate-800 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-100 flex items-center gap-1 shadow-sm active:scale-95">
+                                                    <Copy size={12} /> Copiar: {banner.topBarCoupon}
+                                                </button>
+                                            ) : (
+                                                <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">Oferta Especial 🔥</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </Carousel>
                     </motion.div>
                 );
-            })}
+            })()}
         </AnimatePresence>
-        {/* --- FIM: NOVO FORMATO DE CUPOM NA VITRINE --- */}
+        {/* --- FIM: NOVO FORMATO DE CUPOM NA VITRINE (CARROSSEL) --- */}
 
         <div className="relative mb-8 mt-2">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
