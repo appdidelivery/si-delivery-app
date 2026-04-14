@@ -10,19 +10,36 @@ const generateSlug = (text) => {
 };
 
 export default async function handler(req, res) {
-    // 1. Identifica a loja pelo subdomínio ou domínio próprio
+    // 1. Identifica a loja de forma Híbrida e Blindada (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
-    let cleanHost = host.replace('www.', '');
+    // Limpeza forçada: lowercase, trim e regex para garantir que o "www." suma
+    const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
-    const domainMap = {
-        "convenienciasantaisabel.com.br": "csi",
-        "csi.com.br": "csi",
-        "cowburguer.com.br": "cowburguer",
-        "ngconveniencia.com.br": "ng"
-    };
+    const baseDomain = 'velodelivery.com.br';
+    let storeId = 'velo'; // Fallback seguro para não vazar clientes
     
-    // Se for domínio próprio, pega do dicionário. Se for subdomínio, pega o primeiro nome.
-    const storeId = domainMap[cleanHost] || host.split('.')[0];
+    if (cleanHost.includes('app.github.dev') || cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1')) {
+        const queryStore = req.query.store;
+        storeId = queryStore || 'loja-teste';
+    } else if (cleanHost.endsWith('.vercel.app')) {
+        storeId = cleanHost.split('.')[0];
+    } else if (cleanHost === baseDomain) {
+        storeId = 'main-app';
+    } else if (cleanHost.endsWith(`.${baseDomain}`)) {
+        const subdomains = cleanHost.replace(`.${baseDomain}`, '');
+        const parts = subdomains.split('.');
+        storeId = parts[parts.length - 1];
+    } else if (cleanHost !== baseDomain && !cleanHost.endsWith(`.${baseDomain}`)) {
+        // Dicionário Híbrido Idêntico ao do Frontend
+        const domainMap = {
+            "convenienciasantaisabel.com.br": "csi",
+            "csi.com.br": "csi",
+            "cowburguer.com.br": "cowburguer",
+            "ngconveniencia.com.br": "ng"
+        };
+        // Se não achar no diacionário,aa pega só o nome base antes do .com para não quebrar a busca no banco
+        storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
+    }
 
     // 2. Fallback de dados padrão
     let title = "Velo Delivery | O seu app de entregas";
