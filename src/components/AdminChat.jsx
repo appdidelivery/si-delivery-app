@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
@@ -68,6 +68,15 @@ export default function AdminChat() {
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatPhone, setNewChatPhone] = useState('');
     const [isImporting, setIsImporting] = useState(false);
+
+    // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
+    const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
+
+    const toggleMute = () => {
+        const newState = !isMuted;
+        setIsMuted(newState);
+        localStorage.setItem('mute_whatsapp_sound', newState.toString());
+    };
 
     // Função provisória para evitar erro ao clicar em importar (Será implementada no futuro)
     const handleImportCSV = (e) => {
@@ -602,6 +611,15 @@ export default function AdminChat() {
                             className="bg-transparent border-none outline-none w-full text-sm text-gray-700 placeholder-gray-500"
                         />
                     </div>
+                    
+                    <button 
+                        onClick={toggleMute}
+                        className={`p-2 rounded-lg transition-colors shadow-sm ${isMuted ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                        title={isMuted ? "Ligar Som do Chat" : "Desligar Som do Chat"}
+                    >
+                        {isMuted ? <BellOff size={20} /> : <Bell size={20} />}
+                    </button>
+
                     <button 
                         onClick={() => setShowNewChatModal(true)}
                         className="bg-[#008069] text-white p-2 rounded-lg hover:bg-[#016d5a] transition-colors shadow-sm"

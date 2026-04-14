@@ -1080,10 +1080,15 @@ export default function Admin() {
         const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
             s.docChanges().forEach((change) => {
                 const data = change.doc.data();
-                // Toca som de "Pop" suave se for mensagem nova do cliente
+                // Toca som de telefone se for mensagem nova do cliente e não estiver mutado
                 if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
                     if (data.receivedAt && data.receivedAt.toMillis && data.receivedAt.toMillis() > Date.now() - 10000) {
-                        new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
+                        const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
+                        if (!isMuted) {
+                            // Áudio de telefone tocando (longo e chamativo)
+                            const ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+                            ringtone.play().catch(() => {});
+                        }
                     }
                 }
             });
@@ -2521,7 +2526,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     </button>
                                                     <button onClick={() => sendMsg(msg24horas)} className="flex flex-col items-center justify-center p-3 bg-green-50 text-green-600 rounded-2xl hover:bg-green-100 transition-all border border-green-100 group">
                                                         <Tags size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(<title>Conveniência Santa Isabel | 24 Horas</title>)</span>
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(24 Horas)</span>
                                                     </button>
                                                 </div>
                                                 <button onClick={async () => {
