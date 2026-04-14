@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
+import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 export default function SEO({ title, description, image, productData }) {
     // 1. Pega os dados do Banco de Dados (SaaS) para uso na UI
@@ -9,7 +10,7 @@ export default function SEO({ title, description, image, productData }) {
     // 2. Define valores padrão
     const defaultName = "Velo Delivery";
     const defaultDesc = "O seu aplicativo de delivery.";
-    const defaultImage = "https://app.velo.com.br/logo-square.png";
+    const defaultImage = "/logo-square.png";
 
     // 3. Decide quem manda
     const siteName = store?.name || defaultName;
@@ -18,27 +19,21 @@ export default function SEO({ title, description, image, productData }) {
     
     const finalImage = image || store?.storeLogoUrl || store?.logoUrl || defaultImage;
     
-    const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velo.com.br";
-    const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velo.com.br";
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velodelivery.com.br";
+    const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velodelivery.com.br";
     const baseUrl = currentUrl.split('?')[0]; 
 
-    // 4. MOTOR DE INJEÇÃO REST API ESTRUTURADO PARA O GOOGLE
+    // 4. MOTOR DE INJEÇÃO REST API
     useEffect(() => {
         let isMounted = true;
 
         const injectSchemaForGoogle = async () => {
             try {
                 const hostname = window.location.hostname;
-                // CORREÇÃO: Removido o 'csi', fallback agora é velo para não vazar nome de cliente
-                let storeId = 'velo'; 
                 
-                if (hostname !== 'localhost' && hostname.includes('.')) {
-                    // CORREÇÃO: Limpa o www. do domínio para não quebrar a busca no banco
-                    const cleanHostname = hostname.replace(/^www\./, '');
-                    storeId = cleanHostname.split('.')[0];
-                }
-
-                // O seu Fetch vitorioso
+                // CORREÇÃO 1: Usa a função oficial para pegar o ID da loja, suportando domínios customizados (ex: cowburguer)
+                const storeId = getStoreIdFromHostname();
+                
                 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
                 const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
                 
@@ -52,11 +47,14 @@ export default function SEO({ title, description, image, productData }) {
                     const fetchedName = fields.name?.stringValue || siteName;
                     const fetchedImage = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || finalImage;
                     const fetchedDesc = fields.slogan?.stringValue || fields.message?.stringValue || finalDesc;
-                    // CORREÇÃO: Tenta puxar do context caso o DB não tenha
-                    const fetchedWhatsapp = fields.whatsapp?.stringValue || store?.phone || "";
+                    const fetchedWhatsapp = fields.whatsapp?.stringValue || "";
                     
                     const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                     const ratingCount = fields.rating_count?.integerValue || 0;
+
+                    // CORREÇÃO 2: Garante que todas as URLs de imagem sejam absolutas (Obrigatório para o Google)
+                    const ensureAbsoluteUrl = (path) => path?.startsWith('http') ? path : `${safeOrigin}${path}`;
+                    const absoluteFetchedImage = ensureAbsoluteUrl(fetchedImage);
 
                     // --- TRADUTOR DINÂMICO DE NICHOS PARA O GOOGLE ---
                     const niche = fields.storeNiche?.stringValue || 'default';
@@ -71,51 +69,48 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
 
-                    // CORREÇÃO: TRATAMENTO DE ENDEREÇO A PROVA DE FALHAS PARA O GOOGLE
-                    let addressObj = { 
-                        "@type": "PostalAddress", 
-                        "addressCountry": "BR",
-                        "addressLocality": "Brasil" 
-                    };
-                    
+                    // CORREÇÃO 3: TRATAMENTO DE ENDEREÇO BLINDADO PARA O GOOGLE
+                    let addressObj = { "@type": "PostalAddress", "addressCountry": "BR", "addressLocality": "Brasil" };
                     if (fields.address?.stringValue) {
                         addressObj.streetAddress = fields.address.stringValue;
                     } else if (fields.address?.mapValue?.fields) {
                         const addr = fields.address.mapValue.fields;
                         addressObj.streetAddress = `${addr.street?.stringValue || ''}, ${addr.number?.stringValue || ''}`.trim();
-                        if (addr.city?.stringValue) addressObj.addressLocality = addr.city.stringValue;
-                        if (addr.state?.stringValue) addressObj.addressRegion = addr.state.stringValue;
-                        if (addr.zip?.stringValue) addressObj.postalCode = addr.zip.stringValue;
+                        addressObj.addressLocality = addr.city?.stringValue || "Brasil";
+                        addressObj.addressRegion = addr.state?.stringValue || "";
+                        addressObj.postalCode = addr.zip?.stringValue || "";
                     } else {
                         addressObj.streetAddress = "Endereço não informado";
                     }
 
+                    // CORREÇÃO 4: TELEFONE DE SEGURANÇA (Evita o erro "telephone" ausente)
+                    const safeTelephone = fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "+5500000000000";
+
                     // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
                     const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
                     
-                    // CORREÇÃO: DADOS MÍNIMOS EXIGIDOS PELO GOOGLE GARANTIDOS
+                    // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
                         "@id": `${baseUrl}#store`,
                         "@type": googleBusinessType,
                         "name": fetchedName,
-                        "image": fetchedImage,
+                        "image": absoluteFetchedImage,
                         "description": fetchedDesc,
                         "url": `https://${hostname}`,
-                        // Se não houver telefone, insere um neutro para o Google não derrubar a indexação
-                        "telephone": fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "+550000000000",
+                        "telephone": safeTelephone,
                         "priceRange": "$$",
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
                         "address": addressObj,
                         ...( !isRetail ? { "hasMenu": `${baseUrl}/cardapio` } : {} )
                     };
 
-                    // Se for Varejo (Conveniência/Bebidas), forçamos a aba de Produtos lendo do contexto global
+                    // Se for Varejo (Conveniência/Bebidas), forçamos a aba de Produtos lendo do contexto global (se disponível)
                     const storeCatalog = store?.products || store?.produtos || store?.produtosPrincipais;
                     if (isRetail && storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
                         baseStoreSchema.containsPlace = storeCatalog.slice(0, 30).map((prod) => ({
                             "@type": "Product",
                             "name": prod.name || prod.nome || "",
-                            "image": prod.imageUrl || prod.fotoUrl || fetchedImage,
+                            "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
                             "description": prod.description || prod.descricao || fetchedDesc,
                             "offers": {
                                 "@type": "Offer",
@@ -138,7 +133,7 @@ export default function SEO({ title, description, image, productData }) {
 
                     let structuredData;
 
-                    // B) ESTRUTURA COMPLETA DE PRODUTO
+                    // B) ESTRUTURA COMPLETA DE PRODUTO (RESTAURADA 100% ORIGINAL)
                     if (productData) {
                         const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
 
@@ -149,9 +144,10 @@ export default function SEO({ title, description, image, productData }) {
                                 {
                                     "@type": ["Product", "MenuItem"],
                                     "@id": `${baseUrl}#product`,
+                                    // DADOS BASE DO PRODUTO
                                     "name": productData.name || "",
                                     "description": productData.description || fetchedDesc || "",
-                                    "image": productData.imageUrl ? [productData.imageUrl] : [fetchedImage],
+                                    "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
                                     "sku": productData.sku || productData.id || "",
                                     "gtin13": productData.gtin13 || productData.gtin || "",
                                     "brand": {
@@ -160,8 +156,10 @@ export default function SEO({ title, description, image, productData }) {
                                     },
                                     "category": productData.category || "",
                                     
+                                    // LOGÍSTICA E PREPARO
                                     "prepTime": productData.prepTime ? `PT${productData.prepTime}M` : "",
                                     
+                                    // ALIMENTAÇÃO E CUSTOMIZAÇÃO
                                     "suitableForDiet": productData.suitableForDiet || [],
                                     "menuAddOn": productData.menuAddOn || [],
                                     "nutrition": {
@@ -169,6 +167,7 @@ export default function SEO({ title, description, image, productData }) {
                                         "calories": productData.calories ? `${productData.calories} kcal` : ""
                                     },
                                     
+                                    // PROVA SOCIAL DO PRODUTO
                                     ...(productData.ratingValue ? {
                                         "aggregateRating": {
                                             "@type": "AggregateRating",
@@ -177,6 +176,7 @@ export default function SEO({ title, description, image, productData }) {
                                         }
                                     } : {}),
                                     
+                                    // OFERTA E VENDA
                                     "offers": {
                                         "@type": "Offer",
                                         "url": currentUrl,
@@ -258,7 +258,7 @@ export default function SEO({ title, description, image, productData }) {
             const existingScript = document.getElementById('google-schema-forced');
             if (existingScript) existingScript.remove();
         };
-    }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin]);
+    }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin, store]);
 
     // O HELMET CUIDA AGORA DE TODAS AS META TAGS (SEO, SOCIAL, CANONICAL E TWITTER)
     return (

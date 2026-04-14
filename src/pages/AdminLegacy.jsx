@@ -886,6 +886,19 @@ export default function Admin() {
 
     // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
     const isOverdue = storeStatus?.billingStatus === 'bloqueado';
+
+    // --- CORREÇÃO SEO: FORÇA O NOME DA LOJA NA ABA DO NAVEGADOR ---
+    useEffect(() => {
+        if (storeStatus && storeStatus.name && storeStatus.name !== 'Carregando...' && storeStatus.name !== 'Nova Loja') {
+            document.title = `${storeStatus.name} - Painel Velo`;
+        } else if (store && store.name) {
+            document.title = `${store.name} - Painel Velo`;
+        } else {
+            document.title = "Painel Lojista - Velo Delivery";
+        }
+    }, [storeStatus?.name, store?.name]);
+    // --------------------------------------------------------------
+
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
     const[uploadingLogo, setUploadingLogo] = useState(false);
