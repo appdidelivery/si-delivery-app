@@ -10,9 +10,19 @@ const generateSlug = (text) => {
 };
 
 export default async function handler(req, res) {
-    // 1. Identifica a loja pelo subdomínio
+    // 1. Identifica a loja pelo subdomínio ou domínio próprio
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
-    const storeId = host.split('.')[0]; 
+    let cleanHost = host.replace('www.', '');
+    
+    const domainMap = {
+        "convenienciasantaisabel.com.br": "csi",
+        "csi.com.br": "csi",
+        "cowburguer.com.br": "cowburguer",
+        "ngconveniencia.com.br": "ng"
+    };
+    
+    // Se for domínio próprio, pega do dicionário. Se for subdomínio, pega o primeiro nome.
+    const storeId = domainMap[cleanHost] || host.split('.')[0];
 
     // 2. Fallback de dados padrão
     let title = "Velo Delivery | O seu app de entregas";

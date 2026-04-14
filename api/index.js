@@ -836,9 +836,14 @@ export default async function handler(req, res) {
 
                             if (message.type === 'text') {
                                 messageText = message.text.body;
-                            } else if (message.type === 'interactive' && message.interactive.type === 'button_reply') {
-                                messageText = message.interactive.button_reply.title;
-                                interactivePayload = message.interactive.button_reply.id;
+                            } else if (message.type === 'interactive') {
+                                if (message.interactive.type === 'button_reply') {
+                                    messageText = message.interactive.button_reply.title;
+                                    interactivePayload = message.interactive.button_reply.id;
+                                } else if (message.interactive.type === 'list_reply') {
+                                    messageText = message.interactive.list_reply.title;
+                                    interactivePayload = message.interactive.list_reply.id;
+                                }
                             } else if (message.type === 'button') {
                                 messageText = message.button.text;
                                 interactivePayload = message.button.payload;
