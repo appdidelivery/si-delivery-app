@@ -1078,20 +1078,42 @@ export default function Admin() {
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
         const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
+            let hasNewMessage = false;
+            let senderName = "Cliente";
+
             s.docChanges().forEach((change) => {
                 const data = change.doc.data();
-                // Toca som de telefone se for mensagem nova do cliente e não estiver mutado
                 if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
                     if (data.receivedAt && data.receivedAt.toMillis && data.receivedAt.toMillis() > Date.now() - 10000) {
-                        const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
-                        if (!isMuted) {
-                            // Áudio de telefone tocando (longo e chamativo)
-                            const ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
-                            ringtone.play().catch(() => {});
-                        }
+                        hasNewMessage = true; // Sinaliza que chegou pelo menos uma
+                        senderName = data.pushName || data.name || "Cliente";
                     }
                 }
             });
+
+            // Toca o som APENAS UMA VEZ, mesmo se chegarem 5 mensagens juntas
+            if (hasNewMessage) {
+                const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
+                if (!isMuted) {
+                    const ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+                    // Tenta tocar. Se o navegador bloquear por estar em 2º plano, logamos no console
+                    ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
+                    
+                    // DISPARA NOTIFICAÇÃO DO WINDOWS/MAC (Funciona em 2º plano!)
+                    if ("Notification" in window) {
+                        if (Notification.permission === "granted") {
+                            new Notification("💬 Mensagem no WhatsApp", {
+                                body: `${senderName} enviou uma nova mensagem!`,
+                                icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"
+                            });
+                        } else if (Notification.permission !== "denied") {
+                            // Se ainda não deu permissão, o navegador vai pedir
+                            Notification.requestPermission();
+                        }
+                    }
+                }
+            }
+
             // Conta quantas pessoas diferentes mandaram mensagem não lida
             const unreadDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().status === 'unread');
             const unreadSenders = new Set(unreadDocs.map(d => d.data().from));
