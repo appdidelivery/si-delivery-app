@@ -53,6 +53,34 @@ const generateSlug = (text) => {
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
 export default async function handler(req, res) {
+    // 1. Identifica a loja de forma Híbrida (Subdomínio e Custom Domain)
+    const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+    const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+    
+    const baseDomain = 'velodelivery.com.br';
+    let storeId = 'velo'; // Fallback seguro
+    
+    if (cleanHost.includes('app.github.dev') || cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1')) {
+        const queryStore = req.query.store;
+        storeId = queryStore || 'loja-teste';
+    } else if (cleanHost.endsWith('.vercel.app')) {
+        storeId = cleanHost.split('.')[0];
+    } else if (cleanHost === baseDomain) {
+        storeId = 'main-app';
+    } else if (cleanHost.endsWith(`.${baseDomain}`)) {
+        const subdomains = cleanHost.replace(`.${baseDomain}`, '');
+        const parts = subdomains.split('.');
+        storeId = parts[parts.length - 1];
+    } else if (cleanHost !== baseDomain && !cleanHost.endsWith(`.${baseDomain}`)) {
+        // Dicionário Híbrido Igual ao do Frontend
+        const domainMap = {
+            "convenienciasantaisabel.com.br": "csi",
+            "csi.com.br": "csi",
+            "cowburguer.com.br": "cowburguer",
+            "ngconveniencia.com.br": "ng"
+        };
+        storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
+    }
     // Isola o caminho exato ignorando os parâmetros após a interrogação (?)
     const path = req.url.split('?')[0];
 
