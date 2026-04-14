@@ -770,22 +770,33 @@ export default function Admin() {
                 return d >= startOfCycle && d <= endOfCycle;
             }).length;
 
-            const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
+           const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
             const extraCost = extraOrders * 0.25;
             
+            // --- NOVO: CÁLCULO DE DIAS PARA O VENCIMENTO ---
+            let proximoVencimento = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+            // Se hoje já passou do dia de vencimento, significa que o próximo é no mês que vem
+            if (now.getDate() > diaVencimento) {
+                proximoVencimento = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento);
+            }
+            const diffTime = proximoVencimento.getTime() - now.getTime();
+            const daysUntilDue = Math.ceil(diffTime / (1000 * 3600 * 24));
+            // -----------------------------------------------
+
             // Verifica se a loja ainda possui o status de cortesia ativo NESTE EXATO MOMENTO
             const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
             setInvoiceData({
                 basePlan: isCortesiaAtual ? 0 : 49.90, 
                 extraOrdersCost: extraCost, 
-                cycleOrdersCount: currentMonthOrders, // <-- Adicionado: Envia o valor exato do ciclo pra barrinha azul usar!
+                cycleOrdersCount: currentMonthOrders, 
                 storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
                 dbUsage: products.length + orders.length + 50,
                 total: (isCortesiaAtual ? 0 : 49.90) + extraCost, 
                 status: 'open',
                 cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
-                cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})
+                cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
+                daysUntilDue: daysUntilDue // <-- Adicionado estado dos dias
             });
 
             // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
@@ -2284,10 +2295,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-pulse">
                                     <div>
                                         <h3 className="text-red-700 font-black flex items-center gap-2 text-lg"><Server size={20} /> FATURA EM ABERTO</h3>
-                                        <p className="text-red-600 font-bold text-sm">Seu período de teste expirou. Regularize sua fatura para evitar a suspensão da loja.</p>
+                                        <p className="text-red-600 font-bold text-sm">Sua fatura está vencida. Regularize o pagamento para evitar a suspensão da loja.</p>
                                     </div>
                                     <button onClick={() => setActiveTab('finance')} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-red-700 transition-all active:scale-95 whitespace-nowrap">
                                         Pagar Agora
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
+                            {!trialInfo.isTrial && !trialInfo.isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
+                                <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                                    <div>
+                                        <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
+                                            <Clock size={20} className="text-amber-600"/> FATURA PRÓXIMA DO VENCIMENTO
+                                        </h3>
+                                        <p className="text-amber-700 font-bold text-sm">
+                                            Sua fatura da Velo Delivery vence em <span className="font-black text-amber-900">{invoiceData.daysUntilDue} {invoiceData.daysUntilDue === 1 ? 'dia' : 'dias'}</span>. Garanta o pagamento para não pausar as suas vendas!
+                                        </p>
+                                    </div>
+                                    <button onClick={() => setActiveTab('finance')} className="bg-amber-500 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-amber-600 transition-all active:scale-95 whitespace-nowrap">
+                                        Ver Financeiro
                                     </button>
                                 </div>
                             )}
@@ -5228,8 +5256,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         ✅ Fatura Paga
                                     </div>
                                 ) : (
-                                    <button onClick={handleAssinarPro} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                        💳 Pagar Fatura (PIX / Cartão)
+                                    <button onClick={() => setShowPixModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <QrCode size={20}/> Pagar Fatura via PIX
                                     </button>
                                 )}
                             </div>
@@ -7504,7 +7532,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
-                {showPixModal && (
+               {showPixModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[300] flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center shadow-2xl">
                             <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X size={24}/></button>
@@ -7523,13 +7551,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             
                             <div className="text-left bg-blue-50 border border-blue-100 p-6 rounded-3xl mb-8">
                                 <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-3 border-b border-blue-200 pb-2">Dados para Transferência</p>
-                                <p className="text-sm font-bold text-slate-700 mb-2"><span className="text-slate-500">Chave PIX (Efí):</span><br/> <span className="text-blue-700 font-black text-lg select-all">53620109000198</span></p>
+                                <p className="text-sm font-bold text-slate-700 mb-2"><span className="text-slate-500">Chave PIX (CNPJ):</span><br/> <span className="text-blue-700 font-black text-lg select-all">53.620.109/0001-98</span></p>
+                                <p className="text-sm font-bold text-slate-700 mb-2"><span className="text-slate-500">Instituição:</span><br/> Efí S.A</p>
                                 <p className="text-sm font-bold text-slate-700"><span className="text-slate-500">Beneficiário:</span><br/> Velo Delivery Tecnologia</p>
                             </div>
 
                             <button onClick={() => {
-                                navigator.clipboard.writeText("");
-                                alert("Chave PIX copiada! Após realizar o pagamento, chame o suporte no WhatsApp para liberação.");
+                                navigator.clipboard.writeText("53620109000198");
+                                alert("Chave PIX (CNPJ) copiada! Após realizar o pagamento, chame o suporte no WhatsApp enviando o comprovante para a liberação da sua loja.");
                             }} className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2">
                                 <Copy size={18}/> Copiar Chave PIX
                             </button>
