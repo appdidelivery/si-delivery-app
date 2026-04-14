@@ -79,26 +79,8 @@ export default function Reviews({ storeId }) {
         ? (reviews.reduce((acc, curr) => acc + Number(curr.rating || 5), 0) / totalReviews).toFixed(1) 
         : 5.0;
 
-    // Schema.org para o Google ler as estrelas nos resultados de pesquisa
-    const jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "LocalBusiness",
-        "name": "Velo Delivery Store",
-        "aggregateRating": totalReviews > 0 ? {
-            "@type": "AggregateRating",
-            "ratingValue": averageRating,
-            "reviewCount": totalReviews,
-            "bestRating": "5",
-            "worstRating": "1"
-        } : undefined
-    };
-
     return (
         <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mt-8 mb-4 relative">
-            {/* Script invisível para SEO (Rich Snippets no Google) */}
-            {totalReviews > 0 && (
-                <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-            )}
             
             {/* Cabeçalho Visual de Avaliações */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
