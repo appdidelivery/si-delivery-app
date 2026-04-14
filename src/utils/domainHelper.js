@@ -1,57 +1,58 @@
 export const getStoreIdFromHostname = () => {
-  const hostname = window.location.hostname;
-  const baseDomain = 'velodelivery.com.br'; // Seu domínio principal
+  try {
+    // CORREÇÃO 1: Força minúsculo e remove espaços em branco invisíveis
+    const rawHostname = window.location.hostname;
+    const hostname = rawHostname.toLowerCase().trim();
+    const baseDomain = 'velodelivery.com.br'; 
 
-  // 1. Caso de desenvolvimento local ou Codespaces (SaaS Dinâmico)
-  if (hostname.includes('app.github.dev') || hostname.includes('localhost')) {
-    // Busca o parâmetro 'store' na URL (Ex: ...github.dev/?store=bar-do-joao)
-    const urlParams = new URLSearchParams(window.location.search);
-    const debugStore = urlParams.get('store');
-    
-    // Se você passar ?store= na URL, ele assume esse ID. 
-    // Se não passar nada, ele mantém 'loja-teste' como padrão para você trabalhar.
-    return debugStore || 'loja-teste'; 
-  }
-
-  // 2. Caso de domínio provisório do Vercel
-  if (hostname.endsWith('.vercel.app')) {
-    const parts = hostname.split('.');
-    if (parts.length >= 3) {
-      return parts[0]; 
+    // 1. Caso de desenvolvimento local ou Codespaces
+    if (hostname.includes('app.github.dev') || hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const debugStore = urlParams.get('store');
+      return debugStore || 'loja-teste'; 
     }
-    return 'vercel-fallback';
-  }
 
-  // 3. Caso do seu domínio principal (Landing Page da Velo Delivery)
-  if (hostname === baseDomain || hostname === `www.${baseDomain}`) {
-    // Aqui retornamos 'main-platform' para que a Home saiba exibir a sua página de vendas
-    return 'main-app'; 
-  }
+    // 2. Caso de domínio provisório do Vercel
+    if (hostname.endsWith('.vercel.app')) {
+      const parts = hostname.split('.');
+      if (parts.length >= 3) {
+        return parts[0]; 
+      }
+      return 'vercel-fallback';
+    }
 
-  // 4. Caso de subdomínios (A mágica do SaaS: cliente.velodelivery.com.br)
-  if (hostname.endsWith(`.${baseDomain}`)) {
-    const subdomains = hostname.replace(`.${baseDomain}`, '');
-    const parts = subdomains.split('.');
-    // Pega o slug exato (ex: 'csi', 'mamedes', 'aurea')
-    return parts[parts.length - 1]; 
-  }
-  
-  // 5. Caso de Domínios Customizados (Modo Híbrido com Dicionário)
-  if (hostname !== baseDomain && !hostname.endsWith(`.${baseDomain}`)) {
-     const cleanHost = hostname.replace('www.', '');
-     
-     // Dicionário (De/Para): Traduz o domínio para o ID original da loja.
-     // Isso impede que os produtos sumam, pois no Firebase eles estão salvos com o slug antigo.
-     // Quando um cliente novo comprar um domínio, basta adicionar uma linha aqui.
-     const domainMap = {
-        "convenienciasantaisabel.com.br": "csi",
-        "csi.com.br": "csi",
-        "cowburguer.com.br": "cowburguer",
-        "ngconveniencia.com.br": "ng"
-     };
+    // 3. Caso do seu domínio principal
+    if (hostname === baseDomain || hostname === `www.${baseDomain}`) {
+      return 'main-app'; 
+    }
 
-     return domainMap[cleanHost] || cleanHost;
-  }
+    // 4. Caso de subdomínios (cliente.velodelivery.com.br)
+    if (hostname.endsWith(`.${baseDomain}`)) {
+      const subdomains = hostname.replace(`.${baseDomain}`, '');
+      const parts = subdomains.split('.');
+      return parts[parts.length - 1]; 
+    }
+    
+    // 5. Caso de Domínios Customizados (Modo Híbrido com Dicionário)
+    if (hostname !== baseDomain && !hostname.endsWith(`.${baseDomain}`)) {
+       // CORREÇÃO 2: Expressão regular para limpar o www de forma mais segura
+       const cleanHost = hostname.replace(/^www\./, '');
+       
+       const domainMap = {
+          "convenienciasantaisabel.com.br": "csi",
+          "csi.com.br": "csi",
+          "cowburguer.com.br": "cowburguer",
+          "ngconveniencia.com.br": "ng"
+       };
 
-  return 'unknown-store'; 
+       // CORREÇÃO 3: Se o domínio não estiver no mapa, extrai apenas a primeira palavra antes do ".com" 
+       // Ex: rincaofood.com.br vira 'rincaofood' no fallback, evitando quebrar o Firebase
+       return domainMap[cleanHost] || cleanHost.split('.')[0];
+    }
+
+    return 'unknown-store'; 
+  } catch (error) {
+    console.error("Erro Crítico no domainHelper:", error);
+    return 'unknown-store';
+  }
 };
