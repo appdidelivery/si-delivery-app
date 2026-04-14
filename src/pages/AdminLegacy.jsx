@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -5801,7 +5801,60 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        {/* 3. Horários da Semana (NOVO!) */}
+                        {/* --- INÍCIO: MODO FÉRIAS / FERIADO --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mt-6 mb-6">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2">
+                                        <Palmtree size={24} className="text-emerald-500"/> Modo Férias / Feriado
+                                    </h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">
+                                        Programe dias em que a loja estará fechada. O robô avisará os clientes automaticamente.
+                                    </p>
+                                </div>
+                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border-2 transition-all ${storeStatus.vacationMode?.active ? 'bg-emerald-50 border-emerald-400 shadow-sm' : 'bg-slate-50 border-transparent opacity-60 hover:bg-slate-100'}`}>
+                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.vacationMode?.active ? 'text-emerald-800' : 'text-slate-500'}`}>
+                                        {storeStatus.vacationMode?.active ? 'Férias Programadas' : 'Ativar Modo Férias'}
+                                    </span>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={storeStatus.vacationMode?.active || false} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { "vacationMode.active": e.target.checked }, { merge: true })}
+                                        className="w-6 h-6 accent-emerald-600 cursor-pointer"
+                                    />
+                                </label>
+                            </div>
+
+                            {storeStatus.vacationMode?.active && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 bg-emerald-50/50 p-6 rounded-3xl border border-emerald-100">
+                                    <div>
+                                        <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block mb-2 ml-1">Início (Data e Hora)</label>
+                                        <input 
+                                            type="datetime-local" 
+                                            value={storeStatus.vacationMode?.start || ''} 
+                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { "vacationMode.start": e.target.value }, { merge: true })}
+                                            className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-emerald-400 border border-emerald-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block mb-2 ml-1">Retorno (Data e Hora)</label>
+                                        <input 
+                                            type="datetime-local" 
+                                            value={storeStatus.vacationMode?.end || ''} 
+                                            onChange={(e) => updateDoc(doc(db, "stores", storeId), { "vacationMode.end": e.target.value }, { merge: true })}
+                                            className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-emerald-400 border border-emerald-100"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2 mt-2">
+                                        <p className="text-[10px] text-emerald-700 font-bold bg-emerald-100 p-3 rounded-xl border border-emerald-200">
+                                            💡 O Robô do WhatsApp enviará a sua mensagem de "Loja Fechada" automaticamente para qualquer cliente que mandar mensagem entre o Início e o Retorno configurados acima.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {/* --- FIM: MODO FÉRIAS / FERIADO --- */}
+
                         {/* 3. Horários da Semana (NOVO!) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-6 flex items-center gap-2">

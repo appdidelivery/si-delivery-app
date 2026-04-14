@@ -773,6 +773,19 @@ export default async function handler(req, res) {
             // Função nativa para ler o fuso horário correto do Brasil (Evita erros de servidor em outro país)
             const checkIsStoreOpen = (storeData) => {
                 if (storeData.isOpen === false) return false; // Loja fechada no botão mestre
+                
+                // --- INÍCIO: TRAVA DO MODO FÉRIAS / FERIADO ---
+                if (storeData.vacationMode && storeData.vacationMode.active) {
+                    const nowTime = new Date().getTime();
+                    const startVacation = new Date(storeData.vacationMode.start).getTime();
+                    const endVacation = new Date(storeData.vacationMode.end).getTime();
+
+                    if (nowTime >= startVacation && nowTime <= endVacation) {
+                        return false; // Está de férias! Retorna que a loja está fechada.
+                    }
+                }
+                // --- FIM: TRAVA DO MODO FÉRIAS ---
+
                 if (!storeData.schedule) return true; // Se não tem agenda cadastrada, assume aberta
 
                 // Pega a hora atual em São Paulo
