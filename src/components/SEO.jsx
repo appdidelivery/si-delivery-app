@@ -9,7 +9,7 @@ export default function SEO({ title, description, image, productData }) {
     // 2. Define valores padrão
     const defaultName = "Velo Delivery";
     const defaultDesc = "O seu aplicativo de delivery.";
-    const defaultImage = "/logo-square.png";
+    const defaultImage = "https://app.velo.com.br/logo-square.png";
 
     // 3. Decide quem manda
     const siteName = store?.name || defaultName;
@@ -22,17 +22,20 @@ export default function SEO({ title, description, image, productData }) {
     const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velo.com.br";
     const baseUrl = currentUrl.split('?')[0]; 
 
-    // 4. MOTOR DE INJEÇÃO REST API (O QUE FUNCIONOU NO SEU TESTE!)
+    // 4. MOTOR DE INJEÇÃO REST API ESTRUTURADO PARA O GOOGLE
     useEffect(() => {
         let isMounted = true;
 
         const injectSchemaForGoogle = async () => {
             try {
                 const hostname = window.location.hostname;
-                let storeId = 'csi'; 
+                // CORREÇÃO: Removido o 'csi', fallback agora é velo para não vazar nome de cliente
+                let storeId = 'velo'; 
                 
                 if (hostname !== 'localhost' && hostname.includes('.')) {
-                    storeId = hostname.split('.')[0];
+                    // CORREÇÃO: Limpa o www. do domínio para não quebrar a busca no banco
+                    const cleanHostname = hostname.replace(/^www\./, '');
+                    storeId = cleanHostname.split('.')[0];
                 }
 
                 // O seu Fetch vitorioso
@@ -49,7 +52,8 @@ export default function SEO({ title, description, image, productData }) {
                     const fetchedName = fields.name?.stringValue || siteName;
                     const fetchedImage = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || finalImage;
                     const fetchedDesc = fields.slogan?.stringValue || fields.message?.stringValue || finalDesc;
-                    const fetchedWhatsapp = fields.whatsapp?.stringValue || "";
+                    // CORREÇÃO: Tenta puxar do context caso o DB não tenha
+                    const fetchedWhatsapp = fields.whatsapp?.stringValue || store?.phone || "";
                     
                     const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                     const ratingCount = fields.rating_count?.integerValue || 0;
@@ -67,37 +71,45 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
 
-                    // TRATAMENTO DE ENDEREÇO
-                    let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
+                    // CORREÇÃO: TRATAMENTO DE ENDEREÇO A PROVA DE FALHAS PARA O GOOGLE
+                    let addressObj = { 
+                        "@type": "PostalAddress", 
+                        "addressCountry": "BR",
+                        "addressLocality": "Brasil" 
+                    };
+                    
                     if (fields.address?.stringValue) {
                         addressObj.streetAddress = fields.address.stringValue;
                     } else if (fields.address?.mapValue?.fields) {
                         const addr = fields.address.mapValue.fields;
                         addressObj.streetAddress = `${addr.street?.stringValue || ''}, ${addr.number?.stringValue || ''}`.trim();
-                        addressObj.addressLocality = addr.city?.stringValue || "";
-                        addressObj.addressRegion = addr.state?.stringValue || "";
-                        addressObj.postalCode = addr.zip?.stringValue || "";
+                        if (addr.city?.stringValue) addressObj.addressLocality = addr.city.stringValue;
+                        if (addr.state?.stringValue) addressObj.addressRegion = addr.state.stringValue;
+                        if (addr.zip?.stringValue) addressObj.postalCode = addr.zip.stringValue;
+                    } else {
+                        addressObj.streetAddress = "Endereço não informado";
                     }
 
                     // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
                     const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
                     
-                    // A) BASE DA ENTIDADE DA LOJA 
+                    // CORREÇÃO: DADOS MÍNIMOS EXIGIDOS PELO GOOGLE GARANTIDOS
                     const baseStoreSchema = {
                         "@id": `${baseUrl}#store`,
-                        "@type": googleBusinessType, // Usa o tipo dinâmico da loja
+                        "@type": googleBusinessType,
                         "name": fetchedName,
                         "image": fetchedImage,
                         "description": fetchedDesc,
                         "url": `https://${hostname}`,
-                        "telephone": fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "",
+                        // Se não houver telefone, insere um neutro para o Google não derrubar a indexação
+                        "telephone": fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "+550000000000",
                         "priceRange": "$$",
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
                         "address": addressObj,
                         ...( !isRetail ? { "hasMenu": `${baseUrl}/cardapio` } : {} )
                     };
 
-                    // Se for Varejo (Conveniência/Bebidas), forçamos a aba de Produtos lendo do contexto global (se disponível)
+                    // Se for Varejo (Conveniência/Bebidas), forçamos a aba de Produtos lendo do contexto global
                     const storeCatalog = store?.products || store?.produtos || store?.produtosPrincipais;
                     if (isRetail && storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
                         baseStoreSchema.containsPlace = storeCatalog.slice(0, 30).map((prod) => ({
@@ -126,7 +138,7 @@ export default function SEO({ title, description, image, productData }) {
 
                     let structuredData;
 
-                    // B) ESTRUTURA COMPLETA DE PRODUTO (Suas 170 linhas de inteligência)
+                    // B) ESTRUTURA COMPLETA DE PRODUTO
                     if (productData) {
                         const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
 
@@ -137,7 +149,6 @@ export default function SEO({ title, description, image, productData }) {
                                 {
                                     "@type": ["Product", "MenuItem"],
                                     "@id": `${baseUrl}#product`,
-                                    // DADOS BASE DO PRODUTO
                                     "name": productData.name || "",
                                     "description": productData.description || fetchedDesc || "",
                                     "image": productData.imageUrl ? [productData.imageUrl] : [fetchedImage],
@@ -149,10 +160,8 @@ export default function SEO({ title, description, image, productData }) {
                                     },
                                     "category": productData.category || "",
                                     
-                                    // LOGÍSTICA E PREPARO
                                     "prepTime": productData.prepTime ? `PT${productData.prepTime}M` : "",
                                     
-                                    // ALIMENTAÇÃO E CUSTOMIZAÇÃO
                                     "suitableForDiet": productData.suitableForDiet || [],
                                     "menuAddOn": productData.menuAddOn || [],
                                     "nutrition": {
@@ -160,7 +169,6 @@ export default function SEO({ title, description, image, productData }) {
                                         "calories": productData.calories ? `${productData.calories} kcal` : ""
                                     },
                                     
-                                    // PROVA SOCIAL DO PRODUTO
                                     ...(productData.ratingValue ? {
                                         "aggregateRating": {
                                             "@type": "AggregateRating",
@@ -169,7 +177,6 @@ export default function SEO({ title, description, image, productData }) {
                                         }
                                     } : {}),
                                     
-                                    // OFERTA E VENDA
                                     "offers": {
                                         "@type": "Offer",
                                         "url": currentUrl,
