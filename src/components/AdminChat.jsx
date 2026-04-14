@@ -421,6 +421,19 @@ export default function AdminChat() {
                     direction: 'outbound', 
                     quotedMsg: replyingTo ? replyingTo.text : null // Salva no banco o contexto da resposta
                 });
+
+                // 3. HANDOFF: Pausa o bot automaticamente, pois o lojista assumiu o controle
+                let normalizedPhoneForSession = safePhone.replace(/\D/g, '');
+                if (normalizedPhoneForSession.startsWith('55')) normalizedPhoneForSession = normalizedPhoneForSession.substring(2);
+                if (normalizedPhoneForSession.length === 10) normalizedPhoneForSession = normalizedPhoneForSession.substring(0, 2) + '9' + normalizedPhoneForSession.substring(2);
+
+                await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${normalizedPhoneForSession}`), {
+                    storeId: storeId,
+                    phone: normalizedPhoneForSession,
+                    botPaused: true,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+
                 setReplyText('');
                 setReplyingTo(null); // Limpa o bloco de citação após enviar
             } else {

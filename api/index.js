@@ -895,28 +895,52 @@ export default async function handler(req, res) {
                                             // Garante que o texto está limpo, minúsculo e sem acentos/cedilha (ex: endereço -> endereco)
                                             const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
 
-                                            // 1. DEFINIÇÃO DAS PALAVRAS-CHAVE (MUITO MAIS INTELIGENTE E SEM CONFLITOS)
-                                            // Suporte (Prioridade Máxima):
+                                            // --- NOVO: IDENTIFICAÇÃO DO CLIENTE E RASTREIO ---
+                                            let customerName = message.profile?.name || '';
+                                            let lastOrder = null;
+                                            
+                                            // Busca o último pedido do cliente no JS para evitar erros de índice no Firebase
+                                            const phoneVariants = [normalizedPhone, `55${normalizedPhone}`, `+55${normalizedPhone}`];
+                                            const ordersSnap = await db.collection('orders')
+                                                .where('storeId', '==', storeId)
+                                                .where('customerPhone', 'in', phoneVariants)
+                                                .limit(10)
+                                                .get();
+
+                                            if (!ordersSnap.empty) {
+                                                const ordersList = ordersSnap.docs.map(d => d.data());
+                                                // Ordena no JS da mais nova para a mais velha
+                                                ordersList.sort((a, b) => {
+                                                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+                                                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+                                                    return timeB - timeA;
+                                                });
+                                                
+                                                lastOrder = ordersList[0];
+                                                if (lastOrder && lastOrder.customerName) {
+                                                    customerName = lastOrder.customerName.split(' ')[0]; // Pega apenas o primeiro nome
+                                                }
+                                            }
+
+                                            // 1. DEFINIÇÃO DAS PALAVRAS-CHAVE E PAYLOADS
                                             const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
-                                            // Endereço (Tiramos 'onde' do frete e colocamos aqui para pegar 'onde fica' e 'onde e'):
-                                            const isFaqEndereco = ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqEndereco = interactivePayload === 'btn_info' || ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw));
                                             
-                                            // Frete:
-                                            const isFaqFrete = ['frete', 'taxa', 'entrega', 'motoboy', 'regiao', 'valor da tele', 'cobram'].some(kw => incomingTextLower.includes(kw));
-                                            
-                                            // Horário:
-                                            const isFaqHorario = ['horario', 'horas', 'abre', 'fecha', 'funcionamento', 'atendimento'].some(kw => incomingTextLower.includes(kw));
-                                            
-                                            // Pagamento:
-                                            const isFaqPagamento = ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqPagamento = interactivePayload === 'btn_payment' || ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw));
 
-                                            // Fazer Pedido (Adicionado 'pedido', 'gostaria de fazer'):
                                             const isMenuTrigger = interactivePayload === 'btn_menu' || ['1', 'cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'menu', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw));
-
-                                            // Busca dados dinâmicos da loja com Tratamento de Erro Seguro
+                                            
+                                            const isStatusTrigger = interactivePayload === 'btn_status' || ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw));
+                                            
+                                            const isRepeatTrigger = interactivePayload === 'btn_repeat' || ['repetir', 'mesmo pedido', 'quero o mesmo', 'repetir pedido'].some(kw => incomingTextLower.includes(kw));
+                                            
+                                            // Busca dados dinâmicos da loja
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
+                                            const storeName = storeDynamicData.name || 'nossa loja';
+                                            
+                                            // Tratamento de Endereço Dinâmico
                                             const addr = storeDynamicData.address || {};
                                             let storeAddressStr = "nosso endereço principal (veja no link do cardápio)";
                                             if (addr.street || addr.city) {
@@ -924,7 +948,14 @@ export default async function handler(req, res) {
                                                 const cityPart = addr.city ? addr.city.trim() : '';
                                                 storeAddressStr = [streetPart, cityPart].filter(Boolean).join(', ');
                                             }
-                                            const storePhoneStr = storeDynamicData.phone || "este mesmo número do WhatsApp";
+
+                                            // Tratamento de Pagamentos Dinâmico
+                                            const pm = storeDynamicData.acceptedPayments || {};
+                                            const acceptedList = [];
+                                            if (pm.online || pm.pix) acceptedList.push('💳 Cartão e Pix (Pelo site)');
+                                            if (pm.cardDelivery || pm.cardPickup) acceptedList.push('📠 Maquininha (Cartão/Débito)');
+                                            if (pm.cashDelivery || pm.cashPickup) acceptedList.push('💵 Dinheiro em Espécie');
+                                            const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Aceitamos Cartão, Pix e Dinheiro!';
 
                                             // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA MUITO PARA NÃO BUGAR)
                                             if (needsSupport) {
@@ -934,23 +965,51 @@ export default async function handler(req, res) {
                                                 triggerInternalAlert = true;
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             } 
+                                            else if (isStatusTrigger) {
+                                                if (lastOrder) {
+                                                    const orderTime = lastOrder.createdAt?.toDate ? lastOrder.createdAt.toDate() : new Date(lastOrder.createdAt?.seconds * 1000 || Date.now());
+                                                    const diffMin = Math.floor((Date.now() - orderTime) / 60000);
+                                                    
+                                                    const statusMap = {
+                                                        'pending': '⏳ Aguardando Confirmação',
+                                                        'preparing': '👨‍🍳 Sendo Preparado na Cozinha',
+                                                        'delivery': '🏍️ Saiu para Entrega (Está a caminho!)',
+                                                        'completed': '✅ Entregue / Concluído',
+                                                        'canceled': '❌ Cancelado'
+                                                    };
+                                                    const statusNome = statusMap[lastOrder.status] || lastOrder.status;
+                                                    
+                                                    const statusMsg = `🔍 *Status do seu último pedido:*\n\n*ID:* #${lastOrder.id ? lastOrder.id.slice(-5).toUpperCase() : 'N/A'}\n*Status Atual:* ${statusNome}\n*Tempo corrido:* ${diffMin} minutos.\n\nSe precisar de ajuda com ele, é só selecionar a opção *Falar com Atendente*.`;
+                                                    replyPayload = { type: "text", text: { body: statusMsg } };
+                                                    logTextForPanel = `🤖 [Rastreio] ${statusMsg}`;
+                                                } else {
+                                                    const statusMsg = "Hmm, não consegui encontrar nenhum pedido recente vinculado ao seu número. 🧐\n\nVocê fez o pedido com outro telefone? Se precisar, selecione *Falar com Atendente* no menu para falar com a equipe.";
+                                                    replyPayload = { type: "text", text: { body: statusMsg } };
+                                                    logTextForPanel = `🤖 [Rastreio Não Encontrado]`;
+                                                }
+                                            }
+                                            else if (isRepeatTrigger) {
+                                                if (lastOrder && lastOrder.items && lastOrder.items.length > 0) {
+                                                    // Formata a listagem do que ele pediu da última vez
+                                                    const orderItemsStr = lastOrder.items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
+                                                    
+                                                    const repeatMsg = `🍔 *Seu Último Pedido:*\n\n${orderItemsStr}\n\n*Total:* R$ ${Number(lastOrder.total).toFixed(2)}\n\nBateu aquela fome de novo? 🤤\nPara repetir esse pedido agora mesmo, é só clicar no link do nosso cardápio e adicionar os itens:\n👉 ${storeDomain}`;
+                                                    
+                                                    replyPayload = { type: "text", text: { body: repeatMsg } };
+                                                    logTextForPanel = `🤖 [Repetir Pedido] ${repeatMsg}`;
+                                                } else {
+                                                    const repeatMsg = "Hmm, não consegui encontrar nenhum pedido recente no seu histórico. 🧐\n\nQue tal dar uma olhadinha no nosso cardápio e escolher algo gostoso agora?\n👉 " + storeDomain;
+                                                    replyPayload = { type: "text", text: { body: repeatMsg } };
+                                                    logTextForPanel = `🤖 [Repetir Pedido Não Encontrado]`;
+                                                }
+                                            }
                                             else if (isFaqEndereco) {
-                                                const faqMsg = `Nós ficamos localizados em: *${storeAddressStr}* 📍\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site com total praticidade:\n👉 ${storeDomain}`;
+                                                const faqMsg = `📍 *Nossa Localização e Horário:*\n${storeAddressStr}\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site:\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
                                             }
-                                            else if (isFaqFrete) {
-                                                const faqMsg = "Nossa taxa de entrega varia de acordo com o seu bairro! 🛵💨\n\nMas é super fácil descobrir: basta clicar no link do nosso cardápio, colocar seu endereço e o sistema calcula na hora para você!\n👉 " + storeDomain;
-                                                replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Frete] ${faqMsg}`;
-                                            }
-                                            else if (isFaqHorario) {
-                                                const faqMsg = "Nosso horário de funcionamento é das 18h às 23h, de terça a domingo! 🍔🍟\n\nQuer aproveitar e já dar uma olhadinha no que estamos preparando hoje? 👉 " + storeDomain;
-                                                replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Horário] ${faqMsg}`;
-                                            }
                                             else if (isFaqPagamento) {
-                                                const faqMsg = "Aceitamos Pix, Cartão de Crédito e Débito! 💳\n\nVocê pode pagar super rápido e seguro direto pelo site na hora de finalizar o pedido, ou na entrega com a nossa maquininha.\n\nQuer pedir agora? 👉 " + storeDomain;
+                                                const faqMsg = `💳 *Formas de Pagamento Aceitas:*\n\n${paymentsStr}\n\nVocê seleciona a melhor opção no final do pedido pelo site!\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Pagamento] ${faqMsg}`;
                                             }
@@ -960,24 +1019,41 @@ export default async function handler(req, res) {
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else {
-                                                const greeting = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
-                                                const opt1Text = (waSettings.botOption1 || "🍔 Fazer Pedido").substring(0, 20); 
-                                                const opt2Text = (waSettings.botOption2 || "👩‍💻 Falar com a Equipe").substring(0, 20);
-                                                
+                                                // GREETING INTELIGENTE E LISTA DE OPÇÕES (MENU)
+                                                let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
+                                                if (customerName) {
+                                                    greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
+                                                }
+
+                                                // O título do menu não pode passar de 24 caracteres no WhatsApp
+                                                const shortStoreName = storeName.substring(0, 24);
+
                                                 replyPayload = {
                                                     type: "interactive",
                                                     interactive: {
-                                                        type: "button",
-                                                        body: { text: `${greeting}\n\nComo posso te ajudar hoje?` },
+                                                        type: "list",
+                                                        header: { type: "text", text: "Atendimento Virtual" },
+                                                        body: { text: `${greetingText}\n\nPara agilizar, selecione uma das opções no menu abaixo:` },
+                                                        footer: { text: "Toque no botão para abrir as opções 👇" },
                                                         action: {
-                                                            buttons: [
-                                                                { type: "reply", reply: { id: "btn_menu", title: opt1Text } },
-                                                                { type: "reply", reply: { id: "btn_support", title: opt2Text } }
+                                                            button: "Abrir Menu",
+                                                            sections: [
+                                                                {
+                                                                    title: shortStoreName,
+                                                                    rows: [
+                                                                        { id: "btn_menu", title: "🍔 Fazer Pedido", description: "Acessar cardápio digital" },
+                                                                        { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
+                                                                        { id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu último pedido" },
+                                                                        { id: "btn_info", title: "📍 Endereço e Horário", description: "Onde ficamos" },
+                                                                        { id: "btn_payment", title: "💳 Pagamentos Aceitos", description: "Pix, Cartão, Dinheiro" },
+                                                                        { id: "btn_support", title: "👩‍💻 Falar com Atendente", description: "Dúvidas ou problemas" }
+                                                                    ]
+                                                                }
                                                             ]
                                                         }
                                                     }
                                                 };
-                                                logTextForPanel = `🤖 [Menu de Botões Enviado]\n🔘 ${opt1Text}\n🔘 ${opt2Text}`;
+                                                logTextForPanel = `🤖 [Menu Interativo Enviado para ${customerName || 'Cliente'}]`;
                                             }
                                         }
 
