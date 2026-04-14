@@ -4239,14 +4239,60 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             </div>
 
-                                            {/* Produtos Gatilho */}
-                                            <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500">
-                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2"><Gift size={14}/> Produtos Gatilho (Quais itens dão o brinde?)</p>
-                                                <select value={settings.buyAndGetPromo?.rewardProductId || ''} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rewardProductId: e.target.value } }, { merge: true })} className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer">
-                                                    <option value="">Selecione o Brinde...</option>
-                                                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                </select>
-                                                <p className="text-[9px] text-teal-200 mt-2 font-medium">O brinde será adicionado automaticamente ao carrinho por R$ 0,00 caso a regra de horário seja cumprida.</p>
+                                            {/* Configuração dos Produtos (Gatilho + Brinde) */}
+                                            <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500 space-y-4">
+                                                
+                                                {/* 1. SELEÇÃO DE GATILHOS (O QUE ELE PRECISA COMPRAR) */}
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
+                                                        <ShoppingCart size={14}/> 1. O que o cliente precisa comprar? (Gatilhos)
+                                                    </p>
+                                                    <div className="bg-teal-800/50 p-3 rounded-xl max-h-32 overflow-y-auto custom-scrollbar space-y-1 border border-teal-600/50">
+                                                        {products.map(p => {
+                                                            const isTrigger = (settings.buyAndGetPromo?.triggerProductIds || []).includes(p.id);
+                                                            return (
+                                                                <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isTrigger ? 'bg-teal-600 border border-teal-400' : 'hover:bg-teal-700/50 border border-transparent'}`}>
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={isTrigger}
+                                                                        onChange={async (e) => {
+                                                                            const currentTriggers = settings.buyAndGetPromo?.triggerProductIds || [];
+                                                                            let newTriggers;
+                                                                            if (e.target.checked) {
+                                                                                newTriggers = [...currentTriggers, p.id];
+                                                                            } else {
+                                                                                newTriggers = currentTriggers.filter(id => id !== p.id);
+                                                                            }
+                                                                            await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, triggerProductIds: newTriggers } }, { merge: true });
+                                                                        }}
+                                                                        className="w-4 h-4 accent-teal-400 cursor-pointer"
+                                                                    />
+                                                                    <span className="text-xs font-bold text-white leading-tight">{p.name}</span>
+                                                                </label>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                    <p className="text-[9px] text-teal-300 mt-1 font-medium ml-1">Selecione 1 ou mais produtos. Qualquer um deles ativará o brinde.</p>
+                                                </div>
+
+                                                <div className="w-full h-px bg-teal-500/50 my-2"></div>
+
+                                                {/* 2. SELEÇÃO DO BRINDE (O QUE ELE VAI GANHAR) */}
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
+                                                        <Gift size={14}/> 2. O que ele vai ganhar? (Brinde)
+                                                    </p>
+                                                    <select 
+                                                        value={settings.buyAndGetPromo?.rewardProductId || ''} 
+                                                        onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rewardProductId: e.target.value } }, { merge: true })} 
+                                                        className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer focus:ring-2 ring-teal-400"
+                                                    >
+                                                        <option value="">Selecione o Brinde...</option>
+                                                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                    </select>
+                                                    <p className="text-[9px] text-teal-300 mt-2 font-medium">Este item será adicionado automaticamente ao carrinho por R$ 0,00 quando o cliente colocar um dos "Gatilhos" acima.</p>
+                                                </div>
+
                                             </div>
                                         </div>
                                     )}
