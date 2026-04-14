@@ -15,13 +15,31 @@ export default async function middleware(request) {
   }
 
   const host = request.headers.get('host') || '';
+  const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+  const baseDomain = 'velodelivery.com.br';
   
-  // 1. Descobre a loja pela URL
-  let storeId = host.split('.')[0];
+  // 1. Descobre a loja pela URL (Lógica blindada idêntica à API)
+  let storeId = 'csi'; // Loja padrão de fallback
   
-  // Fallbacks de segurança para ambiente de teste ou domínio raiz
-  if (storeId === 'app' || storeId === 'www' || host.includes('localhost')) {
-      storeId = 'csi'; // Loja padrão de fallback
+  if (cleanHost === 'app' || cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1') || cleanHost.includes('github.dev')) {
+      storeId = 'csi';
+  } else if (cleanHost.endsWith('.vercel.app')) {
+      storeId = cleanHost.split('.')[0];
+  } else if (cleanHost === baseDomain) {
+      storeId = 'main-app';
+  } else if (cleanHost.endsWith(`.${baseDomain}`)) {
+      const subdomains = cleanHost.replace(`.${baseDomain}`, '');
+      const parts = subdomains.split('.');
+      storeId = parts[parts.length - 1];
+  } else {
+      // Dicionário Híbrido para Domínios Próprios
+      const domainMap = {
+          "convenienciasantaisabel.com.br": "csi",
+          "csi.com.br": "csi",
+          "cowburguer.com.br": "cowburguer",
+          "ngconveniencia.com.br": "ng"
+      };
+      storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
   }
 
   // 2. Pega o index.html original do seu build (SPA Vite)
@@ -90,7 +108,9 @@ export default async function middleware(request) {
       headers: {
           'Content-Type': 'text/html; charset=utf-8',
           // Armazena no Edge Cache da Vercel por 10 minutos (600s)
-          'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200' 
+          'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+          // Vercel Cache Key: Garante que o cache seja isolado por Host (Domínio)
+          'Vary': 'Host'
       },
   });
 }

@@ -2521,7 +2521,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     </button>
                                                     <button onClick={() => sendMsg(msg24horas)} className="flex flex-col items-center justify-center p-3 bg-green-50 text-green-600 rounded-2xl hover:bg-green-100 transition-all border border-green-100 group">
                                                         <Tags size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(24 Horas)</span>
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(<title>Conveniência Santa Isabel | 24 Horas</title>)</span>
                                                     </button>
                                                 </div>
                                                 <button onClick={async () => {
