@@ -15,7 +15,7 @@ import {
     GiSodaCan, GiPizzaSlice, GiTacos, GiHotDog, GiMeat, 
     GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
     GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
-    GiAvocado, GiCigarette, GiChocolateBar
+    GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry
 } from 'react-icons/gi';
 import { 
     FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
@@ -42,6 +42,10 @@ const renderCategoryIcon = (iconName, categoryName) => {
         switch (iconName) {
             case 'Combo': return <FaBoxOpen size={18} />;
             case 'Star': return <FaStar size={18} />;
+            case 'Watermelon': return <GiWatermelon size={18} />;
+            case 'FruitBowl': return <GiFruitBowl size={18} />;
+            case 'Strawberry': return <GiStrawberry size={18} />;
+            case 'Apple': return <FaAppleWhole size={18} />;
             case 'Hamburger': return <GiHamburger size={18} />;
             case 'Fries': return <GiFrenchFries size={18} />;
             case 'Pizza': return <GiPizzaSlice size={18} />;
@@ -86,6 +90,10 @@ const renderCategoryIcon = (iconName, categoryName) => {
     }
 
     const n = (categoryName || '').toLowerCase();
+    if (n.includes('fruta') || n.includes('melancia')) return <GiWatermelon size={18}/>;
+    if (n.includes('salada') || n.includes('copo')) return <GiFruitBowl size={18}/>;
+    if (n.includes('morango')) return <GiStrawberry size={18}/>;
+    if (n.includes('maçã') || n.includes('maca')) return <FaAppleWhole size={18}/>;
     if (n.includes('cerveja') || n.includes('chopp')) return <GiBeerBottle size={18}/>;
     if (n.includes('vinho') || n.includes('espumante')) return <FaWineGlass size={18}/>;
     if (n.includes('destilado') || n.includes('vodka') || n.includes('gin')) return <GiMartini size={18}/>;

@@ -24,7 +24,7 @@ import {
     GiSodaCan, GiPizzaSlice, GiTacos, GiHotDog, GiMeat, 
     GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
     GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
-    GiAvocado, GiCigarette, GiChocolateBar
+    GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry
 } from 'react-icons/gi';
 import { 
     FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
@@ -93,6 +93,10 @@ const AVAILABLE_ICONS = [
   { id: 'Bread', label: 'Padaria', component: <FaBreadSlice size={24} /> },
   { id: 'Croissant', label: 'Salgados', component: <GiCroissant size={24} /> },
   // Saudável e Mercado
+  { id: 'Watermelon', label: 'Frutas Curtidas', component: <GiWatermelon size={24} /> },
+  { id: 'FruitBowl', label: 'Frutas no Copo / Salada', component: <GiFruitBowl size={24} /> },
+  { id: 'Apple', label: 'Maçã / Pomar', component: <FaAppleWhole size={24} /> },
+  { id: 'Strawberry', label: 'Morango / Frutas Vermelhas', component: <GiStrawberry size={24} /> },
   { id: 'Leaf', label: 'Vegano / Saudável', component: <FaLeaf size={24} /> },
   { id: 'Carrot', label: 'Hortifruti', component: <FaCarrot size={24} /> },
   { id: 'Cheese', label: 'Frios / Laticínios', component: <FaCheese size={24} /> },
