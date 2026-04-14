@@ -1264,7 +1264,7 @@ export default async function handler(req, res) {
             orderId
         } = req.body;
 
-        // Validação usando as variáveis corretas
+        // Validação att usando as variáveis corretas
         if (!storeConnectId || !items || items.length === 0) {
             console.error("Payload Recebido Incompleto:", JSON.stringify(req.body));
             return res.status(400).json({ error: 'Faltam dados do pedido (storeConnectId ou itens).' });
