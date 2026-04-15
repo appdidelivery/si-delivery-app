@@ -1037,6 +1037,9 @@ export default async function handler(req, res) {
 
                                             const pm = storeDynamicData.acceptedPayments || {};
                                             const acceptedList = [];
+                                            // 🚨 Verifica se a loja tem pagamento online ativado (Pix Automático ou Cartão de Crédito Online)
+                                            const hasOnlinePayments = pm.online !== false || pm.pix !== false;
+                                            
                                             if (pm.online || pm.pix) acceptedList.push('💳 Cartão e Pix (Pelo site)');
                                             if (pm.cardDelivery || pm.cardPickup) acceptedList.push('📠 Maquininha (Cartão/Débito)');
                                             if (pm.cashDelivery || pm.cashPickup) acceptedList.push('💵 Dinheiro em Espécie');
@@ -1047,26 +1050,33 @@ export default async function handler(req, res) {
                                                 if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
                                                 const safeStoreName = (storeName && storeName.trim() !== '') ? storeName : 'Nossa Loja';
                                                 
+                                                const menuRows = [];
+                                                // 🚨 SÓ ADICIONA A OPÇÃO DE PEDIR NO WHATSAPP SE A LOJA TIVER PAGAMENTO ONLINE
+                                                if (hasOnlinePayments) {
+                                                    menuRows.push({ id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" });
+                                                }
+                                                // Adiciona as opções padrão
+                                                menuRows.push(
+                                                    { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
+                                                    { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
+                                                    { id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" },
+                                                    { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
+                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" },
+                                                    { id: "btn_support", title: "👩‍💻 Falar Atendente", description: "Dúvidas ou problemas" }
+                                                );
+
                                                 return {
                                                     type: "interactive",
                                                     interactive: {
                                                        type: "list",
-                                                        header: { type: "text", text: "Menu" },
-                                                        body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
+                                                        header: { type: "text", text: "Menu" },
+                                                        body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
                                                         footer: { text: "Toque no botão para abrir as opções 👇" },
                                                         action: {
                                                             button: "Abrir Menu",
                                                             sections: [{
                                                                 title: safeStoreName.substring(0, 24), 
-                                                                rows: [
-                                                                    { id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" },
-                                                                    { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
-                                                                    { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
-                                                                    { id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" },
-                                                                    { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
-                                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" },
-                                                                    { id: "btn_support", title: "👩‍💻 Falar Atendente", description: "Dúvidas ou problemas" }
-                                                                ]
+                                                                rows: menuRows
                                                             }]
                                                         }
                                                     }
@@ -1205,6 +1215,14 @@ export default async function handler(req, res) {
                                         }
 
                                         if (replyPayload) {
+                                            // 🚨 LÓGICA PARA O LOJISTA LER O TEXTO REAL DO ROBÔ NO PAINEL
+                                            let realBotText = logTextForPanel;
+                                            if (replyPayload.type === 'text' && replyPayload.text?.body) {
+                                                realBotText = `🤖 ${replyPayload.text.body}`;
+                                            } else if (replyPayload.type === 'interactive' && replyPayload.interactive?.body?.text) {
+                                                realBotText = `🤖 ${replyPayload.interactive.body.text}\n\n*(Opções em botões)*`;
+                                            }
+
                                             const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
                                             const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
@@ -1216,7 +1234,7 @@ export default async function handler(req, res) {
                                                 const batch = db.batch();
                                                 batch.set(db.collection('whatsapp_inbound').doc(), {
                                                     storeId: storeId, phoneNumberId: phoneNumberId, from: message.from, to: message.from, phone: message.from, 
-                                                    text: logTextForPanel, receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                                                    text: realBotText, receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
                                                 });
                                                 if (triggerInternalAlert) {
                                                     batch.set(db.collection('whatsapp_inbound').doc(), {
