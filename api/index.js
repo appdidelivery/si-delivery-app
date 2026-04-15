@@ -960,6 +960,12 @@ export default async function handler(req, res) {
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
                                             const storeName = storeDynamicData.name || 'nossa loja';
                                             
+                                            // --- CORREÇÃO: PUXA O DOMÍNIO PRÓPRIO DO CLIENTE SE EXISTIR ---
+                                            if (storeDynamicData.customDomain) {
+                                                storeDomain = `https://${storeDynamicData.customDomain}`;
+                                            }
+                                            // ---------------------------------------------------------------
+
                                             const addr = storeDynamicData.address || {};
                                             let storeAddressStr = "nosso endereço principal (veja no link do cardápio)";
                                             if (addr.street || addr.city) {
