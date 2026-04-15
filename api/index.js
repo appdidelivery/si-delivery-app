@@ -1150,14 +1150,24 @@ export default async function handler(req, res) {
                                                 replyPayload = { type: "text", text: { body: "🗑️ Sua sacola foi esvaziada! Mande um 'Oi' para recomeçar." } };
                                                 logTextForPanel = `🤖 [Carrinho WPP Esvaziado]`;
                                             }
-                                            else if (incomingTextLower.length > 2) {
+                                            else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
                                                 const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
                                                 
                                                 if (!searchSnap.empty) {
+                                                    // NOVO MOTOR DE BUSCA INTELIGENTE (Ignora "uma", "quero", etc)
+                                                    const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso'];
+                                                    const searchWords = incomingTextLower.split(' ').filter(w => w.length > 2 && !wordsToIgnore.includes(w));
+
                                                     const searchResults = searchSnap.docs.filter(doc => {
                                                         const pData = doc.data();
                                                         const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                        return pName.includes(incomingTextLower);
+                                                        const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                        
+                                                        // Se o cliente não digitou nenhuma palavra válida (ex: mandou só "uma"), não acha nada
+                                                        if (searchWords.length === 0) return false;
+                                                        
+                                                        // Verifica se ALGUMA palavra forte digitada pelo cliente está no nome do produto
+                                                        return searchWords.some(word => pName.includes(word) || pCat.includes(word));
                                                     }).slice(0, 10); 
                                                     
                                                     if (searchResults.length > 0) {
@@ -1179,8 +1189,9 @@ export default async function handler(req, res) {
                                                         };
                                                         logTextForPanel = `🤖 [Busca WhatsApp: Encontrou ${searchResults.length} produtos]`;
                                                     } else {
-                                                        replyPayload = generateMainMenu();
-                                                        logTextForPanel = `🤖 [Menu Fallback Enviado]`;
+                                                        // MENSAGEM DE ERRO AMIGÁVEL EM VEZ DE REPETIR O MENU
+                                                        replyPayload = { type: "text", text: { body: `Poxa, não consegui encontrar nenhum produto com o nome *"${messageText}"* no nosso estoque. 😕\n\nTente digitar apenas a palavra principal (ex: "Polar", "Bacon", "Coca").` } };
+                                                        logTextForPanel = `🤖 [Busca Falhou para: ${messageText}]`;
                                                     }
                                                 } else {
                                                     replyPayload = generateMainMenu();
