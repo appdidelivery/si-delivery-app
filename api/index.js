@@ -910,15 +910,18 @@ export default async function handler(req, res) {
                                         const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                         const nowMs = Date.now();
 
-                                        if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                            if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // Trava de 1 minuto para não fazer spam
-                                                const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
+                                        if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // 1 minuto de trava para você testar agora!
+                                                let firstName = message.profile?.name ? message.profile.name.split(' ')[0] : '';
+                                                let nomeFormatado = firstName ? ` ${firstName}` : '';
+                                                const awayMsg = waSettings.awayMessageText 
+                                                    ? waSettings.awayMessageText.replace('Olá', `Olá${nomeFormatado}`) 
+                                                    : `Olá${nomeFormatado}! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!`;
+                                                    
                                                 replyPayload = { type: "text", text: { body: awayMsg } };
                                                 logTextForPanel = `🤖 ${awayMsg}`;
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, lastAwaySent: nowMs }, { merge: true });
-                                            }
-                                        } 
-                                        else if (isStoreOpen && waSettings.botEnabled) {
+                                            }
+                                        else if (isStoreOpen && waSettings.botEnabled) {
                                             
                                             let customerName = message.profile?.name || '';
                                             let lastOrder = null;
@@ -1012,8 +1015,14 @@ export default async function handler(req, res) {
                                                 };
                                             };
 
+                                            // Helper para tratar o nome do cliente de forma amigável
+                                            const firstName = customerName ? customerName.split(' ')[0] : '';
+                                            const nomeOuVazio = firstName ? `, *${firstName}*` : '';
+                                            const nomeOuAmigo = firstName ? ` *${firstName}*` : ' *amigo(a)*';
+
+                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA PARA NÃO TRAVAR)
                                             if (needsSupport) {
-                                                const supportMsg = "Poxa, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!";
+                                                const supportMsg = `Poxa${nomeOuVazio}, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!`;
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
                                                 logTextForPanel = `🤖 [Transbordo] ${supportMsg}`;
                                                 triggerInternalAlert = true;
@@ -1021,55 +1030,55 @@ export default async function handler(req, res) {
                                             } 
                                             else if (isGreeting) {
                                                 replyPayload = generateMainMenu();
-                                                logTextForPanel = `🤖 [Menu de Boas Vindas Enviado]`;
+                                                logTextForPanel = `🤖 [Menu de Boas Vindas Enviado para ${firstName || 'Cliente'}]`;
                                             }
                                             else if (isStatusTrigger) {
                                                 if (lastOrder) {
                                                     const orderTime = lastOrder.createdAt?.toDate ? lastOrder.createdAt.toDate() : new Date(lastOrder.createdAt?.seconds * 1000 || Date.now());
                                                     const diffMin = Math.floor((Date.now() - orderTime) / 60000);
                                                     const statusMap = { 'pending': '⏳ Aguardando Confirmação', 'preparing': '👨‍🍳 Sendo Preparado', 'delivery': '🏍️ Saiu para Entrega!', 'completed': '✅ Entregue', 'canceled': '❌ Cancelado' };
-                                                    const statusMsg = `🔍 *Status do seu último pedido:*\n\n*ID:* #${lastOrder.id ? lastOrder.id.slice(-5).toUpperCase() : 'N/A'}\n*Status Atual:* ${statusMap[lastOrder.status] || lastOrder.status}\n*Tempo corrido:* ${diffMin} minutos.\n\nSe precisar de ajuda com ele, é só selecionar a opção *Falar Atendente*.`;
+                                                    const statusMsg = `🔍 *Status do seu último pedido${nomeOuVazio}:*\n\n*ID:* #${lastOrder.id ? lastOrder.id.slice(-5).toUpperCase() : 'N/A'}\n*Status Atual:* ${statusMap[lastOrder.status] || lastOrder.status}\n*Tempo corrido:* ${diffMin} minutos.\n\nSe precisar de ajuda com ele, é só selecionar a opção *Falar Atendente*.`;
                                                     replyPayload = { type: "text", text: { body: statusMsg } };
                                                     logTextForPanel = `🤖 [Rastreio] ${statusMsg}`;
                                                 } else {
-                                                    const statusMsg = "Hmm, não consegui encontrar nenhum pedido recente vinculado ao seu número. 🧐\n\nVocê fez o pedido com outro telefone? Se precisar, selecione *Falar Atendente* no menu para falar com a equipe.";
+                                                    const statusMsg = `Hmm${nomeOuVazio}, não consegui encontrar nenhum pedido recente vinculado ao seu número. 🧐\n\nVocê fez o pedido com outro telefone? Se precisar, selecione *Falar Atendente* no menu para falar com a equipe.`;
                                                     replyPayload = { type: "text", text: { body: statusMsg } };
-                                                    logTextForPanel = `🤖 [Rastreio Não Encontrado]`;
+                                                    logTextForPanel = `🤖 [Rastreio Não Encontrado para ${firstName || 'Cliente'}]`;
                                                 }
                                             }
                                             else if (isRepeatTrigger) {
                                                 if (lastOrder && lastOrder.items && lastOrder.items.length > 0) {
                                                     const orderItemsStr = lastOrder.items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
-                                                    const repeatMsg = `🍔 *Seu Último Pedido:*\n\n${orderItemsStr}\n\n*Total:* R$ ${Number(lastOrder.total).toFixed(2)}\n\nBateu aquela fome de novo? 🤤\nPara repetir esse pedido agora mesmo, é só clicar no link do nosso cardápio e adicionar os itens:\n👉 ${storeDomain}`;
+                                                    const repeatMsg = `🍔 *Seu Último Pedido${nomeOuVazio}:*\n\n${orderItemsStr}\n\n*Total:* R$ ${Number(lastOrder.total).toFixed(2)}\n\nBateu aquela fome de novo? 🤤\nPara repetir esse pedido agora mesmo, é só clicar no link do nosso cardápio e adicionar os itens:\n👉 ${storeDomain}`;
                                                     replyPayload = { type: "text", text: { body: repeatMsg } };
                                                     logTextForPanel = `🤖 [Repetir Pedido] ${repeatMsg}`;
                                                 } else {
-                                                    const repeatMsg = "Hmm, não consegui encontrar nenhum pedido recente no seu histórico. 🧐\n\nQue tal dar uma olhadinha no nosso cardápio e escolher algo gostoso agora?\n👉 " + storeDomain;
+                                                    const repeatMsg = `Hmm${nomeOuVazio}, não consegui encontrar nenhum pedido recente no seu histórico. 🧐\n\nQue tal dar uma olhadinha no nosso cardápio e escolher algo gostoso agora?\n👉 ${storeDomain}`;
                                                     replyPayload = { type: "text", text: { body: repeatMsg } };
-                                                    logTextForPanel = `🤖 [Repetir Pedido Não Encontrado]`;
+                                                    logTextForPanel = `🤖 [Repetir Pedido Não Encontrado para ${firstName || 'Cliente'}]`;
                                                 }
                                             }
                                             else if (isFaqEndereco) {
-                                                const faqMsg = `📍 *Nossa Localização e Horário:*\n${storeAddressStr}\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site:\n👉 ${storeDomain}`;
+                                                const faqMsg = `📍 *Nossa Localização e Horário${nomeOuVazio}:*\n${storeAddressStr}\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site:\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
                                             }
                                             else if (isFaqPagamento) {
-                                                const faqMsg = `💳 *Formas de Pagamento Aceitas:*\n\n${paymentsStr}\n\nVocê seleciona a melhor opção no final do pedido pelo site!\n👉 ${storeDomain}`;
+                                                const faqMsg = `💳 *Formas de Pagamento Aceitas${nomeOuVazio}:*\n\n${paymentsStr}\n\nVocê seleciona a melhor opção no final do pedido pelo site!\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
                                                 logTextForPanel = `🤖 [FAQ Pagamento] ${faqMsg}`;
                                             }
                                             else if (isMenuTrigger) {
-                                                const menuMsg = `Que ótimo! Acesse nosso cardápio digital completo e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
+                                                const menuMsg = `Que ótimo${nomeOuAmigo}! Acesse nosso cardápio digital completo e faça seu pedido rápido por aqui:\n\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: menuMsg } };
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else if (isOrderWaTrigger) {
                                                 const productsSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).limit(10).get();
                                                 if (productsSnap.empty) {
-                                                    const emptyMsg = "Poxa, no momento não temos produtos cadastrados para venda direta por aqui. 😔\n\nPor favor, acesse nosso site:\n👉 " + storeDomain;
+                                                    const emptyMsg = `Poxa${nomeOuVazio}, no momento não temos produtos cadastrados para venda direta por aqui. 😔\n\nPor favor, acesse nosso site:\n👉 ${storeDomain}`;
                                                     replyPayload = { type: "text", text: { body: emptyMsg } };
-                                                    logTextForPanel = `🤖 [Catálogo Vazio]`;
+                                                    logTextForPanel = `🤖 [Catálogo Vazio para ${firstName || 'Cliente'}]`;
                                                 } else {
                                                     const productRows = productsSnap.docs.map(doc => {
                                                         const p = doc.data();
@@ -1082,79 +1091,18 @@ export default async function handler(req, res) {
                                                         interactive: {
                                                             type: "list",
                                                             header: { type: "text", text: "🛍️ Cardápio Rápido" },
-                                                            body: { text: "Selecione o produto abaixo.\n\n*Não achou o que queria?*\nÉ só digitar o nome do produto (ex: 'Coca-cola', 'Burger') que eu busco para você!" },
+                                                            body: { text: `${firstName ? `Certo, *${firstName}*! ` : ''}Selecione o produto abaixo.\n\n*Não achou o que queria?*\nÉ só digitar o nome do produto (ex: 'Coca-cola', 'Burger') que eu busco para você!` },
                                                             footer: { text: "Toque abaixo para ver os destaques" },
                                                             action: { button: "Ver Destaques", sections: [{ title: "Mais Vendidos", rows: productRows }] }
                                                         }
                                                     };
-                                                    logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp]`;
+                                                    logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp para ${firstName || 'Cliente'}]`;
                                                 }
-                                            }
-                                            else if (isProductSelection) {
-                                                const productId = interactivePayload.replace('prod_', '');
-                                                const prodDoc = await db.collection('products').doc(productId).get();
-                                                
-                                                if (prodDoc.exists) {
-                                                    const p = prodDoc.data();
-                                                    const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
-                                                    
-                                                    const cartRef = db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`);
-                                                    const cartSnap = await cartRef.get();
-                                                    
-                                                    let cartData = cartSnap.exists ? cartSnap.data() : { 
-                                                        storeId: storeId, phone: normalizedPhone, customerName: customerName || 'Cliente', items: [], total: 0, createdAt: admin.firestore.FieldValue.serverTimestamp() 
-                                                    };
-
-                                                    const existingItemIndex = cartData.items.findIndex(i => i.id === productId);
-                                                    if (existingItemIndex >= 0) cartData.items[existingItemIndex].quantity += 1;
-                                                    else cartData.items.push({ id: productId, name: p.name, price: price, quantity: 1 });
-                                                    
-                                                    cartData.total += price;
-                                                    cartData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-                                                    await cartRef.set(cartData);
-
-                                                    replyPayload = {
-                                                        type: "interactive",
-                                                        interactive: {
-                                                            type: "button",
-                                                            body: { text: `✅ *${p.name}* adicionado à sua sacola!\n\n*Total atual da sacola:* R$ ${cartData.total.toFixed(2)}\n\nO que deseja fazer agora?` },
-                                                            action: {
-                                                                buttons: [
-                                                                    { type: "reply", reply: { id: "btn_order_wa", title: "🛒 Adicionar Mais" } },
-                                                                    { type: "reply", reply: { id: "btn_checkout_wa", title: "✅ Finalizar" } },
-                                                                    { type: "reply", reply: { id: "btn_clear_cart", title: "🗑️ Limpar Sacola" } }
-                                                                ]
-                                                            }
-                                                        }
-                                                    };
-                                                    logTextForPanel = `🤖 [Item adicionado ao Carrinho WPP: ${p.name}]`;
-                                                }
-                                            }
-                                            else if (isCartCheckout) {
-                                                const cartRef = db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`);
-                                                const cartSnap = await cartRef.get();
-                                                
-                                                if (cartSnap.exists && cartSnap.data().items.length > 0) {
-                                                    const cartData = cartSnap.data();
-                                                    const resumoItens = cartData.items.map(i => `▪️ ${i.quantity}x ${i.name} (R$ ${(i.price * i.quantity).toFixed(2)})`).join('\n');
-                                                    const checkoutMsg = `🎉 *Sua Sacola está Pronta!*\n\n${resumoItens}\n\n*Total a pagar:* R$ ${cartData.total.toFixed(2)}\n\nPara escolher seu endereço e pagar (Pix ou Cartão), clique no link abaixo:\n👉 ${storeDomain}/checkout-wpp?phone=${normalizedPhone}`;
-                                                    replyPayload = { type: "text", text: { body: checkoutMsg } };
-                                                    logTextForPanel = `🤖 [Enviou Link de Checkout WPP]`;
-                                                } else {
-                                                    replyPayload = { type: "text", text: { body: "Sua sacola está vazia. Selecione a opção no menu para adicionar itens!" } };
-                                                    logTextForPanel = `🤖 [Tentativa de Checkout Vazio]`;
-                                                }
-                                            }
-                                            else if (isClearCart) {
-                                                await db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`).delete();
-                                                replyPayload = { type: "text", text: { body: "🗑️ Sua sacola foi esvaziada! Mande um 'Oi' para recomeçar." } };
-                                                logTextForPanel = `🤖 [Carrinho WPP Esvaziado]`;
                                             }
                                             else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
                                                 const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
                                                 
                                                 if (!searchSnap.empty) {
-                                                    // NOVO MOTOR DE BUSCA INTELIGENTE (Ignora "uma", "quero", etc)
                                                     const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso'];
                                                     const searchWords = incomingTextLower.split(' ').filter(w => w.length > 2 && !wordsToIgnore.includes(w));
 
@@ -1162,11 +1110,7 @@ export default async function handler(req, res) {
                                                         const pData = doc.data();
                                                         const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                                                         const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                        
-                                                        // Se o cliente não digitou nenhuma palavra válida (ex: mandou só "uma"), não acha nada
                                                         if (searchWords.length === 0) return false;
-                                                        
-                                                        // Verifica se ALGUMA palavra forte digitada pelo cliente está no nome do produto
                                                         return searchWords.some(word => pName.includes(word) || pCat.includes(word));
                                                     }).slice(0, 10); 
                                                     
@@ -1182,15 +1126,14 @@ export default async function handler(req, res) {
                                                             interactive: {
                                                                 type: "list",
                                                                 header: { type: "text", text: "🔍 Resultado da Busca" },
-                                                                body: { text: `Encontrei ${searchResults.length} produto(s) para *"${messageText}"*! 👇` },
+                                                                body: { text: `Encontrei ${searchResults.length} produto(s) para você${nomeOuVazio}! 👇` },
                                                                 footer: { text: "Toque abaixo para escolher" },
                                                                 action: { button: "Ver Resultados", sections: [{ title: "Produtos Encontrados", rows: searchRows }] }
                                                             }
                                                         };
                                                         logTextForPanel = `🤖 [Busca WhatsApp: Encontrou ${searchResults.length} produtos]`;
                                                     } else {
-                                                        // MENSAGEM DE ERRO AMIGÁVEL EM VEZ DE REPETIR O MENU
-                                                        replyPayload = { type: "text", text: { body: `Poxa, não consegui encontrar nenhum produto com o nome *"${messageText}"* no nosso estoque. 😕\n\nTente digitar apenas a palavra principal (ex: "Polar", "Bacon", "Coca").` } };
+                                                        replyPayload = { type: "text", text: { body: `Poxa${nomeOuVazio}, não consegui encontrar nenhum produto com esse nome no nosso estoque. 😕\n\nTente digitar apenas a palavra principal (ex: "Polar", "Bacon", "Coca").` } };
                                                         logTextForPanel = `🤖 [Busca Falhou para: ${messageText}]`;
                                                     }
                                                 } else {
