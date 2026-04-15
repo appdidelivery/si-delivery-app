@@ -876,13 +876,71 @@ export default async function handler(req, res) {
                                     }
 
                                     let logText = messageText;
-                                    if (isMedia) logText = `[Enviou arquivo: ${message.type}]`;
+                                    let logText = messageText;
+                                    let uploadedMediaUrl = null;
+                                    let finalMediaType = null;
+
+                                    if (isMedia) {
+                                        finalMediaType = message.type;
+                                        const mediaObj = message[finalMediaType];
+                                        logText = `[Enviou arquivo: ${finalMediaType}]`;
+                                        
+                                        // --- INTEGRAÇÃO CLOUDINARY PARA MÍDIA DE CLIENTE ---
+                                        if (mediaObj && mediaObj.id && apiToken) {
+                                            try {
+                                                // 1. Pega a URL temporária da Meta
+                                                const metaRes = await fetch(`https://graph.facebook.com/v19.0/${mediaObj.id}`, {
+                                                    headers: { 'Authorization': `Bearer ${apiToken}` }
+                                                });
+                                                const metaData = await metaRes.json();
+                                                
+                                                if (metaData.url) {
+                                                    // 2. Faz o download do arquivo binário usando o Token
+                                                    const rawRes = await fetch(metaData.url, {
+                                                        headers: { 'Authorization': `Bearer ${apiToken}` }
+                                                    });
+                                                    const arrayBuffer = await rawRes.arrayBuffer();
+                                                    const buffer = Buffer.from(arrayBuffer);
+                                                    const mimeType = rawRes.headers.get('content-type');
+                                                    
+                                                    // 3. Converte para Base64 para enviar ao Cloudinary via API REST
+                                                    const base64Data = buffer.toString('base64');
+                                                    const dataUri = `data:${mimeType};base64,${base64Data}`;
+                                                    
+                                                    // Usa as variáveis de ambiente já configuradas na Vercel
+                                                    const cloudName = process.env.VITE_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
+                                                    const uploadPreset = process.env.VITE_CLOUDINARY_UPLOAD_PRESET || process.env.CLOUDINARY_UPLOAD_PRESET;
+
+                                                    const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            file: dataUri,
+                                                            upload_preset: uploadPreset
+                                                        })
+                                                    });
+                                                    
+                                                    const cloudData = await cloudRes.json();
+                                                    if (cloudData.secure_url) {
+                                                        uploadedMediaUrl = cloudData.secure_url;
+                                                        // Limpa o texto se tiver imagem, pro painel mostrar só a imagem bonita
+                                                        logText = messageText || ''; 
+                                                    }
+                                                }
+                                            } catch (mediaError) {
+                                                console.error("Erro ao processar mídia inbound (WhatsApp -> Cloudinary):", mediaError);
+                                            }
+                                        }
+                                    }
+
                                     if (!messageText && !isMedia) logText = `[Formato não suportado/Ação do cliente: ${message.type}]`;
 
-                                    // 1. SALVA A MENSAGEM NO PAINEL DO LOJISTA
+                                    // 1. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA!
                                     await db.collection('whatsapp_inbound').add({
                                         storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
                                         pushName: message.profile?.name || '', text: logText, 
+                                        mediaUrl: uploadedMediaUrl, // <--- URL FINAL DO CLOUDINARY
+                                        mediaType: finalMediaType,  // <--- TIPO (image, audio, video)
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
                                     });
 
@@ -910,7 +968,8 @@ export default async function handler(req, res) {
                                         const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                         const nowMs = Date.now();
 
-                                        if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // 1 minuto de trava para você testar agora!
+                                        // CORREÇÃO: Só envia ausência se a loja estiver FECHADA e a automação estiver ATIVADA.
+                                        if (!isStoreOpen && waSettings.autoAwayMessage && (nowMs - (sessionData.lastAwaySent || 0) > 60000)) { 
                                                 let firstName = message.profile?.name ? message.profile.name.split(' ')[0] : '';
                                                 let nomeFormatado = firstName ? ` ${firstName}` : '';
                                                 const awayMsg = waSettings.awayMessageText 
