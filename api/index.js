@@ -731,11 +731,20 @@ export default async function handler(req, res) {
                 
                 const data = await response.json();
                 if(response.ok) {
-                    // Removido o salvamento duplo aqui, pois o Frontend (AdminChat.jsx) já salva a mensagem com sucesso no Firebase.
                     return res.status(200).json({ success: true });
                 } else {
                     console.error("❌ Falha na API Meta [chat_reply]:", data);
-                    return res.status(400).json({ error: 'Falha na API Meta', details: data });
+                    
+                    let errorMsg = 'Falha ao enviar mensagem pela Meta.';
+                    
+                    // 🚨 TRATAMENTO ESPECÍFICO PARA A REGRA DAS 24 HORAS DA META (Erro 131047)
+                    if (data.error && data.error.code === 131047) {
+                        errorMsg = 'BLOQUEIO DA META: A janela de 24h expirou ou este cliente nunca chamou a loja. Para iniciar uma nova conversa com alguém, o WhatsApp exige que você envie um TEMPLATE APROVADO usando o botão de Disparo.';
+                    } else if (data.error && data.error.message) {
+                        errorMsg = data.error.message;
+                    }
+
+                    return res.status(400).json({ error: errorMsg, details: data });
                 }
             }
             // --- FIM: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
