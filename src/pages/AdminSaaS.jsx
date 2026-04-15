@@ -367,6 +367,30 @@ export default function AdminSaaS() {
         localStorage.setItem('@velo:overrideStoreId', storeId);
         window.location.href = '/admin';
     };
+
+    const handleDeleteStore = async (storeId, storeName) => {
+        const confirmacaoInicial = window.confirm(`ATENÇÃO RISCO MÁXIMO:\n\nVocê está prestes a excluir DEFINITIVAMENTE a loja ${storeName || 'Sem Nome'}.\n\nEssa ação apagará o cadastro principal do cliente e NÃO PODE SER DESFEITA. Deseja continuar?`);
+        
+        if (!confirmacaoInicial) return;
+
+        const travaDeSeguranca = window.prompt(`BLINDAGEM DE SEGURANÇA:\n\nPara confirmar a exclusão de ${storeName || 'Sem Nome'}, digite exatamente a palavra EXCLUIR no campo abaixo:`);
+        
+        if (travaDeSeguranca !== 'EXCLUIR') {
+            alert('Ação cancelada: Palavra de segurança incorreta ou não informada.');
+            return;
+        }
+
+        setActionLoading(`delete_${storeId}`);
+        try {
+            await deleteDoc(doc(db, 'stores', storeId));
+            alert(`A loja ${storeName || 'Sem Nome'} foi excluída permanentemente do Velo Delivery.`);
+            await fetchSaaSData();
+        } catch (error) {
+            alert('Erro ao tentar excluir a loja: ' + error.message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
 // --- LÓGICA DE VENCIMENTO DINÂMICO ---
     const calculateDueDate = (createdAt) => {
         if (!createdAt) return 'Não Definido';
