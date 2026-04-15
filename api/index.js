@@ -753,6 +753,9 @@ export default async function handler(req, res) {
     // ------------------------------------------------------------------------
     // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
     // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
+    // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
 
@@ -840,7 +843,6 @@ export default async function handler(req, res) {
                             let interactivePayload = '';
                             const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
 
-                            // Extração Segura de Texto e Menus
                             if (message.type === 'text') {
                                 messageText = message.text.body;
                             } else if (message.type === 'interactive') {
@@ -873,31 +875,31 @@ export default async function handler(req, res) {
                                         storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                     }
 
-                                    // 1. SALVAR NO PAINEL IMEDIATAMENTE (Garante que a mensagem apareça)
                                     let logText = messageText;
                                     if (isMedia) logText = `[Enviou arquivo: ${message.type}]`;
-                                    if (!messageText && !isMedia) logText = `[Formato não suportado: ${message.type}]`;
+                                    if (!messageText && !isMedia) logText = `[Formato não suportado/Ação do cliente: ${message.type}]`;
 
+                                    // 1. SALVA A MENSAGEM NO PAINEL DO LOJISTA
                                     await db.collection('whatsapp_inbound').add({
                                         storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
                                         pushName: message.profile?.name || '', text: logText, 
-                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread'
+                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
                                     });
 
-                                    // 2. CONTROLE DE SESSÃO E HANDOFF
                                     let normalizedPhone = String(message.from).replace(/\D/g, '');
                                     if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
                                     if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
 
+                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
                                     const sessionSnap = await sessionRef.get();
-                                    
                                     let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0 };
-                                    if (sessionData.botPaused) continue; // SE O LOJISTA ASSUMIU, O ROBO PARA AQUI.
+                                    
+                                    if (sessionData.botPaused) continue; // SE O BOT TÁ PAUSADO, ELE ABORTA AQUI E NÃO MANDA MENU!
 
                                     let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     
-                                    // 3. LÓGICA DO ROBÔ
+                                    // 3. LÓGICA DO ROBÔ (SÓ EXECUTA SE O BOT TIVER ATIVO)
                                     if (apiToken) {
                                         let replyPayload = null;
                                         let logTextForPanel = ""; 
@@ -909,8 +911,7 @@ export default async function handler(req, res) {
                                         const nowMs = Date.now();
 
                                         if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                            // Envia mensagem de ausência (1 vez por hora no máx para não flodar)
-                                            if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // Configurado para 1 minuto para seus testes
+                                            if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // Trava de 1 minuto para não fazer spam
                                                 const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                                 replyPayload = { type: "text", text: { body: awayMsg } };
                                                 logTextForPanel = `🤖 ${awayMsg}`;
@@ -919,29 +920,25 @@ export default async function handler(req, res) {
                                         } 
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            // Inteligência de Reconhecimento
                                             let customerName = message.profile?.name || '';
                                             let lastOrder = null;
                                             
                                             try {
                                                 const phoneVariants = [normalizedPhone, `55${normalizedPhone}`, `+55${normalizedPhone}`];
-                                                const ordersSnap = await db.collection('orders').where('customerPhone', 'in', phoneVariants).get();
+                                                const ordersSnap = await db.collection('orders').where('storeId', '==', storeId).where('customerPhone', 'in', phoneVariants).limit(10).get();
 
                                                 if (!ordersSnap.empty) {
-                                                    const ordersList = ordersSnap.docs.map(d => d.data()).filter(o => o.storeId === storeId);
-                                                    if (ordersList.length > 0) {
-                                                        ordersList.sort((a, b) => {
-                                                            const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-                                                            const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-                                                            return timeB - timeA;
-                                                        });
-                                                        lastOrder = ordersList[0];
-                                                        if (lastOrder && lastOrder.customerName) customerName = lastOrder.customerName.split(' ')[0];
-                                                    }
+                                                    const ordersList = ordersSnap.docs.map(d => d.data());
+                                                    ordersList.sort((a, b) => {
+                                                        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+                                                        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+                                                        return timeB - timeA;
+                                                    });
+                                                    lastOrder = ordersList[0];
+                                                    if (lastOrder && lastOrder.customerName) customerName = lastOrder.customerName.split(' ')[0];
                                                 }
-                                            } catch (e) { console.error("Ignorando erro de busca de pedidos", e); }
+                                            } catch (e) { console.error("Ignorando erro de busca", e); }
 
-                                            // Palavras-chave
                                             const greetings = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'eai', 'tudo bem', 'menu', 'opcoes', 'opções'];
                                             const isGreeting = greetings.some(g => incomingTextLower === g || incomingTextLower.startsWith(`${g} `));
 
@@ -993,7 +990,7 @@ export default async function handler(req, res) {
                                                         action: {
                                                             button: "Abrir Menu",
                                                             sections: [{
-                                                                title: safeStoreName.substring(0, 24),
+                                                                title: safeStoreName.substring(0, 24), 
                                                                 rows: [
                                                                     { id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" },
                                                                     { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
@@ -1087,7 +1084,67 @@ export default async function handler(req, res) {
                                                     logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp]`;
                                                 }
                                             }
-                                            else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
+                                            else if (isProductSelection) {
+                                                const productId = interactivePayload.replace('prod_', '');
+                                                const prodDoc = await db.collection('products').doc(productId).get();
+                                                
+                                                if (prodDoc.exists) {
+                                                    const p = prodDoc.data();
+                                                    const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
+                                                    
+                                                    const cartRef = db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`);
+                                                    const cartSnap = await cartRef.get();
+                                                    
+                                                    let cartData = cartSnap.exists ? cartSnap.data() : { 
+                                                        storeId: storeId, phone: normalizedPhone, customerName: customerName || 'Cliente', items: [], total: 0, createdAt: admin.firestore.FieldValue.serverTimestamp() 
+                                                    };
+
+                                                    const existingItemIndex = cartData.items.findIndex(i => i.id === productId);
+                                                    if (existingItemIndex >= 0) cartData.items[existingItemIndex].quantity += 1;
+                                                    else cartData.items.push({ id: productId, name: p.name, price: price, quantity: 1 });
+                                                    
+                                                    cartData.total += price;
+                                                    cartData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+                                                    await cartRef.set(cartData);
+
+                                                    replyPayload = {
+                                                        type: "interactive",
+                                                        interactive: {
+                                                            type: "button",
+                                                            body: { text: `✅ *${p.name}* adicionado à sua sacola!\n\n*Total atual da sacola:* R$ ${cartData.total.toFixed(2)}\n\nO que deseja fazer agora?` },
+                                                            action: {
+                                                                buttons: [
+                                                                    { type: "reply", reply: { id: "btn_order_wa", title: "🛒 Adicionar Mais" } },
+                                                                    { type: "reply", reply: { id: "btn_checkout_wa", title: "✅ Finalizar" } },
+                                                                    { type: "reply", reply: { id: "btn_clear_cart", title: "🗑️ Limpar Sacola" } }
+                                                                ]
+                                                            }
+                                                        }
+                                                    };
+                                                    logTextForPanel = `🤖 [Item adicionado ao Carrinho WPP: ${p.name}]`;
+                                                }
+                                            }
+                                            else if (isCartCheckout) {
+                                                const cartRef = db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`);
+                                                const cartSnap = await cartRef.get();
+                                                
+                                                if (cartSnap.exists && cartSnap.data().items.length > 0) {
+                                                    const cartData = cartSnap.data();
+                                                    const resumoItens = cartData.items.map(i => `▪️ ${i.quantity}x ${i.name} (R$ ${(i.price * i.quantity).toFixed(2)})`).join('\n');
+                                                    const checkoutMsg = `🎉 *Sua Sacola está Pronta!*\n\n${resumoItens}\n\n*Total a pagar:* R$ ${cartData.total.toFixed(2)}\n\nPara escolher seu endereço e pagar (Pix ou Cartão), clique no link abaixo:\n👉 ${storeDomain}/checkout-wpp?phone=${normalizedPhone}`;
+                                                    replyPayload = { type: "text", text: { body: checkoutMsg } };
+                                                    logTextForPanel = `🤖 [Enviou Link de Checkout WPP]`;
+                                                } else {
+                                                    replyPayload = { type: "text", text: { body: "Sua sacola está vazia. Selecione a opção no menu para adicionar itens!" } };
+                                                    logTextForPanel = `🤖 [Tentativa de Checkout Vazio]`;
+                                                }
+                                            }
+                                            else if (isClearCart) {
+                                                await db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`).delete();
+                                                replyPayload = { type: "text", text: { body: "🗑️ Sua sacola foi esvaziada! Mande um 'Oi' para recomeçar." } };
+                                                logTextForPanel = `🤖 [Carrinho WPP Esvaziado]`;
+                                            }
+                                            else if (incomingTextLower.length > 2) {
                                                 const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
                                                 
                                                 if (!searchSnap.empty) {
@@ -1129,7 +1186,6 @@ export default async function handler(req, res) {
                                             }
                                         }
 
-                                        // 4. DISPARA A RESPOSTA PARA A META E SALVA NO PAINEL
                                         if (replyPayload) {
                                             const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
