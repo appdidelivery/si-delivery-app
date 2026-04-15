@@ -992,9 +992,9 @@ export default async function handler(req, res) {
                                                 return {
                                                     type: "interactive",
                                                     interactive: {
-                                                        type: "list",
-                                                        header: { type: "text", text: "Atendimento Virtual" },
-                                                        body: { text: `${greetingText}\n\nPara agilizar, selecione uma das opções no menu abaixo:` },
+                                                       type: "list",
+                                                        header: { type: "text", text: "Menu" },
+                                                        body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
                                                         footer: { text: "Toque no botão para abrir as opções 👇" },
                                                         action: {
                                                             button: "Abrir Menu",
