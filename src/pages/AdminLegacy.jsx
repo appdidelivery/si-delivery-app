@@ -3288,50 +3288,72 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            {paginatedProductsList.map(p => (                             
-                                                <div key={p.id} className={`bg-white p-6 rounded-[2.5rem] border-2 flex items-center gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
-                                    {/* Checkbox Multi-seleção */}
-                                    <div className="absolute top-4 left-4 z-10">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedProductIds.includes(p.id)}
-                                            onChange={(e) => {
-                                                if(e.target.checked) setSelectedProductIds(prev => [...prev, p.id]);
-                                                else setSelectedProductIds(prev => prev.filter(id => id !== p.id));
-                                            }}
-                                            className="w-5 h-5 accent-blue-600 cursor-pointer shadow-sm"
-                                        />
-                                    </div>
-                                    <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-20 h-20 object-contain rounded-2xl bg-white border border-slate-100 p-2 ml-4 relative z-0" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-    <p className={`font-bold leading-tight ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{p.name}</p>
-    {p.isActive === false && <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-black uppercase border border-slate-200">Pausado</span>}
-</div>
-                                        {/* PASSO 4: Exibição dos novos preços na listagem */}
-                                        <div className='flex items-end gap-2'>
-                                            <p className={`text-blue-600 font-black text-lg ${p.promotionalPrice > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
-                                                R$ {Number(p.price)?.toFixed(2)}
-                                            </p>
-                                            {p.promotionalPrice > 0 && (
-                                                <p className="text-orange-500 font-black text-lg">
-                                                    R$ {Number(p.promotionalPrice)?.toFixed(2)}
-                                                </p>
-                                            )}
-                                        </div>
-                                        {p.costPrice > 0 && (
-                                             <p className="text-xs font-bold text-slate-400">Custo: R$ {Number(p.costPrice).toFixed(2)}</p>
-                                        )}
-                                        <p className={`text-xs font-bold mt-1 ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>Estoque: {p.stock !== undefined ? p.stock : 'N/A'}</p>
-                                    </div>
-                                    <div className="flex flex-col gap-2 z-10 relative">
-                                        <button onClick={() => handleQuickToggleProduct(p)} className={`p-2 rounded-xl transition-all ${p.isActive === false ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`} title={p.isActive === false ? 'Produto Oculto (Clique para Ativar)' : 'Produto Ativo (Clique para Ocultar)'}>
-                                            {p.isActive === false ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </button>
-                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '', isActive: p.isActive !== false }); setIsModalOpen(true); }} className="p-2 bg-slate-50 rounded-xl text-blue-600 hover:bg-blue-100"><Edit3 size={18} /></button>
-                                            <button onClick={() => window.confirm("Excluir?") && deleteDoc(doc(db, "products", p.id))} className="p-2 bg-slate-50 rounded-xl text-red-600 hover:bg-red-100"><Trash2 size={18} /></button>
-                                        </div>
-                                    </div>
+                                           {paginatedProductsList.map(p => (                             
+                                                <div key={p.id} className={`bg-white p-5 md:p-6 rounded-[2.5rem] border-2 flex items-stretch gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
+                                    
+                                                    {/* COLUNA 1: Checkbox + Foto (Tamanho Fixo para não amassar) */}
+                                                    <div className="flex flex-col items-center gap-3 flex-shrink-0 w-16 md:w-20">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedProductIds.includes(p.id)}
+                                                            onChange={(e) => {
+                                                                if(e.target.checked) setSelectedProductIds(prev => [...prev, p.id]);
+                                                                else setSelectedProductIds(prev => prev.filter(id => id !== p.id));
+                                                            }}
+                                                            className="w-5 h-5 accent-blue-600 cursor-pointer shadow-sm relative z-10"
+                                                        />
+                                                        <div className="w-16 h-16 md:w-20 md:h-20 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-2xl p-1 shadow-sm">
+                                                            <img src={p.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="max-w-full max-h-full object-contain rounded-xl" onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* COLUNA 2: Textos (Pode crescer, mas se for muito longo vira ... e corta pra não empurrar os botões) */}
+                                                    <div className="flex-1 min-w-0 flex flex-col justify-center relative z-10">
+                                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                            <h3 className={`font-black text-sm md:text-base leading-tight truncate ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`} title={p.name}>
+                                                                {p.name}
+                                                            </h3>
+                                                            {p.isActive === false && (
+                                                                <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200 shrink-0">
+                                                                    Pausado
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        <div className='flex items-center gap-2 mt-1'>
+                                                            <p className={`text-blue-600 font-black text-lg ${p.promotionalPrice > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
+                                                                R$ {Number(p.price)?.toFixed(2)}
+                                                            </p>
+                                                            {p.promotionalPrice > 0 && (
+                                                                <p className="text-orange-500 font-black text-lg">
+                                                                    R$ {Number(p.promotionalPrice)?.toFixed(2)}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {p.costPrice > 0 && (
+                                                             <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                                                 Custo: <span className="text-slate-500">R$ {Number(p.costPrice).toFixed(2)}</span>
+                                                             </p>
+                                                        )}
+                                                        <p className={`text-[10px] font-bold mt-1 uppercase tracking-widest ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                            Estoque: <span className={p.stock <= 2 ? 'text-red-600' : 'text-slate-500'}>{p.stock !== undefined ? p.stock : 'N/A'}</span>
+                                                        </p>
+                                                    </div>
+
+                                                    {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}
+                                                    <div className="flex flex-col justify-center gap-2 flex-shrink-0 relative z-10 w-10">
+                                                        <button onClick={() => handleQuickToggleProduct(p)} className={`p-2.5 rounded-xl transition-all shadow-sm ${p.isActive === false ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'}`} title={p.isActive === false ? 'Oculto (Clique para Ativar)' : 'Ativo (Clique para Ocultar)'}>
+                                                            {p.isActive === false ? <EyeOff size={18} className="mx-auto" /> : <Eye size={18} className="mx-auto" />}
+                                                        </button>
+                                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: p.consumedIngredients || [], quantityDiscounts: p.quantityDiscounts || [], recommendedIds: p.recommendedIds ||[], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: p.suitableForDiet ||[], variations: p.variations ? p.variations.join(', ') : '', removables: p.removables ? p.removables.join(', ') : '', isActive: p.isActive !== false }); setIsModalOpen(true); }} className="p-2.5 bg-slate-50 rounded-xl text-blue-600 border border-slate-100 hover:bg-blue-100 transition-all shadow-sm">
+                                                            <Edit3 size={18} className="mx-auto" />
+                                                        </button>
+                                                        <button onClick={() => window.confirm("Deseja excluir este produto?") && deleteDoc(doc(db, "products", p.id))} className="p-2.5 bg-slate-50 rounded-xl text-red-500 border border-slate-100 hover:bg-red-100 transition-all shadow-sm">
+                                                            <Trash2 size={18} className="mx-auto" />
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     )}
