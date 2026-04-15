@@ -750,6 +750,9 @@ export default async function handler(req, res) {
   // ------------------------------------------------------------------------
     // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
     // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
+    // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
 
@@ -770,37 +773,31 @@ export default async function handler(req, res) {
         if (req.method === 'POST') {
             const body = req.body;
 
-           // Função nativa para ler o fuso horário correto do Brasil com proteção anti-crash
+            // Função blindada para checar horário e modo férias
             const checkIsStoreOpen = (storeData) => {
                 try {
-                    if (storeData.isOpen === false) return false; // Botão de Pânico (Painel)
+                    if (storeData.isOpen === false) return false; 
                     
-                    // Modo Férias
                     if (storeData.vacationMode && storeData.vacationMode.active) {
                         const nowTime = new Date().getTime();
                         const startVacation = new Date(storeData.vacationMode.start).getTime();
                         const endVacation = new Date(storeData.vacationMode.end).getTime();
-
-                        if (nowTime >= startVacation && nowTime <= endVacation) {
-                            return false; // Está de férias
-                        }
+                        if (nowTime >= startVacation && nowTime <= endVacation) return false;
                     }
 
-                    if (!storeData.schedule || Object.keys(storeData.schedule).length === 0) return true; // Se não configurou horário, assume que está online
+                    if (!storeData.schedule || Object.keys(storeData.schedule).length === 0) return true;
 
-                    // Corrige bug do Vercel pegando a hora exata do Brasil via offset
                     const now = new Date();
                     const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-                    const brazilTime = new Date(utc - (3600000 * 3)); // Força UTC-3 (Horário de Brasília)
+                    const brazilTime = new Date(utc - (3600000 * 3)); 
 
                     const currentHour = brazilTime.getHours();
                     const currentMinute = brazilTime.getMinutes();
                     const currentTimeInt = (currentHour * 60) + currentMinute;
-                    
-                    const currentDay = brazilTime.getDay(); // 0 = Dom, 1 = Seg, etc.
+                    const currentDay = brazilTime.getDay(); 
 
                     const daySchedule = storeData.schedule[currentDay];
-                    if (!daySchedule || !daySchedule.open) return false; // Lojista marcou esse dia da semana como Fechado
+                    if (!daySchedule || !daySchedule.open) return false; 
 
                     const parseTime = (timeStr) => {
                         if (!timeStr) return null;
@@ -812,10 +809,8 @@ export default async function handler(req, res) {
                         const start = parseTime(startStr); const end = parseTime(endStr);
                         if (start === null || end === null) return false;
                         if (end < start) { 
-                            // Loja vira a madrugada (Ex: 18:00 as 02:00)
                             return currentTimeInt >= start || currentTimeInt <= end;
                         } else { 
-                            // Horário normal (Ex: 08:00 as 18:00)
                             return currentTimeInt >= start && currentTimeInt <= end;
                         }
                     };
@@ -829,10 +824,11 @@ export default async function handler(req, res) {
                     return isOpenShift1 || isOpenShift2;
                 } catch (error) {
                     console.error("Erro na checagem de horário:", error);
-                    // Se o cálculo quebrar por algum motivo bizarro de fuso horário, o bot continua respondendo como se estivesse aberto para não deixar o cliente no vácuo
                     return true; 
                 }
             };
+
+            if (body.object === 'whatsapp_business_account') {
                 for (const entry of body.entry) {
                     for (const change of entry.changes) {
                         const value = change.value;
@@ -842,9 +838,9 @@ export default async function handler(req, res) {
                             const message = value.messages[0];
                             let messageText = '';
                             let interactivePayload = '';
-
                             const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
 
+                            // Extração Segura de Texto e Menus
                             if (message.type === 'text') {
                                 messageText = message.text.body;
                             } else if (message.type === 'interactive') {
@@ -861,12 +857,8 @@ export default async function handler(req, res) {
                             }
 
                             if (messageText || isMedia) {
-                               try {
-                                    // --- BLINDAGEM ANTI-CRASH DO WEBHOOK ---
-                                    if (!phoneNumberId) {
-                                        console.warn("Webhook recebido sem phoneNumberId. Ignorando para não travar a API.");
-                                        continue;
-                                    }
+                                try {
+                                    if (!phoneNumberId) continue;
 
                                     let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
                                     
@@ -881,9 +873,10 @@ export default async function handler(req, res) {
                                         storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                     }
 
+                                    // 1. SALVAR NO PAINEL IMEDIATAMENTE (Garante que a mensagem apareça)
                                     let logText = messageText;
                                     if (isMedia) logText = `[Enviou arquivo: ${message.type}]`;
-                                    if (!messageText && !isMedia) logText = `[Formato não suportado/Ação do cliente: ${message.type}]`;
+                                    if (!messageText && !isMedia) logText = `[Formato não suportado: ${message.type}]`;
 
                                     await db.collection('whatsapp_inbound').add({
                                         storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
@@ -891,7 +884,7 @@ export default async function handler(req, res) {
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread'
                                     });
 
-                                    // Normaliza o número para o Controle de Sessão
+                                    // 2. CONTROLE DE SESSÃO E HANDOFF
                                     let normalizedPhone = String(message.from).replace(/\D/g, '');
                                     if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
                                     if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
@@ -900,27 +893,24 @@ export default async function handler(req, res) {
                                     const sessionSnap = await sessionRef.get();
                                     
                                     let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0 };
-                                    let botPaused = sessionData.botPaused || false;
-
-                                    // SE O BOT ESTIVER PAUSADO, ELE ABORTA AQUI
-                                    if (botPaused) continue;
+                                    if (sessionData.botPaused) continue; // SE O LOJISTA ASSUMIU, O ROBO PARA AQUI.
 
                                     let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     
+                                    // 3. LÓGICA DO ROBÔ
                                     if (apiToken) {
                                         let replyPayload = null;
                                         let logTextForPanel = ""; 
                                         let triggerInternalAlert = false; 
 
                                         const storeDoc = await db.collection('stores').doc(storeId).get();
-                                        
                                         const isStoreOpen = checkIsStoreOpen(storeDoc.exists ? storeDoc.data() : {});
                                         const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                         const nowMs = Date.now();
 
                                         if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                            // Reduzido para 5 minutos para testes (300000 ms). Em produção, mude para 3600000 (1 hora).
-                                            if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // 1 minuto de trava para você testar agora!
+                                            // Envia mensagem de ausência (1 vez por hora no máx para não flodar)
+                                            if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // Configurado para 1 minuto para seus testes
                                                 const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                                 replyPayload = { type: "text", text: { body: awayMsg } };
                                                 logTextForPanel = `🤖 ${awayMsg}`;
@@ -929,42 +919,30 @@ export default async function handler(req, res) {
                                         } 
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
+                                            // Inteligência de Reconhecimento
                                             let customerName = message.profile?.name || '';
                                             let lastOrder = null;
                                             
                                             try {
-                                                // Busca segura sem exigir Índice Composto no Firebase (Blinda contra Crash)
                                                 const phoneVariants = [normalizedPhone, `55${normalizedPhone}`, `+55${normalizedPhone}`];
-                                                const ordersSnap = await db.collection('orders')
-                                                    .where('customerPhone', 'in', phoneVariants)
-                                                    .get();
+                                                const ordersSnap = await db.collection('orders').where('customerPhone', 'in', phoneVariants).get();
 
                                                 if (!ordersSnap.empty) {
-                                                    // Filtra a loja na memória (Fator de segurança)
-                                                    const ordersList = ordersSnap.docs
-                                                        .map(d => d.data())
-                                                        .filter(o => o.storeId === storeId);
-                                                        
+                                                    const ordersList = ordersSnap.docs.map(d => d.data()).filter(o => o.storeId === storeId);
                                                     if (ordersList.length > 0) {
                                                         ordersList.sort((a, b) => {
                                                             const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
                                                             const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
                                                             return timeB - timeA;
                                                         });
-                                                        
                                                         lastOrder = ordersList[0];
-                                                        if (lastOrder && lastOrder.customerName) {
-                                                            customerName = lastOrder.customerName.split(' ')[0];
-                                                        }
+                                                        if (lastOrder && lastOrder.customerName) customerName = lastOrder.customerName.split(' ')[0];
                                                     }
                                                 }
-                                            } catch (dbError) {
-                                                console.error("Erro ao buscar histórico do cliente (ignorado):", dbError);
-                                            }
+                                            } catch (e) { console.error("Ignorando erro de busca de pedidos", e); }
 
-                                            // 1. DEFINIÇÃO DAS PALAVRAS-CHAVE E TRIGGERS
+                                            // Palavras-chave
                                             const greetings = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'eai', 'tudo bem', 'menu', 'opcoes', 'opções'];
-                                            // Flexibiliza o greeting para aceitar frases pequenas como "bom dia teste" sem quebrar a busca
                                             const isGreeting = greetings.some(g => incomingTextLower === g || incomingTextLower.startsWith(`${g} `));
 
                                             const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
@@ -1015,7 +993,7 @@ export default async function handler(req, res) {
                                                         action: {
                                                             button: "Abrir Menu",
                                                             sections: [{
-                                                                title: safeStoreName.substring(0, 24), // Blinda o limite exigido pela Meta
+                                                                title: safeStoreName.substring(0, 24),
                                                                 rows: [
                                                                     { id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" },
                                                                     { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
@@ -1031,7 +1009,6 @@ export default async function handler(req, res) {
                                                 };
                                             };
 
-                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA PARA NÃO TRAVAR)
                                             if (needsSupport) {
                                                 const supportMsg = "Poxa, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!";
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
@@ -1094,7 +1071,7 @@ export default async function handler(req, res) {
                                                     const productRows = productsSnap.docs.map(doc => {
                                                         const p = doc.data();
                                                         const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
-                                                        const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar ao carrinho'}`;
+                                                        const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar'}`;
                                                         return { id: `prod_${doc.id}`, title: (p.name || 'Produto').substring(0, 24), description: descFormatada.substring(0, 72) };
                                                     });
                                                     replyPayload = {
@@ -1110,67 +1087,7 @@ export default async function handler(req, res) {
                                                     logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp]`;
                                                 }
                                             }
-                                            else if (isProductSelection) {
-                                                const productId = interactivePayload.replace('prod_', '');
-                                                const prodDoc = await db.collection('products').doc(productId).get();
-                                                
-                                                if (prodDoc.exists) {
-                                                    const p = prodDoc.data();
-                                                    const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
-                                                    
-                                                    const cartRef = db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`);
-                                                    const cartSnap = await cartRef.get();
-                                                    
-                                                    let cartData = cartSnap.exists ? cartSnap.data() : { 
-                                                        storeId: storeId, phone: normalizedPhone, customerName: customerName || 'Cliente', items: [], total: 0, createdAt: admin.firestore.FieldValue.serverTimestamp() 
-                                                    };
-
-                                                    const existingItemIndex = cartData.items.findIndex(i => i.id === productId);
-                                                    if (existingItemIndex >= 0) cartData.items[existingItemIndex].quantity += 1;
-                                                    else cartData.items.push({ id: productId, name: p.name, price: price, quantity: 1 });
-                                                    
-                                                    cartData.total += price;
-                                                    cartData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-                                                    await cartRef.set(cartData);
-
-                                                    replyPayload = {
-                                                        type: "interactive",
-                                                        interactive: {
-                                                            type: "button",
-                                                            body: { text: `✅ *${p.name}* adicionado à sua sacola!\n\n*Total atual da sacola:* R$ ${cartData.total.toFixed(2)}\n\nO que deseja fazer agora?` },
-                                                            action: {
-                                                                buttons: [
-                                                                    { type: "reply", reply: { id: "btn_order_wa", title: "🛒 Adicionar Mais" } },
-                                                                    { type: "reply", reply: { id: "btn_checkout_wa", title: "✅ Finalizar" } },
-                                                                    { type: "reply", reply: { id: "btn_clear_cart", title: "🗑️ Limpar Sacola" } }
-                                                                ]
-                                                            }
-                                                        }
-                                                    };
-                                                    logTextForPanel = `🤖 [Item adicionado ao Carrinho WPP: ${p.name}]`;
-                                                }
-                                            }
-                                            else if (isCartCheckout) {
-                                                const cartRef = db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`);
-                                                const cartSnap = await cartRef.get();
-                                                
-                                                if (cartSnap.exists && cartSnap.data().items.length > 0) {
-                                                    const cartData = cartSnap.data();
-                                                    const resumoItens = cartData.items.map(i => `▪️ ${i.quantity}x ${i.name} (R$ ${(i.price * i.quantity).toFixed(2)})`).join('\n');
-                                                    const checkoutMsg = `🎉 *Sua Sacola está Pronta!*\n\n${resumoItens}\n\n*Total a pagar:* R$ ${cartData.total.toFixed(2)}\n\nPara escolher seu endereço e pagar (Pix ou Cartão), clique no link abaixo:\n👉 ${storeDomain}/checkout-wpp?phone=${normalizedPhone}`;
-                                                    replyPayload = { type: "text", text: { body: checkoutMsg } };
-                                                    logTextForPanel = `🤖 [Enviou Link de Checkout WPP]`;
-                                                } else {
-                                                    replyPayload = { type: "text", text: { body: "Sua sacola está vazia. Selecione a opção no menu para adicionar itens!" } };
-                                                    logTextForPanel = `🤖 [Tentativa de Checkout Vazio]`;
-                                                }
-                                            }
-                                            else if (isClearCart) {
-                                                await db.collection('carrinhos_wpp').doc(`${storeId}_${normalizedPhone}`).delete();
-                                                replyPayload = { type: "text", text: { body: "🗑️ Sua sacola foi esvaziada! Mande um 'Oi' para recomeçar." } };
-                                                logTextForPanel = `🤖 [Carrinho WPP Esvaziado]`;
-                                            }
-                                            else if (incomingTextLower.length > 2) {
+                                            else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
                                                 const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
                                                 
                                                 if (!searchSnap.empty) {
@@ -1212,7 +1129,7 @@ export default async function handler(req, res) {
                                             }
                                         }
 
-                                        // DISPARA A RESPOSTA PARA A META
+                                        // 4. DISPARA A RESPOSTA PARA A META E SALVA NO PAINEL
                                         if (replyPayload) {
                                             const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
@@ -1238,7 +1155,9 @@ export default async function handler(req, res) {
                                             }
                                         }
                                     }
-                                } catch (error) { console.error('❌ Erro no processamento do Webhook:', error); }
+                                } catch (error) { 
+                                    console.error('❌ Erro crítico no processamento do Webhook:', error); 
+                                }
                             }
                         }
                     }
