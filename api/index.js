@@ -914,51 +914,58 @@ export default async function handler(req, res) {
 
                                         const storeDoc = await db.collection('stores').doc(storeId).get();
                                         
-                                        // VALIDAÇÃO DE HORÁRIO OFICIAL
                                         const isStoreOpen = checkIsStoreOpen(storeDoc.exists ? storeDoc.data() : {});
                                         const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                         const nowMs = Date.now();
 
-                                        // REGRA A: LOJA FECHADA (Fora do horário ou botão desativado)
                                         if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                            if (nowMs - (sessionData.lastAwaySent || 0) > 3600000) {
+                                            // Reduzido para 5 minutos para testes (300000 ms). Em produção, mude para 3600000 (1 hora).
+                                            if (nowMs - (sessionData.lastAwaySent || 0) > 60000) { // 1 minuto de trava para você testar agora!
                                                 const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                                 replyPayload = { type: "text", text: { body: awayMsg } };
                                                 logTextForPanel = `🤖 ${awayMsg}`;
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, lastAwaySent: nowMs }, { merge: true });
                                             }
                                         } 
-                                        // REGRA B: LOJA ABERTA E BOT LIGADO
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            // --- IDENTIFICAÇÃO DO CLIENTE E RASTREIO ---
                                             let customerName = message.profile?.name || '';
                                             let lastOrder = null;
                                             
-                                            const phoneVariants = [normalizedPhone, `55${normalizedPhone}`, `+55${normalizedPhone}`];
-                                            const ordersSnap = await db.collection('orders')
-                                                .where('storeId', '==', storeId)
-                                                .where('customerPhone', 'in', phoneVariants)
-                                                .limit(10)
-                                                .get();
+                                            try {
+                                                // Busca segura sem exigir Índice Composto no Firebase (Blinda contra Crash)
+                                                const phoneVariants = [normalizedPhone, `55${normalizedPhone}`, `+55${normalizedPhone}`];
+                                                const ordersSnap = await db.collection('orders')
+                                                    .where('customerPhone', 'in', phoneVariants)
+                                                    .get();
 
-                                            if (!ordersSnap.empty) {
-                                                const ordersList = ordersSnap.docs.map(d => d.data());
-                                                ordersList.sort((a, b) => {
-                                                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-                                                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-                                                    return timeB - timeA;
-                                                });
-                                                
-                                                lastOrder = ordersList[0];
-                                                if (lastOrder && lastOrder.customerName) {
-                                                    customerName = lastOrder.customerName.split(' ')[0];
+                                                if (!ordersSnap.empty) {
+                                                    // Filtra a loja na memória (Fator de segurança)
+                                                    const ordersList = ordersSnap.docs
+                                                        .map(d => d.data())
+                                                        .filter(o => o.storeId === storeId);
+                                                        
+                                                    if (ordersList.length > 0) {
+                                                        ordersList.sort((a, b) => {
+                                                            const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+                                                            const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+                                                            return timeB - timeA;
+                                                        });
+                                                        
+                                                        lastOrder = ordersList[0];
+                                                        if (lastOrder && lastOrder.customerName) {
+                                                            customerName = lastOrder.customerName.split(' ')[0];
+                                                        }
+                                                    }
                                                 }
+                                            } catch (dbError) {
+                                                console.error("Erro ao buscar histórico do cliente (ignorado):", dbError);
                                             }
 
-                                            // 1. DEFINIÇÃO DAS PALAVRAS-CHAVE E PAYLOADS
+                                            // 1. DEFINIÇÃO DAS PALAVRAS-CHAVE E TRIGGERS
                                             const greetings = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'eai', 'tudo bem', 'menu', 'opcoes', 'opções'];
-                                            const isGreeting = greetings.includes(incomingTextLower);
+                                            // Flexibiliza o greeting para aceitar frases pequenas como "bom dia teste" sem quebrar a busca
+                                            const isGreeting = greetings.some(g => incomingTextLower === g || incomingTextLower.startsWith(`${g} `));
 
                                             const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
@@ -997,6 +1004,7 @@ export default async function handler(req, res) {
                                                 let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
                                                 if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
                                                 const safeStoreName = (storeName && storeName.trim() !== '') ? storeName : 'Nossa Loja';
+                                                
                                                 return {
                                                     type: "interactive",
                                                     interactive: {
@@ -1007,7 +1015,7 @@ export default async function handler(req, res) {
                                                         action: {
                                                             button: "Abrir Menu",
                                                             sections: [{
-                                                                title: safeStoreName.substring(0, 24),
+                                                                title: safeStoreName.substring(0, 24), // Blinda o limite exigido pela Meta
                                                                 rows: [
                                                                     { id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" },
                                                                     { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
@@ -1023,7 +1031,7 @@ export default async function handler(req, res) {
                                                 };
                                             };
 
-                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA)
+                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA PARA NÃO TRAVAR)
                                             if (needsSupport) {
                                                 const supportMsg = "Poxa, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!";
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
@@ -1204,7 +1212,7 @@ export default async function handler(req, res) {
                                             }
                                         }
 
-                                        // DISPARA A RESPOSTA
+                                        // DISPARA A RESPOSTA PARA A META
                                         if (replyPayload) {
                                             const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
@@ -1230,7 +1238,7 @@ export default async function handler(req, res) {
                                             }
                                         }
                                     }
-                                } catch (error) { console.error('❌ Erro no processamento:', error); }
+                                } catch (error) { console.error('❌ Erro no processamento do Webhook:', error); }
                             }
                         }
                     }
