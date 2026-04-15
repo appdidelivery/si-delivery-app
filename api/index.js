@@ -875,8 +875,7 @@ export default async function handler(req, res) {
                                         storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                     }
 
-                                    let logText = messageText;
-                                    let logText = messageText;
+                                    let logText = messageText || '';
                                     let uploadedMediaUrl = null;
                                     let finalMediaType = null;
 
