@@ -770,71 +770,69 @@ export default async function handler(req, res) {
         if (req.method === 'POST') {
             const body = req.body;
 
-            // Função nativa para ler o fuso horário correto do Brasil (Evita erros de servidor em outro país)
+           // Função nativa para ler o fuso horário correto do Brasil com proteção anti-crash
             const checkIsStoreOpen = (storeData) => {
-                if (storeData.isOpen === false) return false; // Loja fechada no botão mestre
-                
-                // --- INÍCIO: TRAVA DO MODO FÉRIAS / FERIADO ---
-                if (storeData.vacationMode && storeData.vacationMode.active) {
-                    const nowTime = new Date().getTime();
-                    const startVacation = new Date(storeData.vacationMode.start).getTime();
-                    const endVacation = new Date(storeData.vacationMode.end).getTime();
+                try {
+                    if (storeData.isOpen === false) return false; // Botão de Pânico (Painel)
+                    
+                    // Modo Férias
+                    if (storeData.vacationMode && storeData.vacationMode.active) {
+                        const nowTime = new Date().getTime();
+                        const startVacation = new Date(storeData.vacationMode.start).getTime();
+                        const endVacation = new Date(storeData.vacationMode.end).getTime();
 
-                    if (nowTime >= startVacation && nowTime <= endVacation) {
-                        return false; // Está de férias! Retorna que a loja está fechada.
+                        if (nowTime >= startVacation && nowTime <= endVacation) {
+                            return false; // Está de férias
+                        }
                     }
-                }
-                // --- FIM: TRAVA DO MODO FÉRIAS ---
 
-                if (!storeData.schedule) return true; // Se não tem agenda cadastrada, assume aberta
+                    if (!storeData.schedule || Object.keys(storeData.schedule).length === 0) return true; // Se não configurou horário, assume que está online
 
-                // Pega a hora atual em São Paulo
-                const now = new Date();
-                const timeOpts = { timeZone: 'America/Sao_Paulo', hour: 'numeric', minute: 'numeric', hour12: false };
-                const timeParts = new Intl.DateTimeFormat('en-US', timeOpts).formatToParts(now);
-                
-                let currentHour = 0; let currentMinute = 0;
-                timeParts.forEach(p => {
-                    if (p.type === 'hour') currentHour = parseInt(p.value, 10);
-                    if (p.type === 'minute') currentMinute = parseInt(p.value, 10);
-                });
-                if (currentHour === 24) currentHour = 0;
-                const currentTimeInt = currentHour * 60 + currentMinute;
+                    // Corrige bug do Vercel pegando a hora exata do Brasil via offset
+                    const now = new Date();
+                    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                    const brazilTime = new Date(utc - (3600000 * 3)); // Força UTC-3 (Horário de Brasília)
 
-                // Pega o dia da semana atual em São Paulo (0=Dom, 1=Seg, 2=Ter...)
-                const dayString = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(now);
-                const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
-                const currentDay = dayMap[dayString];
+                    const currentHour = brazilTime.getHours();
+                    const currentMinute = brazilTime.getMinutes();
+                    const currentTimeInt = (currentHour * 60) + currentMinute;
+                    
+                    const currentDay = brazilTime.getDay(); // 0 = Dom, 1 = Seg, etc.
 
-                const daySchedule = storeData.schedule[currentDay];
-                if (!daySchedule || !daySchedule.open) return false; // Fechado hoje
+                    const daySchedule = storeData.schedule[currentDay];
+                    if (!daySchedule || !daySchedule.open) return false; // Lojista marcou esse dia da semana como Fechado
 
-                const parseTime = (timeStr) => {
-                    if (!timeStr) return null;
-                    const [h, m] = timeStr.split(':').map(Number);
-                    return h * 60 + m;
-                };
+                    const parseTime = (timeStr) => {
+                        if (!timeStr) return null;
+                        const [h, m] = timeStr.split(':').map(Number);
+                        return (h * 60) + m;
+                    };
 
-                const checkShift = (startStr, endStr) => {
-                    const start = parseTime(startStr); const end = parseTime(endStr);
-                    if (start === null || end === null) return false;
-                    if (end < start) { // Madrugada (Ex: 18:00 as 02:00)
-                        return currentTimeInt >= start || currentTimeInt <= end;
-                    } else { // Normal (Ex: 08:00 as 18:00)
-                        return currentTimeInt >= start && currentTimeInt <= end;
+                    const checkShift = (startStr, endStr) => {
+                        const start = parseTime(startStr); const end = parseTime(endStr);
+                        if (start === null || end === null) return false;
+                        if (end < start) { 
+                            // Loja vira a madrugada (Ex: 18:00 as 02:00)
+                            return currentTimeInt >= start || currentTimeInt <= end;
+                        } else { 
+                            // Horário normal (Ex: 08:00 as 18:00)
+                            return currentTimeInt >= start && currentTimeInt <= end;
+                        }
+                    };
+
+                    const isOpenShift1 = checkShift(daySchedule.start, daySchedule.end);
+                    let isOpenShift2 = false;
+                    if (daySchedule.splitShift) {
+                        isOpenShift2 = checkShift(daySchedule.start2, daySchedule.end2);
                     }
-                };
 
-                const isOpenShift1 = checkShift(daySchedule.start, daySchedule.end);
-                let isOpenShift2 = false;
-                if (daySchedule.splitShift) {
-                    isOpenShift2 = checkShift(daySchedule.start2, daySchedule.end2);
+                    return isOpenShift1 || isOpenShift2;
+                } catch (error) {
+                    console.error("Erro na checagem de horário:", error);
+                    // Se o cálculo quebrar por algum motivo bizarro de fuso horário, o bot continua respondendo como se estivesse aberto para não deixar o cliente no vácuo
+                    return true; 
                 }
-
-                return isOpenShift1 || isOpenShift2;
             };
-
-            if (body.object === 'whatsapp_business_account') {
                 for (const entry of body.entry) {
                     for (const change of entry.changes) {
                         const value = change.value;
