@@ -7106,28 +7106,46 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 }
                             }} className="space-y-4">
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-4">
+                                    {/* LINHA 1: Código do Cupom (Ocupa 100% da largura para respirar) */}
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-400 ml-2">Código do Cupom</label>
-                                        <input type="text" placeholder="Ex: PROMO10" className="w-full p-5 bg-slate-50 rounded-2xl font-bold uppercase" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
+                                        <input type="text" placeholder="Ex: FOME10" className="w-full p-5 bg-slate-50 rounded-2xl font-bold uppercase outline-none focus:ring-2 ring-blue-500 transition-all text-slate-700" value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} required />
                                     </div>
-                                    <div className="flex gap-2 items-end">
-                                        <div className="space-y-1 w-1/2">
+
+                                    {/* LINHA 2: Tipo e Valor (Dividem meio a meio no desktop) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-400 ml-2">Tipo de Desconto</label>
-                                                                    <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-blue-500" value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value})}>
-                                                                        <option value="percentage">% (Porcentagem)</option>
-                                                                        <option value="fixed_amount">R$ (Valor Fixo)</option>
-                                                                        <option value="free_shipping">🚚 Frete Grátis</option>
-                                                                        <option value="bogo_50">🔥 2º Item c/ 50% OFF</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div className="space-y-1 flex-1">
-                                                                    <label className="text-xs font-bold text-slate-400 ml-2">Valor {['bogo_50', 'free_shipping'].includes(couponForm.type) ? '(Não se aplica)' : ''}</label>
-                                                                    <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required={!['bogo_50', 'free_shipping'].includes(couponForm.type)} disabled={['bogo_50', 'free_shipping'].includes(couponForm.type)} />
-                                                                </div>
-                                        <div className="space-y-1 flex-1">
-                                            <label className="text-xs font-bold text-slate-400 ml-2">Valor (Deixe 0 se for 2º Item)</label>
-                                            <input type="number" placeholder="Valor" className="w-full p-5 bg-slate-50 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" value={couponForm.value} onChange={e => setCouponForm({...couponForm, value: e.target.value})} required={couponForm.type !== 'bogo_50'} disabled={couponForm.type === 'bogo_50'} />
+                                            <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer outline-none focus:ring-2 ring-blue-500 transition-all text-slate-700" value={couponForm.type} onChange={e => {
+                                                const newType = e.target.value;
+                                                // Se mudou para frete grátis ou bogo, zera o valor automaticamente
+                                                if (['bogo_50', 'free_shipping'].includes(newType)) {
+                                                    setCouponForm({...couponForm, type: newType, value: 0});
+                                                } else {
+                                                    setCouponForm({...couponForm, type: newType});
+                                                }
+                                            }}>
+                                                <option value="percentage">% (Porcentagem)</option>
+                                                <option value="fixed_amount">R$ (Valor Fixo)</option>
+                                                <option value="free_shipping">🚚 Frete Grátis</option>
+                                                <option value="bogo_50">🔥 2º Item c/ 50% OFF</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-400 ml-2">
+                                                {['bogo_50', 'free_shipping'].includes(couponForm.type) ? 'Valor Não Aplicável' : 'Valor do Desconto'}
+                                            </label>
+                                            <input 
+                                                type="number" 
+                                                placeholder={couponForm.type === 'percentage' ? "Ex: 10 (%)" : "Ex: 15.00 (R$)"} 
+                                                className={`w-full p-5 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500 transition-all text-slate-700 ${['bogo_50', 'free_shipping'].includes(couponForm.type) ? 'bg-slate-200 opacity-50 cursor-not-allowed' : 'bg-slate-50'}`}
+                                                value={couponForm.value} 
+                                                onChange={e => setCouponForm({...couponForm, value: e.target.value})} 
+                                                required={!['bogo_50', 'free_shipping'].includes(couponForm.type)} 
+                                                disabled={['bogo_50', 'free_shipping'].includes(couponForm.type)} 
+                                            />
                                         </div>
                                     </div>
                                 </div>
