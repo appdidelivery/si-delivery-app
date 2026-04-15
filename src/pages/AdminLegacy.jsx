@@ -2493,22 +2493,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     const firstName = cart.customerName ? cart.customerName.split(' ')[0] : 'Cliente';
                                     
-                                  // Identifica se a loja é de bebidas (default/drinks) ou comida
+                                    // Identifica se a loja é de bebidas (default/drinks) ou comida
                                     const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
-                                    const gatilhoDesejo = isBebida ? 'Bateu aquela sede? 🍻' : 'Bateu aquela fome? 🍔';
+                                    
+                                    // TEXTOS EMPODERADORES E DIRETOS COM CUPOM
+                                    const cupomNicho = isBebida ? 'SEDE5' : 'FOME5';
+                                    const cupomForte = isBebida ? 'SEDE10' : 'FOME10';
 
-                                   // TEXTOS AGRESSIVOS DE ALTA 1CONVERSÃO
-                                    const msg30min = `Fala ${firstName}, tudo bem? Aqui é da *${storeStatus.name}*! 👀\n\nVi que você deixou alguns itens deliciosos no carrinho, mas não finalizou. Deu algum erro na página ou faltou alguma informação? \n\nSe precisar de ajuda para fechar o pedido, me chama aqui!`;
+                                    const msgPrimeira = `Fala ${firstName}, tudo bem? Aqui é da *${storeStatus.name}*! 👀\n\nVi que você deixou alguns itens deliciosos no carrinho e não finalizou. Para não te deixar passar vontade, o gerente liberou um cupom exclusivo de *5% OFF* para você fechar agora!\n\n🎟️ Use o cupom: *${cupomNicho}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
                                     
-                                    const msg1hora = `Bateu aquela fome, ${firstName}? 🤤🍔\n\nSeu carrinho na *${storeStatus.name}* está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar agora com *5% OFF*!\n\nUse o cupom: *VOLTA5*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
-                                    
-                                    const msg24horas = `🚨 ÚLTIMA CHANCE, ${firstName}!\n\nO seu carrinho na *${storeStatus.name}* vai expirar nas próximas horas. Como eu sei que você quer muito esse pedido, o gerente ficou maluco e liberou *10% OFF* para você fechar agora!\n\nUse o cupom: *VOLTA10*\n👉 Garanta seu desconto: https://${storeId}.velodelivery.com.br`;
+                                    const msgSegunda = `🚨 AINDA DÁ TEMPO, ${firstName}!\n\nSeu carrinho na *${storeStatus.name}* está quase expirando. Como sei que você quer muito esse pedido, acabei de dobrar seu desconto para *10% OFF*!\n\n🎟️ Use o cupom: *${cupomForte}*\n👉 Garanta antes que acabe: https://${storeId}.velodelivery.com.br`;
 
                                     const sendMsg = async (text) => {
-                                        const phone = String(cart.customerPhone).replace(/\D/g, '');
-                                        if (phone.length < 10) return alert("Número de cliente inválido.");
+                                        let phoneRaw = String(cart.customerPhone).replace(/\D/g, '');
+                                        if (phoneRaw.length < 10) return alert("Número de cliente inválido.");
+                                        const safePhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
                                         
-                                        // Tenta enviar silenciosamente pelo Robô da Meta (API)
                                         if (settings?.integrations?.whatsapp?.apiToken) {
                                             try {
                                                 const res = await fetch('/api/whatsapp-send', {
@@ -2517,23 +2517,42 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     body: JSON.stringify({
                                                         action: 'chat_reply',
                                                         storeId: storeId,
-                                                        toPhone: `55${phone}`,
+                                                        toPhone: safePhone,
                                                         dynamicParams: { text: text }
                                                     })
                                                 });
                                                 if (res.ok) {
-                                                    // Marca visualmente no painel que a mensagem foi enviada
-                                                    alert("✅ Mensagem disparada com sucesso direto no WhatsApp do cliente!");
+                                                    // 🚨 CORREÇÃO CRÍTICA: Salva a mensagem no Firebase para a tela de Chat (AdminChat.jsx) ler na hora!
+                                                    await addDoc(collection(db, 'whatsapp_inbound'), {
+                                                        storeId: storeId,
+                                                        to: safePhone,
+                                                        text: text,
+                                                        receivedAt: serverTimestamp(),
+                                                        status: 'read',
+                                                        direction: 'outbound'
+                                                    });
+                                                    
+                                                    // Handoff: Pausa o bot automaticamente para o lojista assumir caso o cliente responda
+                                                    let normalizedPhone = safePhone.substring(2); // Tira o 55 para o controle de sessão
+                                                    if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
+                                                    
+                                                    await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${normalizedPhone}`), {
+                                                        storeId: storeId,
+                                                        phone: normalizedPhone,
+                                                        botPaused: true,
+                                                        updatedAt: serverTimestamp()
+                                                    }, { merge: true });
+
+                                                    alert("✅ Mensagem e Cupom disparados com sucesso no WhatsApp do cliente!");
                                                 } else {
                                                     throw new Error("Falha na API");
                                                 }
                                             } catch (e) {
                                                 alert("❌ O bot está offline ou o token expirou. Abrindo o WhatsApp Web...");
-                                                window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                                window.open(`https://wa.me/${safePhone}?text=${encodeURIComponent(text)}`, '_blank');
                                             }
                                         } else {
-                                            // Se o lojista não tem a API configurada, abre o WPP Web
-                                            window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                                            window.open(`https://wa.me/${safePhone}?text=${encodeURIComponent(text)}`, '_blank');
                                         }
                                     };
 
@@ -2569,27 +2588,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                             <div>
                                                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 text-center">Táticas de Recuperação (WhatsApp)</p>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <button onClick={() => sendMsg(msg30min)} className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-all border border-red-100 group">
-                                                        <MessageCircle size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Suporte<br/>(30 min)</span>
-                                                    </button>
-                                                    <button onClick={() => sendMsg(msg1hora)} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all border border-orange-100 group">
+                                                
+                                                {/* NOVO GRID COM APENAS 2 BOTÕES */}
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button onClick={() => sendMsg(msgPrimeira)} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all border border-orange-100 group">
                                                         <Flame size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Desconto<br/>(1 Hora)</span>
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Enviar Cupom<br/>(5% OFF)</span>
                                                     </button>
-                                                    <button onClick={() => sendMsg(msg24horas)} className="flex flex-col items-center justify-center p-3 bg-green-50 text-green-600 rounded-2xl hover:bg-green-100 transition-all border border-green-100 group">
+                                                    <button onClick={() => sendMsg(msgSegunda)} className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-all border border-red-100 group">
                                                         <Tags size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(24 Horas)</span>
+                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(10% OFF)</span>
                                                     </button>
                                                 </div>
+                                                
                                                 <button onClick={async () => {
-    if(window.confirm("Deseja realmente apagar este carrinho abandonado?")) {
-        await deleteDoc(doc(db, "abandoned_carts", cart.id));
-    }
-}} className="w-full mt-3 p-2 text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl uppercase tracking-widest flex items-center justify-center gap-1 transition-all">
-    <Trash2 size={12} /> Descartar Carrinho
-</button>
+                                                    if(window.confirm("Deseja realmente apagar este carrinho abandonado?")) {
+                                                        await deleteDoc(doc(db, "abandoned_carts", cart.id));
+                                                    }
+                                                }} className="w-full mt-3 p-2 text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl uppercase tracking-widest flex items-center justify-center gap-1 transition-all">
+                                                    <Trash2 size={12} /> Descartar Carrinho
+                                                </button>
                                             </div>
                                         </div>
                                     );
