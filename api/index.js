@@ -918,34 +918,25 @@ export default async function handler(req, res) {
                                         
                                         // VALIDAÇÃO DE HORÁRIO OFICIAL
                                         const isStoreOpen = checkIsStoreOpen(storeDoc.exists ? storeDoc.data() : {});
-                                        const incomingTextLower = messageText ? messageText.trim().toLowerCase() : '';
+                                        const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                         const nowMs = Date.now();
 
                                         // REGRA A: LOJA FECHADA (Fora do horário ou botão desativado)
                                         if (!isStoreOpen && waSettings.autoAwayMessage) {
-                                            
-                                            // Trava anti-spam de ausência: Envia a cada 1 hora no máximo para o mesmo cliente
                                             if (nowMs - (sessionData.lastAwaySent || 0) > 3600000) {
                                                 const awayMsg = waSettings.awayMessageText || "Olá! No momento estamos fechados. 😴\nDeixe sua mensagem e retornaremos assim que abrirmos!";
                                                 replyPayload = { type: "text", text: { body: awayMsg } };
                                                 logTextForPanel = `🤖 ${awayMsg}`;
-                                                
-                                                // Atualiza a sessão para lembrar que já enviou
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, lastAwaySent: nowMs }, { merge: true });
                                             }
-
                                         } 
-                                       // REGRA B: LOJA ABERTA E BOT LIGADO
+                                        // REGRA B: LOJA ABERTA E BOT LIGADO
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            // Garante que o texto está limpo, minúsculo e sem acentos/cedilha (ex: endereço -> endereco)
-                                            const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
-
-                                            // --- NOVO: IDENTIFICAÇÃO DO CLIENTE E RASTREIO ---
+                                            // --- IDENTIFICAÇÃO DO CLIENTE E RASTREIO ---
                                             let customerName = message.profile?.name || '';
                                             let lastOrder = null;
                                             
-                                            // Busca o último pedido do cliente no JS para evitar erros de índice no Firebase
                                             const phoneVariants = [normalizedPhone, `55${normalizedPhone}`, `+55${normalizedPhone}`];
                                             const ordersSnap = await db.collection('orders')
                                                 .where('storeId', '==', storeId)
@@ -955,7 +946,6 @@ export default async function handler(req, res) {
 
                                             if (!ordersSnap.empty) {
                                                 const ordersList = ordersSnap.docs.map(d => d.data());
-                                                // Ordena no JS da mais nova para a mais velha
                                                 ordersList.sort((a, b) => {
                                                     const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
                                                     const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
@@ -964,7 +954,7 @@ export default async function handler(req, res) {
                                                 
                                                 lastOrder = ordersList[0];
                                                 if (lastOrder && lastOrder.customerName) {
-                                                    customerName = lastOrder.customerName.split(' ')[0]; // Pega apenas o primeiro nome
+                                                    customerName = lastOrder.customerName.split(' ')[0];
                                                 }
                                             }
 
@@ -973,20 +963,20 @@ export default async function handler(req, res) {
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
                                             const isFaqEndereco = interactivePayload === 'btn_info' || ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw));
-                                            
                                             const isFaqPagamento = interactivePayload === 'btn_payment' || ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw));
 
-                                            const isMenuTrigger = interactivePayload === 'btn_menu' || ['1', 'cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'menu', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw));
-                                            
+                                            const isMenuTrigger = interactivePayload === 'btn_menu';
+                                            const isOrderWaTrigger = interactivePayload === 'btn_order_wa' || ['1', 'cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'menu', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw));
+                                            const isProductSelection = interactivePayload ? interactivePayload.startsWith('prod_') : false;
+                                            const isCartCheckout = interactivePayload === 'btn_checkout_wa';
+                                            const isClearCart = interactivePayload === 'btn_clear_cart';
+
                                             const isStatusTrigger = interactivePayload === 'btn_status' || ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw));
-                                            
                                             const isRepeatTrigger = interactivePayload === 'btn_repeat' || ['repetir', 'mesmo pedido', 'quero o mesmo', 'repetir pedido'].some(kw => incomingTextLower.includes(kw));
-                                            
-                                            // Busca dados dinâmicos da loja
+
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
                                             const storeName = storeDynamicData.name || 'nossa loja';
                                             
-                                            // Tratamento de Endereço Dinâmico
                                             const addr = storeDynamicData.address || {};
                                             let storeAddressStr = "nosso endereço principal (veja no link do cardápio)";
                                             if (addr.street || addr.city) {
@@ -995,7 +985,6 @@ export default async function handler(req, res) {
                                                 storeAddressStr = [streetPart, cityPart].filter(Boolean).join(', ');
                                             }
 
-                                            // Tratamento de Pagamentos Dinâmico
                                             const pm = storeDynamicData.acceptedPayments || {};
                                             const acceptedList = [];
                                             if (pm.online || pm.pix) acceptedList.push('💳 Cartão e Pix (Pelo site)');
@@ -1003,7 +992,7 @@ export default async function handler(req, res) {
                                             if (pm.cashDelivery || pm.cashPickup) acceptedList.push('💵 Dinheiro em Espécie');
                                             const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Aceitamos Cartão, Pix e Dinheiro!';
 
-                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA MUITO PARA NÃO BUGAR)
+                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA)
                                             if (needsSupport) {
                                                 const supportMsg = "Poxa, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!";
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
@@ -1015,7 +1004,6 @@ export default async function handler(req, res) {
                                                 if (lastOrder) {
                                                     const orderTime = lastOrder.createdAt?.toDate ? lastOrder.createdAt.toDate() : new Date(lastOrder.createdAt?.seconds * 1000 || Date.now());
                                                     const diffMin = Math.floor((Date.now() - orderTime) / 60000);
-                                                    
                                                     const statusMap = {
                                                         'pending': '⏳ Aguardando Confirmação',
                                                         'preparing': '👨‍🍳 Sendo Preparado na Cozinha',
@@ -1024,7 +1012,6 @@ export default async function handler(req, res) {
                                                         'canceled': '❌ Cancelado'
                                                     };
                                                     const statusNome = statusMap[lastOrder.status] || lastOrder.status;
-                                                    
                                                     const statusMsg = `🔍 *Status do seu último pedido:*\n\n*ID:* #${lastOrder.id ? lastOrder.id.slice(-5).toUpperCase() : 'N/A'}\n*Status Atual:* ${statusNome}\n*Tempo corrido:* ${diffMin} minutos.\n\nSe precisar de ajuda com ele, é só selecionar a opção *Falar com Atendente*.`;
                                                     replyPayload = { type: "text", text: { body: statusMsg } };
                                                     logTextForPanel = `🤖 [Rastreio] ${statusMsg}`;
@@ -1036,11 +1023,8 @@ export default async function handler(req, res) {
                                             }
                                             else if (isRepeatTrigger) {
                                                 if (lastOrder && lastOrder.items && lastOrder.items.length > 0) {
-                                                    // Formata a listagem do que ele pediu da última vez
                                                     const orderItemsStr = lastOrder.items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
-                                                    
                                                     const repeatMsg = `🍔 *Seu Último Pedido:*\n\n${orderItemsStr}\n\n*Total:* R$ ${Number(lastOrder.total).toFixed(2)}\n\nBateu aquela fome de novo? 🤤\nPara repetir esse pedido agora mesmo, é só clicar no link do nosso cardápio e adicionar os itens:\n👉 ${storeDomain}`;
-                                                    
                                                     replyPayload = { type: "text", text: { body: repeatMsg } };
                                                     logTextForPanel = `🤖 [Repetir Pedido] ${repeatMsg}`;
                                                 } else {
@@ -1064,42 +1048,103 @@ export default async function handler(req, res) {
                                                 replyPayload = { type: "text", text: { body: menuMsg } };
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
-                                            else {
-                                                // GREETING INTELIGENTE E LISTA DE OPÇÕES (MENU)
-                                                let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
-                                                if (customerName) {
-                                                    greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
-                                                }
+                                            else if (isOrderWaTrigger) {
+                                                const productsSnap = await db.collection('products')
+                                                    .where('storeId', '==', storeId)
+                                                    .where('isActive', '==', true)
+                                                    .limit(10)
+                                                    .get();
 
-                                                // O título do menu não pode passar de 24 caracteres no WhatsApp
-                                                const shortStoreName = storeName.substring(0, 24);
+                                                if (productsSnap.empty) {
+                                                    const emptyMsg = "Poxa, no momento não temos produtos cadastrados para venda direta por aqui. 😔\n\nPor favor, acesse nosso site:\n👉 " + storeDomain;
+                                                    replyPayload = { type: "text", text: { body: emptyMsg } };
+                                                    logTextForPanel = `🤖 [Catálogo Vazio]`;
+                                                } else {
+                                                    const productRows = productsSnap.docs.map(doc => {
+                                                        const p = doc.data();
+                                                        const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
+                                                        const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar ao carrinho'}`;
+                                                        return { id: `prod_${doc.id}`, title: p.name.substring(0, 24), description: descFormatada.substring(0, 72) };
+                                                    });
 
-                                                replyPayload = {
-                                                    type: "interactive",
-                                                    interactive: {
-                                                        type: "list",
-                                                        header: { type: "text", text: "Atendimento Virtual" },
-                                                        body: { text: `${greetingText}\n\nPara agilizar, selecione uma das opções no menu abaixo:` },
-                                                        footer: { text: "Toque no botão para abrir as opções 👇" },
-                                                        action: {
-                                                            button: "Abrir Menu",
-                                                            sections: [
-                                                                {
-                                                                    title: shortStoreName,
-                                                                    rows: [
-                                                                        { id: "btn_menu", title: "🍔 Fazer Pedido", description: "Acessar cardápio digital" },
-                                                                        { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
-                                                                        { id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu último pedido" },
-                                                                        { id: "btn_info", title: "📍 Endereço e Horário", description: "Onde ficamos" },
-                                                                        { id: "btn_payment", title: "💳 Pagamentos Aceitos", description: "Pix, Cartão, Dinheiro" },
-                                                                        { id: "btn_support", title: "👩‍💻 Falar com Atendente", description: "Dúvidas ou problemas" }
-                                                                    ]
-                                                                }
-                                                            ]
+                                                    replyPayload = {
+                                                        type: "interactive",
+                                                        interactive: {
+                                                            type: "list",
+                                                            header: { type: "text", text: "🛍️ Cardápio Rápido" },
+                                                            body: { text: "Selecione o produto abaixo.\n\n*Não achou o que queria?*\nÉ só digitar o nome do produto (ex: 'Coca-cola', 'Burger') que eu busco para você!" },
+                                                            footer: { text: "Toque abaixo para ver os destaques" },
+                                                            action: { button: "Ver Destaques", sections: [{ title: "Mais Vendidos", rows: productRows }] }
                                                         }
+                                                    };
+                                                    logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp]`;
+                                                }
+                                            }
+                                            else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
+                                                const searchSnap = await db.collection('products')
+                                                    .where('storeId', '==', storeId)
+                                                    .where('isActive', '==', true)
+                                                    .get();
+                                                
+                                                if (!searchSnap.empty) {
+                                                    const searchResults = searchSnap.docs.filter(doc => {
+                                                        const pData = doc.data();
+                                                        const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                        const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                        return pName.includes(incomingTextLower) || pCat.includes(incomingTextLower);
+                                                    }).slice(0, 10); 
+                                                    
+                                                    if (searchResults.length > 0) {
+                                                        const searchRows = searchResults.map(doc => {
+                                                            const p = doc.data();
+                                                            const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
+                                                            const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar'}`;
+                                                            return { id: `prod_${doc.id}`, title: p.name.substring(0, 24), description: descFormatada.substring(0, 72) };
+                                                        });
+
+                                                        replyPayload = {
+                                                            type: "interactive",
+                                                            interactive: {
+                                                                type: "list",
+                                                                header: { type: "text", text: "🔍 Resultado da Busca" },
+                                                                body: { text: `Encontrei ${searchResults.length} produto(s) para *"${messageText}"*! 👇` },
+                                                                footer: { text: "Toque abaixo para escolher" },
+                                                                action: { button: "Ver Resultados", sections: [{ title: "Produtos Encontrados", rows: searchRows }] }
+                                                            }
+                                                        };
+                                                        logTextForPanel = `🤖 [Busca WhatsApp: Encontrou ${searchResults.length} produtos]`;
+                                                    } else {
+                                                        let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
+                                                        if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
+                                                        const shortStoreName = storeName.substring(0, 24);
+
+                                                        replyPayload = {
+                                                            type: "interactive",
+                                                            interactive: {
+                                                                type: "list",
+                                                                header: { type: "text", text: "Atendimento Virtual" },
+                                                                body: { text: `${greetingText}\n\nPara agilizar, selecione uma das opções no menu abaixo:` },
+                                                                footer: { text: "Toque no botão para abrir as opções 👇" },
+                                                                action: {
+                                                                    button: "Abrir Menu",
+                                                                    sections: [{
+                                                                        title: shortStoreName,
+                                                                        rows: [
+                                                                            { id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" },
+                                                                            { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
+                                                                            { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
+                                                                            { id: "btn_status", title: "🚚 Status", description: "Rastrear seu último pedido" },
+                                                                            { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
+                                                                            { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" },
+                                                                            { id: "btn_support", title: "👩‍💻 Atendente", description: "Dúvidas ou problemas" }
+                                                                        ]
+                                                                    }]
+                                                                }
+                                                            }
+                                                        };
+                                                        logTextForPanel = `🤖 [Menu de Boas Vindas Enviado]`;
                                                     }
-                                                };
-                                                logTextForPanel = `🤖 [Menu Interativo Enviado para ${customerName || 'Cliente'}]`;
+                                                }
                                             }
                                         }
 
