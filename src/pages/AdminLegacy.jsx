@@ -1092,38 +1092,50 @@ export default function Admin() {
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
+        // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
         const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
-            let hasNewMessage = false;
+            let shouldPlaySound = false;
             let senderName = "Cliente";
+
+            // Descobre qual conversa o lojista está olhando agora
+            const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
 
             s.docChanges().forEach((change) => {
                 const data = change.doc.data();
                 if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
                     if (data.receivedAt && data.receivedAt.toMillis && data.receivedAt.toMillis() > Date.now() - 10000) {
-                        hasNewMessage = true; // Sinaliza que chegou pelo menos uma
-                        senderName = data.pushName || data.name || "Cliente";
+                        
+                        // Normaliza o número de quem mandou para bater com o número aberto na tela
+                        let senderPhone = String(data.from || '').replace(/\D/g, '');
+                        if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
+                        if (senderPhone.length === 10) senderPhone = senderPhone.substring(0, 2) + '9' + senderPhone.substring(2);
+
+                        // REGRA MÁGICA: Só toca o som se a mensagem for de ALGUÉM DIFERENTE da tela aberta
+                        if (senderPhone !== activeChatInScreen) {
+                            shouldPlaySound = true; 
+                            senderName = data.pushName || data.name || "Cliente";
+                        }
                     }
                 }
             });
 
-            // Toca o som APENAS UMA VEZ, mesmo se chegarem 5 mensagens juntas
-            if (hasNewMessage) {
+            // Toca o som APENAS UMA VEZ se for necessário
+            if (shouldPlaySound) {
                 const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
                 if (!isMuted) {
                     const customSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
                     const ringtone = new Audio(customSound);
-                    // Tenta tocar. Se o navegador bloquear por estar em 2º plano, logamos no console
+                    
                     ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
                     
                     // DISPARA NOTIFICAÇÃO DO WINDOWS/MAC (Funciona em 2º plano!)
                     if ("Notification" in window) {
                         if (Notification.permission === "granted") {
-                            new Notification("💬 Mensagem no WhatsApp", {
-                                body: `${senderName} enviou uma nova mensagem!`,
+                            new Notification("💬 Nova Mensagem", {
+                                body: `${senderName} enviou uma mensagem!`,
                                 icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"
                             });
                         } else if (Notification.permission !== "denied") {
-                            // Se ainda não deu permissão, o navegador vai pedir
                             Notification.requestPermission();
                         }
                     }

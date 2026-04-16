@@ -71,7 +71,17 @@ export default function AdminChat() {
 
     // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
-
+// --- NOVO: AVISA O SISTEMA GLOBAL QUAL CHAT ESTÁ ABERTO PARA NÃO TOCAR SOM ---
+    useEffect(() => {
+        if (activeChat) {
+            localStorage.setItem('active_whatsapp_chat', activeChat);
+        } else {
+            localStorage.removeItem('active_whatsapp_chat');
+        }
+        
+        // Limpa quando o lojista sai da tela de chat
+        return () => localStorage.removeItem('active_whatsapp_chat');
+    }, [activeChat]);
     const toggleMute = () => {
         const newState = !isMuted;
         setIsMuted(newState);
