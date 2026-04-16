@@ -2951,17 +2951,33 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <div className="flex flex-wrap justify-end gap-2 md:gap-3">
                                                             {/* BOTÃO DE RASTREIO - SÓ APARECE EM DELIVERY */}
                                                             {o.status === 'delivery' && (
-                                                                <button 
-                                                                    onClick={() => {
-                                                                        setTrackingOrder(o);
-                                                                        setIsTrackingModalOpen(true);
-                                                                    }} 
-                                                                    className="p-3 bg-blue-50 rounded-xl hover:bg-blue-100 text-blue-600 font-bold flex items-center gap-1 shadow-sm transition-all"
-                                                                    title="Acompanhar Motoboy no Mapa"
-                                                                >
-                                                                    <MapPin size={20} />
-                                                                </button>
-                                                            )}
+                                                <div className="flex gap-1">
+                                                    {/* NOVO: BOTÃO PARA ENVIAR LINK AO MOTOBOY */}
+                                                    <button 
+                                                        onClick={() => {
+                                                            const driverUrl = `${window.location.origin}/driver/${storeId}/${o.id}`;
+                                                            const msg = `🛵 *VELO DELIVERY - NOVA CORRIDA*\n\nID: #${o.id.slice(-5).toUpperCase()}\nCliente: ${o.customerName}\n\n📍 *Link para Iniciar Rastreio:* \n${driverUrl}`;
+                                                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                                                        }} 
+                                                        className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95"
+                                                        title="Enviar link para o Motoboy"
+                                                    >
+                                                        <Share2 size={20} />
+                                                    </button>
+
+                                                    {/* BOTÃO DE RASTREIO QUE JÁ EXISTIA */}
+                                                    <button 
+                                                        onClick={() => {
+                                                            setTrackingOrder(o);
+                                                            setIsTrackingModalOpen(true);
+                                                        }} 
+                                                        className="p-3 bg-blue-50 rounded-xl hover:bg-blue-100 text-blue-600 font-bold flex items-center gap-1 shadow-sm transition-all"
+                                                        title="Ver no Mapa"
+                                                    >
+                                                        <MapPin size={20} />
+                                                    </button>
+                                                </div>
+                                            )}
                                                             <button 
                                                                 onClick={() => {
                                                                     const initialDataForModal = {
@@ -3160,17 +3176,33 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <div className="flex gap-1">
                                                                 {/* BOTÃO RASTREIO KANBAN */}
                                                                 {o.status === 'delivery' && (
-                                                                    <button 
-                                                                        onClick={() => {
-                                                                            setTrackingOrder(o);
-                                                                            setIsTrackingModalOpen(true);
-                                                                        }} 
-                                                                        className="p-2 bg-blue-50 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" 
-                                                                        title="Ver Motoboy no Mapa"
-                                                                    >
-                                                                        <MapPin size={16} />
-                                                                    </button>
-                                                                )}
+                                                <div className="flex gap-1">
+                                                    {/* NOVO: BOTÃO PARA ENVIAR LINK AO MOTOBOY */}
+                                                    <button 
+                                                        onClick={() => {
+                                                            const driverUrl = `${window.location.origin}/driver/${storeId}/${o.id}`;
+                                                            const msg = `🛵 *VELO DELIVERY - NOVA CORRIDA*\n\nID: #${o.id.slice(-5).toUpperCase()}\nCliente: ${o.customerName}\n\n📍 *Link para Iniciar Rastreio:* \n${driverUrl}`;
+                                                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                                                        }} 
+                                                        className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95"
+                                                        title="Enviar link para o Motoboy"
+                                                    >
+                                                        <Share2 size={20} />
+                                                    </button>
+
+                                                    {/* BOTÃO DE RASTREIO QUE JÁ EXISTIA */}
+                                                    <button 
+                                                        onClick={() => {
+                                                            setTrackingOrder(o);
+                                                            setIsTrackingModalOpen(true);
+                                                        }} 
+                                                        className="p-3 bg-blue-50 rounded-xl hover:bg-blue-100 text-blue-600 font-bold flex items-center gap-1 shadow-sm transition-all"
+                                                        title="Ver no Mapa"
+                                                    >
+                                                        <MapPin size={20} />
+                                                    </button>
+                                                </div>
+                                            )}
                                                                 <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
                                                                 <button onClick={() => {
                                                                     const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) : [], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };

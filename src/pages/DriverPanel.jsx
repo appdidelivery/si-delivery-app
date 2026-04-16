@@ -12,7 +12,8 @@ export default function DriverPanel() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); 
   const [watcherId, setWatcherId] = useState(null);
-  const [driverId, setDriverId] = useState('driver_' + Math.floor(Math.random() * 1000)); 
+  const [driverId, setDriverId] = useState(localStorage.getItem('driver_id') || 'driver_' + Math.random().toString(36).substr(2, 9));
+  const [driverName, setDriverName] = useState(localStorage.getItem('driver_name') || '');
 
   useEffect(() => {
     if (!orderId) {
@@ -115,33 +116,71 @@ export default function DriverPanel() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 p-6 text-white font-sans">
       <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border border-slate-700">
-        <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-           🏍️
-        </div>
-        <h2 className="text-2xl font-black mb-1">Pedido #{orderId.substring(0,5).toUpperCase()}</h2>
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-8">Velo Delivery Driver</p>
         
-        {status === 'pending' && (
-          <button onClick={startDelivery} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-5 rounded-2xl shadow-lg shadow-blue-900/50 transition-all active:scale-95">
-            Iniciar Rota
-          </button>
-        )}
-
-        {status === 'delivering' && (
-          <div className="space-y-6">
-            <div className="bg-green-500/20 border border-green-500/30 text-green-300 p-4 rounded-xl animate-pulse">
-              <p className="font-black uppercase tracking-widest mb-1">🟢 Rota Ativa</p>
-              <p className="text-[10px] font-bold">Pode bloquear a tela.</p>
+        {/* LÓGICA DE IDENTIFICAÇÃO: SÓ MOSTRA O PEDIDO SE TIVER NOME */}
+        {!driverName ? (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl">
+               👤
             </div>
-            <button onClick={finishDelivery} className="w-full bg-green-500 hover:bg-green-400 text-white font-black uppercase tracking-widest py-5 rounded-2xl shadow-lg shadow-green-900/50 transition-all active:scale-95">
-              Marcar como Entregue
-            </button>
+            <h2 className="text-xl font-black uppercase tracking-tighter">Quem está entregando?</h2>
+            <p className="text-slate-400 text-xs font-bold leading-tight">Insira o seu nome ou placa para identificação no painel da loja.</p>
+            
+            <input 
+              type="text" 
+              placeholder="Ex: João da Silva" 
+              className="w-full p-5 bg-slate-900 border border-slate-700 rounded-2xl text-white font-black outline-none focus:ring-2 ring-blue-500 transition-all text-center uppercase"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                  const name = e.target.value.trim().toUpperCase();
+                  localStorage.setItem('driver_name', name);
+                  localStorage.setItem('driver_id', driverId);
+                  setDriverName(name);
+                }
+              }}
+            />
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest animate-pulse">Pressione ENTER para salvar</p>
           </div>
-        )}
+        ) : (
+          /* TELA NORMAL DO PEDIDO */
+          <div className="animate-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+               🏍️
+            </div>
+            <h2 className="text-2xl font-black mb-1 leading-none uppercase italic">Pedido #{orderId.substring(0,5).toUpperCase()}</h2>
+            <p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mb-8">Entregador: {driverName}</p>
+            
+            {status === 'pending' && (
+              <button onClick={startDelivery} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-5 rounded-2xl shadow-lg shadow-blue-900/50 transition-all active:scale-95">
+                Iniciar Rota
+              </button>
+            )}
 
-        {status === 'delivered' && (
-          <div className="bg-slate-700 p-6 rounded-2xl">
-            <p className="text-white font-black uppercase tracking-widest mb-2">🎉 Finalizada!</p>
+            {status === 'delivering' && (
+              <div className="space-y-6">
+                <div className="bg-green-500/20 border border-green-500/30 text-green-300 p-4 rounded-xl animate-pulse">
+                  <p className="font-black uppercase tracking-widest mb-1">🟢 Rota Ativa</p>
+                  <p className="text-[10px] font-bold">Transmitindo localização...</p>
+                </div>
+                <button onClick={finishDelivery} className="w-full bg-green-500 hover:bg-green-400 text-white font-black uppercase tracking-widest py-5 rounded-2xl shadow-lg shadow-green-900/50 transition-all active:scale-95">
+                  Marcar como Entregue
+                </button>
+              </div>
+            )}
+
+            {status === 'delivered' && (
+              <div className="bg-slate-700 p-6 rounded-2xl">
+                <p className="text-white font-black uppercase tracking-widest mb-2 italic">✨ Entrega Finalizada!</p>
+                <p className="text-slate-400 text-[10px]">Pode fechar este link.</p>
+              </div>
+            )}
+
+            <button 
+              onClick={() => { localStorage.removeItem('driver_name'); setDriverName(''); }}
+              className="mt-8 text-[9px] text-slate-600 font-bold uppercase hover:text-slate-400 transition-colors"
+            >
+              Trocar de Entregador
+            </button>
           </div>
         )}
       </div>
