@@ -1527,7 +1527,7 @@ const handleGenerateProductCopy = async () => {
 
     const messages = {
         preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
-        delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.`,
+        delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
         
         // MENSAGEM NOVA: Focada em conversão para o Clube VIP
         completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!* \nAcesse agora o nosso app e entre no Clube VIP para ganhar pontos na faixa: \n👉 https://${window.location.host}`,
