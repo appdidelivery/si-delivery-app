@@ -42,6 +42,7 @@ export const getStoreIdFromHostname = () => {
           "convenienciasantaisabel.com.br": "csi",
           "csi.com.br": "csi",
           "cowburguer.com.br": "cowburguer",
+          "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng"
        };
 

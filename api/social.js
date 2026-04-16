@@ -35,6 +35,7 @@ export default async function handler(req, res) {
             "convenienciasantaisabel.com.br": "csi",
             "csi.com.br": "csi",
             "cowburguer.com.br": "cowburguer",
+            "macanudorex.com.br": "macanudorex",
             "ngconveniencia.com.br": "ng"
         };
         // Se não achar no diacionário,aa pega só o nome base antes do .com para não quebrar a busca no banco

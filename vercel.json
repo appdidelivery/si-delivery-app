@@ -21,6 +21,28 @@
       ],
       "destination": "https://www.cowburguer.com.br/$1",
       "permanent": true
+    },
+    {
+  "source": "/(.*)",
+  "has": [
+    {
+      "type": "host",
+      "value": "macanudorex.velodelivery.com.br"
+    }
+  ],
+  "destination": "https://macanudorex.com.br/$1",
+  "permanent": true
+},
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "macanudorex.velodelivery.com.br"
+        }
+      ],
+      "destination": "https://www.macanudorex.com.br/$1",
+      "permanent": true
     }
   ],
   "crons": [
