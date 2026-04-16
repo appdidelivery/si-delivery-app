@@ -8385,10 +8385,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             <AnimatePresence>
                 {isTeamModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl relative">
-                            <button onClick={() => setIsTeamModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                        {/* 🚨 CORREÇÃO DE LAYOUT AQUI: max-h-[90vh] overflow-y-auto custom-scrollbar 🚨 */}
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                             
-                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-6">{editingTeamId ? 'Editar' : 'Novo'} Usuário</h2>
+                            <div className="flex justify-between items-start mb-6">
+                                <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">{editingTeamId ? 'Editar' : 'Novo'} Usuário</h2>
+                                <button onClick={() => setIsTeamModalOpen(false)} className="p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors flex-shrink-0">
+                                    <X size={20}/>
+                                </button>
+                            </div>
 
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
@@ -8409,7 +8414,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     }
 
                                     // 2. SALVA AS PERMISSÕES NO FIRESTORE
-                                    // Remove a senha do objeto antes de salvar para não ficar exposta no banco de dados
                                     const { newPassword, ...restFormData } = teamForm;
                                     const dataToSave = { ...restFormData, storeId: storeId, updatedAt: serverTimestamp() };
                                     
@@ -8424,7 +8428,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 } catch (error) {
                                     alert("Erro ao salvar: " + error.message);
                                 }
-                            }} className="space-y-4">
+                            }} className="space-y-4 flex-1">
                                 
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 ml-2">Nome do Colaborador</label>
@@ -8470,7 +8474,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     type="checkbox" 
                                                     checked={teamForm.permissions[perm.key] || false}
                                                     onChange={() => setTeamForm(prev => ({ ...prev, permissions: { ...prev.permissions, [perm.key]: !prev.permissions[perm.key] } }))}
-                                                    className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer"
+                                                    className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer flex-shrink-0"
                                                 />
                                                 <div>
                                                     <p className="text-sm font-black text-slate-700 leading-none">{perm.label}</p>
@@ -8481,7 +8485,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
 
-                                <div className="pt-4 mt-2">
+                                <div className="pt-4 mt-2 sticky bottom-0 bg-white pb-2">
                                     <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <Save size={18}/> Salvar Usuário
                                     </button>
