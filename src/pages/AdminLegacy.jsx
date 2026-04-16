@@ -1214,7 +1214,47 @@ export default function Admin() {
             if (unsubFleet) unsubFleet();
         };
     },[storeId]);
-    
+    // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
+    useEffect(() => {
+        const cleanFakeCarts = async () => {
+            if (!abandonedCarts || abandonedCarts.length === 0 || !orders || orders.length === 0) return;
+
+            // Define o tempo de corte (Pega pedidos feitos nas últimas 12 horas)
+            const cutoffTime = Date.now() - (12 * 60 * 60 * 1000);
+            
+            // Cria uma lista APENAS com os números de WhatsApp de quem efetivou a compra hoje
+            const phonesThatBought = new Set(
+                orders
+                    .filter(o => {
+                        const orderTime = o.createdAt?.toMillis ? o.createdAt.toMillis() : (o.createdAt?.seconds * 1000) || 0;
+                        return orderTime > cutoffTime && o.status !== 'canceled';
+                    })
+                    .map(o => String(o.customerPhone || '').replace(/\D/g, ''))
+                    .filter(phone => phone.length >= 10)
+            );
+
+            // Varre a lista de carrinhos abandonados
+            for (const cart of abandonedCarts) {
+                const cartPhone = String(cart.customerPhone || '').replace(/\D/g, '');
+                
+                // Se o dono desse carrinho ESTÁ na lista de quem comprou... DELETA O CARRINHO!
+                if (cartPhone.length >= 10 && phonesThatBought.has(cartPhone)) {
+                    try {
+                        // Apaga do banco de dados para não ocupar espaço
+                        await deleteDoc(doc(db, "abandoned_carts", cart.id));
+                        
+                        // Some com ele da tela instantaneamente
+                        setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
+                    } catch (e) {
+                        console.error("Erro ao limpar carrinho fantasma:", e);
+                    }
+                }
+            }
+        };
+
+        cleanFakeCarts();
+    }, [orders, abandonedCarts]);
+    // --------------------------------------------------------------
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (file) => {
         if (!file) throw new Error("Selecione um arquivo primeiro!");
