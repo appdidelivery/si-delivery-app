@@ -2536,22 +2536,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     />
 
                                     {/* Todos os Motoboys Ativos */}
-                                    {fleetLocations.map((driver) => (
-                                        <Marker 
-                                            key={driver.orderId}
-                                            position={{ lat: Number(driver.lat), lng: Number(driver.lng) }}
-                                            options={{ optimized: false }}
-                                            icon={{
-                                                url: "https://cdn-icons-png.flaticon.com/512/5695/5695844.png", // Ícone de Moto Azul
-                                                scaledSize: new window.google.maps.Size(50, 50),
-                                                anchor: new window.google.maps.Point(25, 25)
-                                            }}
-                                            label={{
-                                                text: `PEDIDO #${driver.orderId.slice(-5).toUpperCase()}`,
-                                                className: "bg-slate-900/90 text-white px-3 py-1 rounded-lg font-black text-[9px] uppercase shadow-lg border border-slate-700 mb-10 translate-y-[-45px]",
-                                            }}
-                                        />
-                                    ))}
+                                        {fleetLocations.map((driver) => (
+                                            <Marker 
+                                                key={driver.orderId}
+                                                position={{ lat: Number(driver.lat), lng: Number(driver.lng) }}
+                                                options={{ optimized: false }}
+                                                icon={{
+                                                    // 🛡️ BLINDAGEM: Ícone gerado via código (Nunca fica offline ou bloqueado)
+                                                    url: `data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="46" height="46"><text x="0" y="38" font-size="38">🛵</text></svg>`,
+                                                    scaledSize: new window.google.maps.Size(46, 46),
+                                                    anchor: new window.google.maps.Point(23, 23)
+                                                }}
+                                                label={{
+                                                    text: `ENTREGA #${driver.orderId.slice(-5).toUpperCase()}`,
+                                                    color: "#1E293B",
+                                                    fontWeight: "900",
+                                                    fontSize: "11px",
+                                                    className: "bg-white px-3 py-1.5 rounded-lg shadow-lg border-2 border-blue-500 mt-[-70px]"
+                                                }}
+                                            />
+                                        ))}
                                 </GoogleMap>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
