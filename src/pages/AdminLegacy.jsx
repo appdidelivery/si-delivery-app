@@ -2542,17 +2542,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 position={{ lat: Number(driver.lat), lng: Number(driver.lng) }}
                                                 options={{ optimized: false }}
                                                 icon={{
-                                                    // 🛡️ BLINDAGEM: Ícone gerado via código (Nunca fica offline ou bloqueado)
+                                                    // 🛡️ BLINDAGEM: Ícone SVG nativo gerado via código (Sem bloqueios CORS)
                                                     url: `data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="46" height="46"><text x="0" y="38" font-size="38">🛵</text></svg>`,
                                                     scaledSize: new window.google.maps.Size(46, 46),
                                                     anchor: new window.google.maps.Point(23, 23)
                                                 }}
                                                 label={{
                                                     text: `ENTREGA #${driver.orderId.slice(-5).toUpperCase()}`,
-                                                    color: "#1E293B",
-                                                    fontWeight: "900",
-                                                    fontSize: "11px",
-                                                    className: "bg-white px-3 py-1.5 rounded-lg shadow-lg border-2 border-blue-500 mt-[-70px]"
+                                                    color: "#000000", // Fonte preta
+                                                    fontWeight: "900", // Negrito máximo
+                                                    fontSize: "12px",
+                                                    // Estética: Fundo branco, borda azul 2px, cantos arredondados, empurrado para cima do ícone
+                                                    className: "bg-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-blue-500 mt-[-75px]"
                                                 }}
                                             />
                                         ))}

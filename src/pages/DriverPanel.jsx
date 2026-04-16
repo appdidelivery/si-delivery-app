@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { registerPlugin } from '@capacitor/core';
 import { getDatabase, ref, set, remove } from "firebase/database";
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, setDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useParams, useNavigate } from 'react-router-dom';
 
@@ -11,7 +11,7 @@ export default function DriverPanel() {
   const { storeId, orderId } = useParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); 
-  const [watcherId, setWatcherId] = useState(null); // Agora guarda o tipo do rastreio
+  const [watcherId, setWatcherId] = useState(null); 
   const [driverId, setDriverId] = useState(localStorage.getItem('driver_id') || 'driver_' + Math.random().toString(36).substr(2, 9));
   const [driverName, setDriverName] = useState(localStorage.getItem('driver_name') || '');
   
@@ -154,7 +154,7 @@ export default function DriverPanel() {
   };
 
   const finishDelivery = async () => {
-    setStatus('loading'); // Dá feedback visual de que está carregando
+    setStatus('loading'); 
     
     try {
       // 1. Tenta desligar o GPS (sem travar o resto se falhar)
@@ -169,16 +169,51 @@ export default function DriverPanel() {
         setWatcherId(null);
       }
 
-      // 2. Limpa a moto do mapa ao vivo
+      // 2. Limpa a moto do mapa ao vivo (Realtime DB)
       try {
         const realtimeDb = getDatabase();
         await remove(ref(realtimeDb, `tracking/${storeId}/${orderId}`));
       } catch(e) { console.warn("Aviso ao limpar mapa:", e); }
 
-      // 3. Atualiza o status do pedido principal (É OBRIGATÓRIO FUNCIONAR)
+      // 3. LÓGICA DE CASHBACK (Idêntica ao Admin)
+      try {
+        const settingsRef = doc(db, "settings", storeId);
+        const settingsSnap = await getDoc(settingsRef);
+        const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+
+        if (settings?.gamification?.cashback && orderData?.customerPhone) {
+            const percent = Number(settings.gamification.cashbackPercent || 2) / 100;
+            const cashbackEarned = (Number(orderData.total) || 0) * percent;
+            
+            if (cashbackEarned > 0) {
+                const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
+                const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
+                const walletSnap = await getDoc(walletRef);
+                
+                if (walletSnap.exists()) {
+                    await updateDoc(walletRef, { 
+                        balance: increment(cashbackEarned), 
+                        lastUpdated: serverTimestamp() 
+                    });
+                } else {
+                    await setDoc(walletRef, { 
+                        storeId, 
+                        customerPhone: cleanPhone, 
+                        customerName: orderData.customerName || 'Cliente', 
+                        balance: cashbackEarned, 
+                        lastUpdated: serverTimestamp() 
+                    });
+                }
+            }
+        }
+      } catch (cashbackError) {
+          console.error("Aviso ao processar cashback:", cashbackError);
+      }
+
+      // 4. Atualiza o status do pedido principal
       await updateDoc(doc(db, "orders", orderId), { status: 'completed' });
       
-      // 4. Dispara o Zap Final
+      // 5. Dispara o Zap Final
       await notifyCustomer('completed'); 
       
       setStatus('delivered');
