@@ -16,6 +16,14 @@
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:exported="true">
+            <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            
+            <data android:scheme="https" android:host="www.convenienciasantaisabel.com.br" android:pathPrefix="/driver" />
+            <data android:scheme="https" android:host="convenienciasantaisabel.com.br" android:pathPrefix="/driver" />
+        </intent-filter>
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
