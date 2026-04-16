@@ -1110,7 +1110,8 @@ export default function Admin() {
             if (hasNewMessage) {
                 const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
                 if (!isMuted) {
-                    const ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+                    const customSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
+                    const ringtone = new Audio(customSound);
                     // Tenta tocar. Se o navegador bloquear por estar em 2º plano, logamos no console
                     ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
                     
@@ -1153,7 +1154,6 @@ export default function Admin() {
     const uploadImageToCloudinary = async (file) => {
         if (!file) throw new Error("Selecione um arquivo primeiro!");
         
-        // NOVO: Sanitização do nome do arquivo
         const ext = file.name.split('.').pop();
         const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
         const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
@@ -1162,7 +1162,9 @@ export default function Admin() {
         const formData = new FormData();
         formData.append('file', safeFile);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+        
+        // MUDANÇA AQUI: Alterado de /image/upload para /auto/upload para aceitar mp3
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: 'POST', body: formData });
         if (!response.ok) throw new Error('Falha no upload.');
         const data = await response.json();
         return data.secure_url;
@@ -5527,6 +5529,96 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </button>
                             </div>
                         </div>
+
+                        {/* --- INÍCIO: SOM DE NOTIFICAÇÃO DO CHAT (NOVO) --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
+                                <Bell size={24} className="text-blue-600"/> Som do Chat (WhatsApp)
+                            </h2>
+                            <p className="text-xs font-bold text-slate-400 mb-4">Escolha qual música/efeito sonoro tocará quando um cliente mandar mensagem.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Sons Padrões do Sistema</label>
+                                    <select 
+                                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border border-slate-200 outline-none focus:ring-2 ring-blue-500 cursor-pointer text-slate-700"
+                                        value={settings?.chatSound || 'default'}
+                                        onChange={async (e) => {
+                                            const val = e.target.value;
+                                            let url = 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
+                                            if (val === 'bell') url = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+                                            if (val === 'cash') url = 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3';
+                                            
+                                            // Se não for customizado, salva no banco e no localStorage
+                                            if (val !== 'custom') {
+                                                localStorage.setItem('custom_chat_sound', url);
+                                                await updateDoc(doc(db, "settings", storeId), { chatSound: val, chatSoundUrl: url }, { merge: true });
+                                                new Audio(url).play(); // Toca uma prévia
+                                                alert("Som atualizado!");
+                                            } else {
+                                                await updateDoc(doc(db, "settings", storeId), { chatSound: 'custom' }, { merge: true });
+                                            }
+                                        }}
+                                    >
+                                        <option value="default">🔔 Padrão (Suave)</option>
+                                        <option value="bell">🛎️ Sino de Loja</option>
+                                        <option value="cash">🪙 Moeda (Cash)</option>
+                                        <option value="custom">🎵 Meu Próprio MP3 (Upload)</option>
+                                    </select>
+                                </div>
+
+                                {settings?.chatSound === 'custom' && (
+                                    <div className="animate-in fade-in slide-in-from-top-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                                        <label className="block text-[10px] font-black text-blue-800 uppercase tracking-widest mb-2">Upload do seu MP3</label>
+                                        
+                                        <input type="file" accept=".mp3,audio/mpeg" id="chat-sound-upload" className="hidden" onChange={async (e) => {
+                                            const file = e.target.files[0];
+                                            if(!file) return;
+                                            
+                                            // Valida tamanho (máx 2MB pra não pesar)
+                                            if (file.size > 2 * 1024 * 1024) return alert("O áudio deve ter no máximo 2MB.");
+                                            
+                                            try {
+                                                // Mostra um aviso pro lojista
+                                                const btn = document.getElementById('btn-upload-sound');
+                                                const oldText = btn.innerText;
+                                                btn.innerText = "Enviando...";
+                                                btn.disabled = true;
+
+                                                // Sobe pro Cloudinary
+                                                const url = await uploadImageToCloudinary(file);
+                                                
+                                                // Salva no Banco e no Cache local da máquina
+                                                await updateDoc(doc(db, "settings", storeId), { chatSoundUrl: url }, { merge: true });
+                                                localStorage.setItem('custom_chat_sound', url);
+                                                
+                                                btn.innerText = oldText;
+                                                btn.disabled = false;
+                                                
+                                                // Toca o som pra confirmar
+                                                new Audio(url).play();
+                                                alert("✅ Seu toque personalizado foi salvo!");
+                                            } catch (err) {
+                                                alert("Erro ao enviar o MP3. Tente novamente.");
+                                            }
+                                        }}/>
+                                        
+                                        <div className="flex items-center gap-3">
+                                            <label id="btn-upload-sound" htmlFor="chat-sound-upload" className="flex-1 bg-white border-2 border-dashed border-blue-300 text-blue-600 p-3 rounded-xl font-bold text-xs text-center cursor-pointer hover:bg-blue-100 transition-all flex items-center justify-center gap-2">
+                                                <UploadCloud size={16}/> Escolher Arquivo MP3
+                                            </label>
+                                            {settings?.chatSoundUrl && settings?.chatSound === 'custom' && (
+                                                <button onClick={() => new Audio(settings.chatSoundUrl).play()} className="p-3 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700" title="Ouvir Toque">
+                                                    ▶️
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p className="text-[9px] text-blue-500 mt-2 font-bold">Dica: Escolha trechos curtos (1 a 3 segundos) para não enjoar.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        {/* --- FIM: SOM DE NOTIFICAÇÃO DO CHAT --- */}
                         {/* --- SELETOR DE NICHO (CORES E IDENTIDADE) --- */}
 <div className="mt-8 pt-8 border-t border-slate-100">
     <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-4">🎯 Nicho da Loja (Personaliza Cores)</label>
