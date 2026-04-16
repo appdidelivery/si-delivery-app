@@ -3,13 +3,14 @@ import Policies from './pages/Policies';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { useEffect, useState } from 'react';
-
+import { Capacitor } from '@capacitor/core';
 // Seus componentes de página
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import Tracking from './pages/Tracking';
 import Login from './pages/Login';
 import AdminSaaS from './pages/AdminSaaS';
+import DriverPanel from './pages/DriverPanel';
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
@@ -22,7 +23,14 @@ function ProtectedRoute({ children, user }) {
   }
   return children;
 }
-
+// --- BLINDAGEM DO APLICATIVO NATIVO ---
+// Se o utilizador abrir o APK, será redirecionado para o Painel do Motoboy
+function AppRouter() {
+  if (Capacitor.isNativePlatform()) {
+    return <Navigate to="/driver-login" replace />;
+  }
+  return <Home />;
+}
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -49,11 +57,13 @@ function App() {
       <StoreProvider> 
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<AppRouter />} />
+            <Route path="/driver-login" element={<div className="p-10 text-center mt-20 font-bold text-slate-500">Faça login com seu link de Motoboy enviado pelo lojista 🛵...</div>} />
             <Route path="/p/:productSlug" element={<Home />} />
             <Route path="/track/:orderId" element={<Tracking />} />
             <Route path="/politicas" element={<Policies />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/driver/:storeId/:orderId" element={<DriverPanel />} />
             <Route
               path="/admin"
               element={

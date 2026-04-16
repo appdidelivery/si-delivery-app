@@ -16,6 +16,7 @@ import { signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
+import { getDatabase, ref as rtdbRef, onValue } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp } from 'firebase/app';
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
@@ -131,6 +132,7 @@ const DAYS_OF_WEEK =[
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+    { id: 'fleet', name: 'Monitor de Frota', icon: <Truck size={18} />, mobileIcon: <Truck size={22} /> }, // <-- NOVA ABA
     { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
     { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
     { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
@@ -537,6 +539,8 @@ export default function Admin() {
         }
     };
     const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
+    // --- ESTADO DO MONITOR DE FROTA ---
+    const [fleetLocations, setFleetLocations] = useState([]);
     const [withdrawalsList, setWithdrawalsList] = useState([]); // NOVO: Lista de Saques para abater do saldo
 
     const handleRequestWithdraw = async () => {
@@ -859,6 +863,34 @@ export default function Admin() {
     const[isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
     const [editingOrderData, setEditingOrderData] = useState(null);
     const [editOrderProductSearch, setEditOrderProductSearch] = useState(''); // Estado de busca para o modal de edição
+
+    // --- [NOVO] Estados para Rastreio do Motoboy (Admin Radar) ---
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [trackingOrder, setTrackingOrder] = useState(null);
+    const [driverLocation, setDriverLocation] = useState(null);
+
+    // Motor de leitura em tempo real do GPS (Ativa apenas com o modal aberto)
+    useEffect(() => {
+        let unsubscribe;
+        if (isTrackingModalOpen && trackingOrder && trackingOrder.storeId && trackingOrder.id) {
+            const database = getDatabase();
+            const trackingRef = rtdbRef(database, `tracking/${trackingOrder.storeId}/${trackingOrder.id}`);
+            
+            unsubscribe = onValue(trackingRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const coords = snapshot.val();
+                    setDriverLocation({ lat: coords.latitude, lng: coords.longitude });
+                } else {
+                    setDriverLocation(null);
+                }
+            });
+        }
+        
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [isTrackingModalOpen, trackingOrder]);
+    // -------------------------------------------------------------
     const [upsellSearch, setUpsellSearch] = useState(''); // NOVO: Busca para o Compre Junto
     // Estado para o frete do pedido manual
     const [manualShippingFee, setManualShippingFee] = useState(0);
@@ -1158,7 +1190,28 @@ export default function Admin() {
 
         return () => { 
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
+            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); // --- RADAR GLOBAL DA FROTA (ADMIN) ---
+        const realtimeDb = getDatabase();
+        const fleetRef = rtdbRef(realtimeDb, `tracking/${storeId}`);
+        const unsubFleet = onValue(fleetRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // Converte o objeto de pedidos em array para os Markers
+                const activeDrivers = Object.entries(data).map(([orderId, pos]) => ({
+                    orderId,
+                    ...pos
+                }));
+                setFleetLocations(activeDrivers);
+            } else {
+                setFleetLocations([]);
+            }
+        });
+
+        return () => { 
+            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
+            unsubFleet(); // <-- LIMPEZA DO RADAR ADICIONADA
+        };
         };
     },[storeId]);
     
@@ -2445,6 +2498,71 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     );
                 })()}
+                {/* --- ABA: MONITOR DE FROTA AO VIVO --- */}
+                {activeTab === 'fleet' && (
+                    <div className="space-y-6 h-[calc(100vh-150px)] flex flex-col animate-in fade-in duration-500">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h1 className="text-4xl font-black italic uppercase text-slate-900 leading-none">Monitor de Frota</h1>
+                                <p className="text-slate-400 font-bold mt-2 text-sm italic">Acompanhe todos os seus entregadores em tempo real no mapa.</p>
+                            </div>
+                            <div className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-400 animate-ping"></div>
+                                {fleetLocations.length} Motos em Rota
+                            </div>
+                        </div>
+
+                        <div className="flex-1 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden relative min-h-[400px]">
+                            {isLoaded ? (
+                                <GoogleMap
+                                    mapContainerStyle={{ width: '100%', height: '100%' }}
+                                    center={{ lat: Number(storeStatus.lat) || -23.55, lng: Number(storeStatus.lng) || -46.63 }}
+                                    zoom={14}
+                                    options={{ 
+                                        disableDefaultUI: false, 
+                                        zoomControl: true,
+                                        styles: [
+                                            { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
+                                        ]
+                                    }}
+                                >
+                                    {/* Localização da Loja */}
+                                    <Marker 
+                                        position={{ lat: Number(storeStatus.lat), lng: Number(storeStatus.lng) }} 
+                                        icon={{ 
+                                            url: storeStatus.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png", 
+                                            scaledSize: new window.google.maps.Size(45, 45)
+                                        }}
+                                        title="Minha Loja"
+                                    />
+
+                                    {/* Todos os Motoboys Ativos */}
+                                    {fleetLocations.map((driver) => (
+                                        <Marker 
+                                            key={driver.orderId}
+                                            position={{ lat: Number(driver.lat), lng: Number(driver.lng) }}
+                                            options={{ optimized: false }}
+                                            icon={{
+                                                url: "https://cdn-icons-png.flaticon.com/512/5695/5695844.png", // Ícone de Moto Azul
+                                                scaledSize: new window.google.maps.Size(50, 50),
+                                                anchor: new window.google.maps.Point(25, 25)
+                                            }}
+                                            label={{
+                                                text: `PEDIDO #${driver.orderId.slice(-5).toUpperCase()}`,
+                                                className: "bg-slate-900/90 text-white px-3 py-1 rounded-lg font-black text-[9px] uppercase shadow-lg border border-slate-700 mb-10 translate-y-[-45px]",
+                                            }}
+                                        />
+                                    ))}
+                                </GoogleMap>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+                                    <Loader2 className="animate-spin" size={40} />
+                                    <span className="font-black uppercase text-xs tracking-widest">Sincronizando Satélites...</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
                 {activeTab === 'chat' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex justify-between items-end mb-4">
@@ -2831,6 +2949,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
                                                         <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
                                                         <div className="flex flex-wrap justify-end gap-2 md:gap-3">
+                                                            {/* BOTÃO DE RASTREIO - SÓ APARECE EM DELIVERY */}
+                                                            {o.status === 'delivery' && (
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setTrackingOrder(o);
+                                                                        setIsTrackingModalOpen(true);
+                                                                    }} 
+                                                                    className="p-3 bg-blue-50 rounded-xl hover:bg-blue-100 text-blue-600 font-bold flex items-center gap-1 shadow-sm transition-all"
+                                                                    title="Acompanhar Motoboy no Mapa"
+                                                                >
+                                                                    <MapPin size={20} />
+                                                                </button>
+                                                            )}
                                                             <button 
                                                                 onClick={() => {
                                                                     const initialDataForModal = {
@@ -3027,6 +3158,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                         <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-auto">
                                                             <div className="flex gap-1">
+                                                                {/* BOTÃO RASTREIO KANBAN */}
+                                                                {o.status === 'delivery' && (
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setTrackingOrder(o);
+                                                                            setIsTrackingModalOpen(true);
+                                                                        }} 
+                                                                        className="p-2 bg-blue-50 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" 
+                                                                        title="Ver Motoboy no Mapa"
+                                                                    >
+                                                                        <MapPin size={16} />
+                                                                    </button>
+                                                                )}
                                                                 <button onClick={() => printLabel(o)} className="p-2 bg-slate-100 rounded-lg hover:bg-blue-100 text-blue-600 transition-colors" title="Imprimir"><Printer size={16} /></button>
                                                                 <button onClick={() => {
                                                                     const initialDataForModal = { ...o, paymentMethod: o.paymentMethod || 'pix', items: Array.isArray(o.items) ? o.items.map(item => ({ ...item })) : [], shippingFee: o.shippingFee || 0, customerName: o.customerName || '', customerAddress: o.customerAddress || '', customerPhone: o.customerPhone || '' };
@@ -7386,6 +7530,69 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* --- INÍCIO: MODAL DE RASTREIO DO MOTOBOY (RADAR) --- */}
+            <AnimatePresence>
+                {isTrackingModalOpen && trackingOrder && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl relative overflow-hidden flex flex-col">
+                            <button 
+                                onClick={() => {
+                                    setIsTrackingModalOpen(false);
+                                    setTrackingOrder(null);
+                                    setDriverLocation(null);
+                                }} 
+                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <MapPin className="text-blue-600"/> Radar de Entrega
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                Acompanhando o pedido <strong className="text-blue-600">#{trackingOrder.id.slice(-5).toUpperCase()}</strong> do cliente <strong className="text-slate-800">{trackingOrder.customerName}</strong>.
+                            </p>
+
+                            <div className="w-full h-[400px] rounded-[2rem] overflow-hidden border-4 border-slate-100 shadow-inner relative bg-slate-50 flex flex-col items-center justify-center">
+                                {!isLoaded ? (
+                                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                                        <Loader2 className="animate-spin" size={32} />
+                                        <span className="text-xs font-black uppercase tracking-widest">Carregando Mapas...</span>
+                                    </div>
+                                ) : driverLocation ? (
+                                    <GoogleMap
+                                        mapContainerStyle={{ width: '100%', height: '100%' }}
+                                        center={driverLocation}
+                                        zoom={16}
+                                        options={{ 
+                                            disableDefaultUI: true, 
+                                            zoomControl: true,
+                                            gestureHandling: 'cooperative'
+                                        }}
+                                    >
+                                        <Marker 
+                                            position={driverLocation}
+                                            animation={window.google.maps.Animation.DROP}
+                                            icon={{
+                                                url: "https://cdn-icons-png.flaticon.com/512/7543/7543160.png",
+                                                scaledSize: new window.google.maps.Size(40, 40)
+                                            }}
+                                        />
+                                    </GoogleMap>
+                                ) : (
+                                    <div className="flex flex-col items-center gap-3 text-slate-400 p-6 text-center">
+                                        <MapPin size={48} className="text-slate-300 opacity-50" />
+                                        <p className="text-sm font-bold uppercase tracking-widest">Aguardando sinal do GPS...</p>
+                                        <p className="text-xs font-medium">O motoboy precisa estar com o App de Entregas ativo para transmitir a localização.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE RASTREIO --- */}
 
             <AnimatePresence>
                 {isOrderEditModalOpen && editingOrderData && (

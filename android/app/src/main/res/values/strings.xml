@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VeloDelivery</string>
+    <string name="title_activity_main">VeloDelivery</string>
+    <string name="package_name">com.velodelivery.motoboy</string>
+    <string name="custom_url_scheme">com.velodelivery.motoboy</string>
+</resources>
