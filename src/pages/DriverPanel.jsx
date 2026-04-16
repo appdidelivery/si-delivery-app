@@ -14,6 +14,9 @@ export default function DriverPanel() {
   const [watcherId, setWatcherId] = useState(null);
   const [driverId, setDriverId] = useState(localStorage.getItem('driver_id') || 'driver_' + Math.random().toString(36).substr(2, 9));
   const [driverName, setDriverName] = useState(localStorage.getItem('driver_name') || '');
+  
+  const [orderData, setOrderData] = useState(null); // Guarda os dados do cliente
+  const [currentPos, setCurrentPos] = useState(null); // Mostra o GPS na tela
 
   useEffect(() => {
     if (!orderId) {
@@ -24,15 +27,14 @@ export default function DriverPanel() {
     
     const checkOrder = async () => {
       try {
-        console.log(`=== FORÇANDO LEITURA DO PEDIDO ${orderId} ===`);
-        
-        // A SOLUÇÃO: Puxa o documento pela raiz absoluta, ignorando amarras de tenant.
         const docRef = doc(db, "orders", orderId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          const currentStatus = docSnap.data().status;
-          console.log("Pedido encontrado! Status:", currentStatus);
+          const data = docSnap.data();
+          setOrderData(data); // Salva para usarmos no WhatsApp
+          
+          const currentStatus = data.status;
           
           if (currentStatus !== 'canceled' && currentStatus !== 'completed') {
               setStatus('pending'); 
@@ -45,7 +47,6 @@ export default function DriverPanel() {
              navigate('/');
           }
         } else {
-            console.error("FIREBASE DIZ: Documento não existe na raiz de 'orders'.");
             alert("Pedido não encontrado no banco de dados principal.");
         }
       } catch (error) {
@@ -55,15 +56,46 @@ export default function DriverPanel() {
     checkOrder();
   }, [orderId, navigate]);
 
+  // --- MOTOR DE WHATSAPP DO MOTOBOY ---
+  const notifyCustomer = async (newStatus) => {
+    if (!orderData || !orderData.customerPhone) return;
+    
+    const phone = String(orderData.customerPhone).replace(/\D/g, '');
+    const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
+    const trackingLink = `https://${window.location.host}/track/${orderId}`;
+    
+    let msg = "";
+    if (newStatus === 'delivery') {
+        msg = `🏍️ *SAIU PARA ENTREGA!* \n\nOlá ${orderData.customerName.split(' ')[0]}, o motoboy *${driverName}* já está a caminho com o seu pedido #${orderId.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a moto ao vivo no mapa:* \n${trackingLink}`;
+    } else if (newStatus === 'completed') {
+        msg = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência, ${orderData.customerName.split(' ')[0]}! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!*\nAcesse nosso app e entre no Clube VIP para ganhar pontos:\n👉 https://${window.location.host}`;
+    }
+
+    if (msg) {
+        try {
+            await fetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'chat_reply',
+                    storeId: storeId,
+                    toPhone: cleanPhone,
+                    dynamicParams: { text: msg }
+                })
+            });
+        } catch (e) {
+            console.error("Erro ao notificar WhatsApp", e);
+        }
+    }
+  };
+
   const startDelivery = async () => {
     setStatus('delivering');
     
     try {
       await updateDoc(doc(db, "orders", orderId), { status: 'delivery' });
+      await notifyCustomer('delivery'); // Dispara o ZAP com o Link do Mapa
 
-      // BLOQUEIO ANTI-ERRO NO NAVEGADOR (WEB)
-      // Como estamos a testar no Chrome (Mac), o plugin de GPS vai falhar e explodir a tela.
-      // Adicionamos um Try/Catch aqui para ele apenas avisar no console e não quebrar o React.
       try {
           const id = await BackgroundGeolocation.addWatcher(
             {
@@ -71,10 +103,14 @@ export default function DriverPanel() {
               backgroundTitle: "Modo Entregador",
               requestPermissions: true,
               stale: false,
-              distanceFilter: 10 
+              distanceFilter: 2 // Diminuído para 2 metros (Atualiza mais rápido)
             },
             (location, error) => {
               if (error) return console.error(error);
+              
+              // Mostra na tela do motoboy que o GPS tá vivo
+              setCurrentPos({ lat: location.latitude, lng: location.longitude });
+              
               const realtimeDb = getDatabase();
               set(ref(realtimeDb, `tracking/${storeId}/${orderId}`), {
                 lat: location.latitude,
@@ -86,7 +122,7 @@ export default function DriverPanel() {
           );
           setWatcherId(id);
       } catch (gpsError) {
-          console.warn("GPS ignorado: Você está testando na Web. O Rastreio só funciona no App Instalado (APK).");
+          console.warn("GPS ignorado: Você está testando na Web.");
       }
 
     } catch (error) {
@@ -105,6 +141,9 @@ export default function DriverPanel() {
       const realtimeDb = getDatabase();
       await remove(ref(realtimeDb, `tracking/${storeId}/${orderId}`));
       await updateDoc(doc(db, "orders", orderId), { status: 'completed' });
+      
+      await notifyCustomer('completed'); // Dispara o Zap de Sucesso
+      
       alert("✅ Entrega finalizada!");
     } catch (error) {
       console.error("Erro ao finalizar:", error);
@@ -117,7 +156,6 @@ export default function DriverPanel() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 p-6 text-white font-sans">
       <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border border-slate-700">
         
-        {/* LÓGICA DE IDENTIFICAÇÃO: SÓ MOSTRA O PEDIDO SE TIVER NOME */}
         {!driverName ? (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-2 text-2xl">
@@ -142,7 +180,6 @@ export default function DriverPanel() {
             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest animate-pulse">Pressione ENTER para salvar</p>
           </div>
         ) : (
-          /* TELA NORMAL DO PEDIDO */
           <div className="animate-in zoom-in duration-300">
             <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
                🏍️
@@ -158,9 +195,16 @@ export default function DriverPanel() {
 
             {status === 'delivering' && (
               <div className="space-y-6">
-                <div className="bg-green-500/20 border border-green-500/30 text-green-300 p-4 rounded-xl animate-pulse">
-                  <p className="font-black uppercase tracking-widest mb-1">🟢 Rota Ativa</p>
-                  <p className="text-[10px] font-bold">Transmitindo localização...</p>
+                <div className="bg-green-500/20 border border-green-500/30 text-green-300 p-4 rounded-xl">
+                  <p className="font-black uppercase tracking-widest mb-1 animate-pulse">🟢 Rota Ativa</p>
+                  <p className="text-[10px] font-bold mb-2">Transmitindo localização para o cliente...</p>
+                  
+                  {/* PROVA DE VIDA DO GPS NA TELA */}
+                  {currentPos ? (
+                      <p className="text-[8px] font-mono text-green-400 bg-green-900/30 py-1 rounded">Lat: {currentPos.lat.toFixed(4)} | Lng: {currentPos.lng.toFixed(4)}</p>
+                  ) : (
+                      <p className="text-[8px] font-mono text-orange-400 bg-orange-900/30 py-1 rounded animate-pulse">Buscando satélite...</p>
+                  )}
                 </div>
                 <button onClick={finishDelivery} className="w-full bg-green-500 hover:bg-green-400 text-white font-black uppercase tracking-widest py-5 rounded-2xl shadow-lg shadow-green-900/50 transition-all active:scale-95">
                   Marcar como Entregue
@@ -171,7 +215,7 @@ export default function DriverPanel() {
             {status === 'delivered' && (
               <div className="bg-slate-700 p-6 rounded-2xl">
                 <p className="text-white font-black uppercase tracking-widest mb-2 italic">✨ Entrega Finalizada!</p>
-                <p className="text-slate-400 text-[10px]">Pode fechar este link.</p>
+                <p className="text-slate-400 text-[10px]">O cliente foi notificado.</p>
               </div>
             )}
 
