@@ -1492,73 +1492,76 @@ const handleGenerateProductCopy = async () => {
     };
 
     const updateStatusAndNotify = async (order, newStatus) => {
-    await updateDoc(doc(db, "orders", order.id), { status: newStatus });
-    
-    // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
-    if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
-        if (!order.cashbackAwarded) {
-            try {
-                // Puxa a % configurada (se não tiver, usa 2% como padrão seguro)
-                const percent = Number(settings.gamification.cashbackPercent || 2) / 100;
-                const cashbackEarned = (Number(order.total) || 0) * percent;
-                if (cashbackEarned > 0) {
-                    const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
-                    const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
-                    const walletSnap = await getDoc(walletRef);
-                    
-                    if (walletSnap.exists()) {
-                        await updateDoc(walletRef, { balance: increment(cashbackEarned), lastUpdated: serverTimestamp() });
-                    } else {
-                        await setDoc(walletRef, { storeId, customerPhone: cleanPhone, customerName: order.customerName, balance: cashbackEarned, lastUpdated: serverTimestamp() });
+        // 1. Atualiza o status do pedido no banco de dados primeiro
+        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+        
+        // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
+        if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
+            if (!order.cashbackAwarded) {
+                try {
+                    const percent = Number(settings.gamification.cashbackPercent || 2) / 100;
+                    const cashbackEarned = (Number(order.total) || 0) * percent;
+                    if (cashbackEarned > 0) {
+                        const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
+                        const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
+                        const walletSnap = await getDoc(walletRef);
+                        
+                        if (walletSnap.exists()) {
+                            await updateDoc(walletRef, { balance: increment(cashbackEarned), lastUpdated: serverTimestamp() });
+                        } else {
+                            await setDoc(walletRef, { storeId, customerPhone: cleanPhone, customerName: order.customerName, balance: cashbackEarned, lastUpdated: serverTimestamp() });
+                        }
+                        await updateDoc(doc(db, "orders", order.id), { cashbackAwarded: true });
                     }
-                    // Trava de segurança para não dar cashback duas vezes no mesmo pedido
-                    await updateDoc(doc(db, "orders", order.id), { cashbackAwarded: true });
+                } catch (e) { console.error("Erro ao creditar cashback:", e); }
+            }
+        }
+        // -----------------------------------------------------------------
+
+        const lojaNome = storeStatus.name || "Velo Delivery";
+        
+        const messages = {
+            preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
+            delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
+            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!* \nAcesse agora o nosso app e entre no Clube VIP para ganhar pontos na faixa: \n👉 https://${window.location.host}`,
+            canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
+        };
+
+        if (messages[newStatus]) {
+            const phone = String(order.customerPhone).replace(/\D/g, ''); 
+            const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
+
+            // DISPARO 100% PELA API OFICIAL E SALVAMENTO NO CHAT
+            if (settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoOrderStatus) {
+                try {
+                    const res = await fetch('/api/whatsapp-send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'chat_reply',
+                            storeId: storeId,
+                            toPhone: cleanPhone,
+                            dynamicParams: { text: messages[newStatus] }
+                        })
+                    });
+
+                    // SE A API ENVIOU COM SUCESSO, SALVA NA TELA DE CHAT DO ADMIN
+                    if (res.ok) {
+                        await addDoc(collection(db, 'whatsapp_inbound'), {
+                            storeId: storeId,
+                            to: cleanPhone,
+                            text: messages[newStatus],
+                            receivedAt: serverTimestamp(),
+                            status: 'read',
+                            direction: 'outbound' // Isso faz o balão ficar verde (enviado por você)
+                        });
+                    }
+                } catch (e) {
+                    console.error("Erro na API WA", e);
                 }
-            } catch (e) { console.error("Erro ao creditar cashback:", e); }
+            }
         }
-    }
-    // -----------------------------------------------------------------
-
-    const lojaNome = storeStatus.name || "Velo Delivery";
-    
-    // Cria o link dinâmico de avaliação direto para o app do cliente
-    const reviewLink = `https://${window.location.host}/track/${order.id}`;
-
-    const messages = {
-        preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
-        delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
-        
-        // MENSAGEM NOVA: Focada em conversão para o Clube VIP
-        completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!* \nAcesse agora o nosso app e entre no Clube VIP para ganhar pontos na faixa: \n👉 https://${window.location.host}`,
-        
-        canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
     };
-
-    if (messages[newStatus]) {
-        const phone = String(order.customerPhone).replace(/\D/g, ''); 
-        const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
-
-        // Verifica se a API Oficial está conectada E se a automação de status está ativa
-        if (settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoOrderStatus) {
-            // Dispara silenciosamente pela API (O lojista não precisa clicar em enviar)
-            fetch('/api/whatsapp-send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'chat_reply', // Envio de texto livre
-                    storeId: storeId,
-                    toPhone: cleanPhone,
-                    dynamicParams: { text: messages[newStatus] }
-                })
-            }).then(res => {
-                if(!res.ok) console.error("Erro ao enviar aviso via API");
-            }).catch(e => console.error("Erro na API WA", e));
-        } else {
-            // Fallback: Se não tiver API conectada, abre a janela do WhatsApp do lojista
-            if(phone) window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(messages[newStatus])}`, '_blank');
-        }
-    }
-};
 
     // --- NOVAS FUNÇÕES: APROVAR/RECUSAR MISSÕES VIP ---
     const handleMissionAction = async (mission, action) => {

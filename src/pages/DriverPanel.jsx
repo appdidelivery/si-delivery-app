@@ -74,9 +74,9 @@ export default function DriverPanel() {
 
     if (msg) {
         try {
+            // 1. Envia via API Oficial de forma 100% invisível
             const apiUrl = `https://${dominioReal}/api/whatsapp-send`;
-            
-            await fetch(apiUrl, {
+            const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -86,8 +86,22 @@ export default function DriverPanel() {
                     dynamicParams: { text: msg }
                 })
             });
+
+            // 2. Se enviou com sucesso, SALVA NO CHAT DO ADMIN para você ver!
+            if (res.ok) {
+                await addDoc(collection(db, 'whatsapp_inbound'), {
+                    storeId: storeId,
+                    to: cleanPhone,
+                    text: msg,
+                    receivedAt: serverTimestamp(),
+                    status: 'read',
+                    direction: 'outbound' // Balão verde no painel
+                });
+            } else {
+                console.error("Falha ao enviar mensagem pela API Meta no app do motoboy.");
+            }
         } catch (e) {
-            console.error("Erro ao notificar WhatsApp", e);
+            console.error("Erro fatal ao notificar via API", e);
         }
     }
   };
