@@ -879,7 +879,7 @@ export default function Admin() {
             unsubscribe = onValue(trackingRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const coords = snapshot.val();
-                    setDriverLocation({ lat: coords.latitude, lng: coords.longitude });
+                    setDriverLocation({ lat: Number(coords.lat), lng: Number(coords.lng) });
                 } else {
                     setDriverLocation(null);
                 }

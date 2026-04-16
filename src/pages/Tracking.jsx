@@ -72,7 +72,10 @@ export default function Tracking() {
       const unsubscribe = onValue(trackingRef, (snapshot) => {
         if (snapshot.exists()) {
           const coords = snapshot.val();
-          setDriverLocation({ lat: coords.latitude, lng: coords.longitude });
+            // 🛡️ BLINDAGEM: Lê as chaves exatas 'lat' e 'lng' e garante que sejam numéricas
+            if (coords && coords.lat !== undefined && coords.lng !== undefined) {
+                setDriverLocation({ lat: Number(coords.lat), lng: Number(coords.lng) });
+            }
         }
       });
 
