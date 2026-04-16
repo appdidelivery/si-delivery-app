@@ -516,6 +516,7 @@ export default function Admin() {
             case 'orders': 
             case 'manual': 
             case 'abandoned': 
+            case 'fleet': // <-- ADICIONADO AQUI: Quem vê pedidos, vê a frota!
             case 'chat': return userPermissions.orders === true; 
             
             case 'products': 
