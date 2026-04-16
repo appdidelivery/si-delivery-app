@@ -11,12 +11,12 @@ export default function DriverPanel() {
   const { storeId, orderId } = useParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); 
-  const [watcherId, setWatcherId] = useState(null);
+  const [watcherId, setWatcherId] = useState(null); // Agora guarda o tipo do rastreio
   const [driverId, setDriverId] = useState(localStorage.getItem('driver_id') || 'driver_' + Math.random().toString(36).substr(2, 9));
   const [driverName, setDriverName] = useState(localStorage.getItem('driver_name') || '');
   
-  const [orderData, setOrderData] = useState(null); // Guarda os dados do cliente
-  const [currentPos, setCurrentPos] = useState(null); // Mostra o GPS na tela
+  const [orderData, setOrderData] = useState(null); 
+  const [currentPos, setCurrentPos] = useState(null); 
 
   useEffect(() => {
     if (!orderId) {
@@ -32,7 +32,7 @@ export default function DriverPanel() {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setOrderData(data); // Salva para usarmos no WhatsApp
+          setOrderData(data); 
           
           const currentStatus = data.status;
           
@@ -56,15 +56,13 @@ export default function DriverPanel() {
     checkOrder();
   }, [orderId, navigate]);
 
-  // --- MOTOR DE WHATSAPP DO MOTOBOY (CORRIGIDO PARA O APK) ---
   const notifyCustomer = async (newStatus) => {
     if (!orderData || !orderData.customerPhone) return;
     
     const phone = String(orderData.customerPhone).replace(/\D/g, '');
     const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
     
-    // 🚨 CORREÇÃO 1: No celular, window.location.host é "localhost". Temos que forçar o domínio da API!
-    const dominioReal = 'convenienciasantaisabel.com.br'; // Se for outro domínio, altere aqui
+    const dominioReal = 'convenienciasantaisabel.com.br'; 
     const trackingLink = `https://${dominioReal}/track/${orderId}`;
     
     let msg = "";
@@ -76,7 +74,6 @@ export default function DriverPanel() {
 
     if (msg) {
         try {
-            // 🚨 CORREÇÃO 2: Caminho absoluto (O APK não entende caminhos relativos como '/api')
             const apiUrl = `https://${dominioReal}/api/whatsapp-send`;
             
             await fetch(apiUrl, {
@@ -100,23 +97,22 @@ export default function DriverPanel() {
     
     try {
       await updateDoc(doc(db, "orders", orderId), { status: 'delivery' });
-      await notifyCustomer('delivery'); // Dispara o ZAP com o Link do Mapa
+      await notifyCustomer('delivery'); 
 
+      // 🛡️ BLINDAGEM: TENTATIVA DUPLA DE RASTREIO
       try {
+          // 1. Tenta usar o Motor Nativo (APK)
           const id = await BackgroundGeolocation.addWatcher(
             {
               backgroundMessage: "Rastreio Velo Delivery Ativo",
               backgroundTitle: "Modo Entregador",
               requestPermissions: true,
               stale: false,
-              distanceFilter: 2 // Diminuído para 2 metros (Atualiza mais rápido)
+              distanceFilter: 2 
             },
             (location, error) => {
               if (error) return console.error(error);
-              
-              // Mostra na tela do motoboy que o GPS tá vivo
               setCurrentPos({ lat: location.latitude, lng: location.longitude });
-              
               const realtimeDb = getDatabase();
               set(ref(realtimeDb, `tracking/${storeId}/${orderId}`), {
                 lat: location.latitude,
@@ -126,9 +122,29 @@ export default function DriverPanel() {
               });
             }
           );
-          setWatcherId(id);
+          setWatcherId({ type: 'native', id: id });
       } catch (gpsError) {
-          console.warn("GPS ignorado: Você está testando na Web.");
+          // 2. FALLBACK: Se falhar (ex: abriu no Chrome), usa o GPS padrão da Web
+          console.warn("App nativo não detectado. Acionando GPS de Navegador.");
+          if ("geolocation" in navigator) {
+              const id = navigator.geolocation.watchPosition(
+                  (position) => {
+                      setCurrentPos({ lat: position.coords.latitude, lng: position.coords.longitude });
+                      const realtimeDb = getDatabase();
+                      set(ref(realtimeDb, `tracking/${storeId}/${orderId}`), {
+                          lat: position.coords.latitude,
+                          lng: position.coords.longitude,
+                          driverId: driverId,
+                          timestamp: Date.now()
+                      });
+                  },
+                  (err) => console.error("Erro GPS Web:", err),
+                  { enableHighAccuracy: true, maximumAge: 0 }
+              );
+              setWatcherId({ type: 'web', id: id });
+          } else {
+              alert("Seu aparelho não suporta rastreamento de localização.");
+          }
       }
 
     } catch (error) {
@@ -141,14 +157,19 @@ export default function DriverPanel() {
     setStatus('delivered');
     try {
       if (watcherId) {
-        try { await BackgroundGeolocation.removeWatcher({ id: watcherId }); } catch(e){}
+        // Desliga o GPS dependendo de como foi ligado
+        if (watcherId.type === 'native') {
+            try { await BackgroundGeolocation.removeWatcher({ id: watcherId.id }); } catch(e){}
+        } else if (watcherId.type === 'web') {
+            navigator.geolocation.clearWatch(watcherId.id);
+        }
         setWatcherId(null);
       }
       const realtimeDb = getDatabase();
       await remove(ref(realtimeDb, `tracking/${storeId}/${orderId}`));
       await updateDoc(doc(db, "orders", orderId), { status: 'completed' });
       
-      await notifyCustomer('completed'); // Dispara o Zap de Sucesso
+      await notifyCustomer('completed'); 
       
       alert("✅ Entrega finalizada!");
     } catch (error) {
