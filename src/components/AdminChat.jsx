@@ -354,10 +354,10 @@ export default function AdminChat() {
         }
     };
 
-    const sendMediaMessage = async (mediaUrl, type) => {
+   const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
         try {
-            // Dispara a API (Manda a URL como texto caso o webhook não suporte mídia nativa ainda)
+            // Dispara a API 
             const response = await fetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -366,7 +366,7 @@ export default function AdminChat() {
                     storeId: storeId,
                     toPhone: activeChat,
                     dynamicParams: { 
-                        text: type === 'audio' ? `🎤 Áudio: ${mediaUrl}` : `📷 Imagem: ${mediaUrl}`,
+                        text: '', // <--- CORREÇÃO AQUI: Deixa o texto vazio para não aparecer legenda no celular do cliente!
                         mediaUrl: mediaUrl,
                         mediaType: type
                     }
@@ -378,7 +378,7 @@ export default function AdminChat() {
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
                     to: activeChat,
-                    text: '',
+                    text: '', // <--- CORREÇÃO AQUI: Salva vazio no banco também
                     mediaUrl: mediaUrl,
                     mediaType: type,
                     receivedAt: serverTimestamp(),
