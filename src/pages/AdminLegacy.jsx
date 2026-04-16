@@ -2885,23 +2885,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     return (
                                         <>
                                             {paginatedOrdersList.map(o => (
-                                                <div key={o.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 md:flex-row md:justify-between md:items-center md:gap-6 md:p-8 md:rounded-[3rem]">
-                                                    <div className="flex flex-col flex-1">
-                                                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                                <div key={o.id} className="bg-white p-5 md:p-6 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col gap-4 hover:shadow-md transition-all">
+                                                    
+                                                    {/* BLOCO 1: CABEÇALHO (Tags, Nome e Endereço) */}
+                                                    <div className="flex flex-col gap-3">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
                                                             
                                                             {['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod) ? (
                                                                 (o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA') ? (
-                                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">✅ PAGO ONLINE</span>
+                                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-green-200">✅ PAGO ONLINE</span>
                                                                 ) : (o.paymentStatus === 'failed' || o.paymentStatus === 'rejected') ? (
-                                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm">❌ RECUSADO</span>
+                                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-red-200">❌ RECUSADO</span>
                                                                 ) : (
                                                                     <span className="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">⏳ AGUARDANDO PAGTO</span>
                                                                 )
                                                             ) : o.paymentStatus === 'paid' ? (
-                                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">✅ PAGO (LOCAL)</span>
+                                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-green-200">✅ PAGO (LOCAL)</span>
                                                             ) : (
-                                                                <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">🏠 PAGAR NA ENTREGA/BALCÃO</span>
+                                                                <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-slate-300">🏠 PAGAR NA ENTREGA/BALCÃO</span>
                                                             )}
 
                                                             {o.status === 'pending' ? <span className="bg-red-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">Novo Pedido</span> :
@@ -2911,42 +2913,47 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                              <span className="bg-slate-800 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Cancelado</span>}
 
                                                             {o.tipo === 'local' && (
-                                                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🍽️ MESA {o.mesa}</span>
+                                                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-purple-200">🍽️ MESA {o.mesa}</span>
                                                             )}
                                                             <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                                         </div>
-                                                        <h3 className="font-black text-lg text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
-                                                            {o.customerName} 
-                                                            {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
-                                                            {o.source === 'manual' || o.source === 'manual_pdv' ? (
-                                                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>
-                                                            ) : o.source === 'google_food_marketplace' ? (
-                                                                <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>
-                                                            ) : (
-                                                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-blue-200 shadow-sm flex items-center gap-1">📱 APP (ONLINE)</span>
-                                                            )}
-                                                        </h3>
-                                                        <p className="text-xs text-slate-500 font-medium">
-                                                            {o.tipo === 'local' 
-                                                                ? `Atendimento no Salão - Mesa ${o.mesa}`
-                                                                : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
-                                                            }
-                                                        </p>
+
+                                                        <div>
+                                                            <h3 className="font-black text-xl text-slate-800 leading-tight flex items-center gap-2 flex-wrap">
+                                                                {o.customerName} 
+                                                                {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
+                                                                {o.source === 'manual' || o.source === 'manual_pdv' ? (
+                                                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>
+                                                                ) : o.source === 'google_food_marketplace' ? (
+                                                                    <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>
+                                                                ) : (
+                                                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-blue-200 shadow-sm flex items-center gap-1">📱 APP (ONLINE)</span>
+                                                                )}
+                                                            </h3>
+                                                            <p className="text-sm text-slate-500 font-medium mt-1">
+                                                                {o.tipo === 'local' 
+                                                                    ? `Atendimento no Salão - Mesa ${o.mesa}`
+                                                                    : (typeof o.customerAddress === 'object' ? `${o.customerAddress.street}, ${o.customerAddress.number} - ${o.customerAddress.neighborhood}` : (o.customerAddress || o.address))
+                                                                }
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div className="py-3 my-2 border-y border-slate-50 space-y-2">
+
+                                                    {/* BLOCO 2: ITENS DO PEDIDO (Caixa separada para respiro) */}
+                                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-2">
                                                         {o.items && Array.isArray(o.items) ? o.items.map((i, idx) => (
-                                                            <div key={idx} className="flex flex-col">
+                                                            <div key={idx} className="flex flex-col border-b border-slate-200/50 last:border-0 pb-2 last:pb-0">
                                                                 <div className="flex justify-between items-start text-sm">
-                                                                    <span className="font-bold text-slate-700">
-                                                                        {i.quantity}x {i.name}
+                                                                    <span className="font-bold text-slate-700 pr-4">
+                                                                        <span className="text-blue-500 mr-1">{i.quantity}x</span> {i.name}
                                                                     </span>
-                                                                    <span className="text-slate-400 font-medium">
+                                                                    <span className="text-slate-500 font-black whitespace-nowrap">
                                                                         R$ {(Number(i.price || 0) * Number(i.quantity || 1)).toFixed(2)}
                                                                     </span>
                                                                 </div>
                                                                 {i.observation && (
-                                                                    <div className="text-[11px] text-orange-600 font-bold bg-orange-50 p-2 rounded-lg mt-1 border border-orange-100 italic leading-tight">
-                                                                        ↳ Obs: {i.observation}
+                                                                    <div className="text-[11px] text-orange-700 font-bold bg-orange-100 p-2 rounded-lg mt-1 border border-orange-200 italic leading-tight w-fit">
+                                                                        Obs: {i.observation}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -2954,38 +2961,45 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <span className="text-xs text-slate-400 italic">Nenhum item encontrado</span>
                                                         )}
                                                     </div>
-                                                    <div className="flex flex-col gap-2 items-end md:flex-row md:items-center md:gap-3"> 
-                                                        <p className="text-2xl font-black text-green-600 mb-2 md:mb-0 whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
-                                                        <div className="flex flex-wrap justify-end gap-2 md:gap-3">
-                                                            {/* BOTÃO DE RASTREIO - SÓ APARECE EM DELIVERY */}
-                                                            {o.status === 'delivery' && (
-                                                <div className="flex gap-1">
-                                                    {/* NOVO: BOTÃO PARA ENVIAR LINK AO MOTOBOY */}
-                                                    <button 
-                                                        onClick={() => {
-                                                            const driverUrl = `${window.location.origin}/driver/${storeId}/${o.id}`;
-                                                            const msg = `🛵 *VELO DELIVERY - NOVA CORRIDA*\n\nID: #${o.id.slice(-5).toUpperCase()}\nCliente: ${o.customerName}\n\n📍 *Link para Iniciar Rastreio:* \n${driverUrl}`;
-                                                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-                                                        }} 
-                                                        className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95"
-                                                        title="Enviar link para o Motoboy"
-                                                    >
-                                                        <Share2 size={20} />
-                                                    </button>
 
-                                                    {/* BOTÃO DE RASTREIO QUE JÁ EXISTIA */}
-                                                    <button 
-                                                        onClick={() => {
-                                                            setTrackingOrder(o);
-                                                            setIsTrackingModalOpen(true);
-                                                        }} 
-                                                        className="p-3 bg-blue-50 rounded-xl hover:bg-blue-100 text-blue-600 font-bold flex items-center gap-1 shadow-sm transition-all"
-                                                        title="Ver no Mapa"
-                                                    >
-                                                        <MapPin size={20} />
-                                                    </button>
-                                                </div>
-                                            )}
+                                                    {/* BLOCO 3: RODAPÉ (Total e Ações) */}
+                                                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-2 pt-4 border-t border-slate-100"> 
+                                                        
+                                                        <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
+                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total:</span>
+                                                            <p className="text-3xl font-black text-green-600 italic leading-none whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap justify-center md:justify-end items-center gap-2 md:gap-3 w-full md:w-auto">
+                                                            {/* RASTREIO */}
+                                                            {o.status === 'delivery' && (
+                                                                <div className="flex gap-1">
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const driverUrl = `${window.location.origin}/driver/${storeId}/${o.id}`;
+                                                                            const msg = `🛵 *VELO DELIVERY - NOVA CORRIDA*\n\nID: #${o.id.slice(-5).toUpperCase()}\nCliente: ${o.customerName}\n\n📍 *Link para Iniciar Rastreio:* \n${driverUrl}`;
+                                                                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                                                                        }} 
+                                                                        className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95"
+                                                                        title="Enviar link para o Motoboy"
+                                                                    >
+                                                                        <Share2 size={20} />
+                                                                    </button>
+
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setTrackingOrder(o);
+                                                                            setIsTrackingModalOpen(true);
+                                                                        }} 
+                                                                        className="p-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 text-blue-600 font-bold flex items-center gap-1 shadow-sm transition-all"
+                                                                        title="Ver no Mapa"
+                                                                    >
+                                                                        <MapPin size={20} />
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* BOTÕES DE AÇÃO PADRÃO */}
                                                             <button 
                                                                 onClick={() => {
                                                                     const initialDataForModal = {
@@ -3000,22 +3014,30 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     setEditingOrderData(initialDataForModal);
                                                                     setIsOrderEditModalOpen(true);
                                                                 }} 
-                                                                className="p-3 bg-slate-100 rounded-xl hover:bg-orange-100 text-orange-600"
+                                                                className="p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-orange-50 hover:text-orange-600 text-slate-500 transition-colors"
                                                                 title="Editar Pedido"
                                                             >
                                                                 <Edit3 size={20} />
                                                             </button>
-                                                            <button onClick={() => printLabel(o)} className="p-3 bg-slate-100 rounded-xl hover:bg-blue-100 text-blue-600"><Printer size={20} /></button>
-                                                            <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl"><MessageCircle size={20} /></a>
+                                                            
+                                                            <button onClick={() => printLabel(o)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-blue-50 hover:text-blue-600 text-slate-500 transition-colors" title="Imprimir">
+                                                                <Printer size={20} />
+                                                            </button>
+                                                            
+                                                            <a href={`https://wa.me/55${String(o.customerPhone).replace(/\D/g, '')}`} target="_blank" className="p-3 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-colors" title="Chamar no WhatsApp">
+                                                                <MessageCircle size={20} />
+                                                            </a>
+                                                            
                                                             {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
                                                                 <button 
                                                                     onClick={() => handleRefundMercadoPago(o)} 
-                                                                    className="p-3 bg-red-50 rounded-xl hover:bg-red-100 text-red-600 transition-colors" 
+                                                                    className="p-3 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 text-red-600 transition-colors" 
                                                                     title="Estornar Pagamento (Mercado Pago)"
                                                                 >
                                                                     <RefreshCw size={20} />
                                                                 </button>
                                                             )}
+                                                            
                                                             {(o.paymentStatus === 'pending' || o.paymentStatus === 'pending_on_delivery') && (
                                                                 <button 
                                                                     onClick={async () => {
@@ -3049,20 +3071,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                         
                                                                         await updateDoc(doc(db, "orders", o.id), { paymentStatus: 'aguardando_pix' });
                                                                     }}
-                                                                    className="p-3 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center justify-center"
+                                                                    className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-all shadow-sm flex items-center justify-center"
                                                                     title="Cobrar PIX no WhatsApp"
                                                                 >
                                                                     <QrCode size={20}/>
                                                                 </button>
                                                             )}
 
-                                                            <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`py-2 px-3 rounded-xl font-black text-xs uppercase border-none outline-none cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200`}>
-                                                                <option value="pending">⏳ Novo Pedido</option>
-                                                                <option value="preparing">👨‍🍳 Preparando</option>
-                                                                <option value="delivery">🏍️ Saiu p/ Entrega</option>
-                                                                <option value="completed">✅ Concluído</option>
-                                                                <option value="canceled">❌ Cancelado</option>
-                                                            </select>
+                                                            {/* SELETOR DE STATUS */}
+                                                            <div className="w-full md:w-48 mt-2 md:mt-0">
+                                                                <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className="w-full py-3 px-4 rounded-xl font-black text-xs uppercase border border-slate-200 outline-none cursor-pointer bg-white text-slate-700 hover:bg-slate-50 focus:ring-2 ring-blue-500 transition-all shadow-sm">
+                                                                    <option value="pending">⏳ Novo Pedido</option>
+                                                                    <option value="preparing">👨‍🍳 Preparando</option>
+                                                                    <option value="delivery">🏍️ Em Rota</option>
+                                                                    <option value="completed">✅ Concluído</option>
+                                                                    <option value="canceled">❌ Cancelado</option>
+                                                                </select>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
