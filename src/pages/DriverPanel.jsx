@@ -154,26 +154,40 @@ export default function DriverPanel() {
   };
 
   const finishDelivery = async () => {
-    setStatus('delivered');
+    setStatus('loading'); // Dá feedback visual de que está carregando
+    
     try {
+      // 1. Tenta desligar o GPS (sem travar o resto se falhar)
       if (watcherId) {
-        // Desliga o GPS dependendo de como foi ligado
-        if (watcherId.type === 'native') {
-            try { await BackgroundGeolocation.removeWatcher({ id: watcherId.id }); } catch(e){}
-        } else if (watcherId.type === 'web') {
-            navigator.geolocation.clearWatch(watcherId.id);
-        }
+        try {
+          if (watcherId.type === 'native') {
+              await BackgroundGeolocation.removeWatcher({ id: watcherId.id });
+          } else if (watcherId.type === 'web') {
+              navigator.geolocation.clearWatch(watcherId.id);
+          }
+        } catch(e) { console.warn("Aviso ao desligar GPS:", e); }
         setWatcherId(null);
       }
-      const realtimeDb = getDatabase();
-      await remove(ref(realtimeDb, `tracking/${storeId}/${orderId}`));
+
+      // 2. Limpa a moto do mapa ao vivo
+      try {
+        const realtimeDb = getDatabase();
+        await remove(ref(realtimeDb, `tracking/${storeId}/${orderId}`));
+      } catch(e) { console.warn("Aviso ao limpar mapa:", e); }
+
+      // 3. Atualiza o status do pedido principal (É OBRIGATÓRIO FUNCIONAR)
       await updateDoc(doc(db, "orders", orderId), { status: 'completed' });
       
+      // 4. Dispara o Zap Final
       await notifyCustomer('completed'); 
       
-      alert("✅ Entrega finalizada!");
+      setStatus('delivered');
+      alert("✅ Entrega finalizada com sucesso!");
+      
     } catch (error) {
-      console.error("Erro ao finalizar:", error);
+      console.error("Erro fatal ao finalizar:", error);
+      alert("⚠️ Erro ao finalizar: " + error.message);
+      setStatus('delivering'); // Volta para a tela verde para tentar de novo
     }
   };
 

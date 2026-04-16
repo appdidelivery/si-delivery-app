@@ -1124,7 +1124,6 @@ export default function Admin() {
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
-        // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
         const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
             let shouldPlaySound = false;
             let senderName = "Cliente";
@@ -1186,20 +1185,20 @@ export default function Admin() {
         });
 
         // NOVO: MOTOR DE SAQUES VELOPAY (Substitui o stats que não estava atualizando)
-        const unsubWithdrawals = onSnapshot(query(collection(db, "withdrawals"), where("storeId", "==", storeId)), (s) => setWithdrawalsList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        const unsubWithdrawals = onSnapshot(query(collection(db, "withdrawals"), where("storeId", "==", storeId)), (s) => setWithdrawalsList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-        return () => { 
-            unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
-            unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); // --- RADAR GLOBAL DA FROTA (ADMIN) ---
+        // --- RADAR GLOBAL DA FROTA (ADMIN) ---
         const realtimeDb = getDatabase();
         const fleetRef = rtdbRef(realtimeDb, `tracking/${storeId}`);
         const unsubFleet = onValue(fleetRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                // Converte o objeto de pedidos em array para os Markers
+                // Converte e blinda os dados para evitar mapa cinza
                 const activeDrivers = Object.entries(data).map(([orderId, pos]) => ({
                     orderId,
-                    ...pos
+                    lat: Number(pos.lat || pos.latitude || 0),
+                    lng: Number(pos.lng || pos.longitude || 0),
+                    driverId: pos.driverId
                 }));
                 setFleetLocations(activeDrivers);
             } else {
@@ -1207,11 +1206,11 @@ export default function Admin() {
             }
         });
 
+        // --- LIMPEZA GERAL CORRIGIDA ---
         return () => { 
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
-            unsubFleet(); // <-- LIMPEZA DO RADAR ADICIONADA
-        };
+            if (unsubFleet) unsubFleet();
         };
     },[storeId]);
     
