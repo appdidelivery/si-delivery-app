@@ -56,24 +56,30 @@ export default function DriverPanel() {
     checkOrder();
   }, [orderId, navigate]);
 
-  // --- MOTOR DE WHATSAPP DO MOTOBOY ---
+  // --- MOTOR DE WHATSAPP DO MOTOBOY (CORRIGIDO PARA O APK) ---
   const notifyCustomer = async (newStatus) => {
     if (!orderData || !orderData.customerPhone) return;
     
     const phone = String(orderData.customerPhone).replace(/\D/g, '');
     const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
-    const trackingLink = `https://${window.location.host}/track/${orderId}`;
+    
+    // 🚨 CORREÇÃO 1: No celular, window.location.host é "localhost". Temos que forçar o domínio da API!
+    const dominioReal = 'convenienciasantaisabel.com.br'; // Se for outro domínio, altere aqui
+    const trackingLink = `https://${dominioReal}/track/${orderId}`;
     
     let msg = "";
     if (newStatus === 'delivery') {
         msg = `🏍️ *SAIU PARA ENTREGA!* \n\nOlá ${orderData.customerName.split(' ')[0]}, o motoboy *${driverName}* já está a caminho com o seu pedido #${orderId.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a moto ao vivo no mapa:* \n${trackingLink}`;
     } else if (newStatus === 'completed') {
-        msg = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência, ${orderData.customerName.split(' ')[0]}! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!*\nAcesse nosso app e entre no Clube VIP para ganhar pontos:\n👉 https://${window.location.host}`;
+        msg = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência, ${orderData.customerName.split(' ')[0]}! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!*\nAcesse nosso app e entre no Clube VIP para ganhar pontos:\n👉 https://${dominioReal}`;
     }
 
     if (msg) {
         try {
-            await fetch('/api/whatsapp-send', {
+            // 🚨 CORREÇÃO 2: Caminho absoluto (O APK não entende caminhos relativos como '/api')
+            const apiUrl = `https://${dominioReal}/api/whatsapp-send`;
+            
+            await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
