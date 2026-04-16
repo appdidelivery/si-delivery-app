@@ -710,43 +710,80 @@ export default async function handler(req, res) {
             // --- FIM: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
             // --- INÍCIO: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
             if (action === 'chat_reply') {
-                if (!toPhone || !dynamicParams?.text) return res.status(400).json({ error: 'Telefone e texto são obrigatórios' });
-                
-                let cleanPhone = String(toPhone).replace(/\D/g, '');
-                if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+    if (!toPhone) return res.status(400).json({ error: 'Telefone é obrigatório' });
+    
+    let cleanPhone = String(toPhone).replace(/\D/g, '');
+    if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
 
-                const payload = {
-                    messaging_product: "whatsapp",
-                    recipient_type: "individual",
-                    to: cleanPhone,
-                    type: "text",
-                    text: { body: dynamicParams.text }
-                };
-                
-               const response = await fetch(GRAPH_API_URL, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const data = await response.json();
-                if(response.ok) {
-                    return res.status(200).json({ success: true });
-                } else {
-                    console.error("❌ Falha na API Meta [chat_reply]:", data);
-                    
-                    let errorMsg = 'Falha ao enviar mensagem pela Meta.';
-                    
-                    // 🚨 TRATAMENTO ESPECÍFICO PARA A REGRA DAS 24 HORAS DA META (Erro 131047)
-                    if (data.error && data.error.code === 131047) {
-                        errorMsg = 'BLOQUEIO DA META: A janela de 24h expirou ou este cliente nunca chamou a loja. Para iniciar uma nova conversa com alguém, o WhatsApp exige que você envie um TEMPLATE APROVADO usando o botão de Disparo.';
-                    } else if (data.error && data.error.message) {
-                        errorMsg = data.error.message;
-                    }
+    let textBody = dynamicParams?.text || '';
+    let mediaUrl = dynamicParams?.mediaUrl || null;
 
-                    return res.status(400).json({ error: errorMsg, details: data });
-                }
-            }
+    // Detecta automaticamente se o texto contém um link de imagem do Cloudinary
+    const urlRegex = /(https?:\/\/[^\s]+(?:jpg|jpeg|png|webp|gif|cloudinary\.com[^\s]*))/i;
+    const match = textBody.match(urlRegex);
+
+    if (!mediaUrl && match) {
+        mediaUrl = match[0];
+        // Tira o link do texto para que o texto vire apenas a legenda da imagem
+        textBody = textBody.replace(mediaUrl, '').trim(); 
+    }
+
+    let payload;
+    // Se achou uma imagem, monta o payload de MÍDIA do WhatsApp
+    if (mediaUrl) {
+        payload = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: cleanPhone,
+            type: "image",
+            image: { link: mediaUrl, caption: textBody }
+        };
+    } else {
+        // Se não tem imagem, manda como texto normal
+        payload = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: cleanPhone,
+            type: "text",
+            text: { body: textBody }
+        };
+    }
+    
+    const response = await fetch(GRAPH_API_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    if(response.ok) {
+        // Salva corretamente no Firebase para renderizar a miniatura na tela do lojista
+        /* IMPORTANTE: Comente a linha abaixo caso o seu frontend (AdminChat.jsx) 
+           já esteja salvando no Firebase, para evitar mensagens duplicadas. */
+        /*
+        await db.collection('whatsapp_inbound').add({
+             storeId: storeId, 
+             to: cleanPhone, 
+             text: textBody,
+             mediaUrl: mediaUrl, 
+             mediaType: mediaUrl ? 'image' : null,
+             receivedAt: admin.firestore.FieldValue.serverTimestamp(), 
+             status: 'read', 
+             direction: 'outbound'
+        });
+        */
+        return res.status(200).json({ success: true });
+    } else {
+        console.error("❌ Falha na API Meta [chat_reply]:", data);
+        let errorMsg = 'Falha ao enviar mensagem pela Meta.';
+        if (data.error && data.error.code === 131047) {
+            errorMsg = 'BLOQUEIO DA META: A janela de 24h expirou. Inicie uma nova conversa usando a aba Disparo em Massa.';
+        } else if (data.error && data.error.message) {
+            errorMsg = data.error.message;
+        }
+        return res.status(400).json({ error: errorMsg, details: data });
+    }
+}
             // --- FIM: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
 
             return res.status(400).json({ error: 'Ação não reconhecida' });
@@ -1045,14 +1082,24 @@ export default async function handler(req, res) {
                                             }
 
                                             const pm = storeDynamicData.acceptedPayments || {};
-                                            const acceptedList = [];
-                                            // 🚨 Verifica se a loja tem pagamento online ativado (Pix Automático ou Cartão de Crédito Online)
-                                            const hasOnlinePayments = pm.online !== false || pm.pix !== false;
-                                            
-                                            if (pm.online || pm.pix) acceptedList.push('💳 Cartão e Pix (Pelo site)');
-                                            if (pm.cardDelivery || pm.cardPickup) acceptedList.push('📠 Maquininha (Cartão/Débito)');
-                                            if (pm.cashDelivery || pm.cashPickup) acceptedList.push('💵 Dinheiro em Espécie');
-                                            const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Aceitamos Cartão, Pix e Dinheiro!';
+const acceptedList = [];
+
+// Lê exatamente o que está marcado no painel Admin (se for indefinido, assume true como padrão)
+const isOnlineCard = pm.online !== false;
+const isOnlinePix = pm.pix !== false;
+const isOfflinePix = pm.offline_pix === true; 
+const isCardDelivery = pm.cardDelivery !== false || pm.cardPickup !== false;
+const isCashDelivery = pm.cashDelivery !== false || pm.cashPickup !== false;
+
+const hasOnlinePayments = isOnlineCard || isOnlinePix;
+
+if (isOnlineCard) acceptedList.push('💳 Cartão de Crédito (Site)');
+if (isOnlinePix) acceptedList.push('⚡ Pix Automático (Site)');
+if (isOfflinePix) acceptedList.push('💠 Pix Copia e Cola (Site)');
+if (isCardDelivery) acceptedList.push('📠 Maquininha (Débito/Crédito)');
+if (isCashDelivery) acceptedList.push('💵 Dinheiro em Espécie');
+
+const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consulte as opções de pagamento no fechamento do seu pedido.';
 
                                             const generateMainMenu = () => {
                                                 let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
@@ -1226,11 +1273,20 @@ export default async function handler(req, res) {
                                         if (replyPayload) {
                                             // 🚨 LÓGICA PARA O LOJISTA LER O TEXTO REAL DO ROBÔ NO PAINEL
                                             let realBotText = logTextForPanel;
-                                            if (replyPayload.type === 'text' && replyPayload.text?.body) {
-                                                realBotText = `🤖 ${replyPayload.text.body}`;
-                                            } else if (replyPayload.type === 'interactive' && replyPayload.interactive?.body?.text) {
-                                                realBotText = `🤖 ${replyPayload.interactive.body.text}\n\n*(Opções em botões)*`;
-                                            }
+if (replyPayload.type === 'text' && replyPayload.text?.body) {
+    realBotText = `🤖 ${replyPayload.text.body}`;
+} else if (replyPayload.type === 'interactive' && replyPayload.interactive?.body?.text) {
+    // Busca todas as opções que foram enviadas na lista ou nos botões
+    let opcoesTexto = "\n\n*(Opções enviadas ao cliente)*";
+    if (replyPayload.interactive.type === 'list' && replyPayload.interactive.action?.sections) {
+        replyPayload.interactive.action.sections.forEach(section => {
+            section.rows.forEach(row => {
+                opcoesTexto += `\n🔸 ${row.title}`;
+            });
+        });
+    }
+    realBotText = `🤖 ${replyPayload.interactive.body.text}${opcoesTexto}`;
+}
 
                                             const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 

@@ -715,7 +715,11 @@ export default function AdminChat() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-500 truncate pr-2">
-                                            {lastMsg?.direction === 'outbound' ? '✓ ' : ''}{lastMsg?.text}
+                                            {lastMsg?.direction === 'outbound' ? '✓ ' : ''}
+                                            {/* Se tem texto, mostra o texto. Se não tem texto mas tem imagem/áudio, mostra o ícone correspondente */}
+                                            {lastMsg?.text 
+                                                ? lastMsg.text.replace(/(https?:\/\/[^\s]+cloudinary\.com[^\s]*)/i, '📷 Imagem') 
+                                                : (lastMsg?.mediaType === 'image' || lastMsg?.mediaUrl?.includes('cloudinary') ? '📷 Imagem' : lastMsg?.mediaType === 'audio' ? '🎤 Áudio' : '')}
                                         </span>
                                         {chat.unreadCount > 0 && (
                                             <span className="bg-[#25d366] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
@@ -793,7 +797,25 @@ export default function AdminChat() {
                            {activeMessages.map((msg) => {
                                 const isOutbound = msg.direction === 'outbound';
                                 const msgDate = msg.receivedAt?.toDate ? msg.receivedAt.toDate() : new Date(msg.receivedAt?.seconds * 1000 || Date.now());
-                                const timeStr = formatMessageTime(msgDate); // <--- ATUALIZADO AQUI
+                                const timeStr = formatMessageTime(msgDate);
+
+                                // --- DETECTOR INTELIGENTE DE IMAGENS ---
+                                let displayMediaUrl = msg.mediaUrl;
+                                let displayMediaType = msg.mediaType;
+                                let displayText = msg.text || '';
+
+                                // Se não foi salvo como mídia oficial, mas tem um link do Cloudinary/Imagem no texto
+                                if (!displayMediaUrl && displayText) {
+                                    const urlRegex = /(https?:\/\/[^\s]+(?:jpg|jpeg|png|webp|gif|cloudinary\.com[^\s]*))/i;
+                                    const match = displayText.match(urlRegex);
+                                    if (match) {
+                                        displayMediaUrl = match[0];
+                                        displayMediaType = 'image';
+                                        // Remove o link e marcações do texto para virar apenas a legenda
+                                        displayText = displayText.replace(displayMediaUrl, '').replace('Imagem:', '').replace('📷', '').trim();
+                                    }
+                                }
+                                // ---------------------------------------
 
                                 return (
                                     <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
@@ -816,27 +838,26 @@ export default function AdminChat() {
                                             </button>
                                         </div>
 
-                                        {/* Se a mensagem for uma resposta a algo, mostra o balãozinho de citação */}
-
-                                        {/* Renderizador de Mídia (Imagens e Áudios) */}
-                                        {msg.mediaType === 'image' && msg.mediaUrl && (
-                                            <div className="mb-1 rounded-lg overflow-hidden cursor-pointer" onClick={() => window.open(msg.mediaUrl, '_blank')}>
-                                                <img src={msg.mediaUrl} className="max-w-[250px] max-h-[250px] object-cover" alt="Imagem" />
+                                        {/* Renderizador de Mídia INTELIGENTE */}
+                                        {displayMediaType === 'image' && displayMediaUrl && (
+                                            <div className="mb-1 mt-1 rounded-lg overflow-hidden cursor-pointer bg-black/5" onClick={() => window.open(displayMediaUrl, '_blank')}>
+                                                <img src={displayMediaUrl} className="max-w-[250px] max-h-[250px] w-auto h-auto object-cover rounded-md" alt="Anexo" />
                                             </div>
                                         )}
                                         
-                                        {msg.mediaType === 'audio' && msg.mediaUrl && (
-                                            <div className="mb-1 w-[250px]">
+                                        {displayMediaType === 'audio' && displayMediaUrl && (
+                                            <div className="mb-1 w-[250px] mt-1">
                                                 <audio controls className="h-10 w-full">
-                                                    <source src={msg.mediaUrl} type="audio/mp3" />
-                                                    <source src={msg.mediaUrl} type="audio/ogg" />
+                                                    <source src={displayMediaUrl} type="audio/mp3" />
+                                                    <source src={displayMediaUrl} type="audio/ogg" />
                                                 </audio>
                                             </div>
                                         )}
 
-                                        {msg.text && <span className="pr-12 whitespace-pre-wrap">{msg.text}</span>}
+                                        {/* Texto / Legenda */}
+                                        {displayText && <span className="pr-12 whitespace-pre-wrap">{displayText}</span>}
                                         
-                                        <div className={`text-[10px] text-gray-500 self-end ml-4 flex items-center gap-1 float-right ${(!msg.text && msg.mediaUrl) ? 'mt-1' : '-mt-1'}`}>
+                                        <div className={`text-[10px] text-gray-500 self-end ml-4 flex items-center gap-1 float-right ${(!displayText && displayMediaUrl) ? 'mt-1' : '-mt-1'}`}>
                                             {timeStr}
                                             {isOutbound && <CheckCheck size={14} className="text-[#53bdeb] ml-0.5" />}
                                         </div>
