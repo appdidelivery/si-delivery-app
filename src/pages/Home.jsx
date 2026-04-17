@@ -239,6 +239,16 @@ export default function Home() {
       }
       canonicalLink.setAttribute('href', canonicalUrl);
   }, [location.pathname]);
+  // --- CORREÇÃO: FECHA O MODAL SE O CLIENTE CLICAR NO BOTÃO "VOLTAR" DO CELULAR ---
+  useEffect(() => {
+      const handlePopState = () => {
+          if (!window.location.pathname.includes('/p/')) {
+              setSelectedProduct(null);
+          }
+      };
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   
   const [selectedProduct, setSelectedProduct] = useState(null); 
   const[selectedOptions, setSelectedOptions] = useState({}); 
@@ -250,10 +260,12 @@ export default function Home() {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
-      setSelectedVariation(''); // Reseta a variação sempre que abrir um item novo
-      setSelectedRemovals([]); // Reseta os ingredientes removidos
+      setSelectedVariation(''); 
+      setSelectedRemovals([]); 
+      
       const slug = generateSlug(p.name);
-      navigate(`/p/${slug}`, { replace: true });
+      // CORREÇÃO: Altera a URL silenciosamente. Não força o React Router a recarregar a página!
+      window.history.pushState(null, '', `/p/${slug}`);
   };
 
   // --- FUNÇÕES DA ÁREA VIP E MISSÕES ---
@@ -384,7 +396,7 @@ export default function Home() {
       };
       addToCart(itemToAdd, 1);
       setSelectedProduct(null); 
-      navigate('/', { replace: true });
+      window.history.pushState(null, '', '/');
   };
 
   const [products, setProducts] = useState([]);
@@ -815,17 +827,35 @@ export default function Home() {
   };
   
   const handleShare = async () => {
+    // 1. Captura o telefone limpo do cliente para usar como ID de indicação
+    const phoneForRef = customer?.phone?.replace(/\D/g, '') || localStorage.getItem('customerPhone')?.replace(/\D/g, '');
+
+    // 2. Clona a URL atual de forma dinâmica (Regra 3: Multi-tenant)
+    const shareUrl = new URL(window.location.href);
+    
+    // 3. Se o cliente tiver o telefone cadastrado (logado), injeta a tag de Gamificação
+    if (phoneForRef && phoneForRef.length >= 10) {
+        shareUrl.searchParams.set('ref', phoneForRef);
+    }
+
+    // 4. Se estiver com um produto aberto, melhora o texto do WhatsApp!
+    const shareTitle = selectedProduct ? `${selectedProduct.name} | ${storeSettings.name}` : storeSettings.name;
+    const shareText = selectedProduct 
+        ? `Olha o que eu achei na ${storeSettings.name}: ${selectedProduct.name}! Peça agora:` 
+        : `Peça agora na ${storeSettings.name}!`;
+
     const shareData = {
-      title: storeSettings.name,
-      text: `Peça agora na ${storeSettings.name}!`,
-      url: window.location.href
+      title: shareTitle,
+      text: shareText,
+      url: shareUrl.toString()
     };
+    
     if (navigator.share) {
       try {
         await navigator.share(shareData);
       } catch (err) {}
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(shareUrl.toString());
       alert('Link copiado para a área de transferência!');
     }
   };
@@ -1886,6 +1916,7 @@ if (window.fbq) {
       if (productSlug && products.length > 0 && !selectedProduct) {
           const productFromUrl = products.find(p => generateSlug(p.name) === productSlug);
           if (productFromUrl) {
+              setSelectedProduct(productFromUrl); // CORREÇÃO: Abre o modal!
               setSelectedOptions({});
               setItemObservation('');
           } else {
@@ -2917,8 +2948,8 @@ if (window.fbq) {
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
             onClick={() => {
                 setSelectedProduct(null);
-                navigate('/', { replace: true });
-            }} 
+                window.history.pushState(null, '', '/');
+            }}
           >
             <motion.div 
               initial={{ y: "100%" }} 
@@ -2928,15 +2959,26 @@ if (window.fbq) {
               onClick={(e) => e.stopPropagation()} 
               className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
             >
-              <button 
-                onClick={() => {
-                    setSelectedProduct(null);
-                    navigate('/', { replace: true });
-                }} 
-                className="absolute top-4 right-4 bg-black/40 text-white p-2 rounded-full z-10 backdrop-blur-md hover:bg-black/60 transition-all"
-              >
-                <X size={20} />
-              </button>
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                  <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleShare();
+                    }}
+                    className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
+                  >
+                    <Share size={20} />
+                  </button>
+                  <button 
+                    onClick={() => {
+                        setSelectedProduct(null);
+                        window.history.pushState(null, '', '/');
+                    }} 
+                    className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
+                  >
+                    <X size={20} />
+                  </button>
+              </div>
 
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
                 <img src={selectedProduct.imageUrl} alt={selectedProduct.name} width="400" height="400" loading="lazy" decoding="async" className="w-full h-full object-cover" />
