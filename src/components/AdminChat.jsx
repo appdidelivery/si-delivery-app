@@ -411,11 +411,11 @@ export default function AdminChat() {
         setLoadingSend(true);
 
         try {
-            // --- SOLUÇÃO DEFINITIVA DO 9º DÍGITO ---
-            // A API da Meta no Brasil tem um bug de roteamento no Webhook.
-            // Para garantir a entrega (igual aos alertas de pedido), usamos a variável
-            // activeChat que já força o 9º dígito internamente no Velo.
-            const safePhone = `55${activeChat}`;
+            // BLINDAGEM: Garante que o activeChat (que vem sem 55) receba o DDI antes de ir para a API
+            let cleanActiveChat = activeChat.replace(/\D/g, '');
+            if (cleanActiveChat.startsWith('55')) cleanActiveChat = cleanActiveChat.substring(2);
+            
+            const safePhone = `55${cleanActiveChat}`;
 
             // 1. Dispara via API
             const response = await fetch('/api/whatsapp-send', {

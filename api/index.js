@@ -651,12 +651,17 @@ export default async function handler(req, res) {
             const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
             const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR') => {
+                // BLINDAGEM VELO: Garante que o telefone tenha 55 e trate o nono dígito para a Meta
                 let cleanPhone = String(recipientPhone).replace(/\D/g, '');
-                if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+                if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
+                if (cleanPhone.length === 10) cleanPhone = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+                cleanPhone = `55${cleanPhone}`;
 
                 const payload = {
-                    messaging_product: "whatsapp", recipient_type: "individual",
-                    to: cleanPhone, type: "template",
+                    messaging_product: "whatsapp", 
+                    recipient_type: "individual",
+                    to: cleanPhone, 
+                    type: "template",
                     template: { name: template, language: { code: languageCode } }
                 };
                 const response = await fetch(GRAPH_API_URL, {
