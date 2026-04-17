@@ -366,6 +366,14 @@ export default function AdminChat() {
 
    const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
+
+        // --- CORREÇÃO DO 9º DÍGITO PARA MÍDIAS (BLINDAGEM) ---
+        // Garante que a foto/áudio vá para o ID exato que a Meta reconhece
+        const currentChatMsgs = chats[activeChat]?.msgs || [];
+        const lastInboundMsg = currentChatMsgs.slice().reverse().find(m => m.direction !== 'outbound');
+        let targetPhone = lastInboundMsg && lastInboundMsg.from ? lastInboundMsg.from : activeChat;
+        const safePhone = targetPhone.startsWith('55') ? targetPhone : `55${targetPhone}`;
+
         try {
             // Dispara a API 
             const response = await fetch('/api/whatsapp-send', {
@@ -374,9 +382,9 @@ export default function AdminChat() {
                 body: JSON.stringify({
                     action: 'chat_reply',
                     storeId: storeId,
-                    toPhone: activeChat,
+                    toPhone: safePhone, // <-- CORREÇÃO AQUI
                     dynamicParams: { 
-                        text: '', // <--- CORREÇÃO AQUI: Deixa o texto vazio para não aparecer legenda no celular do cliente!
+                        text: '', 
                         mediaUrl: mediaUrl,
                         mediaType: type
                     }
@@ -387,8 +395,8 @@ export default function AdminChat() {
                 // Salva no Firebase para renderizar no chat visualmente
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
-                    to: activeChat,
-                    text: '', // <--- CORREÇÃO AQUI: Salva vazio no banco também
+                    to: safePhone, // <-- CORREÇÃO AQUI
+                    text: '',
                     mediaUrl: mediaUrl,
                     mediaType: type,
                     receivedAt: serverTimestamp(),

@@ -729,16 +729,25 @@ export default async function handler(req, res) {
         textBody = textBody.replace(mediaUrl, '').trim(); 
     }
 
+    let mediaType = dynamicParams?.mediaType || 'image'; // <-- CORREÇÃO: Lê o tipo exato (audio, image, etc)
+
     let payload;
-    // Se achou uma imagem, monta o payload de MÍDIA do WhatsApp
+    // Se achou uma mídia, monta o payload de MÍDIA do WhatsApp dinamicamente
     if (mediaUrl) {
         payload = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
             to: cleanPhone,
-            type: "image",
-            image: { link: mediaUrl, caption: textBody }
+            type: mediaType // <-- CORREÇÃO: Envia o tipo correto (evita que áudio seja bloqueado)
         };
+        
+        // Cria o objeto da mídia dinamicamente
+        payload[mediaType] = { link: mediaUrl };
+        
+        // Apenas imagens, vídeos e documentos suportam legendas na API da Meta (Áudio com texto trava a API)
+        if ((mediaType === 'image' || mediaType === 'video' || mediaType === 'document') && textBody) {
+            payload[mediaType].caption = textBody;
+        }
     } else {
         // Se não tem imagem, manda como texto normal
         payload = {
