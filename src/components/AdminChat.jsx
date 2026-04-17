@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
@@ -70,6 +70,10 @@ export default function AdminChat() {
     const [isImporting, setIsImporting] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(''); // Armazena o template escolhido
     const [isSendingTemplate, setIsSendingTemplate] = useState(false); // Loading do disparo
+// --- ESTADOS PARA DISPARO EM MASSA (BROADCAST) ---
+    const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    const [broadcastTemplate, setBroadcastTemplate] = useState('');
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
@@ -637,6 +641,14 @@ export default function AdminChat() {
                     </button>
 
                     <button 
+                        onClick={() => setShowBroadcastModal(true)}
+                        className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        title="Disparo em Massa (Campanhas)"
+                    >
+                        <Megaphone size={20} />
+                    </button>
+
+                    <button 
                         onClick={() => setShowNewChatModal(true)}
                         className="bg-[#008069] text-white p-2 rounded-lg hover:bg-[#016d5a] transition-colors shadow-sm"
                         title="Iniciar Nova Conversa"
@@ -758,6 +770,87 @@ export default function AdminChat() {
                         </div>
                     )}
                 </AnimatePresence>
+                {/* MODAL DE DISPARO EM MASSA (BROADCAST) */}
+                <AnimatePresence>
+                    {showBroadcastModal && (
+                        <div className="absolute inset-0 bg-white z-40 flex flex-col animate-in slide-in-from-bottom-full">
+                            <div className="h-16 bg-blue-600 text-white flex items-center px-4 shrink-0 shadow-md gap-4">
+                                <button onClick={() => setShowBroadcastModal(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors">
+                                    <ArrowLeft size={20} />
+                                </button>
+                                <h2 className="text-lg font-bold">Disparo em Massa</h2>
+                            </div>
+                            
+                            <div className="p-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+                                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex gap-3 items-start shadow-sm">
+                                    <div className="text-blue-500 mt-0.5"><Megaphone size={20} /></div>
+                                    <p className="text-[12px] text-blue-800 leading-relaxed font-medium">
+                                        <strong className="block mb-1 text-blue-900">Acelere suas vendas! 🚀</strong>
+                                        O sistema enviará o template selecionado para os últimos <strong>500 clientes</strong> que já fizeram pedidos na sua loja. Excelente para sextou, chuva ou cupons.
+                                    </p>
+                                </div>
+
+                                <div className="mt-4">
+                                    <p className="text-sm text-gray-700 font-bold mb-2">Selecione a Campanha (Template):</p>
+                                    <select 
+                                        value={broadcastTemplate}
+                                        onChange={(e) => setBroadcastTemplate(e.target.value)}
+                                        className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium appearance-none cursor-pointer border border-gray-200 shadow-sm"
+                                    >
+                                        <option value="">Selecione um modelo aprovado...</option>
+                                        <optgroup label="Marketing e Vendas">
+                                            <option value="velo_promo_fds">🎉 Promoção de Sextou/Fim de Semana</option>
+                                            <option value="velo_clima_fome">🌧️ Gatilho de Chuva/Frio</option>
+                                            <option value="velo_oferta_nova">🍔 Novidades e Ofertas</option>
+                                            <option value="velo_saudade_cliente">🥺 Saudade / Recuperar Clientes</option>
+                                        </optgroup>
+                                        <optgroup label="Pós-venda">
+                                            <option value="velo_feedback_pedido">⭐ Pedir Avaliação na Base</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <button 
+                                    disabled={isBroadcasting || !broadcastTemplate}
+                                    onClick={async () => {
+                                        if (!window.confirm("ATENÇÃO: Você está prestes a enviar uma mensagem para toda a sua base de clientes recentes. Deseja confirmar o disparo?")) return;
+                                        
+                                        setIsBroadcasting(true);
+                                        try {
+                                            const res = await fetch('/api/whatsapp-send', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    action: 'broadcast',
+                                                    storeId: storeId,
+                                                    templateName: broadcastTemplate
+                                                })
+                                            });
+                                            
+                                            const data = await res.json();
+                                            if (res.ok) {
+                                                alert(`✅ Sucesso! ${data.message}`);
+                                                setShowBroadcastModal(false);
+                                                setBroadcastTemplate('');
+                                            } else {
+                                                alert('Erro ao disparar: ' + (data.error || 'Falha na API da Meta'));
+                                            }
+                                        } catch (error) {
+                                            alert("Erro de conexão ao tentar realizar o disparo.");
+                                        } finally {
+                                            setIsBroadcasting(false);
+                                        }
+                                    }}
+                                    className={`w-full text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4 ${broadcastTemplate ? 'bg-blue-600 hover:bg-blue-700 active:scale-95' : 'bg-gray-300 cursor-not-allowed'}`}
+                                >
+                                    {isBroadcasting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                                    {isBroadcasting ? 'Disparando para base...' : 'Iniciar Disparo em Massa'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </AnimatePresence>
+                
 
                 {/* Lista de Chats */}
                 <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
