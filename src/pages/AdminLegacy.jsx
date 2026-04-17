@@ -6641,9 +6641,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             
                                             <div className="mb-8 relative z-10">
                                                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{app.name}</h3>
-                                                <p className="text-xs text-slate-400 mt-2 font-medium">
-                                                    CNPJ: {storeStatus?.cnpj || 'Não informado'}
-                                                </p>
+                                                <p className="text-xs text-slate-400 mt-2 font-medium line-clamp-2">
+                                                    {app.desc}
+                                                </p>
                                             </div>
 
                                             <button 
