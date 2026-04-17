@@ -376,8 +376,12 @@ export default async function handler(req, res) {
                     
                     if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
                         const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
-                        let cleanPhone = String(data.customerPhone).replace(/\D/g, '');
-                        if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+                        
+                        // BLINDAGEM VELO CRON: Trata o número do carrinho abandonado
+                        let rawPhone = String(data.customerPhone).replace(/\D/g, '');
+                        if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
+                        if (rawPhone.length === 10) rawPhone = rawPhone.substring(0, 2) + '9' + rawPhone.substring(2);
+                        let cleanPhone = `55${rawPhone}`;
 
                         const cupom = settingsData.exitIntentCoupon || "VOLTA10";
                         const firstName = data.customerName ? data.customerName.split(' ')[0] : 'Cliente';

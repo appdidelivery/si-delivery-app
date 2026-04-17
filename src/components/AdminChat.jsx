@@ -367,11 +367,13 @@ export default function AdminChat() {
    const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
 
-        // --- SOLUÇÃO DEFINITIVA DO 9º DÍGITO PARA MÍDIAS ---
-        const safePhone = `55${activeChat}`;
+        // --- BLINDAGEM DO 9º DÍGITO PARA MÍDIAS ---
+        let cleanActiveChat = activeChat.replace(/\D/g, '');
+        if (cleanActiveChat.startsWith('55')) cleanActiveChat = cleanActiveChat.substring(2);
+        const safePhone = `55${cleanActiveChat}`;
 
         try {
-            // Dispara a API 
+            // Dispara a API
             const response = await fetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
