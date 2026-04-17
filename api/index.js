@@ -683,9 +683,42 @@ export default async function handler(req, res) {
                 const uniquePhones = new Set();
                 ordersSnap.forEach(doc => { if (doc.data().customerPhone) uniquePhones.add(doc.data().customerPhone); });
                 const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName));
-                await Promise.allSettled(sendPromises);
-                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
+                await Promise.allSettled(sendPromises);
+                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
+            }
+
+            // --- INÍCIO: ENVIAR TEMPLATE INDIVIDUAL (ABRIR JANELA 24H) ---
+            if (action === 'send_template') {
+                if (!templateName || !toPhone) return res.status(400).json({ error: 'Template e telefone são obrigatórios' });
+                
+                // Blindagem do número
+                let cleanPhone = String(toPhone).replace(/\D/g, '');
+                if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
+                if (cleanPhone.length === 10) cleanPhone = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+                const safePhone = `55${cleanPhone}`;
+
+                // Usa a função sendMessageToMeta que já existe no seu código
+                const metaResponse = await sendMessageToMeta(safePhone, templateName);
+                
+                if (metaResponse.ok) {
+                    // Registra a mensagem no banco para aparecer no painel do lojista
+                    await db.collection('whatsapp_inbound').add({
+                        storeId: storeId,
+                        to: safePhone,
+                        text: `[Template Oficial Enviado: ${templateName}]`, // Marca visual para o lojista
+                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        status: 'read',
+                        direction: 'outbound'
+                    });
+                    return res.status(200).json({ success: true });
+                } else {
+                    console.error("Erro Meta Template Individual:", metaResponse.data);
+                    return res.status(400).json({ error: 'Falha na Meta ao enviar template', details: metaResponse.data });
+                }
             }
+            // --- FIM: ENVIAR TEMPLATE INDIVIDUAL ---
+
+// --- INÍCIO: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
 // --- INÍCIO: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
             if (action === 'update_profile') {
                 const { address, description, email, website } = req.body;

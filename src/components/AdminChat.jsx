@@ -64,10 +64,12 @@ export default function AdminChat() {
     const audioChunksRef = useRef([]);
     const timerIntervalRef = useRef(null);
     const fileInputRef = useRef(null);
-    // --- ESTADOS PARA NOVAt CONVERSA ---
+    // --- ESTADOS PARA NOVA CONVERSA ---
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatPhone, setNewChatPhone] = useState('');
     const [isImporting, setIsImporting] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState(''); // Armazena o template escolhido
+    const [isSendingTemplate, setIsSendingTemplate] = useState(false); // Loading do disparo
 
     // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
@@ -663,38 +665,93 @@ export default function AdminChat() {
                                 <p className="text-[9px] text-blue-400 text-center">Arquivo deve conter: Nome;Telefone</p>
                             </div>
                             <div className="p-6 flex flex-col gap-4">
-                                <p className="text-sm text-gray-500 font-medium">Digite o WhatsApp do cliente com DDD (Ex: 48999999999)</p>
+                                {/* BLINDAGEM VELO: Aviso Educativo sobre Regra da Meta */}
+                                <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex gap-3 items-start">
+                                    <div className="text-red-500 mt-0.5"><Info size={18} /></div>
+                                    <p className="text-[11px] text-red-700 leading-relaxed font-medium">
+                                        <strong className="block mb-1 text-red-800">⚠️ Regra do WhatsApp Oficial</strong>
+                                        Você só pode enviar mensagens manuais se o cliente tiver falado com a loja nas <strong>últimas 24 horas</strong>. Para iniciar conversa com contatos frios ou motoboys, utilize a ferramenta de <strong>Disparo / Campanhas</strong> com modelos aprovados pela Meta.
+                                    </p>
+                                </div>
+
+                               <p className="text-sm text-gray-500 font-medium mt-2">Digite o WhatsApp do cliente com DDD (Ex: 48999999999)</p>
                                 <input 
                                     type="tel" 
-                                    placeholder="Apenas números (DDD + Tel)"
+                                    placeholder="Apenas números (DDD + Tel sem espaços)"
                                     value={newChatPhone}
                                     onChange={(e) => setNewChatPhone(e.target.value.replace(/\D/g, ''))}
                                     className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-[#008069] text-gray-800 font-bold"
                                 />
+
+                                <div className="mt-2">
+                                    <p className="text-sm text-gray-500 font-medium mb-2">Selecione o Template (Obrigatório p/ abrir janela):</p>
+                                    <select 
+                                        value={selectedTemplate}
+                                        onChange={(e) => setSelectedTemplate(e.target.value)}
+                                        className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-[#008069] text-gray-800 font-bold appearance-none cursor-pointer"
+                                    >
+                                        <option value="">Sem template (Chat Livre - Risco de bloqueio)</option>
+                                        <option value="velo_oferta_nova">🍔 Novidades e Ofertas (Marketing)</option>
+                                        <option value="velo_contato_logistica">🛵 Contato sobre Entrega (Logística)</option>
+                                        <option value="velo_saudade_cliente">🥺 Saudade / Pós-venda (Recuperação)</option>
+                                    </select>
+                                </div>
+
                                 <button 
+                                    disabled={isSendingTemplate}
                                     onClick={async () => {
                                         if (newChatPhone.length < 10) return alert("Número muito curto.");
                                         let finalPhone = newChatPhone;
                                         if (!finalPhone.startsWith('55')) finalPhone = `55${finalPhone}`;
                                         
-                                        // 1. Abre a tela de chat
-                                        setActiveChat(finalPhone);
-                                        setShowNewChatModal(false);
-                                        setNewChatPhone('');
-                                        
-                                        // 2. Grava um log no banco para o cliente aparecer na lista esquerda
-                                        await addDoc(collection(db, 'whatsapp_inbound'), {
-                                            storeId: storeId,
-                                            to: finalPhone,
-                                            text: 'Iniciou conversa via painel',
-                                            receivedAt: serverTimestamp(),
-                                            status: 'read',
-                                            direction: 'outbound'
-                                        });
+                                        if (selectedTemplate) {
+                                            // --- DISPARO DE TEMPLATE OFICIAL DA META ---
+                                            setIsSendingTemplate(true);
+                                            try {
+                                                const res = await fetch('/api/whatsapp-send', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        action: 'send_template',
+                                                        storeId: storeId,
+                                                        toPhone: finalPhone,
+                                                        templateName: selectedTemplate
+                                                    })
+                                                });
+                                                
+                                                if (res.ok) {
+                                                    setActiveChat(finalPhone);
+                                                    setShowNewChatModal(false);
+                                                    setNewChatPhone('');
+                                                    setSelectedTemplate(''); // Reseta pro próximo
+                                                } else {
+                                                    const err = await res.json();
+                                                    alert('A Meta recusou o template. Verifique se o nome confere com o painel deles.\nDetalhe: ' + (err.error || 'Erro interno'));
+                                                }
+                                            } catch (error) {
+                                                alert("Erro de conexão ao acionar a API da Meta.");
+                                            } finally {
+                                                setIsSendingTemplate(false);
+                                            }
+                                        } else {
+                                            // --- ABERTURA DE CHAT LIVRE (SEM TEMPLATE) ---
+                                            setActiveChat(finalPhone);
+                                            setShowNewChatModal(false);
+                                            setNewChatPhone('');
+                                            await addDoc(collection(db, 'whatsapp_inbound'), {
+                                                storeId: storeId,
+                                                to: finalPhone,
+                                                text: 'Iniciou conversa livre via painel',
+                                                receivedAt: serverTimestamp(),
+                                                status: 'read',
+                                                direction: 'outbound'
+                                            });
+                                        }
                                     }}
-                                    className="w-full bg-[#008069] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md hover:bg-[#016d5a] transition-all"
+                                    className={`w-full text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-2 ${selectedTemplate ? 'bg-[#008069] hover:bg-[#016d5a]' : 'bg-gray-400 hover:bg-gray-500'}`}
                                 >
-                                    Abrir Chat
+                                    {isSendingTemplate ? <Loader2 className="animate-spin" size={18} /> : null}
+                                    {selectedTemplate ? 'Enviar Template e Abrir Chat' : 'Abrir Chat Livre'}
                                 </button>
                             </div>
                         </div>
