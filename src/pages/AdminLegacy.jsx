@@ -8351,28 +8351,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     )}
                                                 </div>
 
-                                                {/* 3. DISPARO EM MASSA */}
-                                                <div className="bg-green-50 p-4 rounded-2xl border border-green-200 mt-6">
-                                                    <h4 className="text-xs font-black text-green-800 uppercase mb-2">📢 Disparo em Massa (Base VIP)</h4>
-                                                    <p className="text-[10px] text-green-700 mb-3">Envie um Template aprovado na Meta para seus clientes.</p>
-                                                    <input type="text" placeholder="Nome do Template (ex: promo_fds)" className="w-full p-3 bg-white rounded-xl font-bold text-sm outline-none border border-green-200 mb-3 focus:ring-2 ring-green-400" value={integrationForm.broadcastTemplate || ''} onChange={e => setIntegrationForm({...integrationForm, broadcastTemplate: e.target.value.trim()})} />
-                                                   <button type="button" onClick={async () => {
-                                                        if(!integrationForm.broadcastTemplate) return alert("Digite o nome exato do Template!");
-                                                        if(window.confirm(`Disparar o template '${integrationForm.broadcastTemplate}' para toda a base?`)){
-                                                            try {
-                                                                const res = await fetch('/api/whatsapp-send', {
-                                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ action: 'broadcast', storeId: storeId, templateName: integrationForm.broadcastTemplate })
-                                                                });
-                                                                if(res.ok) alert("✅ Disparo iniciado em background!");
-                                                                else alert("❌ Erro ao solicitar o disparo.");
-                                                            } catch(e) { alert("Erro de conexão."); }
-                                                        }
-                                                    }} className="w-full bg-green-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md hover:bg-green-700 active:scale-95 transition-all">
-                                                        ▶️ Iniciar Disparo
-                                                    </button>
-                                                </div>
-
                                                 {/* 4. SINCRONIZAR PERFIL COMERCIAL */}
                                                 <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 mt-6">
                                                     <h4 className="text-xs font-black text-blue-800 uppercase mb-2">🏪 Sincronizar Perfil do WhatsApp</h4>
