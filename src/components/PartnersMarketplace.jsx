@@ -6,6 +6,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 const mockPartners = [
   {
     id: 1,
+    name: 'Agência Marka',
+    category: 'Tráfego',
+    description: 'Transformando marcas em resultados com foco em performance (Meta & Google Ads). Cases: Solary Metais, Airo Energia e Cleo Moraes.',
+    imageUrl: '/Marka-logo-P1.png', 
+    whatsapp: '5551984687497',
+    website: 'https://agenciamarka.com.br', 
+    badge: 'Selo de Qualidade Velo',
+    discount: 'Auditoria de Conta Gratuita'
+  },
+  {
+    id: 2,
     name: 'VeloPack Embalagens',
     category: 'Embalagens',
     description: 'Fábrica de caixas kraft térmicas para hambúrguer e pizza, sacolas personalizadas e papel acoplado anti-gordura.',
@@ -234,14 +245,32 @@ export default function PartnersMarketplace() {
                       </div>
                     )}
 
-                    {/* BOTÃO WHATSAPP */}
-                    <button
-                      onClick={() => handleWhatsAppClick(partner.whatsapp, partner.name)}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-green-200 transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      <MessageCircle size={18} />
-                      Falar com Parceiro
-                    </button>
+                   {/* BOTÕES DE AÇÃO (WhatsApp e Site) */}
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={() => {
+                          const msg = `Olá! Sou lojista da Velo Delivery e vi vocês no Hub de Parceiros. Queria saber mais sobre seus serviços.`;
+                          window.open(`https://wa.me/${partner.whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+                        }}
+                        className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-green-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <MessageCircle size={18} />
+                        Falar no WhatsApp
+                      </button>
+
+                      {/* BOTÃO DO SITE (SEO Link Building - Dofollow) */}
+                      {partner.website && (
+                        <a
+                          href={partner.website}
+                          target="_blank"
+                          rel="dofollow" 
+                          className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-slate-700"
+                        >
+                          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m-9 9a9 9 0 019-9"></path></svg>
+                          Acessar Site
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.div>
