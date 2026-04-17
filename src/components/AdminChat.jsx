@@ -683,7 +683,7 @@ export default function AdminChat() {
                                     className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-[#008069] text-gray-800 font-bold"
                                 />
 
-                                <div className="mt-2">
+                               <div className="mt-2">
                                     <p className="text-sm text-gray-500 font-medium mb-2">Selecione o Template (Obrigatório p/ abrir janela):</p>
                                     <select 
                                         value={selectedTemplate}
@@ -691,6 +691,7 @@ export default function AdminChat() {
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-[#008069] text-gray-800 font-bold appearance-none cursor-pointer"
                                     >
                                         <option value="">Sem template (Chat Livre - Risco de bloqueio)</option>
+                                        <option value="velo_atendimento_geral">👋 Iniciar Atendimento (Genérico)</option>
                                         <option value="velo_oferta_nova">🍔 Novidades e Ofertas (Marketing)</option>
                                         <option value="velo_contato_logistica">🛵 Contato sobre Entrega (Logística)</option>
                                         <option value="velo_saudade_cliente">🥺 Saudade / Pós-venda (Recuperação)</option>
