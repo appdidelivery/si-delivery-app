@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake,
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,6 +38,7 @@ import {
 import VeloSupportWidget from "../components/VeloSupportWidget";
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
 import { MissionTracker } from '../components/MissionTracker';
+import PartnersMarketplace from '../components/PartnersMarketplace';
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
@@ -143,6 +144,7 @@ const allNavItems =[
     { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
     { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
     { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
+    { id: 'partners', name: 'Hub Parceiros', icon: <Handshake size={18} />, mobileIcon: <Handshake size={22} /> },
     { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
     { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
     { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
@@ -528,7 +530,8 @@ export default function Admin() {
             case 'store_settings': return userPermissions.store_settings === true; 
             
             case 'banners': 
-            case 'marketing': return userPermissions.marketing === true; 
+            case 'marketing': 
+            case 'partners': return userPermissions.marketing === true;
             
             case 'finance': return userPermissions.finance === true; 
             
@@ -4841,6 +4844,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
                     </div>
+                )}
+                {/* --- ABA DE PARCEIROS VELO (B2B) --- */}
+                {activeTab === 'partners' && (
+                    <PartnersMarketplace />
                 )}
                 {/* --- ABA DE EQUIPE E USUÁRIOS --- */}
                 {activeTab === 'team' && (
