@@ -750,7 +750,7 @@ export default async function handler(req, res) {
             recipient_type: "individual",
             to: cleanPhone,
             type: "text",
-            text: { preview_url: false, body: textBody }
+            text: { body: textBody }
         };
     }
     

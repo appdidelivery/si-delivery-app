@@ -367,11 +367,8 @@ export default function AdminChat() {
    const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
 
-        // --- CORREÇÃO DO TERROR DO 9º DÍGITO PARA MÍDIAS ---
-        const currentChatMsgs = chats[activeChat]?.msgs || [];
-        const lastInboundMsg = currentChatMsgs.slice().reverse().find(m => m.direction !== 'outbound');
-        let targetPhone = lastInboundMsg && lastInboundMsg.from ? String(lastInboundMsg.from) : String(activeChat);
-        const safePhone = targetPhone.startsWith('55') ? targetPhone : `55${targetPhone}`;
+        // --- SOLUÇÃO DEFINITIVA DO 9º DÍGITO PARA MÍDIAS ---
+        const safePhone = `55${activeChat}`;
 
         try {
             // Dispara a API 
@@ -414,11 +411,11 @@ export default function AdminChat() {
         setLoadingSend(true);
 
         try {
-            // --- CORREÇÃO DO TERROR DO 9º DÍGITO ---
-            const currentChatMsgs = chats[activeChat]?.msgs || [];
-            const lastInboundMsg = currentChatMsgs.slice().reverse().find(m => m.direction !== 'outbound');
-            let targetPhone = lastInboundMsg && lastInboundMsg.from ? String(lastInboundMsg.from) : String(activeChat);
-            const safePhone = targetPhone.startsWith('55') ? targetPhone : `55${targetPhone}`;
+            // --- SOLUÇÃO DEFINITIVA DO 9º DÍGITO ---
+            // A API da Meta no Brasil tem um bug de roteamento no Webhook.
+            // Para garantir a entrega (igual aos alertas de pedido), usamos a variável
+            // activeChat que já força o 9º dígito internamente no Velo.
+            const safePhone = `55${activeChat}`;
 
             // 1. Dispara via API
             const response = await fetch('/api/whatsapp-send', {
