@@ -367,11 +367,10 @@ export default function AdminChat() {
    const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
 
-        // --- CORREÇÃO DO 9º DÍGITO PARA MÍDIAS (BLINDAGEM) ---
-        // Garante que a foto/áudio vá para o ID exato que a Meta reconhece
+        // --- CORREÇÃO DO TERROR DO 9º DÍGITO PARA MÍDIAS ---
         const currentChatMsgs = chats[activeChat]?.msgs || [];
         const lastInboundMsg = currentChatMsgs.slice().reverse().find(m => m.direction !== 'outbound');
-        let targetPhone = lastInboundMsg && lastInboundMsg.from ? lastInboundMsg.from : activeChat;
+        let targetPhone = lastInboundMsg && lastInboundMsg.from ? String(lastInboundMsg.from) : String(activeChat);
         const safePhone = targetPhone.startsWith('55') ? targetPhone : `55${targetPhone}`;
 
         try {
@@ -382,7 +381,7 @@ export default function AdminChat() {
                 body: JSON.stringify({
                     action: 'chat_reply',
                     storeId: storeId,
-                    toPhone: safePhone, // <-- CORREÇÃO AQUI
+                    toPhone: safePhone,
                     dynamicParams: { 
                         text: '', 
                         mediaUrl: mediaUrl,
@@ -416,11 +415,9 @@ export default function AdminChat() {
 
         try {
             // --- CORREÇÃO DO TERROR DO 9º DÍGITO ---
-            // Em vez de forçar o número do activeChat, buscamos o número EXATO
-            // que a Meta usou na última mensagem recebida deste cliente.
             const currentChatMsgs = chats[activeChat]?.msgs || [];
             const lastInboundMsg = currentChatMsgs.slice().reverse().find(m => m.direction !== 'outbound');
-            let targetPhone = lastInboundMsg && lastInboundMsg.from ? lastInboundMsg.from : activeChat;
+            let targetPhone = lastInboundMsg && lastInboundMsg.from ? String(lastInboundMsg.from) : String(activeChat);
             const safePhone = targetPhone.startsWith('55') ? targetPhone : `55${targetPhone}`;
 
             // 1. Dispara via API
