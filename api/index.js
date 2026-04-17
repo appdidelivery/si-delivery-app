@@ -377,7 +377,7 @@ export default async function handler(req, res) {
                     if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
                         const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
                         
-                        // BLINDAGEM VELO CRON: Trata o número do carrinho abandonado
+                        // BLINDAGEM VELO attCRON: Trata o número do carrinho abandonado
                         let rawPhone = String(data.customerPhone).replace(/\D/g, '');
                         if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
                         if (rawPhone.length === 10) rawPhone = rawPhone.substring(0, 2) + '9' + rawPhone.substring(2);
