@@ -2274,77 +2274,77 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     else if (path === '/api/velo-insights') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { storeName, storeNiche, topSearches, topCategories, topProducts, totalOrders30d, totalRevenue30d } = req.body;
-
         try {
+            // 1. EXTRAÇÃO BLINDADA (Impede crash se o React enviar dados vazios)
+            const storeName = req.body.storeName || 'Loja';
+            const storeNiche = req.body.storeNiche || 'Geral';
+            const topSearches = Array.isArray(req.body.topSearches) ? req.body.topSearches : [];
+            const topCategories = Array.isArray(req.body.topCategories) ? req.body.topCategories : [];
+            const topProducts = Array.isArray(req.body.topProducts) ? req.body.topProducts : [];
+            const totalOrders30d = Number(req.body.totalOrders30d) || 0;
+            const totalRevenue30d = Number(req.body.totalRevenue30d) || 0;
+
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             
-            // Blindagem: Se o dono da plataforma não botou a chave, avisa sem quebrar o sistema
             if (!GEMINI_KEY) {
                 return res.status(200).json({ 
                     success: true, 
-                    insight: "### Aviso do Sistema\nA chave da API do Google Gemini (GEMINI_API_KEY) não foi configurada nas variáveis de ambiente da Vercel.\n\nPara que eu possa analisar os dados e te dar dicas reais, peça ao administrador do sistema para adicionar essa chave." 
+                    insight: "### Chave não encontrada\nAdicione a variável `GEMINI_API_KEY` nas configurações da Vercel." 
                 });
             }
 
-            // O "Cérebro" da nossa consultoria
-            const systemPrompt = `
-Você é um consultor sênior de negócios focado em Delivery e E-commerce de Alimentos/Bebidas.
-Sua missão é analisar métricas reais de uma loja e dar exatamente 3 dicas PRÁTICAS e DIRETAS de como o lojista pode aumentar as vendas ou o ticket médio.
-NÃO use introduções longas. Vá direto ao ponto. Use tópicos e negrito para destacar.
-Tom de voz: Encorajador, analítico e muito prático.
-`;
+            const fullPrompt = `Você é um consultor sênior de negócios focado em Delivery. Analise os dados da loja "${storeName}" e dê 3 dicas curtas e muito práticas para aumentar as vendas.
+            
+            DADOS REAIS:
+            - Nicho: ${storeNiche}.
+            - Pedidos no Mês: ${totalOrders30d}.
+            - Faturamento: R$ ${totalRevenue30d.toFixed(2)}.
+            - Termos Buscados: ${topSearches.join(', ') || 'Nenhum'}.
+            - Categorias Vistas: ${topCategories.join(', ') || 'Nenhuma'}.
+            - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
-            const userPrompt = `
-Aqui estão os dados dos últimos 30 dias da loja "${storeName}" (Nicho: ${storeNiche || 'Geral'}):
-- Total de Pedidos: ${totalOrders30d}
-- Faturamento: R$ ${totalRevenue30d.toFixed(2)}
-- Termos mais pesquisados na barra de busca: ${topSearches.join(', ') || 'Nenhum'}
-- Categorias mais clicadas: ${topCategories.join(', ') || 'Nenhum'}
-- Produtos mais visualizados (clicados): ${topProducts.join(', ') || 'Nenhum'}
-
-Com base nesses dados exatos de buscas e cliques, crie um plano de ação rápido com 3 estratégias de marketing ou vendas. (Ex: se buscam muito 'Bacon' mas não é o mais vendido, sugira um combo).
-`;
-
-            // Fazemos o fetch nativo da API do Gemini (Evita instalar pacotes pesados)
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    system_instruction: {
-                        parts: [{ text: systemPrompt }]
-                    },
-                    contents: [{
-                        role: "user",
-                        parts: [{ text: userPrompt }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        maxOutputTokens: 800,
-                    }
+                    contents: [{ parts: [{ text: fullPrompt }] }]
                 })
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                console.error("Erro no Gemini:", data);
-                return res.status(400).json({ error: "A IA recusou a conexão. Verifique a chave ou limites da API do Google." });
+            // 2. BLINDAGEM DE RESPOSTA DO GOOGLE (Lê como texto antes para não crashar)
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("❌ Erro Crítico ao ler Google API:", responseText);
+                return res.status(200).json({ success: true, insight: "### Falha de Comunicação\nO Google não devolveu um formato válido. Tente de novo." });
             }
 
-            // Extrai a resposta formatada em Markdown do JSON retornado pelo Gemini
-            const aiText = data.candidates[0].content.parts[0].text;
+            if (!response.ok || data.error) {
+                console.error("❌ Erro da API Gemini:", data);
+                return res.status(200).json({ 
+                    success: true, 
+                    insight: `### Erro de Conexão com a IA\nMotivo: ${data.error?.message || 'Erro Desconhecido na chave'}` 
+                });
+            }
 
-            return res.status(200).json({ success: true, insight: aiText });
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                const aiText = data.candidates[0].content.parts[0].text;
+                return res.status(200).json({ success: true, insight: aiText });
+            } else {
+                return res.status(200).json({ success: true, insight: "### Ops!\nA IA não conseguiu gerar o texto agora. Tente de novo." });
+            }
 
         } catch (error) {
-            console.error('Erro no Velo Insights (Gemini):', error);
-            return res.status(500).json({ error: 'Erro interno ao processar a análise da IA.' });
+            console.error('❌ Erro Fatal no Velo Insights:', error);
+            // 3. RETORNA 200 (SUCESSO NO ROTEAMENTO) PARA NÃO ATIVAR A TELA DE "SEM INTERNET" DO FRONTEND
+            return res.status(200).json({ 
+                success: true, 
+                insight: `### Erro Interno do Servidor\nAlgo quebrou na Vercel: ${error.message}` 
+            });
         }
     }
-
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================
