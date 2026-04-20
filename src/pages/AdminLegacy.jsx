@@ -1222,7 +1222,6 @@ export default function Admin() {
                         // Normaliza o número de quem mandou para bater com o número aberto na tela
                         let senderPhone = String(data.from || '').replace(/\D/g, '');
                         if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
-                        if (senderPhone.length === 10) senderPhone = senderPhone.substring(0, 2) + '9' + senderPhone.substring(2);
 
                         // REGRA MÁGICA: Só toca o som se a mensagem for de ALGUÉM DIFERENTE da tela aberta
                         if (senderPhone !== activeChatInScreen) {
@@ -2974,11 +2973,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         let phoneRaw = String(cart.customerPhone).replace(/\D/g, '');
                                         if (phoneRaw.length < 10) return alert("Número de cliente inválido.");
                                         
-                                        // BLINDAGEM DO 9º DÍGITO PARA CARRINHO ABANDONADO MANUAL
+                                        // FORMATANDO NÚMERO (Apenas garantindo o código 55 do Brasil)
                                         if (phoneRaw.startsWith('55')) phoneRaw = phoneRaw.substring(2);
-                                        if (phoneRaw.length === 11 && parseInt(phoneRaw.substring(0, 2)) > 30) {
-                                            phoneRaw = phoneRaw.substring(0, 2) + phoneRaw.substring(3); // Remove o 9 para DDD > 30
-                                        }
                                         const safePhone = `55${phoneRaw}`;
                                         
                                         if (settings?.integrations?.whatsapp?.apiToken) {
@@ -3006,7 +3002,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     
                                                     // Handoff: Pausa o bot automaticamente para o lojista assumir caso o cliente responda
                                                     let normalizedPhone = safePhone.substring(2); // Tira o 55 para o controle de sessão
-                                                    if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
                                                     
                                                     await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${normalizedPhone}`), {
                                                         storeId: storeId,

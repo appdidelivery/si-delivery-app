@@ -377,14 +377,10 @@ export default async function handler(req, res) {
                     if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
                         const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
                         
-                        // BLINDAGEM VELO CRON: Regra Oficial do 9º Dígito para a Meta
+                        // FORMATANDO NÚMERO (Apenas garantindo o código 55 do Brasil)
                         let rawPhone = String(data.customerPhone).replace(/\D/g, '');
                         if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
                         
-                        // Se for DDD > 30 e tiver 11 dígitos (com o 9), removemos o 9.
-                        if (rawPhone.length === 11 && parseInt(rawPhone.substring(0, 2)) > 30) {
-                            rawPhone = rawPhone.substring(0, 2) + rawPhone.substring(3); 
-                        }
                         let cleanPhone = `55${rawPhone}`;
 
                         const cupom = settingsData.exitIntentCoupon || "VOLTA10";
@@ -659,10 +655,9 @@ export default async function handler(req, res) {
             const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
             const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR', variables = []) => {
-                // BLINDAGEM VELO: Garante que o telefone tenha 55 e trate o nono dígito para a Meta
+                // FORMATANDO NÚMERO: Garante que o telefone tenha 55 sem forçar 9º dígito
                 let cleanPhone = String(recipientPhone).replace(/\D/g, '');
                 if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
-                if (cleanPhone.length === 10) cleanPhone = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
                 cleanPhone = `55${cleanPhone}`;
 
                 const payload = {
@@ -718,10 +713,9 @@ export default async function handler(req, res) {
                 const templateVariables = req.body.variables || []; // Captura variáveis dinâmicas
                 if (!templateName || !toPhone) return res.status(400).json({ error: 'Template e telefone são obrigatórios' });
                 
-                // Blindagem do número
+                // Formatação do número
                 let cleanPhone = String(toPhone).replace(/\D/g, '');
                 if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
-                if (cleanPhone.length === 10) cleanPhone = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
                 const safePhone = `55${cleanPhone}`;
 
                 // Usa a função sendMessageToMeta atualizada
@@ -1064,7 +1058,6 @@ export default async function handler(req, res) {
 
                                     let normalizedPhone = String(message.from).replace(/\D/g, '');
                                     if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
-                                    if (normalizedPhone.length === 10) normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
 
                                     // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
