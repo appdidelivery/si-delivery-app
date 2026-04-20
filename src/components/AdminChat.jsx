@@ -9,10 +9,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-export default function AdminChat({ products = [] }) {
+export default function AdminChat() {
     const { store } = useStore();
     const storeId = store?.slug; 
     const [messages, setMessages] = useState([]);
+    const [products, setProducts] = useState([]); // <-- ESTADO DOS PRODUTOS ADICIONADO
     const [activeChat, setActiveChat] = useState(null);
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
@@ -150,6 +151,16 @@ export default function AdminChat({ products = [] }) {
         });
 
         return () => unsubscribe();
+    }, [storeId]);
+
+    // --- NOVO: BUSCA OS PRODUTOS DA LOJA PARA O DISPARO DINÂMICO ---
+    useEffect(() => {
+        if (!storeId) return;
+        const q = query(collection(db, 'products'), where('storeId', '==', storeId), where('isActive', '==', true));
+        const unsub = onSnapshot(q, (snapshot) => {
+            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsub();
     }, [storeId]);
 
     // --- NOVO: BUSCA O NOME DOS CLIENTES DIRETAMENTE DOS PEDIDOS (AGENDA) ---
