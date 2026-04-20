@@ -2325,7 +2325,105 @@ Com base nesses dados exatos de buscas e cliques, crie um plano de ação rápid
                         maxOutputTokens: 800,
                     }
                 })
+            });else if (path === '/api/velo-insights') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeName, storeNiche, topSearches, topCategories, topProducts, totalOrders30d, totalRevenue30d } = req.body;
+
+        try {
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            
+            // Blindagem: Se o dono da plataforma não botou a chave, avisa sem quebrar o sistema
+            if (!GEMINI_KEY) {
+                return res.status(200).json({ 
+                    success: true, 
+                    insight: "### Aviso do Sistema\nA chave da API do Google Gemini (GEMINI_API_KEY) não foi configurada nas variáveis de ambiente da Vercel.\n\nPara que eu possa analisar os dados e te dar dicas reais, peça ao administrador do sistema para adicionar essa chave." 
+                });
+            }
+
+            // O "Cérebro" da nossa consultoria
+            const systemPrompt = `
+Você é um consultor sênior de negócios focado em Delivery e E-commerce de Alimentos/Bebidas.
+Sua missão é analisar métricas reais de uma loja e dar exatamente 3 dicas PRÁTICAS e DIRETAS de como o lojista pode aumentar as vendas ou o ticket médio.
+NÃO use introduções longas. Vá direto ao ponto. Use tópicos e negrito para destacar.
+Tom de voz: Encorajador, analítico e muito prático.
+`;
+
+            const userPrompt = `
+Aqui estão os dados dos últimos 30 dias da loja "${storeName}" (Nicho: ${storeNiche || 'Geral'}):
+- Total de Pedidos: ${totalOrders30d}
+- Faturamento: R$ ${totalRevenue30d.toFixed(2)}
+- Termos mais pesquisados na barra de busca: ${topSearches.join(', ') || 'Nenhum'}
+- Categorias mais clicadas: ${topCategories.join(', ') || 'Nenhum'}
+- Produtos mais visualizados (clicados): ${topProducts.join(', ') || 'Nenhum'}
+
+Com base nesses dados exatos de buscas e cliques, crie um plano de ação rápido com 3 estratégias de marketing ou vendas. (Ex: se buscam muito 'Bacon' mas não é o mais vendido, sugira um combo).
+`;
+
+            else if (path === '/api/velo-insights') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeName, storeNiche, topSearches, topCategories, topProducts, totalOrders30d, totalRevenue30d } = req.body;
+
+        try {
+            // 🚨 IMPORTANTE: Verifique se o nome na Vercel é exatamente GEMINI_API_KEY
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            
+            if (!GEMINI_KEY) {
+                return res.status(200).json({ 
+                    success: true, 
+                    insight: "### Aviso do Sistema\nA chave da API do Google Gemini (GEMINI_API_KEY) não foi encontrada na Vercel." 
+                });
+            }
+
+            // Unificamos os prompts para evitar o erro 400 de estrutura de System Instruction
+            const fullPrompt = `
+                INSTRUÇÃO DE ESPECIALISTA:
+                Você é um consultor sênior de negócios focado em Delivery e Food Service.
+                Analise os dados abaixo da loja "${storeName}" e dê exatamente 3 dicas PRÁTICAS de como aumentar as vendas.
+                Seja direto, use tópicos e negrito. Não faça introduções longas.
+
+                DADOS DA LOJA (Últimos 30 dias):
+                - Nicho: ${storeNiche || 'Geral'}
+                - Pedidos: ${totalOrders30d}
+                - Faturamento: R$ ${totalRevenue30d.toFixed(2)}
+                - Buscas dos Clientes: ${topSearches.join(', ') || 'Nenhuma'}
+                - Categorias mais vistas: ${topCategories.join(', ') || 'Nenhuma'}
+                - Produtos mais clicados: ${topProducts.join(', ') || 'Nenhum'}
+
+                Gere o plano de ação em Markdown agora:
+            `;
+
+            // Chamada direta para o modelo estável
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: fullPrompt }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 800
+                    }
+                })
             });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error("❌ Erro detalhado do Google:", JSON.stringify(data));
+                return res.status(400).json({ error: "O Google recusou os dados. Verifique os logs da Vercel." });
+            }
+
+            const aiText = data.candidates[0].content.parts[0].text;
+            return res.status(200).json({ success: true, insight: aiText });
+
+        } catch (error) {
+            console.error('Erro no Velo Insights:', error);
+            return res.status(500).json({ error: 'Erro interno ao processar a análise da IA.' });
+        }
+    }
 
             const data = await response.json();
 
