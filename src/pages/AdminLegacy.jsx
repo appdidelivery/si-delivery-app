@@ -41,7 +41,7 @@ import { MissionTracker } from '../components/MissionTracker';
 import PartnersMarketplace from '../components/PartnersMarketplace';
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
-import { Link as LinkIcon } from 'lucide-react'; // Usamos o alias LinkIcon para evitar conflito com o react-router
+import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
 // --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM KM) ---
@@ -132,6 +132,7 @@ const DAYS_OF_WEEK =[
 // --- ITENS DE NAVEGAÇÃO COMPLETA (USADO PARA DESKTOP E MOBILE) ---
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
+    { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
     { id: 'fleet', name: 'Monitor de Frota', icon: <Truck size={18} />, mobileIcon: <Truck size={22} /> }, // <-- NOVA ABA
     { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
@@ -313,9 +314,23 @@ export default function Admin() {
 
    // 🚨 NOVA LÓGICA DE PRIORIDADE CORRIGIDA (SaaS MULTI-TENANT) 🚨
     const hostname = window.location.hostname;
-    const currentSubdomain = (hostname !== 'localhost' && hostname.includes('.')) 
-        ? hostname.split('.')[0] 
-        : null;
+    let cleanHost = hostname.toLowerCase().trim().replace(/^www\./, '');
+    
+    // MAPA DE DOMÍNIOS PERSONALIZADOS (Sincronizado com o Backend para não dar Bug)
+    const domainMap = {
+        "convenienciasantaisabel.com.br": "csi",
+        "csi.com.br": "csi",
+        "cowburguer.com.br": "cowburguer",
+        "macanudorex.com.br": "macanudorex",
+        "ngconveniencia.com.br": "ng"
+    };
+
+    let currentSubdomain = null;
+    if (domainMap[cleanHost]) {
+        currentSubdomain = domainMap[cleanHost];
+    } else if (cleanHost !== 'localhost' && cleanHost.includes('.')) {
+        currentSubdomain = cleanHost.split('.')[0];
+    }
 
     const searchParams = new URLSearchParams(window.location.search);
     const urlStoreId = searchParams.get('store');
@@ -380,6 +395,9 @@ export default function Admin() {
         return () => clearInterval(interval);
     }, []);
     const [visitasHoje, setVisitasHoje] = useState(0);
+    const [analyticsHistory, setAnalyticsHistory] = useState([]); // <-- NOVO ESTADO HISTÓRICO PARA O VELO INSIGHTS
+    const [isGeneratingInsights, setIsGeneratingInsights] = useState(false); // IA Pensando
+    const [insightsResponse, setInsightsResponse] = useState(null); // Resposta da IA
     const [orders, setOrders] = useState([]);
     const[abandonedCarts, setAbandonedCarts] = useState([]); // NOVO: Estado dos abandonados
     const [products, setProducts] = useState([]);
@@ -1125,6 +1143,19 @@ export default function Admin() {
                 setVisitasHoje(0);
             }
         });
+
+        // --- VELO INSIGHTS: Busca os últimos 30 dias de comportamento do cliente ---
+        const last30DaysDate = new Date();
+        last30DaysDate.setDate(last30DaysDate.getDate() - 30);
+        const minDateStr = last30DaysDate.toISOString().split('T')[0];
+
+        const unsubAnalyticsHistory = onSnapshot(
+            query(collection(db, "stores", storeId, "analytics"), where("date", ">=", minDateStr)),
+            (s) => {
+                setAnalyticsHistory(s.docs.map(d => ({ id: d.id, ...d.data() })));
+            }
+        );
+
         // Cupons
        const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("storeId", "==", storeId)), (s) => setCoupons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         const unsubLoyalty = onSnapshot(query(collection(db, "loyalty_redemptions"), where("storeId", "==", storeId)), (s) => setLoyaltyRedemptions(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -1242,6 +1273,7 @@ export default function Admin() {
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
             if (unsubFleet) unsubFleet();
+            if (unsubAnalyticsHistory) unsubAnalyticsHistory(); // <-- LIMPEZA DO LISTENER DE IA
         };
     },[storeId]);
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
@@ -2594,6 +2626,186 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     );
                 })()}
+
+               {/* --- ABA VELO INSIGHTS (CONSULTORIA IA) --- */}
+                {activeTab === 'insights' && (() => {
+                    // Agrega os dados dos últimos 30 dias para exibir visualmente
+                    let aggregatedSearches = {};
+                    let aggregatedCategories = {};
+                    let aggregatedProductViews = {};
+
+                    analyticsHistory.forEach(day => {
+                        if (day.searches) Object.entries(day.searches).forEach(([k, v]) => aggregatedSearches[k] = (aggregatedSearches[k] || 0) + v);
+                        if (day.categoryClicks) Object.entries(day.categoryClicks).forEach(([k, v]) => aggregatedCategories[k] = (aggregatedCategories[k] || 0) + v);
+                        if (day.productViews) Object.entries(day.productViews).forEach(([k, v]) => aggregatedProductViews[k] = (aggregatedProductViews[k] || 0) + v);
+                    });
+
+                    // Ordena para pegar os Top 5
+                    const topSearches = Object.entries(aggregatedSearches).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                    const topCategories = Object.entries(aggregatedCategories).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                    
+                    // Cruze o ID dos produtos mais vistos com os Nomes reais no catálogo
+                    const topProductsRaw = Object.entries(aggregatedProductViews).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                    const topProducts = topProductsRaw.map(([id, views]) => {
+                        const p = products.find(prod => prod.id === id);
+                        return { name: p ? p.name : 'Produto Excluído', views };
+                    });
+
+                    // --- FUNÇÃO PARA CHAMAR A IA DO BACKEND ---
+                    const handleGenerateInsights = async () => {
+                        if (topProducts.length === 0 && topSearches.length === 0) {
+                            return alert("Ainda não há dados suficientes de clientes na sua loja para a IA analisar. Aguarde mais algumas visitas.");
+                        }
+
+                        setIsGeneratingInsights(true);
+                        setInsightsResponse(null);
+
+                        try {
+                            // Calcula dados financeiros básicos para dar contexto à IA
+                            const nowMs = Date.now();
+                            const thirtyDaysAgo = nowMs - (30 * 24 * 60 * 60 * 1000);
+                            const recentOrders = orders.filter(o => o.status !== 'canceled' && o.createdAt && o.createdAt.toMillis() >= thirtyDaysAgo);
+                            const totalRevenue = recentOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
+
+                            const response = await fetch('/api/velo-insights', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    storeName: storeStatus.name,
+                                    storeNiche: storeStatus.storeNiche,
+                                    topSearches: topSearches.map(t => `${t[0]} (${t[1]} buscas)`),
+                                    topCategories: topCategories.map(c => `${c[0]} (${c[1]} cliques)`),
+                                    topProducts: topProducts.map(p => `${p.name} (${p.views} visualizações)`),
+                                    totalOrders30d: recentOrders.length,
+                                    totalRevenue30d: totalRevenue
+                                })
+                            });
+
+                            const data = await response.json();
+
+                            if (response.ok && data.success) {
+                                setInsightsResponse(data.insight);
+                            } else {
+                                alert(`Erro na IA: ${data.error || 'Falha ao conectar com o servidor.'}`);
+                            }
+                        } catch (error) {
+                            console.error("Erro ao gerar Insights:", error);
+                            alert("Falha de conexão. Verifique sua internet e tente novamente.");
+                        } finally {
+                            setIsGeneratingInsights(false);
+                        }
+                    };
+
+                    return (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                                <div>
+                                    <h1 className="text-4xl font-black italic uppercase text-slate-900 leading-none flex items-center gap-3">
+                                        <Sparkles className="text-purple-600" size={36}/> Velo Insights
+                                    </h1>
+                                    <p className="text-slate-500 font-bold mt-2 text-sm">Inteligência Artificial que analisa os cliques da sua loja nos últimos 30 dias e gera estratégias.</p>
+                                </div>
+                                <button 
+                                    onClick={handleGenerateInsights}
+                                    disabled={isGeneratingInsights}
+                                    className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isGeneratingInsights ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>}
+                                    {isGeneratingInsights ? 'Analisando Dados...' : 'Gerar Consultoria IA'}
+                                </button>
+                            </div>
+
+                            {/* GRÁFICOS VISUAIS CRUS (Dados Reais Coletados) */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                {/* O Que Mais Procuram */}
+                                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                    <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                                        <Search size={14}/> Termos Mais Buscados
+                                    </h3>
+                                    {topSearches.length === 0 ? <p className="text-xs font-bold text-slate-300">Nenhum dado coletado.</p> : (
+                                        <ul className="space-y-3">
+                                            {topSearches.map(([term, count], i) => (
+                                                <li key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                    <span className="font-black text-slate-700 uppercase truncate pr-2">"{term}"</span>
+                                                    <span className="text-[10px] font-black bg-white text-slate-400 px-2 py-1 rounded shadow-sm shrink-0">{count} buscas</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                {/* Produtos Mais Vistos */}
+                                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                    <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                                        <Eye size={14}/> Produtos Mais Visualizados
+                                    </h3>
+                                    {topProducts.length === 0 ? <p className="text-xs font-bold text-slate-300">Nenhum dado coletado.</p> : (
+                                        <ul className="space-y-3">
+                                            {topProducts.map((p, i) => (
+                                                <li key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                    <span className="font-bold text-slate-700 text-xs truncate max-w-[150px]">{p.name}</span>
+                                                    <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-2 py-1 rounded shadow-sm shrink-0">{p.views} cliques</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                {/* Categorias Mais Clicadas */}
+                                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                    <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                                        <List size={14}/> Categorias Mais Clicadas
+                                    </h3>
+                                    {topCategories.length === 0 ? <p className="text-xs font-bold text-slate-300">Nenhum dado coletado.</p> : (
+                                        <ul className="space-y-3">
+                                            {topCategories.map(([cat, count], i) => (
+                                                <li key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                    <span className="font-black text-slate-700 uppercase truncate pr-2">{cat}</span>
+                                                    <span className="text-[10px] font-black bg-green-100 text-green-700 px-2 py-1 rounded shadow-sm shrink-0">{count} views</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* CONTAINER ONDE A IA VAI RESPONDER */}
+                            {insightsResponse ? (
+                                <div className="bg-white border-2 border-purple-200 p-8 md:p-10 rounded-[3rem] shadow-xl animate-in fade-in slide-in-from-top-4 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                                        <Sparkles size={150} className="text-purple-600"/>
+                                    </div>
+                                    <h3 className="text-2xl font-black text-slate-800 uppercase italic flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
+                                        <div className="bg-purple-100 text-purple-600 p-2 rounded-xl"><Award size={24}/></div>
+                                        Plano de Ação Sugerido
+                                    </h3>
+                                    
+                                    {/* Renderizador de texto formatado (Markdown básico) da OpenAI */}
+                                    <div className="space-y-4 text-slate-600 font-medium leading-relaxed whitespace-pre-wrap relative z-10">
+                                        {insightsResponse.split('\n').map((line, idx) => {
+                                            if (line.startsWith('###')) return <h4 key={idx} className="text-lg font-black text-slate-800 mt-6 mb-2">{line.replace('###', '').trim()}</h4>;
+                                            if (line.startsWith('- **') || line.startsWith('* **')) {
+                                                const parts = line.split('**');
+                                                return <p key={idx} className="flex items-start gap-2"><span className="text-purple-500 mt-1">•</span> <span><strong className="text-slate-800">{parts[1]}</strong>{parts[2]}</span></p>;
+                                            }
+                                            if (line.trim() === '') return <br key={idx} />;
+                                            return <p key={idx}>{line}</p>;
+                                        })}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-purple-50 border-2 border-dashed border-purple-200 p-10 rounded-[3rem] text-center flex flex-col items-center justify-center">
+                                    <Sparkles size={48} className="text-purple-300 mb-4 animate-pulse"/>
+                                    <h3 className="text-xl font-black text-purple-800 uppercase italic">Aguardando Análise</h3>
+                                    <p className="text-sm font-bold text-purple-600 mt-2 max-w-md">
+                                        Clique no botão <strong>"Gerar Consultoria IA"</strong> no topo da página para que nosso robô processe as métricas acima e crie um plano de ação para a sua loja aumentar as vendas.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 {/* --- ABA: MONITOR DE FROTA AO VIVO --- */}
                 {activeTab === 'fleet' && (
                     <div className="space-y-6 h-[calc(100vh-150px)] flex flex-col animate-in fade-in duration-500">

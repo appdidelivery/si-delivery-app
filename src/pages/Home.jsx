@@ -256,7 +256,7 @@ export default function Home() {
   const [selectedVariation, setSelectedVariation] = useState(''); // NOVO: Estado da Variação
   const [selectedRemovals, setSelectedRemovals] = useState([]); // NOVO: Estado dos Ingredientes Removidos
 
-  const handleOpenProduct = (p) => {
+  const handleOpenProduct = async (p) => {
       setSelectedProduct(p);
       setSelectedOptions({});
       setItemObservation('');
@@ -266,6 +266,30 @@ export default function Home() {
       const slug = generateSlug(p.name);
       // CORREÇÃO: Altera a URL silenciosamente. Não força o React Router a recarregar a página!
       window.history.pushState(null, '', `/p/${slug}`);
+
+      // --- VELO INSIGHTS: Rastreia a visualização do produto ---
+      if (storeId && p.id) {
+          try {
+              const hoje = new Date().toISOString().split('T')[0];
+              const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+              
+              // Incrementa +1 na visualização desse produto específico
+              await updateDoc(visitaRef, { 
+                  [`productViews.${p.id}`]: increment(1) 
+              });
+          } catch (error) {
+              // Cria o documento se for o primeiro acesso do dia
+              try {
+                  const hoje = new Date().toISOString().split('T')[0];
+                  const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+                  await setDoc(visitaRef, { 
+                      date: hoje, 
+                      pageViews: 1, 
+                      productViews: { [p.id]: 1 } 
+                  }, { merge: true });
+              } catch (e) {}
+          }
+      }
   };
 
   // --- FUNÇÕES DA ÁREA VIP E MISSÕES ---
@@ -414,6 +438,37 @@ export default function Home() {
   }, [cart, storeId]);
 
   const [searchTerm, setSearchTerm] = useState('');
+
+  // --- VELO INSIGHTS: Rastreia Termos de Busca (com Debounce para não explodir o banco) ---
+  useEffect(() => {
+      // Ignora termos muito curtos para poupar o banco de dados
+      if (!searchTerm || searchTerm.trim().length < 3 || !storeId) return;
+
+      const timer = setTimeout(async () => {
+          try {
+              const hoje = new Date().toISOString().split('T')[0];
+              const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+              
+              const termoLimpo = searchTerm.toLowerCase().trim();
+              await updateDoc(visitaRef, { 
+                  [`searches.${termoLimpo}`]: increment(1) 
+              });
+          } catch (error) {
+              try {
+                  const hoje = new Date().toISOString().split('T')[0];
+                  const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+                  const termoLimpo = searchTerm.toLowerCase().trim();
+                  await setDoc(visitaRef, { 
+                      date: hoje, 
+                      pageViews: 1, 
+                      searches: { [termoLimpo]: 1 } 
+                  }, { merge: true });
+              } catch (e) {}
+          }
+      }, 1500); // Só salva se o cliente parar de digitar por 1.5 segundos
+
+      return () => clearTimeout(timer);
+  }, [searchTerm, storeId]);
   const [activeCategory, setActiveCategory] = useState('all'); 
   const [showCheckout, setShowCheckout] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
@@ -811,7 +866,7 @@ export default function Home() {
   const [isCepLoading, setIsCepLoading] = useState(false);
   const[cepError, setCepError] = useState('');
 
-  const scrollToCategory = (categoryId) => {
+  const scrollToCategory = async (categoryId) => {
     if (storeSettings?.layoutTheme === 'list') {
       const element = document.getElementById(`category-${categoryId}`);
       if (element) {
@@ -824,6 +879,30 @@ export default function Home() {
       }
     }
     setActiveCategory(categoryId); 
+
+    // --- VELO INSIGHTS: Rastreia o clique na categoria ---
+    if (categoryId !== 'all' && storeId) {
+        try {
+            const hoje = new Date().toISOString().split('T')[0];
+            const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+            
+            // Incrementa dinamicamente a contagem dessa categoria
+            await updateDoc(visitaRef, { 
+                [`categoryClicks.${categoryId}`]: increment(1) 
+            });
+        } catch (error) {
+            // Se o documento ainda não existir, cria o arquivo do dia de forma silenciosa
+            try {
+                const hoje = new Date().toISOString().split('T')[0];
+                const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+                await setDoc(visitaRef, { 
+                    date: hoje, 
+                    pageViews: 1, 
+                    categoryClicks: { [categoryId]: 1 } 
+                }, { merge: true });
+            } catch (e) {}
+        }
+    }
   };
   
   const handleShare = async () => {
@@ -1016,7 +1095,7 @@ export default function Home() {
 
           // 4. Contador Nativo Velo
           const registrarVisitaNativa = async () => {
-              if (!storeId || storeId === 'csi') return;
+              if (!storeId) return; // Removido o bloqueio 'csi' que estava zerando as visitas
               const hoje = new Date().toISOString().split('T')[0];
               const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
               const sessionKey = `visit_${storeId}_${hoje}`;
