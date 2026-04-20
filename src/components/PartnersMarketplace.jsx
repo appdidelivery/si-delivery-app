@@ -17,16 +17,17 @@ const mockPartners = [
   },
   {
     id: 2,
-    name: 'VeloPack Embalagens',
+    name: 'Mamedes Papéis',
     category: 'Embalagens',
-    description: 'Fábrica de caixas kraft térmicas para hambúrguer e pizza, sacolas personalizadas e papel acoplado anti-gordura.',
-    imageUrl: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=400&q=80',
-    whatsapp: '5511999999991',
+    description: 'Encontre papéis de alta qualidade: parafinado, impermeável, kraft, manteiga, interfolha e papéis personalizados com sua logo para hambúrguer e frios.',
+    imageUrl: '/mamedes-logo.png',
+    whatsapp: '5541998989480',
+    website: 'https://loja.mamedes.com.br',
     badge: 'Fábrica Parceira',
-    discount: '10% OFF na 1ª Compra'
+    discount: '15% OFF na 1ª Compra'
   },
   {
-    id: 2,
+    id: 3,
     name: 'Click Food Studio',
     category: 'Foto e Vídeo',
     description: 'Fotografia gastronômica profissional e vídeos para Reels. Deixe seu cardápio irresistível e aumente a conversão.',
@@ -35,7 +36,7 @@ const mockPartners = [
     discount: '5 Fotos Extras de Brinde'
   },
   {
-    id: 3,
+    id: 4,
     name: 'PrintTech Equipamentos',
     category: 'Equipamentos',
     description: 'Impressoras térmicas não fiscais, bobinas, PDVs Touch e tablets robustos para os garçons no salão.',
@@ -45,7 +46,7 @@ const mockPartners = [
     discount: '1 Caixa de Bobina Grátis'
   },
   {
-    id: 4,
+    id: 5,
     name: 'Contabiliza Food',
     category: 'Contabilidade',
     description: 'Escritório contábil exclusivo para restaurantes e delivery. Foco em ST, redução de impostos e folha de motoboys.',
@@ -54,7 +55,7 @@ const mockPartners = [
     discount: 'Abertura de CNPJ Grátis'
   },
   {
-    id: 5,
+    id: 6,
     name: 'MotoLinc Entregas',
     category: 'Logística',
     description: 'Cooperativa de motoboys sob demanda. Terceirize sua frota para dias de pico de pedidos sem dor de cabeça.',
@@ -63,23 +64,13 @@ const mockPartners = [
     badge: 'Motoboys Express',
   },
   {
-    id: 6,
+    id: 7,
     name: 'Chef Consultoria',
     category: 'Consultoria',
     description: 'Engenharia de cardápio, precificação estratégica de pratos, fichas técnicas e redução drástica de desperdício.',
     imageUrl: 'https://images.unsplash.com/photo-1556910103-1c02745a8720?auto=format&fit=crop&w=400&q=80',
     whatsapp: '5511999999996',
     discount: 'Análise de Cardápio Grátis'
-  },
-  {
-    id: 7,
-    name: 'Food Ads Agency',
-    category: 'Tráfego',
-    description: 'Gestão de anúncios no Instagram e Google focada em geolocalização (raio de entrega) para atrair clientes locais.',
-    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=400&q=80',
-    whatsapp: '5511999999997',
-    badge: 'Meta Partner',
-    discount: 'Isenção da 1ª Mensalidade'
   },
   {
     id: 8,
@@ -204,11 +195,11 @@ export default function PartnersMarketplace() {
                 className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-xl hover:border-blue-200 transition-all duration-300"
               >
                 {/* IMAGEM E BADGE */}
-                <div className="relative h-48 overflow-hidden bg-slate-100">
+                <div className={`relative h-48 overflow-hidden flex items-center justify-center ${partner.id === 1 ? 'bg-slate-900 p-8' : 'bg-slate-100'}`}>
                   <img
                     src={partner.imageUrl}
                     alt={partner.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className={`w-full h-full group-hover:scale-105 transition-transform duration-500 ${partner.id === 1 ? 'object-contain drop-shadow-2xl' : 'object-cover'}`}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
                   
