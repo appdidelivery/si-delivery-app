@@ -782,14 +782,25 @@ export default function Admin() {
            const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
             const extraCost = extraOrders * 0.25;
             
-            // --- NOVO: CÁLCULO DE DIAS PARA O VENCIMENTO ---
-            let proximoVencimento = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
-            // Se hoje já passou do dia de vencimento, significa que o próximo é no mês que vem
-            if (now.getDate() > diaVencimento) {
-                proximoVencimento = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento);
+            // --- CÁLCULO DE DIAS PARA O VENCIMENTO (BASEADO NA FATURA PENDENTE OU NO CICLO) ---
+            let daysUntilDue = 999;
+            const faturasPendentes = (storeStatus?.faturasHistorico || []).filter(f => f.status === 'PENDENTE');
+            
+            if (faturasPendentes.length > 0) {
+                // Se tem fatura pendente, os dias restantes são baseados nela (Pega a mais antiga)
+                const faturaAtual = faturasPendentes.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b); 
+                const dueDate = new Date(faturaAtual.dueDate);
+                const diffTime = dueDate.getTime() - now.getTime();
+                daysUntilDue = Math.ceil(diffTime / (1000 * 3600 * 24));
+            } else {
+                // Se não tem fatura pendente, calcula o próximo ciclo normal
+                let proximoVencimento = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+                if (now.getDate() > diaVencimento) {
+                    proximoVencimento = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento);
+                }
+                const diffTime = proximoVencimento.getTime() - now.getTime();
+                daysUntilDue = Math.ceil(diffTime / (1000 * 3600 * 24));
             }
-            const diffTime = proximoVencimento.getTime() - now.getTime();
-            const daysUntilDue = Math.ceil(diffTime / (1000 * 3600 * 24));
             // -----------------------------------------------
 
             // Verifica se a loja ainda possui o status de cortesia ativo NESTE EXATO MOMENTO
@@ -936,14 +947,23 @@ export default function Admin() {
         cnpj: '', // CNPJ da Loja
     });
 
-    // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
-    // 🚨 TRAVA DO PAINEL (Calcula automaticamente se o dia atual passou do vencimento)
+    // 🚨 TRAVA DO PAINEL: Verifica o histórico real de faturas para ver se há inadimplência
+    const hasOverdueInvoice = (storeStatus?.faturasHistorico || []).some(fatura => {
+        if (fatura.status !== 'PENDENTE') return false;
+        if (!fatura.dueDate) return false;
+        
+        const dueDate = new Date(fatura.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Ignora a hora, foca apenas no dia
+        
+        return dueDate < today; // Se a data de vencimento já passou e está PENDENTE, bloqueia!
+    });
+
     const isOverdue = storeStatus?.billingStatus === 'bloqueado' || 
         (storeStatus?.billingStatus !== 'gratis_vitalicio' && 
          storeStatus?.billingStatus !== 'isento' && 
-         storeStatus?.billingStatus !== 'pago' && 
          !trialInfo.isTrial && 
-         invoiceData.daysUntilDue < 0);
+         hasOverdueInvoice);
 
     // --- CORREÇÃO SEO: FORÇA O NOME DA LOJA NA ABA DO NAVEGADOR ---
     useEffect(() => {
