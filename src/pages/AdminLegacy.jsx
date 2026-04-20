@@ -824,20 +824,41 @@ export default function Admin() {
             // Verifica se a loja ainda possui o status de cortesia ativo NESTE EXATO MOMENTO
             const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
+            // 🚨 CORREÇÃO: Se existe fatura fechada pendente, ela DITA o valor a pagar (Puxa o excedente real salvo no banco)
+            let finalTotal = (isCortesiaAtual ? 0 : 49.90) + extraCost;
+            let finalBasePlan = isCortesiaAtual ? 0 : 49.90;
+            let finalExtraCost = extraCost;
+
+            if (faturasPendentes.length > 0) {
+                // Pega a fatura mais urgente
+                const faturaAtual = faturasPendentes.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b); 
+                
+                if (faturaAtual.amount) {
+                    // Converte a string "R$ 150,50" gerada pelo CRON de volta para número 150.50
+                    finalTotal = typeof faturaAtual.amount === 'number' 
+                        ? faturaAtual.amount 
+                        : Number(String(faturaAtual.amount).replace('R$ ', '').replace('.', '').replace(',', '.'));
+                }
+                if (faturaAtual.breakdown) {
+                    finalBasePlan = faturaAtual.breakdown.basePlan || 49.90;
+                    finalExtraCost = faturaAtual.breakdown.extraOrdersCost || 0;
+                }
+            }
+
             setInvoiceData({
-                basePlan: isCortesiaAtual ? 0 : 49.90, 
-                extraOrdersCost: extraCost, 
+                basePlan: finalBasePlan, 
+                extraOrdersCost: finalExtraCost, 
                 cycleOrdersCount: currentMonthOrders, 
                 storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
                 dbUsage: products.length + orders.length + 50,
-                total: (isCortesiaAtual ? 0 : 49.90) + extraCost, 
-                status: 'open',
+                total: finalTotal, 
+                status: faturasPendentes.length > 0 ? 'overdue' : 'open',
                 cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
                 cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
                 daysUntilDue: daysUntilDue // <-- Adicionado estado dos dias
             });
 
-            // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
+            // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
             const totalPixRecebido = orders
                 .filter(o => 
                     ['velopay_pix', 'pix', 'link_mp'].includes(o.paymentMethod) && 
