@@ -2314,9 +2314,10 @@ Com base nesses dados exatos de buscas e cliques, crie um plano de ação rápid
                 },
                 body: JSON.stringify({
                     system_instruction: {
-                        parts: { text: systemPrompt }
+                        parts: [{ text: systemPrompt }]
                     },
                     contents: [{
+                        role: "user",
                         parts: [{ text: userPrompt }]
                     }],
                     generationConfig: {
