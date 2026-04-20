@@ -450,6 +450,7 @@ export default function Admin() {
     };
     // -------------------------------------
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    const [showAllCriticalStock, setShowAllCriticalStock] = useState(false);
     // NOVO: Estado que vai receber as novidades do Firebase em tempo real
     const [systemUpdate, setSystemUpdate] = useState({ 
         version: "7.1.0", 
@@ -936,7 +937,13 @@ export default function Admin() {
     });
 
     // 🚨 TRAVA DO PAINEL (Agora no lugar certo para não dar tela branca)
-    const isOverdue = storeStatus?.billingStatus === 'bloqueado';
+    // 🚨 TRAVA DO PAINEL (Calcula automaticamente se o dia atual passou do vencimento)
+    const isOverdue = storeStatus?.billingStatus === 'bloqueado' || 
+        (storeStatus?.billingStatus !== 'gratis_vitalicio' && 
+         storeStatus?.billingStatus !== 'isento' && 
+         storeStatus?.billingStatus !== 'pago' && 
+         !trialInfo.isTrial && 
+         invoiceData.daysUntilDue < 0);
 
     // --- CORREÇÃO SEO: FORÇA O NOME DA LOJA NA ABA DO NAVEGADOR ---
     useEffect(() => {
@@ -2440,14 +2447,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <MissionTracker completedMissions={completedMissionsList} />
                             )}
 
-                            {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).length > 0 && (
-                                <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] animate-pulse">
-                                    <h3 className="text-red-600 font-black flex items-center gap-2"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO</h3>
-                                    <div className="flex gap-2 flex-wrap mt-2">
-                                        {products.filter(p => p.stock !== undefined && Number(p.stock) <= 2).map(p => <span key={p.id} className="bg-white text-red-600 px-3 py-1 rounded-lg text-xs font-bold border border-red-100">{p.name} ({p.stock} un)</span>)}
-                                    </div>
-                                </div>
-                            )}
+                            {(() => {
+    const criticalProducts = products.filter(p => p.stock !== undefined && Number(p.stock) <= 2);
+    if (criticalProducts.length === 0) return null;
+    
+    const displayedProducts = showAllCriticalStock ? criticalProducts : criticalProducts.slice(0, 5);
+    
+    return (
+        <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem]">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="text-red-600 font-black flex items-center gap-2 animate-pulse"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO ({criticalProducts.length} itens)</h3>
+                {criticalProducts.length > 5 && (
+                    <button onClick={() => setShowAllCriticalStock(!showAllCriticalStock)} className="text-xs font-black text-red-600 bg-red-100 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-all">
+                        {showAllCriticalStock ? 'Ocultar Lista' : `Ver todos os ${criticalProducts.length}`}
+                    </button>
+                )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+                {displayedProducts.map(p => (
+                    <span key={p.id} className="bg-white text-red-600 px-3 py-1 rounded-lg text-xs font-bold border border-red-100 shadow-sm">
+                        {p.name} <strong className="text-red-800 ml-1">({p.stock} un)</strong>
+                    </span>
+                ))}
+                {!showAllCriticalStock && criticalProducts.length > 5 && (
+                    <span className="bg-red-100 text-red-500 px-3 py-1 rounded-lg text-xs font-bold border border-red-200">
+                        + {criticalProducts.length - 5} ocultos...
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+})()}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
     <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Visitas Hoje</p>
@@ -3841,7 +3871,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 
                 {/* ✅ NOVO PDV (FRENTE DE CAIXA RÁPIDA) */}
                 {activeTab === 'manual' && (
-                    <div className="flex flex-col xl:flex-row gap-6 h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+    !isCaixaAberto ? (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] bg-white rounded-[3rem] border border-slate-100 shadow-sm animate-in zoom-in">
+            <div className="bg-slate-50 p-6 rounded-full mb-6 border border-slate-200">
+                <Store size={64} className="text-slate-300" />
+            </div>
+            <h2 className="text-3xl font-black italic text-slate-800 uppercase mb-2">Caixa Fechado</h2>
+            <p className="text-slate-500 font-bold mb-8 text-center max-w-md">Para iniciar as vendas no Balcão e registrar pedidos, você precisa abrir o caixa com o seu usuário.</p>
+            <button 
+                onClick={handleToggleCaixa}
+                className="bg-green-500 hover:bg-green-600 text-white px-10 py-5 rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl shadow-green-200 transition-all active:scale-95 flex items-center gap-3 animate-bounce"
+            >
+                <CheckCircle size={24} /> Abrir Meu Caixa Agora
+            </button>
+        </div>
+    ) : (
+    <div className="flex flex-col xl:flex-row gap-6 h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
                         
                         {/* COLUNA ESQUERDA: CATÁLOGO PDV */}
                         <div className="flex-1 flex flex-col bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -4233,6 +4278,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
                     </div>
+                    )
                 )}
 
                 {activeTab === 'marketing' && (
@@ -6006,7 +6052,69 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         )}
     </AnimatePresence>
 </div>
+{/* --- NOVO: CONFIGURAÇÕES DE CHECKOUT E ESTOQUE (CLIENTE) --- */}
+<div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
+    <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">🛒 Experiência de Compra (App Cliente)</h2>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* COMPORTAMENTO DO CARRINHO */}
+        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
+            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={16} className="text-blue-500"/> Ação ao Adicionar Produto</h3>
+            <select 
+                value={storeStatus.addToCartBehavior || 'stay'} 
+                onChange={(e) => updateDoc(doc(db, "stores", storeId), { addToCartBehavior: e.target.value }, { merge: true })}
+                className="w-full p-4 bg-white rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer"
+            >
+                <option value="stay">Exibir Pop-up "Continuar Comprando"</option>
+                <option value="redirect">Ir direto para a tela do Carrinho</option>
+            </select>
+            <p className="text-[10px] text-slate-400 font-bold mt-2">Define o que acontece no app quando o cliente clica em "Adicionar ao Carrinho".</p>
+        </div>
 
+       {/* PESQUISA DE ENDEREÇO (CHECKOUT) */}
+        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2"><MapPin size={16} className="text-red-500"/> Método de Busca no Checkout</h3>
+            
+            <div className="flex flex-col gap-2">
+                <select 
+                    value={storeStatus.checkoutSearchMethod || 'cep'} 
+                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { checkoutSearchMethod: e.target.value }, { merge: true })}
+                    className="w-full p-4 bg-white rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer text-slate-700"
+                >
+                    <option value="cep">📍 Busca por CEP (Correios)</option>
+                    <option value="address">🗺️ Busca por Nome da Rua/Bairro</option>
+                </select>
+                <p className="text-[10px] text-slate-400 font-bold ml-1">Define como o cliente deve encontrar o endereço de entrega no App.</p>
+            </div>
+
+            <label className="flex items-center justify-between cursor-pointer bg-white p-3 rounded-xl border border-slate-200 mt-2">
+                <span className="font-bold text-xs text-slate-700">Tornar Nº da Residência Obrigatório</span>
+                <input type="checkbox" checked={storeStatus.checkoutRequireNumber !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { checkoutRequireNumber: e.target.checked }, { merge: true })} className="w-5 h-5 accent-blue-600 cursor-pointer" />
+            </label>
+        </div>
+
+       {/* CAMPO DE PONTO DE ESTOQUE */}
+        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+                <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-1 flex items-center gap-2"><Package size={16} className="text-orange-500"/> Ponto de Estoque Ativo</h3>
+                <p className="text-[10px] text-slate-400 font-bold">Digite o número ou nome do ponto de estoque (Ex: 1, 2, 10, Matriz).</p>
+            </div>
+            <input 
+                type="text"
+                placeholder="Ex: 1"
+                value={storeStatus.stockLocation || ''} 
+                onChange={(e) => {
+                    // Atualiza a tela imediatamente e salva no Firebase
+                    setStoreStatus(prev => ({...prev, stockLocation: e.target.value}));
+                    updateDoc(doc(db, "stores", storeId), { stockLocation: e.target.value }, { merge: true });
+                }}
+                className="w-full md:w-64 p-4 bg-white rounded-xl font-black text-sm uppercase outline-none border border-slate-200 focus:ring-2 ring-orange-400 text-slate-700 placeholder-slate-300"
+            />
+        </div>
+
+    </div>
+</div>
                         {/* 2. Informações e Mensagem */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
                             <h2 className="text-2xl font-black text-slate-800 uppercase mb-4">Dados da Loja</h2>
