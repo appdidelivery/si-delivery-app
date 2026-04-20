@@ -654,7 +654,7 @@ export default async function handler(req, res) {
             const { phoneNumberId, apiToken } = waConfig;
             const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
-            const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR') => {
+            const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR', variables = []) => {
                 // BLINDAGEM VELO: Garante que o telefone tenha 55 e trate o nono dígito para a Meta
                 let cleanPhone = String(recipientPhone).replace(/\D/g, '');
                 if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
@@ -666,8 +666,25 @@ export default async function handler(req, res) {
                     recipient_type: "individual",
                     to: cleanPhone, 
                     type: "template",
-                    template: { name: template, language: { code: languageCode } }
+                    template: { 
+                        name: template, 
+                        language: { code: languageCode } 
+                    }
                 };
+
+                // INJEÇÃO SEGURA: Adiciona as variáveis dinâmicas no formato exigido pela API da Meta
+                if (Array.isArray(variables) && variables.length > 0) {
+                    payload.template.components = [
+                        {
+                            type: "body",
+                            parameters: variables.map(v => ({
+                                type: "text",
+                                text: String(v) // Força String para evitar erros de tipagem com números/booleanos
+                            }))
+                        }
+                    ];
+                }
+
                 const response = await fetch(GRAPH_API_URL, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
@@ -678,17 +695,23 @@ export default async function handler(req, res) {
             };
 
             if (action === 'broadcast') {
+                const templateVariables = req.body.variables || []; // Captura variáveis dinâmicas
                 if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
+                
                 const ordersSnap = await db.collection('orders').where('storeId', '==', storeId).limit(500).get();
                 const uniquePhones = new Set();
                 ordersSnap.forEach(doc => { if (doc.data().customerPhone) uniquePhones.add(doc.data().customerPhone); });
-                const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName));
-                await Promise.allSettled(sendPromises);
-                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
-            }
+                
+                // Repassa as variáveis para a função base
+                const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables));
+                await Promise.allSettled(sendPromises);
+                
+                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
+            }
 
             // --- INÍCIO: ENVIAR TEMPLATE INDIVIDUAL (ABRIR JANELA 24H) ---
             if (action === 'send_template') {
+                const templateVariables = req.body.variables || []; // Captura variáveis dinâmicas
                 if (!templateName || !toPhone) return res.status(400).json({ error: 'Template e telefone são obrigatórios' });
                 
                 // Blindagem do número
@@ -697,15 +720,15 @@ export default async function handler(req, res) {
                 if (cleanPhone.length === 10) cleanPhone = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
                 const safePhone = `55${cleanPhone}`;
 
-                // Usa a função sendMessageToMeta que já existe no seu código
-                const metaResponse = await sendMessageToMeta(safePhone, templateName);
+                // Usa a função sendMessageToMeta atualizada
+                const metaResponse = await sendMessageToMeta(safePhone, templateName, 'pt_BR', templateVariables);
                 
                 if (metaResponse.ok) {
-                    // Registra a mensagem no banco para aparecer no painel do lojista
+                    // Registra a mensagem no banco para aparecer no painel do lojista (agora mostrando as variáveis também)
                     await db.collection('whatsapp_inbound').add({
                         storeId: storeId,
                         to: safePhone,
-                        text: `[Template Oficial Enviado: ${templateName}]`, // Marca visual para o lojista
+                        text: `[Template Oficial Enviado: ${templateName}]${templateVariables.length > 0 ? ` (Vars: ${templateVariables.join(', ')})` : ''}`, 
                         receivedAt: admin.firestore.FieldValue.serverTimestamp(),
                         status: 'read',
                         direction: 'outbound'
@@ -718,7 +741,6 @@ export default async function handler(req, res) {
             }
             // --- FIM: ENVIAR TEMPLATE INDIVIDUAL ---
 
-// --- INÍCIO: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
 // --- INÍCIO: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
             if (action === 'update_profile') {
                 const { address, description, email, website } = req.body;

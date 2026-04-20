@@ -2,14 +2,14 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-export default function AdminChat() {
+export default function AdminChat({ products = [] }) {
     const { store } = useStore();
     const storeId = store?.slug; 
     const [messages, setMessages] = useState([]);
@@ -70,10 +70,12 @@ export default function AdminChat() {
     const [isImporting, setIsImporting] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(''); // Armazena o template escolhido
     const [isSendingTemplate, setIsSendingTemplate] = useState(false); // Loading do disparo
-// --- ESTADOS PARA DISPARO EM MASSA (BROADCAST) ---
+
+    // --- ESTADOS PARA DISPARO EM MASSA (BROADCAST) ---
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
     const [broadcastTemplate, setBroadcastTemplate] = useState('');
     const [isBroadcasting, setIsBroadcasting] = useState(false);
+    const [broadcastSelectedProduct, setBroadcastSelectedProduct] = useState('');
 
     // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
@@ -803,12 +805,32 @@ export default function AdminChat() {
                                             <option value="velo_clima_fome">🌧️ Gatilho de Chuva/Frio</option>
                                             <option value="velo_oferta_nova">🍔 Novidades e Ofertas</option>
                                             <option value="velo_saudade_cliente">🥺 Saudade / Recuperar Clientes</option>
+                                            <option value="velo_lancamento_dinamico">🚀 Lançamento Dinâmico (Escolher Produto)</option>
                                         </optgroup>
                                         <optgroup label="Pós-venda">
                                             <option value="velo_feedback_pedido">⭐ Pedir Avaliação na Base</option>
                                         </optgroup>
                                     </select>
                                 </div>
+
+                                {/* SELETOR DINÂMICO DE PRODUTO PARA LANÇAMENTO */}
+                                {broadcastTemplate === 'velo_lancamento_dinamico' && (
+                                    <div className="mt-2 animate-in fade-in slide-in-from-top-2">
+                                        <p className="text-sm text-slate-700 font-bold mb-2 flex items-center gap-2"><Package size={16}/> Qual produto você está lançando?</p>
+                                        <select 
+                                            value={broadcastSelectedProduct}
+                                            onChange={(e) => setBroadcastSelectedProduct(e.target.value)}
+                                            className="w-full p-4 bg-blue-50 border border-blue-200 rounded-xl font-bold text-blue-800 outline-none focus:ring-2 ring-blue-400 cursor-pointer"
+                                        >
+                                            <option value="">Selecione um item do estoque...</option>
+                                            {products.filter(p => p.isActive !== false).map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name} - R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
 
                                 <button 
                                     disabled={isBroadcasting || !broadcastTemplate}
@@ -817,13 +839,28 @@ export default function AdminChat() {
                                         
                                         setIsBroadcasting(true);
                                         try {
+                                            let variablesToSend = [];
+                                            
+                                            if (broadcastTemplate === 'velo_lancamento_dinamico') {
+                                                if (!broadcastSelectedProduct) {
+                                                    setIsBroadcasting(false);
+                                                    return alert("Selecione qual produto será lançado!");
+                                                }
+                                                const prod = products.find(p => p.id === broadcastSelectedProduct);
+                                                if (prod) {
+                                                    const finalPrice = Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : prod.price).toFixed(2).replace('.', ',');
+                                                    variablesToSend = [prod.name, finalPrice];
+                                                }
+                                            }
+
                                             const res = await fetch('/api/whatsapp-send', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
                                                 body: JSON.stringify({
                                                     action: 'broadcast',
                                                     storeId: storeId,
-                                                    templateName: broadcastTemplate
+                                                    templateName: broadcastTemplate,
+                                                    variables: variablesToSend
                                                 })
                                             });
                                             
@@ -832,6 +869,7 @@ export default function AdminChat() {
                                                 alert(`✅ Sucesso! ${data.message}`);
                                                 setShowBroadcastModal(false);
                                                 setBroadcastTemplate('');
+                                                setBroadcastSelectedProduct('');
                                             } else {
                                                 alert('Erro ao disparar: ' + (data.error || 'Falha na API da Meta'));
                                             }
