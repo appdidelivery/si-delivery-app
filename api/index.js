@@ -377,10 +377,14 @@ export default async function handler(req, res) {
                     if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
                         const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
                         
-                        // BLINDAGEM VELO attCRON: Trata o número do carrinho abandonado
+                        // BLINDAGEM VELO CRON: Regra Oficial do 9º Dígito para a Meta
                         let rawPhone = String(data.customerPhone).replace(/\D/g, '');
                         if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
-                        if (rawPhone.length === 10) rawPhone = rawPhone.substring(0, 2) + '9' + rawPhone.substring(2);
+                        
+                        // Se for DDD > 30 e tiver 11 dígitos (com o 9), removemos o 9.
+                        if (rawPhone.length === 11 && parseInt(rawPhone.substring(0, 2)) > 30) {
+                            rawPhone = rawPhone.substring(0, 2) + rawPhone.substring(3); 
+                        }
                         let cleanPhone = `55${rawPhone}`;
 
                         const cupom = settingsData.exitIntentCoupon || "VOLTA10";

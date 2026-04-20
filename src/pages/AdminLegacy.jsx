@@ -2720,7 +2720,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     const sendMsg = async (text) => {
                                         let phoneRaw = String(cart.customerPhone).replace(/\D/g, '');
                                         if (phoneRaw.length < 10) return alert("Número de cliente inválido.");
-                                        const safePhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
+                                        
+                                        // BLINDAGEM DO 9º DÍGITO PARA CARRINHO ABANDONADO MANUAL
+                                        if (phoneRaw.startsWith('55')) phoneRaw = phoneRaw.substring(2);
+                                        if (phoneRaw.length === 11 && parseInt(phoneRaw.substring(0, 2)) > 30) {
+                                            phoneRaw = phoneRaw.substring(0, 2) + phoneRaw.substring(3); // Remove o 9 para DDD > 30
+                                        }
+                                        const safePhone = `55${phoneRaw}`;
                                         
                                         if (settings?.integrations?.whatsapp?.apiToken) {
                                             try {
