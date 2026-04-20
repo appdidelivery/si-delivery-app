@@ -384,27 +384,63 @@ export default async function handler(req, res) {
                         let cleanPhone = `55${rawPhone}`;
 
                         const cupom = settingsData.exitIntentCoupon || "VOLTA10";
-                        const firstName = data.customerName ? data.customerName.split(' ')[0] : 'Cliente';
-                        const msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
-                        
-                        abandonedPromises.push(
-                            fetch(GRAPH_API_URL, {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msg }
-                                })
-                            }).then(async (res) => {
-                                if (res.ok) {
-                                    try {
-                                        await db.collection('whatsapp_inbound').add({
-                                            storeId: storeId, to: cleanPhone, text: msg,
-                                            receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
-                                        });
-                                    } catch(e) {}
-                                }
-                            })
-                        );
+                        const firstName = data.customerName ? data.customerName.split(' ')[0] : 'Cliente';
+                        
+                        // --- INÍCIO: MOTOR IA (GEMINI 2.5 FLASH) PARA CARRINHO ABANDONADO ---
+                        // Executa a chamada da IA e o envio de forma assíncrona paralela (não trava o loop do CRON)
+                        abandonedPromises.push((async () => {
+                            let msg = '';
+                            try {
+                                const GEMINI_KEY = process.env.GEMINI_API_KEY;
+                                const cartItems = data.items && Array.isArray(data.items) 
+                                    ? data.items.map(i => `${i.quantity}x ${i.name}`).join(', ') 
+                                    : '';
+
+                                if (GEMINI_KEY && cartItems) {
+                                    const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
+
+                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                                    });
+
+                                    const aiData = await aiResponse.json();
+                                    if (aiResponse.ok && aiData.candidates && aiData.candidates[0]?.content?.parts[0]?.text) {
+                                        msg = aiData.candidates[0].content.parts[0].text.trim();
+                                    }
+                                }
+                            } catch (aiError) {
+                                console.error('⚠️ Erro ao gerar copy com Gemini no CRON:', aiError.message);
+                            }
+
+                            // FALLBACK SEGURO: Se a IA falhar ou não houver chave, usa o texto padrão de alta conversão
+                            if (!msg) {
+                                msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
+                            }
+
+                            // Dispara a mensagem via Meta Cloud API
+                            const res = await fetch(GRAPH_API_URL, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msg }
+                                })
+                            });
+
+                            // Registra no chat do Admin se o envio deu certo
+                            if (res.ok) {
+                                try {
+                                    await db.collection('whatsapp_inbound').add({
+                                        storeId: storeId, to: cleanPhone, text: msg,
+                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                                    });
+                                } catch(e) {
+                                    console.error('Erro ao salvar log no chat:', e);
+                                }
+                            }
+                        })());
+                        // --- FIM: MOTOR IA ---
                         
                         batch.update(doc.ref, { abandonmentAlertSent: true });
                         alertsSent++;
