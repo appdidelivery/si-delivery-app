@@ -2479,8 +2479,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - MODO JSON NATIVO)
+   // ------------------------------------------------------------------------
+    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -2492,63 +2492,67 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) {
-                return res.status(200).json({ success: false, error: "Chave do Gemini não configurada na Vercel." });
+                return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
             }
 
-            const prompt = `Atue como um Copywriter de Delivery. Crie textos de vendas para: Produto "${productName}" (R$ ${Number(productPrice).toFixed(2)}). Loja: "${storeName}" (Nicho: ${storeNiche}). Descrição: "${productDesc || 'N/A'}".
-            Retorne APENAS um JSON válido. O JSON deve conter EXATAMENTE estas 3 chaves:
-            "whatsapp": (texto curto com emojis e preço focado em conversão e escassez),
-            "instagram": (legenda envolvente com CTA para o link da bio),
-            "hashtags": (hashtags relevantes separadas por espaço)`;
+            // Prompt encurtado para a IA processar em milissegundos
+            const prompt = `Crie textos de vendas curtos para Delivery.
+Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
+Retorne APENAS um JSON com 3 chaves curtas:
+"whatsapp": (1 frase magnética com emojis e preço),
+"instagram": (2 frases com chamada para o link da bio),
+"hashtags": (#delivery #promo)`;
 
-            // Usamos o gemini-2.5-flash e ativamos o "responseMimeType: application/json"
-            // Isso proíbe o Google de enviar qualquer coisa que não seja um JSON perfeito, evitando crash no servidor.
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            // Usamos o gemini-1.5-flash (o mais rápido) e limitamos a saída para não estourar os 10s da Vercel
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: { 
-                        responseMimeType: "application/json" 
+                        responseMimeType: "application/json",
+                        maxOutputTokens: 150 // Trava a IA para escrever pouco e MUITO rápido
                     }
                 })
             });
 
-            const aiData = await response.json();
-
-            // Se o Google reclamar da chave ou der erro interno na API deles
-            if (!response.ok || aiData.error) {
-                console.error("Erro da API Gemini:", aiData.error);
-                return res.status(200).json({ success: false, error: aiData.error?.message || "Erro nos servidores do Google." });
+            // Lemos como texto puro primeiro para o servidor não quebrar se o Google der timeout interno
+            const responseText = await response.text();
+            
+            if (!response.ok) {
+                console.error("Erro da API Gemini (Status):", response.status, responseText);
+                return res.status(200).json({ success: false, error: "O Google demorou a responder. Tente novamente." });
             }
 
-            // Lê a resposta segura
+            let aiData;
+            try {
+                aiData = JSON.parse(responseText);
+            } catch (e) {
+                return res.status(200).json({ success: false, error: "A IA retornou um formato inválido." });
+            }
+
             if (aiData.candidates && aiData.candidates[0]) {
                 const candidate = aiData.candidates[0];
                 
-                // Trava de segurança (Safety Filter)
                 if (candidate.finishReason === 'SAFETY') {
-                    return res.status(200).json({ success: false, error: "O Google bloqueou a geração deste texto por políticas de segurança (ex: Produtos +18 ou restritos)." });
+                    return res.status(200).json({ success: false, error: "O Google bloqueou este texto por políticas de segurança." });
                 }
 
                 const rawJsonText = candidate.content?.parts[0]?.text;
-                
                 if (!rawJsonText) {
                     return res.status(200).json({ success: false, error: "O Google não retornou nenhum texto." });
                 }
                 
                 try {
-                    // Como forçamos application/json, o parse agora é 100% seguro e não vai dar Erro 500
                     const parsedResult = JSON.parse(rawJsonText);
                     return res.status(200).json({ 
                         success: true, 
-                        whatsapp: parsedResult.whatsapp || "Texto não gerado",
-                        instagram: parsedResult.instagram || "Texto não gerado",
-                        hashtags: parsedResult.hashtags || ""
+                        whatsapp: parsedResult.whatsapp || "Garanta o seu agora!",
+                        instagram: parsedResult.instagram || "Peça agora no link da bio!",
+                        hashtags: parsedResult.hashtags || "#delivery"
                     });
                 } catch (parseError) {
-                    console.error("Erro no Parse do JSON nativo:", rawJsonText);
-                    return res.status(200).json({ success: false, error: "A IA retornou um formato inválido." });
+                    return res.status(200).json({ success: false, error: "Erro ao formatar os textos da IA." });
                 }
             } else {
                 return res.status(200).json({ success: false, error: "Resposta vazia da Inteligência Artificial." });
@@ -2556,8 +2560,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
         } catch (error) {
             console.error("Erro Fatal na IA de Copy:", error);
-            // Retorna um status de erro amigável em vez de crashar a Vercel
-            return res.status(400).json({ success: false, error: `Erro Interno do Servidor: ${error.message}` });
+            // Sempre devolvemos 200 pro front, com a mensagem de erro dentro do JSON para o React exibir bonito
+            return res.status(200).json({ success: false, error: `Erro no servidor: ${error.message}` });
         }
     }
 
