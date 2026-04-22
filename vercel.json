@@ -52,7 +52,7 @@
     },
     {
       "path": "/api/sync-google-reviews",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     }
   ],
   "rewrites": [
