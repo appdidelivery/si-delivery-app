@@ -2342,21 +2342,17 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             });
 
             // 2. BLINDAGEM DE RESPOSTA DO GOOGLE (Lê como texto antes para não crashar)
-            const responseText = await response.text();
-            let data;
+            // CORREÇÃO APLICADA AQUI NO ARQUIVO ISOLADO
+            let aiData;
             try {
-                data = JSON.parse(responseText);
+                aiData = await response.json();
             } catch (e) {
-                console.error("❌ Erro Crítico ao ler Google API:", responseText);
-                return res.status(200).json({ success: true, insight: "### Falha de Comunicação\nO Google não devolveu um formato válido. Tente de novo." });
+                return res.status(200).json({ success: false, error: "O tempo esgotou ou a IA falhou. Tente novamente." });
             }
-
-            if (!response.ok || data.error) {
-                console.error("❌ Erro da API Gemini:", data);
-                return res.status(200).json({ 
-                    success: true, 
-                    insight: `### Erro de Conexão com a IA\nMotivo: ${data.error?.message || 'Erro Desconhecido na chave'}` 
-                });
+            
+            if (!response.ok) {
+                console.error("Erro da API Gemini (Status):", response.status, aiData);
+                return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Tente novamente." });
             }
 
             if (data.candidates && data.candidates[0] && data.candidates[0].content) {
