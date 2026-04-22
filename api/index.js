@@ -2581,7 +2581,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             }
 
             // 2. Padronização do Endereço do Local na API do Google
-            // O formato exigido é "accounts/{accountId}/locations/{locationId}"
+            // O formato OBRIGATÓRIO do Google é "accounts/{accountId}/locations/{locationId}"
             const parentName = locationId.includes('accounts/') ? locationId : `locations/${locationId}`;
 
             // 3. Monta o Payload oficial para a API (Tipo: ORDER)
@@ -2612,18 +2612,18 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             const googleData = await googleRes.json();
 
-            // 5. Captura de Erros da API do Google (Ex: Imagem inválida, Token expirado)
+            // 5. Captura de Erros da API do Google
             if (!googleRes.ok) {
                 console.error("❌ Erro retornado pela API do Google:", JSON.stringify(googleData));
                 
                 // Formatação amigável do erro para o Lojista
                 let errorMsg = googleData.error?.message || 'Falha ao processar postagem.';
                 if (errorMsg.includes('Request is missing required authentication') || errorMsg.includes('Unauthenticated')) {
-                    errorMsg = 'O Token de acesso está inválido ou expirou. Por favor, conecte a conta novamente na aba Integrações.';
+                    errorMsg = 'O Token de acesso expirou. Por favor, reconecte a conta do Google na aba Integrações.';
                 } else if (errorMsg.includes('Invalid Image') || errorMsg.includes('media')) {
                     errorMsg = 'O formato ou tamanho da imagem foi rejeitado pelo Google.';
-                } else if (errorMsg.includes('NotFound')) {
-                    errorMsg = 'ID do Local incorreto. Verifique o Location ID nas configurações.';
+                } else if (errorMsg.includes('NotFound') || errorMsg.includes('parent')) {
+                    errorMsg = 'ID do Local incorreto! É obrigatório colar o Location ID completo, contendo a palavra "accounts" e "locations" (ex: accounts/123/locations/456).';
                 }
 
                 return res.status(400).json({ error: errorMsg });
