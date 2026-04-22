@@ -3727,7 +3727,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
                         </div>
-                        {/* --- FIM: BANNER sIA DE PREVISÃO DE ESTOQUE --- */}
+                        {/* --- FIM: BANNER IA DE PREVISÃO DE ESTOQUE --- */}
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {ingredients.length === 0 && <p className="text-slate-400 font-bold col-span-full bg-slate-50 p-8 rounded-3xl text-center border-2 border-dashed border-slate-200">Nenhum insumo cadastrado ainda.</p>}
