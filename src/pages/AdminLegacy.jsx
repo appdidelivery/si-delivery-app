@@ -9476,7 +9476,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
-            {/* --- FIM: MODAL DE IA PARA CattOPY DE PROMOÇÕES --- */}
+            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
 
             {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
             <AnimatePresence>
