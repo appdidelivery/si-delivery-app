@@ -2717,6 +2717,71 @@ Retorne APENAS um JSON com 3 chaves curtas:
             res.status(500).send(`Erro interno ao autorizar Google: ${err.message}`);
         }
     }
+    // ------------------------------------------------------------------------
+    // 26. GOOGLE MEU NEGÓCIO: RESPONDER AVALIAÇÃO (REPLY)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/reply-google-review') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, reviewId, googleReviewName, replyText } = req.body;
+
+            // 1. Validações Críticas (Blindagem)
+            if (!storeId || !reviewId || !replyText) {
+                return res.status(400).json({ error: 'Dados insuficientes para responder a avaliação.' });
+            }
+            if (!googleReviewName) {
+                return res.status(400).json({ error: 'Esta avaliação não possui o ID oficial do Google (googleReviewName) atrelado.' });
+            }
+
+            // 2. Busca o Token Seguro do Lojista
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const gmbConfig = settingsDoc.exists ? settingsDoc.data().integrations?.google_my_business : null;
+
+            if (!gmbConfig || !gmbConfig.accessToken) {
+                return res.status(401).json({ error: 'Conta do Google não conectada. Vá em Integrações e faça login novamente.' });
+            }
+
+            // 3. Monta a Rota Específica da Avaliação
+            // A documentação do Google exige que seja um PUT no endpoint /v1/{name}/reply
+            const googleEndpoint = `https://mybusiness.googleapis.com/v4/${googleReviewName}/reply`;
+
+            // 4. Dispara para o Google
+            const googleRes = await fetch(googleEndpoint, {
+                method: 'PUT', // PUT é o padrão para reply do GMB API
+                headers: {
+                    'Authorization': `Bearer ${gmbConfig.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    comment: replyText
+                })
+            });
+
+            const googleData = await googleRes.json();
+
+            // 5. Tratamento de Erros da API
+            if (!googleRes.ok) {
+                console.error("❌ Erro API Google Review Reply:", googleData);
+                let errorMsg = googleData.error?.message || 'Falha ao enviar resposta para o Google.';
+                
+                if (errorMsg.includes('Unauthenticated') || errorMsg.includes('missing required authentication')) {
+                    errorMsg = 'Sua sessão do Google expirou. Por favor, reconecte na aba de Integrações.';
+                } else if (errorMsg.includes('NotFound')) {
+                    errorMsg = 'Avaliação não encontrada no Google Maps. Pode ter sido apagada pelo cliente.';
+                }
+
+                return res.status(400).json({ error: errorMsg });
+            }
+
+            // 6. Sucesso!
+            return res.status(200).json({ success: true, message: 'Resposta publicada no Google Maps.' });
+
+        } catch (error) {
+            console.error('❌ Erro Fatal (Reply Google):', error);
+            return res.status(500).json({ error: `Erro no servidor: ${error.message}` });
+        }
+    }
 
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)

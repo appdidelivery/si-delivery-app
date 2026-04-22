@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
-import { Star, ChevronLeft, ChevronRight, MessageSquare, Loader2 } from 'lucide-react';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, doc, updateDoc } from 'firebase/firestore';
+import { Star, ChevronLeft, ChevronRight, MessageSquare, Loader2, X } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa6';
 
 // Recebemos o storeId como prop (ex: 'csi') para filtrar só as avaliações dessa loja
@@ -9,6 +9,10 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Controle de Respostas (Google e Interno)
+  const [replyText, setReplyText] = useState({});
+  const [submittingReply, setSubmittingReply] = useState(false);
+
   // Paginação
   const itemsPerPage = 10;
   const [lastVisibleDocs, setLastVisibleDocs] = useState([]); // Histórico de cursores para o botão "Voltar"
@@ -122,28 +126,13 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                     <td colSpan="4" className="p-8 text-center text-slate-400 font-bold">Nenhuma avaliação recebida ainda.</td>
                   </tr>
                 ) : (
-                  reviews.map((review) => {
-                    const isGoogle = review.source === 'google';
-                    const customerDisplay = isGoogle 
-                        ? review.customerName 
-                        : (review.customerName || (review.userId ? review.userId.slice(0, 8) + '...' : 'Cliente VIP'));
-
-                    return (
+                  reviews.map((review) => (
                     <tr key={review.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <td className="p-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
+                      <td className="p-4 text-sm font-semibold text-slate-600">
                         {formatDate(review.createdAt)}
                       </td>
-                      <td className="p-4">
-                        <div className="flex flex-col items-start gap-1.5">
-                          <span className="text-xs font-bold text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                            {customerDisplay}
-                          </span>
-                          {isGoogle && (
-                            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border border-blue-100 shadow-sm">
-                              <FaGoogle size={10} /> Avaliação Google
-                            </span>
-                          )}
-                        </div>
+                      <td className="p-4 text-xs font-bold text-slate-400 bg-slate-50/50 rounded-lg">
+                        {review.userId.slice(0, 8)}...
                       </td>
                       <td className="p-4">
                         <div className="flex gap-1">
@@ -157,17 +146,98 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                         </div>
                       </td>
                       <td className="p-4">
-                        {review.comment ? (
-                          <div className="flex items-start gap-2 text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <MessageSquare size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                            <span className="italic">"{review.comment}"</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Sem comentário</span>
-                        )}
+                        <div className="flex flex-col gap-3">
+                            {review.comment ? (
+                              <div className="flex items-start gap-2 text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <MessageSquare size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                                <span className="italic">"{review.comment}"</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Sem comentário</span>
+                            )}
+
+                            {/* --- INÍCIO: MOTOR DE RESPOSTA (GOOGLE / INTERNO) --- */}
+                            {review.reply ? (
+                                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 relative">
+                                    <button 
+                                        onClick={async () => {
+                                            if(window.confirm('Deseja apagar esta resposta? (Nota: Se for do Google, ela não será apagada lá, apenas no painel Velo)')) {
+                                                await updateDoc(doc(db, "reviews", review.id), { reply: null });
+                                                // Atualiza a tela em tempo real sem fazer reload
+                                                setReviews(reviews.map(r => r.id === review.id ? {...r, reply: null} : r));
+                                            }
+                                        }} 
+                                        className="absolute top-2 right-2 text-blue-400 hover:text-red-500 transition-colors"
+                                        title="Apagar Resposta"
+                                    >
+                                        <X size={14}/>
+                                    </button>
+                                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Você respondeu:</p>
+                                    <p className="text-sm text-blue-800 font-bold">{review.reply}</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col xl:flex-row gap-2 mt-1">
+                                    <input 
+                                        type="text" 
+                                        placeholder={isGoogle ? "Escreva uma resposta pública para o Google Maps..." : "Escreva uma resposta visível no app..."} 
+                                        className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none text-xs font-bold focus:ring-2 ring-blue-500"
+                                        value={replyText[review.id] || ''}
+                                        onChange={(e) => setReplyText({...replyText, [review.id]: e.target.value})}
+                                    />
+                                    <button 
+                                        disabled={submittingReply || !replyText[review.id]}
+                                        onClick={async () => {
+                                            if(!replyText[review.id]) return;
+                                            setSubmittingReply(true);
+                                            
+                                            // BLINDAGEM: Se for um review do Google, manda pro backend (API)
+                                            if (isGoogle) {
+                                                try {
+                                                    const res = await fetch('/api/reply-google-review', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            storeId: storeId,
+                                                            reviewId: review.id, // ID interno do Firebase
+                                                            googleReviewName: review.googleReviewName, // ID oficial do Google (salvo pelo Cron)
+                                                            replyText: replyText[review.id]
+                                                        })
+                                                    });
+                                                    
+                                                    const data = await res.json();
+                                                    if (!res.ok) throw new Error(data.error || 'Falha ao responder no Google.');
+                                                    
+                                                    // Se o Google aceitou, salva a cópia no Firebase para a tela atualizar
+                                                    await updateDoc(doc(db, "reviews", review.id), { reply: replyText[review.id] });
+                                                    setReviews(reviews.map(r => r.id === review.id ? {...r, reply: replyText[review.id]} : r));
+                                                    alert("✅ Resposta publicada com sucesso no Google Maps!");
+                                                    
+                                                } catch (error) {
+                                                    console.error("Erro ao responder Google:", error);
+                                                    alert(`❌ Erro: ${error.message}`);
+                                                }
+                                            } else {
+                                                // Fluxo Normal (Review do App Velo)
+                                                try {
+                                                    await updateDoc(doc(db, "reviews", review.id), { reply: replyText[review.id] });
+                                                    setReviews(reviews.map(r => r.id === review.id ? {...r, reply: replyText[review.id]} : r));
+                                                    alert("✅ Resposta enviada e visível no app Velo!");
+                                                } catch(e) {
+                                                    alert("Erro ao salvar resposta no banco de dados.");
+                                                }
+                                            }
+                                            setSubmittingReply(false);
+                                        }}
+                                        className="bg-blue-600 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                        {submittingReply ? 'Enviando...' : 'Responder'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                       </td>
                     </tr>
-                  )})
+                  ))
                 )}
               </tbody>
             </table>
