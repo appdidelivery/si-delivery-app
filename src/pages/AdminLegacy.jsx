@@ -7164,7 +7164,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 })()}
             </main>
 
-            {/* --- RODAPÉ MOBILE: ESTRUTURA REVISADA --- */}
+            {/* --- RODAPÉ MOBILE:1 ESTRUTURA REVISADA --- */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-0 flex flex-col lg:hidden z-50"> 
                {/* Barra da Versão e Atualização Mobile */}
                <div className="w-full flex justify-between items-center px-3 pt-1.5 pb-1 border-b border-slate-50/10">
