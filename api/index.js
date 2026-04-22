@@ -2355,8 +2355,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Tente novamente." });
             }
 
-            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                const aiText = data.candidates[0].content.parts[0].text;
+            if (aiData.candidates && aiData.candidates[0] && aiData.candidates[0].content) {
+                const aiText = aiData.candidates[0].content.parts[0].text;
                 return res.status(200).json({ success: true, insight: aiText });
             } else {
                 return res.status(200).json({ success: true, insight: "### Ops!\nA IA não conseguiu gerar o texto agora. Tente de novo." });
