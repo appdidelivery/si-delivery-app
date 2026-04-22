@@ -2581,21 +2581,20 @@ Retorne APENAS um JSON com 3 chaves curtas:
             }
 
             // 2. Padronização do Endereço do Local na API do Google
-            // O formato OBRIGATÓRIO do Google é "accounts/{accountId}/locations/{locationId}"
             const parentName = locationId.includes('accounts/') ? locationId : `locations/${locationId}`;
 
-            // 3. Monta o Payload oficial para a API (Tipo: ORDER)
+            // 3. Monta o Payload oficial para a API v4 do Google
             const googlePayload = {
                 languageCode: 'pt-BR',
-                summary: summary,
+                summary: summary.substring(0, 1500), // O Google permite máximo 1500 caracteres
                 callToAction: {
-                    actionType: 'ORDER', // Gera o botão "Fazer Pedido"
+                    actionType: 'ORDER', // Cria o botão azul "Fazer Pedido"
                     url: productUrl
                 },
                 media: [
                     {
                         mediaFormat: 'PHOTO',
-                        sourceUrl: imageUrl
+                        sourceUrl: imageUrl // A imagem que vem do seu Cloudinary
                     }
                 ]
             };
@@ -2616,14 +2615,13 @@ Retorne APENAS um JSON com 3 chaves curtas:
             if (!googleRes.ok) {
                 console.error("❌ Erro retornado pela API do Google:", JSON.stringify(googleData));
                 
-                // Formatação amigável do erro para o Lojista
                 let errorMsg = googleData.error?.message || 'Falha ao processar postagem.';
-                if (errorMsg.includes('Request is missing required authentication') || errorMsg.includes('Unauthenticated')) {
-                    errorMsg = 'O Token de acesso expirou. Por favor, reconecte a conta do Google na aba Integrações.';
+                if (errorMsg.includes('Unauthenticated') || errorMsg.includes('missing required authentication')) {
+                    errorMsg = 'O Token de acesso expirou. Por favor, clique em Reconectar na aba Integrações.';
                 } else if (errorMsg.includes('Invalid Image') || errorMsg.includes('media')) {
-                    errorMsg = 'O formato ou tamanho da imagem foi rejeitado pelo Google.';
+                    errorMsg = 'A imagem foi rejeitada pelo Google. Tente uma foto com resolução menor ou em outro formato.';
                 } else if (errorMsg.includes('NotFound') || errorMsg.includes('parent')) {
-                    errorMsg = 'ID do Local incorreto! É obrigatório colar o Location ID completo, contendo a palavra "accounts" e "locations" (ex: accounts/123/locations/456).';
+                    errorMsg = 'ID do Local incorreto! O Location ID deve conter as palavras "accounts" e "locations" (Ex: accounts/111/locations/222).';
                 }
 
                 return res.status(400).json({ error: errorMsg });

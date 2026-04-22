@@ -4227,12 +4227,51 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     onChange={(e) => setReplyText({...replyText,[r.id]: e.target.value})}
                                                 />
                                                 <button 
-                                                    onClick={async () => {
+                                                    onClick={async (e) => {
                                                         if(!replyText[r.id]) return;
-                                                        await updateDoc(doc(db, "reviews", r.id), { reply: replyText[r.id] });
-                                                        alert("Resposta enviada e visível no app!");
+                                                        
+                                                        const btn = e.currentTarget;
+                                                        const oldText = btn.innerHTML;
+                                                        btn.innerHTML = "Enviando...";
+                                                        btn.disabled = true;
+
+                                                        try {
+                                                            // Se a avaliação veio do Google, dispara para a API do backend
+                                                            if (r.source === 'google') {
+                                                                const res = await fetch('/api/reply-google-review', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                        storeId: storeId,
+                                                                        reviewId: r.id,
+                                                                        googleReviewName: r.googleReviewName,
+                                                                        replyText: replyText[r.id]
+                                                                    })
+                                                                });
+                                                                
+                                                                const data = await res.json();
+                                                                
+                                                                if (!res.ok) {
+                                                                    alert(`❌ Erro no Google: ${data.error || 'Falha ao responder.'}`);
+                                                                    btn.innerHTML = oldText;
+                                                                    btn.disabled = false;
+                                                                    return; // Trava aqui e não salva no Firebase se o Google recusar
+                                                                }
+                                                            }
+
+                                                            // Salva no banco de dados local (Para avaliações do App e do Google)
+                                                            await updateDoc(doc(db, "reviews", r.id), { reply: replyText[r.id] });
+                                                            
+                                                            alert(r.source === 'google' ? "✅ Resposta publicada no Google Maps com sucesso!" : "✅ Resposta enviada e visível no app!");
+                                                            
+                                                        } catch(err) {
+                                                            alert("Erro de conexão ao tentar enviar a resposta.");
+                                                        }
+                                                        
+                                                        btn.innerHTML = oldText;
+                                                        btn.disabled = false;
                                                     }}
-                                                    className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all"
+                                                    className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
                                                 >
                                                     Responder
                                                 </button>
@@ -9804,10 +9843,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <FaGoogle size={16} /> Publicar Oferta no Google Maps
                                             </h3>
                                             <button 
-                                                onClick={async () => {
+                                                onClick={async (e) => {
+                                                    // 1. Trava: Verifica se o Lojista configurou o Google
                                                     if (!settings?.integrations?.google_my_business?.locationId) {
                                                         return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
                                                     }
+                                                    // 2. Trava: O Google exige uma imagem
                                                     if (!promoCopyProduct?.imageUrl) {
                                                         return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
                                                     }
@@ -9816,7 +9857,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         // Botão visual de carregamento
                                                         const btn = e.currentTarget;
                                                         const oldText = btn.innerHTML;
-                                                        btn.innerHTML = '<Loader2 class="animate-spin" size="14"/> Publicando...';
+                                                        btn.innerHTML = '⏳ Publicando...';
                                                         btn.disabled = true;
 
                                                         const res = await fetch('/api/post-google-update', {
@@ -9827,7 +9868,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 locationId: settings.integrations.google_my_business.locationId,
                                                                 summary: promoCopyResult.instagram, 
                                                                 imageUrl: promoCopyProduct.imageUrl,
-                                                                productUrl: `https://${storeId}.velodelivery.com.br`
+                                                                productUrl: `https://${storeId}.velodelivery.com.br/p/${promoCopyProduct.id}`
                                                             })
                                                         });
                                                         
@@ -9854,8 +9895,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             Isso criará uma postagem de "Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O cliente verá um botão "Fazer Pedido" que levará direto para o seu cardápio.
                                         </p>
                                     </div>
-                                    {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
-
                                 </div>
                             )}
                         </motion.div>
