@@ -2583,10 +2583,14 @@ Retorne APENAS um JSON com 3 chaves curtas:
             // 2. Padronização do Endereço do Local na API do Google
             const parentName = locationId.includes('accounts/') ? locationId : `locations/${locationId}`;
 
+            // BLINDAGEM DE TEXTO: O Google é chato com emojis complexos e formatações.
+            // Aqui removemos coisas que fazem o Google travar e limitamos a 1400 caracteres.
+            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
+
             // 3. Monta o Payload oficial para a API v4 do Google
             const googlePayload = {
                 languageCode: 'pt-BR',
-                summary: summary.substring(0, 1500), // O Google permite máximo 1500 caracteres
+                summary: cleanSummary,
                 callToAction: {
                     actionType: 'ORDER', // Cria o botão azul "Fazer Pedido"
                     url: productUrl
@@ -2594,7 +2598,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 media: [
                     {
                         mediaFormat: 'PHOTO',
-                        sourceUrl: imageUrl // A imagem que vem do seu Cloudinary
+                        sourceUrl: imageUrl 
                     }
                 ]
             };
@@ -2609,9 +2613,19 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 body: JSON.stringify(googlePayload)
             });
 
-            const googleData = await googleRes.json();
+            // 5. BLINDAGEM ANTI-CRASH (Evita o erro Unexpected token <)
+            const responseText = await googleRes.text();
+            let googleData = {};
+            
+            try {
+                googleData = JSON.parse(responseText);
+            } catch (parseError) {
+                // Se cair aqui, o Google mandou um HTML de erro 404 (ID incorreto)
+                console.error("❌ O Google não retornou um JSON válido. Resposta crua:", responseText);
+                return res.status(400).json({ error: 'A API do Google falhou. Verifique se o seu Location ID está correto (deve conter "accounts/.../locations/...").' });
+            }
 
-            // 5. Captura de Erros da API do Google
+            // 6. Captura de Erros da API do Google em formato JSON
             if (!googleRes.ok) {
                 console.error("❌ Erro retornado pela API do Google:", JSON.stringify(googleData));
                 

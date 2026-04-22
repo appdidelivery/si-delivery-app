@@ -4127,6 +4127,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <button onClick={() => setActiveReviewTab('reviews')} className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeReviewTab === 'reviews' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
                                         ⭐ Avaliações do App
                                     </button>
+                                    {/* BOTÃO PARA FORÇAR A SINCRONIZAÇÃO DO GOOGLE MANUALMENTE */}
+                                    {activeReviewTab === 'reviews' && (
+                                        <button 
+                                            onClick={async (e) => {
+                                                const btn = e.currentTarget;
+                                                const oldText = btn.innerHTML;
+                                                btn.innerHTML = '⏳ Puxando...';
+                                                btn.disabled = true;
+                                                try {
+                                                    const res = await fetch('/api/sync-google-reviews');
+                                                    if(res.ok) alert("✅ Busca concluída! Se houverem novas avaliações no Google, elas aparecerão na tela em instantes.");
+                                                    else alert("❌ Erro ao buscar. Verifique a integração na aba Configurações.");
+                                                } catch(err) {
+                                                    alert("Erro de conexão.");
+                                                }
+                                                btn.innerHTML = oldText;
+                                                btn.disabled = false;
+                                            }}
+                                            className="flex-1 md:flex-none px-6 py-3 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-xl font-black text-xs uppercase tracking-widest transition-all border border-blue-200"
+                                        >
+                                            🔄 Buscar do Google
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             
