@@ -2779,9 +2779,92 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
         } catch (error) {
             console.error('❌ Erro Fatal (Reply Google):', error);
-            return res.status(500).json({ error: `Erro no servidor: ${error.message}` });
+            return res.status(500).json({ error: `Erro interno no servidor: ${error.message}` });
         }
     }
+
+    // ------------------------------------------------------------------------
+    // 27. GOOGLE MEU NEGÓCIO: SINCRONIZAÇÃO AUTOMÁTICA (CRON)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/sync-google-reviews') {
+        // Permitimos GET para facilitar o teste manual no navegador e chamadas de Cron externa
+        try {
+            console.log("🔄 Iniciando Sincronização Global de Avaliações Google...");
+            
+            // 1. Busca todas as lojas que têm integração com Google configurada
+            const settingsSnap = await db.collection('settings').get();
+            let totalSync = 0;
+
+            const syncPromises = settingsSnap.docs.map(async (storeDoc) => {
+                const storeId = storeDoc.id;
+                const config = storeDoc.data().integrations?.google_my_business;
+
+                if (!config || !config.locationId || !config.refreshToken) return;
+
+                try {
+                    // 2. Renovação Automática do Token (Refresh)
+                    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            client_id: process.env.GOOGLE_CLIENT_ID,
+                            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                            refresh_token: config.refreshToken,
+                            grant_type: 'refresh_token'
+                        })
+                    });
+
+                    const tokenData = await tokenRes.json();
+                    if (!tokenRes.ok) throw new Error("Falha ao renovar token");
+
+                    const activeToken = tokenData.access_token;
+
+                    // 3. Busca Avaliações na API do Google Business
+                    const parentName = config.locationId.includes('accounts/') ? config.locationId : `locations/${config.locationId}`;
+                    const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/reviews`, {
+                        headers: { 'Authorization': `Bearer ${activeToken}` }
+                    });
+
+                    const googleData = await googleRes.json();
+                    if (!googleRes.ok) return;
+
+                    const googleReviews = googleData.reviews || [];
+                    const batch = db.batch();
+
+                    // 4. Injeta no Firestore com Blindagem de Duplicados
+                    googleReviews.forEach(gr => {
+                        const reviewRef = db.collection('reviews').doc(`google_${gr.reviewId}`);
+                        batch.set(reviewRef, {
+                            storeId: storeId,
+                            source: 'google',
+                            googleReviewName: gr.name, // Nome completo para a API de resposta
+                            customerName: gr.reviewer?.displayName || 'Cliente Google',
+                            rating: gr.starRating === 'FIVE' ? 5 : gr.starRating === 'FOUR' ? 4 : gr.starRating === 'THREE' ? 3 : gr.starRating === 'TWO' ? 2 : 1,
+                            comment: gr.comment || '',
+                            reply: gr.reviewReply?.comment || null,
+                            createdAt: gr.createTime ? admin.firestore.Timestamp.fromDate(new Date(gr.createTime)) : admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true });
+                    });
+
+                    await batch.commit();
+                    totalSync++;
+
+                } catch (err) {
+                    console.error(`❌ Falha ao sincronizar loja ${storeId}:`, err.message);
+                }
+            });
+
+            await Promise.all(syncPromises);
+            return res.status(200).json({ success: true, storesSynced: totalSync });
+
+        } catch (error) {
+            console.error('❌ Erro na Rota de Sincronização:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ============================================================================
 
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)

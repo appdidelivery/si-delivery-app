@@ -23,16 +23,16 @@
       "permanent": true
     },
     {
-  "source": "/(.*)",
-  "has": [
-    {
-      "type": "host",
-      "value": "macanudorex.velodelivery.com.br"
-    }
-  ],
-  "destination": "https://macanudorex.com.br/$1",
-  "permanent": true
-},
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "macanudorex.velodelivery.com.br"
+        }
+      ],
+      "destination": "https://macanudorex.com.br/$1",
+      "permanent": true
+    },
     {
       "source": "/(.*)",
       "has": [
@@ -49,6 +49,10 @@
     {
       "path": "/api/cron-automations",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/sync-google-reviews",
+      "schedule": "0 * * * *"
     }
   ],
   "rewrites": [
