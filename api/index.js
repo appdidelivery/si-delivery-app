@@ -2579,21 +2579,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- PILOTO AUTOMÁTICO: DESCOBRIR ID DA CONTA ---
-            let parentName = locationId.trim();
-            if (!parentName.includes('accounts/')) {
-                const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-                    headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
-                });
-                const accData = await accRes.json();
-                
-                if (accData.accounts && accData.accounts.length > 0) {
-                    const accountString = accData.accounts[0].name; // ex: "accounts/12345"
-                    parentName = `${accountString}/locations/${parentName.replace('locations/', '')}`;
-                } else {
-                    return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada neste email do Google.' });
-                }
-            }
+            // --- MODO WILD CARD (Ignora lista de contas e atira direto) ---
+            let cleanLocation = locationId.trim().replace('locations/', '');
+            let parentName = `accounts/-/locations/${cleanLocation}`;
 
             // LIMPA EMOJIS COMPLEXOS QUE TRAVAM O GOOGLE
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
@@ -2815,19 +2803,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     if (!tokenRes.ok) throw new Error("Falha ao renovar token");
                     const activeToken = tokenData.access_token;
 
-                    // 2. PILOTO AUTOMÁTICO: DESCOBRIR ID DA CONTA
-                    let parentName = config.locationId.trim();
-                    if (!parentName.includes('accounts/')) {
-                        const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-                            headers: { 'Authorization': `Bearer ${activeToken}` }
-                        });
-                        const accData = await accRes.json();
-                        if (accData.accounts && accData.accounts.length > 0) {
-                            parentName = `${accData.accounts[0].name}/locations/${parentName.replace('locations/', '')}`;
-                        } else {
-                            throw new Error("Nenhuma conta encontrada.");
-                        }
-                    }
+                    // 2. MODO WILD CARD (Puxa direto sem listar contas)
+                    let cleanLocation = config.locationId.trim().replace('locations/', '');
+                    let parentName = `accounts/-/locations/${cleanLocation}`;
 
                     // 3. Busca Avaliações
                     const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/reviews`, {
