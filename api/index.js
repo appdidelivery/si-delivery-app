@@ -2480,7 +2480,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     }
 
     // ------------------------------------------------------------------------
-    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA)
+    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - BLINDADO CONTRA SAFETY)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -2495,7 +2495,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: false, error: "Chave do Gemini não configurada na Vercel." });
             }
 
-            // O prompt força a IA a devolver um JSON puro, blindando para o frontend ler certinho
             const prompt = `Atue como um Copywriter Especialista em Marketing para Delivery.
             Crie textos persuasivos, usando gatilhos mentais (escassez, desejo, urgência) para vender o seguinte produto:
             
@@ -2504,14 +2503,15 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Descrição atual: ${productDesc || 'Sem descrição detalhada'}
             - Loja: ${storeName} (Nicho: ${storeNiche})
 
-            Retorne SUA RESPOSTA EXATAMENTE NO FORMATO JSON ABAIXO. NÃO adicione nenhum texto antes ou depois, NÃO use formatação markdown (como \`\`\`json). Apenas o objeto JSON puro, pronto para ser lido via código:
+            Retorne SUA RESPOSTA EXATAMENTE NO FORMATO JSON ABAIXO. Não use formatação markdown (como \`\`\`json). Apenas o objeto JSON puro:
             {
-                "whatsapp": "Texto curto, magnético e com emojis, ideal para disparo no WhatsApp. Use gatilhos mentais e inclua o preço.",
-                "instagram": "Legenda envolvente para o feed do Instagram, criando desejo e fazendo CTA (chamada para ação) para pedir no link da bio. Inclua o preço.",
-                "hashtags": "#delivery #nomeDoNicho #etc"
+                "whatsapp": "Texto curto para WhatsApp com emojis e preço.",
+                "instagram": "Legenda envolvente para Instagram com CTA.",
+                "hashtags": "#delivery #nomeDoNicho"
             }`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            // Usamos o gemini-1.5-flash que é a versão de produção mais estável e rápida do Google
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -2526,31 +2526,51 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: false, error: "Falha de comunicação com o Google Gemini." });
             }
 
-            if (aiData.candidates && aiData.candidates[0] && aiData.candidates[0].content) {
-                let rawJsonText = aiData.candidates[0].content.parts[0].text;
-                // Blindagem: Limpa a string caso o Gemini teime em colocar as crases do Markdown
+            // BLINDAGEM CONTRA BLOQUEIO DE SEGURANÇA (Vape, Tabaco, etc)
+            if (aiData.candidates && aiData.candidates[0]) {
+                const candidate = aiData.candidates[0];
+                
+                // Se o Google bloquear por achar que é conteúdo impróprio/proibido
+                if (candidate.finishReason === 'SAFETY' || !candidate.content) {
+                    return res.status(200).json({ 
+                        success: false, 
+                        error: "O Google bloqueou a geração deste texto por políticas de segurança (ex: Vapes, Tabaco ou Termos +18)." 
+                    });
+                }
+
+                let rawJsonText = candidate.content.parts[0]?.text || '';
+                // Limpa marcações markdown indesejadas
                 rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
                 
                 try {
                     const parsedResult = JSON.parse(rawJsonText);
                     return res.status(200).json({ 
                         success: true, 
-                        whatsapp: parsedResult.whatsapp,
-                        instagram: parsedResult.instagram,
-                        hashtags: parsedResult.hashtags
+                        whatsapp: parsedResult.whatsapp || "Texto não gerado",
+                        instagram: parsedResult.instagram || "Texto não gerado",
+                        hashtags: parsedResult.hashtags || ""
                     });
                 } catch (parseError) {
                     console.error("Erro ao converter string do Gemini em JSON:", rawJsonText);
-                    return res.status(200).json({ success: false, error: "A IA não retornou o formato esperado." });
+                    return res.status(200).json({ success: false, error: "A IA se confundiu e não retornou no formato correto. Tente novamente." });
                 }
             } else {
-                return res.status(200).json({ success: false, error: "Resposta vazia da Inteligência Artificial." });
+                return res.status(200).json({ success: false, error: "Resposta vazia da Inteligência Artificial. Tente novamente." });
             }
 
         } catch (error) {
-            console.error("Erro na IA de Copy:", error);
-            return res.status(500).json({ error: error.message });
+            console.error("Erro Fatal na IA de Copy:", error);
+            // Se der erro fatal, não quebra com 500, devolve 200 pro front avisando o erro educadamente
+            return res.status(200).json({ success: false, error: "Falha interna no servidor ao chamar a IA." });
         }
     }
+
+    // ============================================================================
+    // ROTA NÃO ENCONTRADA (Fallback de segurança)
+    // ============================================================================
+    else {
+        return res.status(404).json({ error: 'Rota da API não foi encontrada no index.js', requestedPath: path });
+    }
+}
 
     // ============================================
