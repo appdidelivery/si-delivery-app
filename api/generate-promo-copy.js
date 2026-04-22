@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     // 3. Valida a chave da API
     if (!process.env.GEMINI_API_KEY) {
         console.error("ERRO: GEMINI_API_KEY não configurada nas variáveis de ambiente.");
-        return res.status(500).json({ error: 'Chave da API não configurada no servidor.' });
+        return res.status(200).json({ success: false, error: 'Chave da API não configurada no servidor.' });
     }
 
     try {
@@ -58,7 +58,13 @@ export default async function handler(req, res) {
         });
 
         // 7. Faz o parse da resposta e envia para o frontend
-        const resultText = response.text();
+        // 🚨 A MÁGICA FOI AQUI: Tiramos os parênteses do text(). 
+        const resultText = response.text;
+        
+        if (!resultText) {
+            throw new Error("A IA retornou uma resposta vazia.");
+        }
+
         const jsonResult = JSON.parse(resultText);
 
         return res.status(200).json({
@@ -70,6 +76,7 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error("Erro Crítico na API do Gemini:", error);
-        return res.status(500).json({ error: 'Falha ao processar a requisição com a IA. Tente novamente.' });
+        // 🚨 DEVOLVEMOS 200 PRO REACT para que a telinha feche o carregamento (Loading) e mostre o aviso bonito, em vez de travar tudo.
+        return res.status(200).json({ success: false, error: 'Falha ao processar a requisição com a IA. Tente novamente.' });
     }
 }
