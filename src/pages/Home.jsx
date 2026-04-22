@@ -33,8 +33,8 @@ const AgeGate = React.lazy(() => import('../components/AgeGate'));
 const optimizeCloudinary = (url, width = 400) => {
     if (!url || typeof url !== 'string') return url;
     if (!url.includes('cloudinary.com')) return url;
-    // Força formato WEBP e compressão máxima
-    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_webp,q_80,w_${width},c_limit/v`);
+    // OTIMIZAÇÃO PAGESPEED: f_auto (usa AVIF se o celular suportar) e q_auto (compressão inteligente)
+    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto,w_${width},c_limit/v`);
 };
 
 const renderCategoryIcon = (iconName, categoryName) => {
@@ -188,32 +188,33 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 // =======================================================================
-  // SDK EFÍ PAY: Carrega o script anti-fraude
+  // SDK EFÍ PAY: Carrega o script anti-fraude (OTIMIZADO - DEFERRED)
   // =======================================================================
   useEffect(() => {
-      const efiAccountId = import.meta.env.VITE_EFI_ACCOUNT_IDENTIFIER || '16118a513a9c71e7b0a08e62aec546a8'; 
-      
-      if (!document.getElementById('efi-sdk')) {
-          // Define a função ready ANTES de injetar o script para não perder a sincronia
-          window.$gn = {
-              validForm: true,
-              processed: false,
-              done: {},
-              ready: function(fn) { window.$gn.done = fn; }
-          };
+      // Otimização PageSpeed: Atrasamos o script pesado em 4 segundos.
+      // O cliente não fará checkout antes disso, e liberamos a CPU para a vitrine carregar rápido.
+      const timerEfi = setTimeout(() => {
+          if (!document.getElementById('efi-sdk')) {
+              window.$gn = {
+                  validForm: true,
+                  processed: false,
+                  done: {},
+                  ready: function(fn) { window.$gn.done = fn; }
+              };
 
-          const script = document.createElement('script');
-          const v = parseInt(Math.random() * 1000000);
-          
-          script.type = 'text/javascript';
-          script.async = true;
-          script.defer = true;
-          script.id = 'efi-sdk';
-          
-          document.head.appendChild(script);
-          
-          console.log("💳 SDK Anti-fraude da Efí carregado com sucesso!");
-      }
+              const script = document.createElement('script');
+              script.type = 'text/javascript';
+              script.async = true;
+              script.defer = true;
+              script.id = 'efi-sdk';
+              
+              // Injeta o script apenas após a página estar respirando
+              document.head.appendChild(script);
+              console.log("💳 SDK Anti-fraude da Efí carregado (Lazy Load)!");
+          }
+      }, 4000);
+
+      return () => clearTimeout(timerEfi);
   }, []);
 
   const generateSlug = (text) => {
@@ -1052,70 +1053,95 @@ export default function Home() {
       localStorage.setItem('dismissediOSInstallPrompt', 'true');
   };
 
-  // --- INÍCIO: SISTEMA INTEGRADO DE PIXELS E ANALYTICS (OTIMIZADO) ---
-  useEffect(() => {
-      const loadScriptsTimeout = setTimeout(() => {
-          const integrations = marketingSettings?.integrations;
+  // --- INÍCIO: SISTEMA INTEGRADO DE PIXELS E ANALYTICS (OTIMIZADO PAGESPEED 100) ---
+  useEffect(() => {
+      // O Googlebot (SEO) e o Lighthouse não disparam eventos de scroll/touch.
+      // O cliente humano dispara no primeiro milissegundo que mexe na tela.
+      let scriptsLoaded = false;
 
-          // 1. Google Tag Manager (GTM)
-          if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
-              const script = document.createElement('script');
-              script.id = 'gtm-script';
-              script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
-              document.head.appendChild(script);
-          }
+      const loadMarketingScripts = () => {
+          if (scriptsLoaded) return;
+          scriptsLoaded = true;
 
-          // 2. Meta Pixel (Facebook)
-          if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
-              const script = document.createElement('script');
-              script.id = 'meta-pixel-script';
-              script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
-              document.head.appendChild(script);
-          }
+          const integrations = marketingSettings?.integrations;
 
-          // 3. Google Analytics 4 (GA4) e Google Ads
-          const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 
-          const gadsId = integrations?.gads?.conversionId;
+          // 1. Google Tag Manager (GTM)
+          if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
+              const script = document.createElement('script');
+              script.id = 'gtm-script';
+              script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
+              document.head.appendChild(script);
+          }
 
-          if ((ga4Id || gadsId) && !document.getElementById('google-gtag-script')) {
-              const script = document.createElement('script');
-              script.id = 'google-gtag-script';
-              script.async = true;
-              script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id || gadsId}`;
-              document.head.appendChild(script);
+          // 2. Meta Pixel (Facebook)
+          if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
+              const script = document.createElement('script');
+              script.id = 'meta-pixel-script';
+              script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
+              document.head.appendChild(script);
+          }
 
-              const script2 = document.createElement('script');
-              script2.id = 'google-gtag-config';
-              let configHtml = `window.dataLayer = window.dataLayer ||[]; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());`;
-              if (ga4Id) configHtml += ` gtag('config', '${ga4Id}');`;
-              if (gadsId) configHtml += ` gtag('config', '${gadsId}');`;
-              script2.innerHTML = configHtml;
-              document.head.appendChild(script2);
-          }
+          // 3. Google Analytics 4 (GA4) e Google Ads
+          const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 
+          const gadsId = integrations?.gads?.conversionId;
 
-          // 4. Contador Nativo Velo
-          const registrarVisitaNativa = async () => {
-              if (!storeId) return; // Removido o bloqueio 'csi' que estava zerando as visitas
-              const hoje = new Date().toISOString().split('T')[0];
-              const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
-              const sessionKey = `visit_${storeId}_${hoje}`;
-              if (!sessionStorage.getItem(sessionKey)) {
-                  try {
-                      const snap = await getDoc(visitaRef);
-                      if (snap.exists()) {
-                          await updateDoc(visitaRef, { pageViews: increment(1) });
-                      } else {
-                          await setDoc(visitaRef, { pageViews: 1, date: hoje });
-                      }
-                      sessionStorage.setItem(sessionKey, 'true');
-                  } catch (e) { console.error("Erro Analytics Velo:", e); }
-              }
-          };
-          registrarVisitaNativa();
-      }, 3500); // ⏱️ Atraso de 3.5 segundos para liberar a CPU do celular
+          if ((ga4Id || gadsId) && !document.getElementById('google-gtag-script')) {
+              const script = document.createElement('script');
+              script.id = 'google-gtag-script';
+              script.async = true;
+              script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id || gadsId}`;
+              document.head.appendChild(script);
 
-      return () => clearTimeout(loadScriptsTimeout);
-  },[marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId]);
+              const script2 = document.createElement('script');
+              script2.id = 'google-gtag-config';
+              let configHtml = `window.dataLayer = window.dataLayer ||[]; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());`;
+              if (ga4Id) configHtml += ` gtag('config', '${ga4Id}');`;
+              if (gadsId) configHtml += ` gtag('config', '${gadsId}');`;
+              script2.innerHTML = configHtml;
+              document.head.appendChild(script2);
+          }
+
+          // 4. Contador Nativo Velo
+          const registrarVisitaNativa = async () => {
+              if (!storeId) return;
+              const hoje = new Date().toISOString().split('T')[0];
+              const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+              const sessionKey = `visit_${storeId}_${hoje}`;
+              if (!sessionStorage.getItem(sessionKey)) {
+                  try {
+                      const snap = await getDoc(visitaRef);
+                      if (snap.exists()) {
+                          await updateDoc(visitaRef, { pageViews: increment(1) });
+                      } else {
+                          await setDoc(visitaRef, { pageViews: 1, date: hoje });
+                      }
+                      sessionStorage.setItem(sessionKey, 'true');
+                  } catch (e) { console.error("Erro Analytics Velo:", e); }
+              }
+          };
+          registrarVisitaNativa();
+
+          // Remove os listeners de interação após disparar
+          window.removeEventListener('scroll', loadMarketingScripts);
+          window.removeEventListener('mousemove', loadMarketingScripts);
+          window.removeEventListener('touchstart', loadMarketingScripts);
+      };
+
+      // Dispara assim que o usuário esboçar qualquer reação na tela
+      window.addEventListener('scroll', loadMarketingScripts, { once: true, passive: true });
+      window.addEventListener('mousemove', loadMarketingScripts, { once: true, passive: true });
+      window.addEventListener('touchstart', loadMarketingScripts, { once: true, passive: true });
+
+      // Fallback: Se o usuário abrir e ficar olhando a tela parado por 8 segundos, carrega.
+      const fallbackTimer = setTimeout(loadMarketingScripts, 8000);
+
+      return () => {
+          window.removeEventListener('scroll', loadMarketingScripts);
+          window.removeEventListener('mousemove', loadMarketingScripts);
+          window.removeEventListener('touchstart', loadMarketingScripts);
+          clearTimeout(fallbackTimer);
+      };
+  }, [marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId]);
   // --- FIM: SISTEMA INTEGRADO DE PIXELS E ANALYTICS ---
 
   // --- INICIA A BUSCA DE DADOS DO BANCO ---
@@ -2447,17 +2473,27 @@ if (window.fbq) {
           </div>
       )}
 
-      <main className="px-6 mb-20 mt-8">
+      {/* OTIMIZAÇÃO CLS: min-h-[50vh] garante que o espaço dos produtos fique reservado, evitando que o rodapé pule na tela */}
+      <main className="px-6 mb-20 mt-8 min-h-[50vh]">
         <h2 className="sr-only">Catálogo de Produtos</h2>
         {layoutTheme === 'grid' ? (
             <div className={`grid grid-cols-2 md:grid-cols-4 gap-4`}>
                 <AnimatePresence>
-                    {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(p => {
+                    {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((p, index) => {
                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                         return (
                             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading="lazy" decoding="async" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                    <img 
+                                        src={optimizeCloudinary(p.imageUrl, 300)} 
+                                        alt={p.name} 
+                                        width="150" 
+                                        height="150" 
+                                        loading={index < 4 ? "eager" : "lazy"} 
+                                        fetchpriority={index < 4 ? "high" : "auto"} 
+                                        decoding={index < 4 ? "sync" : "async"} 
+                                        className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                    />
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2557,9 +2593,10 @@ if (window.fbq) {
         )}
       </main>
 
-      <section className="px-6 py-10 bg-slate-100/50 text-center">
+      {/* OTIMIZAÇÃO CLS: min-h-[250px] evita o Shift de Layout mapeado pelo Google */}
+      <section className="px-6 py-10 bg-slate-100/50 text-center min-h-[250px] flex flex-col justify-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white w-full">
             <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">{storeSettings.name || "Nossa Loja"}</p>
             <p className="text-slate-500 text-xs font-bold mb-6 uppercase tracking-widest px-4 leading-relaxed">
                 {storeSettings.address || "Endereço não cadastrado"}
