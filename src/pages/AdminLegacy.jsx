@@ -8719,19 +8719,60 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         </ol>
     </div>
 )}
-                                {/* Renderiza os inputs */}
-                                {selectedIntegration.fields.map((field) => (
-                                    <div key={field.key} className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500 ml-2">{field.label}</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder={`Cole aqui seu ${field.label}...`}
-                                            className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-700 placeholder-slate-300" 
-                                            value={integrationForm[field.key] || ''} 
-                                            onChange={e => setIntegrationForm({ ...integrationForm,[field.key]: e.target.value.trim() })} 
-                                        />
-                                    </div>
-                                ))}
+                                {/* Renderiza os inputs com Blindagem Híbrida para OAuth */}
+                                {selectedIntegration.fields.map((field) => {
+                                    // BLINDAGEM MESTRA: Se for o Token do Google, troca o Input por um Botão de Login!
+                                    if (selectedIntegration.id === 'google_my_business' && field.key === 'accessToken') {
+                                        return (
+                                            <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-[2rem]">
+                                                <label className="text-xs font-black uppercase tracking-widest text-blue-800 flex items-center gap-2">
+                                                    <FaGoogle size={16}/> Autenticação Segura
+                                                </label>
+                                                {integrationForm.accessToken ? (
+                                                    <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-blue-100">
+                                                        <span className="text-xs font-black text-green-600 flex items-center gap-1"><CheckCircle size={14}/> Conectado</span>
+                                                        <button type="button" onClick={async () => {
+                                                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                                            window.location.href = isLocal ? `/api/google-auth?storeId=${storeId}` : `/api/google-auth?storeId=${storeId}`;
+                                                        }} className="text-[10px] text-blue-600 font-bold uppercase tracking-widest hover:underline">Reconectar</button>
+                                                    </div>
+                                                ) : (
+                                                    <button 
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            // Salva o Location ID no banco ANTES de sair da página para não perder o que o lojista digitou
+                                                            if (integrationForm.locationId) {
+                                                                await setDoc(doc(db, "settings", storeId), {
+                                                                    integrations: { google_my_business: { locationId: integrationForm.locationId } }
+                                                                }, { merge: true });
+                                                            }
+                                                            // Dispara o fluxo OAuth do backend
+                                                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                                            window.location.href = isLocal ? `/api/google-auth?storeId=${storeId}` : `/api/google-auth?storeId=${storeId}`;
+                                                        }}
+                                                        className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95"
+                                                    >
+                                                        Fazer Login com o Google
+                                                    </button>
+                                                )}
+                                                <p className="text-[10px] text-blue-600/70 font-bold leading-tight">Obrigatório. O Google gerará seu Token automaticamente após o login.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div key={field.key} className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-500 ml-2">{field.label}</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder={`Cole aqui seu ${field.label}...`}
+                                                className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-700 placeholder-slate-300" 
+                                                value={integrationForm[field.key] || ''} 
+                                                onChange={e => setIntegrationForm({ ...integrationForm,[field.key]: e.target.value.trim() })} 
+                                            />
+                                        </div>
+                                    );
+                                })}
 
                                 {/* --- MOTOR DE AUTOMAÇÕES DO WHATSAPP --- */}
                                 {selectedIntegration.id === 'whatsapp' && (
