@@ -2516,19 +2516,18 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 })
             });
 
-            // Lemos como texto puro primeiro para o servidor não quebrar se o Google der timeout interno
-            const responseText = await response.text();
-            
-            if (!response.ok) {
-                console.error("Erro da API Gemini (Status):", response.status, responseText);
-                return res.status(200).json({ success: false, error: "O Google demorou a responder. Tente novamente." });
-            }
-
+            // CORREÇÃO: Lemos diretamente como JSON. O método .text() gera erro (is not a function) 
+            // em algumas versões do Node.js no ambiente Serverless da Vercel.
             let aiData;
             try {
-                aiData = JSON.parse(responseText);
+                aiData = await response.json();
             } catch (e) {
-                return res.status(200).json({ success: false, error: "A IA retornou um formato inválido." });
+                return res.status(200).json({ success: false, error: "O tempo esgotou ou a IA falhou. Tente novamente." });
+            }
+            
+            if (!response.ok) {
+                console.error("Erro da API Gemini (Status):", response.status, aiData);
+                return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Tente novamente." });
             }
 
             if (aiData.candidates && aiData.candidates[0]) {
