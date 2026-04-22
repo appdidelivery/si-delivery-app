@@ -8774,7 +8774,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     );
                                 })}
 
-                                {/* --- MOTOR DE AUTOMAÇÕES DO WHATSAPP --- */}
+                                {/* --- MOTOR DE 1AUTOMAÇÕES DO WHATSAPP --- */}
                                 {selectedIntegration.id === 'whatsapp' && (
                                     <div className="pt-4 border-t border-slate-100 space-y-4 mt-4 animate-in fade-in slide-in-from-top-2">
                                         {(!integrationForm.phoneNumberId || !integrationForm.apiToken) ? (
