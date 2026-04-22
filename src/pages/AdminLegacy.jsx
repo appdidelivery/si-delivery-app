@@ -878,6 +878,38 @@ export default function Admin() {
     // Produtos
     const[isModalOpen, setIsModalOpen] = useState(false);
     const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
+    // --- NOVO: ESTADOS PARA A IA DE PROMOÇÕES ---
+    const [isPromoCopyModalOpen, setIsPromoCopyModalOpen] = useState(false);
+    const [promoCopyProduct, setPromoCopyProduct] = useState(null);
+    const [promoCopyResult, setPromoCopyResult] = useState({ whatsapp: '', instagram: '', hashtags: '' });
+    const [isGeneratingPromoCopy, setIsGeneratingPromoCopy] = useState(false);
+    // --- NOVO: ESTADOS PARA PREVISÃO DE ESTOQUE (IA) ---
+    const [isGeneratingPredict, setIsGeneratingPredict] = useState(false);
+    const [predictResult, setPredictResult] = useState(null);
+    const [predictDays, setPredictDays] = useState(7);
+
+    const handleGenerateStockPredict = async () => {
+        setIsGeneratingPredict(true);
+        setPredictResult(null);
+        try {
+            const res = await fetch('/api/stock-predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId, daysToPredict: predictDays })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setPredictResult(data.insight);
+            } else {
+                alert(`Erro na IA: ${data.error || 'Falha ao analisar estoque.'}`);
+            }
+        } catch (error) {
+            console.error("Erro no Stock Predict:", error);
+            alert("Erro de conexão ao tentar gerar a previsão de estoque.");
+        } finally {
+            setIsGeneratingPredict(false);
+        }
+    };
     // --- NOVO: ESTADOS PARA COPIAR COMPLEMENTOS ---
     const [isCopyComplementModalOpen, setIsCopyComplementModalOpen] = useState(false);
     const [complementToCopy, setComplementToCopy] = useState(null);
@@ -1385,6 +1417,46 @@ const handleGenerateProductCopy = async () => {
         setIsGeneratingCopy(false);
     }
 };
+    const handleGeneratePromoCopy = async (product) => {
+        setIsPromoCopyModalOpen(true);
+        setPromoCopyProduct(product);
+        setIsGeneratingPromoCopy(true);
+        setPromoCopyResult({ whatsapp: '', instagram: '', hashtags: '' });
+
+        try {
+            const response = await fetch('/api/generate-promo-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    storeName: storeStatus.name,
+                    storeNiche: storeStatus.storeNiche,
+                    productName: product.name,
+                    productDesc: product.description || '',
+                    productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                setPromoCopyResult({
+                    whatsapp: data.whatsapp,
+                    instagram: data.instagram,
+                    hashtags: data.hashtags
+                });
+            } else {
+                alert(`Erro na IA: ${data.error || 'Falha ao conectar com o servidor.'}`);
+                setIsPromoCopyModalOpen(false);
+            }
+        } catch (error) {
+            console.error("Erro ao gerar Copy:", error);
+            alert("Falha de conexão. Verifique sua internet e tente novamente.");
+            setIsPromoCopyModalOpen(false);
+        } finally {
+            setIsGeneratingPromoCopy(false);
+        }
+    };
+
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
         
@@ -2483,7 +2555,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
 
-                            {trialInfo.isOverdue && (
+                            {isOverdue && (
                                 <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-pulse">
                                     <div>
                                         <h3 className="text-red-700 font-black flex items-center gap-2 text-lg"><Server size={20} /> FATURA EM ABERTO</h3>
@@ -3304,7 +3376,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     <button 
                                                                         onClick={() => {
                                                                             const driverUrl = `${window.location.origin}/driver/${storeId}/${o.id}`;
-                                                                            const msg = `🛵 *VELO DELIVERY - NOVA CORRIDA*\n\nID: #${o.id.slice(-5).toUpperCase()}\nCliente: ${o.customerName}\n\n📍 *Link para Iniciar Rastreio:* \n${driverUrl}`;
+                                                                            const msg = `🛵 *NOVA CORRIDA DISPONÍVEL!*\n\n📦 *Pedido:* #${o.id.slice(-5).toUpperCase()}\n👤 *Cliente:* ${o.customerName}\n\n📍 *Clique no link abaixo para aceitar a corrida e iniciar a entrega:* \n${driverUrl}`;
                                                                             window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                                                                         }} 
                                                                         className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95"
@@ -3550,7 +3622,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <Share2 size={20} />
                                                     </button>
 
-                                                    {/* BOTÃO DE RASTREIO QUE JÁ EXISTIA */}
+                                                    {/* BOTÃO DE RASTREIO QUE JÁ att EXISTIA */}
                                                     <button 
                                                         onClick={() => {
                                                             setTrackingOrder(o);
@@ -3615,6 +3687,48 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 + NOVO INSUMO
                             </button>
                         </div>
+
+                        {/* --- INÍCIO: BANNER IA DE PREVISÃO DE ESTOQUE --- */}
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 p-6 md:p-8 rounded-[2rem] shadow-sm">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase text-purple-800 flex items-center gap-2"><Sparkles size={24}/> Velo Predict (IA)</h3>
+                                    <p className="text-sm font-bold text-purple-600 mt-1 max-w-xl">Nossa IA cruza seus pedidos dos últimos 30 dias com a ficha técnica e projeta o quanto você precisa comprar.</p>
+                                </div>
+                                <div className="flex items-center gap-2 w-full md:w-auto">
+                                    <select 
+                                        value={predictDays} 
+                                        onChange={(e) => setPredictDays(Number(e.target.value))}
+                                        className="p-4 bg-white border border-purple-200 rounded-xl font-black text-sm text-purple-700 outline-none focus:ring-2 ring-purple-400 cursor-pointer shadow-sm"
+                                    >
+                                        <option value={7}>Previsão para 7 Dias</option>
+                                        <option value={15}>Previsão para 15 Dias</option>
+                                        <option value={30}>Previsão para 30 Dias</option>
+                                    </select>
+                                    <button 
+                                        onClick={handleGenerateStockPredict}
+                                        disabled={isGeneratingPredict}
+                                        className="flex-1 md:flex-none bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest transition-all shadow-xl shadow-purple-200 disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        {isGeneratingPredict ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                                        {isGeneratingPredict ? 'Analisando Vendas...' : 'Projetar Compras'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {predictResult && (
+                                <div className="bg-white p-6 rounded-2xl border border-purple-100 text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap animate-in fade-in slide-in-from-top-2 shadow-inner">
+                                    {predictResult.split('\n').map((line, idx) => {
+                                        if (line.startsWith('**') || line.startsWith('* **') || line.startsWith('##')) {
+                                            return <p key={idx} className="font-black text-slate-900 mt-3 mb-1">{line.replace(/[*#]/g, '')}</p>;
+                                        }
+                                        return <p key={idx}>{line}</p>;
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                        {/* --- FIM: BANNER sIA DE PREVISÃO DE ESTOQUE --- */}
+
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {ingredients.length === 0 && <p className="text-slate-400 font-bold col-span-full bg-slate-50 p-8 rounded-3xl text-center border-2 border-dashed border-slate-200">Nenhum insumo cadastrado ainda.</p>}
                             {ingredients.map(ing => (
@@ -3893,6 +4007,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                     {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}
                                                     <div className="flex flex-col justify-center gap-2 flex-shrink-0 relative z-10 w-10">
+                                                        <button onClick={() => handleGeneratePromoCopy(p)} className="p-2.5 bg-purple-50 rounded-xl text-purple-600 border border-purple-100 hover:bg-purple-100 transition-all shadow-sm" title="Criar Copy de Promoção (IA)">
+                                                            <Sparkles size={18} className="mx-auto" />
+                                                        </button>
                                                         <button onClick={() => handleQuickToggleProduct(p)} className={`p-2.5 rounded-xl transition-all shadow-sm ${p.isActive === false ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'}`} title={p.isActive === false ? 'Oculto (Clique para Ativar)' : 'Ativo (Clique para Ocultar)'}>
                                                             {p.isActive === false ? <EyeOff size={18} className="mx-auto" /> : <Eye size={18} className="mx-auto" />}
                                                         </button>
@@ -8426,8 +8543,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
                             <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
                         </div>
-                        <button onClick={() => setShowPixModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
-                            <QrCode size={20}/> Pagar via PIX
+                        <button onClick={handleAssinarPro} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <QrCode size={20}/> Pagar via Mercado Pago
                         </button>
                     </div>
                 </div>
@@ -9156,14 +9273,378 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {selectedInvoice.status === 'PENDENTE' && (
-                                <button onClick={() => setShowPixModal(true)} className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
-                                    <QrCode size={18} /> Pagar Fatura via PIX
+                                <button onClick={handleAssinarPro} className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
+                                    <QrCode size={18} /> Pagar Fatura (Mercado Pago)
                                 </button>
                             )}
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
+           {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+            <AnimatePresence>
+                {isPromoCopyModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+                            <button 
+                                onClick={() => setIsPromoCopyModalOpen(false)} 
+                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
+                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
+                            </p>
+
+                            {isGeneratingPromoCopy ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
+                                    <Loader2 className="animate-spin" size={48} />
+                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
+                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* WhatsApp Copy */}
+                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
+                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
+                                                    alert("Texto de WhatsApp copiado!");
+                                                }} 
+                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
+                                            value={promoCopyResult.whatsapp}
+                                        />
+                                    </div>
+
+                                    {/* Instagram Copy */}
+                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
+                                                <ImageIcon size={16} /> Legenda para Instagram
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
+                                                    alert("Legenda e Hashtags copiadas!");
+                                                }} 
+                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar Tudo
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
+                                            value={promoCopyResult.instagram}
+                                        />
+                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
+                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
+                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
+                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <RefreshCw size={16}/> Gerar Outra Opção
+                                    </button>
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+
+            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+            <AnimatePresence>
+                {isPromoCopyModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+                            <button 
+                                onClick={() => setIsPromoCopyModalOpen(false)} 
+                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
+                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
+                            </p>
+
+                            {isGeneratingPromoCopy ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
+                                    <Loader2 className="animate-spin" size={48} />
+                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
+                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* WhatsApp Copy */}
+                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
+                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
+                                                    alert("Texto de WhatsApp copiado!");
+                                                }} 
+                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
+                                            value={promoCopyResult.whatsapp}
+                                        />
+                                    </div>
+
+                                    {/* Instagram Copy */}
+                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
+                                                <ImageIcon size={16} /> Legenda para Instagram
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
+                                                    alert("Legenda e Hashtags copiadas!");
+                                                }} 
+                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar Tudo
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
+                                            value={promoCopyResult.instagram}
+                                        />
+                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
+                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
+                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
+                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <RefreshCw size={16}/> Gerar Outra Opção
+                                    </button>
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+
+            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+            <AnimatePresence>
+                {isPromoCopyModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+                            <button 
+                                onClick={() => setIsPromoCopyModalOpen(false)} 
+                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
+                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
+                            </p>
+
+                            {isGeneratingPromoCopy ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
+                                    <Loader2 className="animate-spin" size={48} />
+                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
+                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* WhatsApp Copy */}
+                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
+                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
+                                                    alert("Texto de WhatsApp copiado!");
+                                                }} 
+                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
+                                            value={promoCopyResult.whatsapp}
+                                        />
+                                    </div>
+
+                                    {/* Instagram Copy */}
+                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
+                                                <ImageIcon size={16} /> Legenda para Instagram
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
+                                                    alert("Legenda e Hashtags copiadas!");
+                                                }} 
+                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar Tudo
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
+                                            value={promoCopyResult.instagram}
+                                        />
+                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
+                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
+                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
+                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <RefreshCw size={16}/> Gerar Outra Opção
+                                    </button>
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+
+            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+            <AnimatePresence>
+                {isPromoCopyModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+                            <button 
+                                onClick={() => setIsPromoCopyModalOpen(false)} 
+                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
+                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
+                            </p>
+
+                            {isGeneratingPromoCopy ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
+                                    <Loader2 className="animate-spin" size={48} />
+                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
+                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* WhatsApp Copy */}
+                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
+                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
+                                                    alert("Texto de WhatsApp copiado!");
+                                                }} 
+                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
+                                            value={promoCopyResult.whatsapp}
+                                        />
+                                    </div>
+
+                                    {/* Instagram Copy */}
+                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
+                                                <ImageIcon size={16} /> Legenda para Instagram
+                                            </h3>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
+                                                    alert("Legenda e Hashtags copiadas!");
+                                                }} 
+                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
+                                            >
+                                                <Copy size={12}/> Copiar Tudo
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            readOnly
+                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
+                                            value={promoCopyResult.instagram}
+                                        />
+                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
+                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
+                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
+                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <RefreshCw size={16}/> Gerar Outra Opção
+                                    </button>
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+
             {/* WIDGET DE IA ADICIONADO AQUI */}
             <VeloSupportWidget />
         </div>

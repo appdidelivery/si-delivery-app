@@ -2375,10 +2375,182 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             });
         }
     }
-    // ============================================================================
-    // ROTA NÃO ENCONTRADA (Fallback de segurança)
-    // ============================================================================
-    else {
-        return res.status(404).json({ error: 'Rota da API não foi encontrada no index.js', requestedPath: path });
+    // ------------------------------------------------------------------------
+    // 21. PREVISÃO DE ESTOQUE (STOCK PREDICT COM GEMINI)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/stock-predict') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, daysToPredict = 7 } = req.body;
+            if (!storeId) return res.status(400).json({ error: 'storeId é obrigatório.' });
+
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) {
+                return res.status(200).json({ success: false, error: "Chave do Gemini não configurada na Vercel." });
+            }
+
+            // 1. Pega os insumos da loja para saber os nomes e o estoque atual
+            const ingredientsSnap = await db.collection('ingredients').where('storeId', '==', storeId).get();
+            const ingredientsMap = {};
+            ingredientsSnap.forEach(doc => {
+                const data = doc.data();
+                ingredientsMap[doc.id] = { name: data.name, unit: data.unit || 'un', currentStock: data.stock || 0 };
+            });
+
+            if (Object.keys(ingredientsMap).length === 0) {
+                return res.status(200).json({ success: true, insight: "Você ainda não tem insumos cadastrados na aba 'Insumos Globais'." });
+            }
+
+            // 2. Busca pedidos dos últimos 30 dias
+            // Filtramos apenas por data e loja para não exigir criação de Índices Complexos no Firestore
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const ordersSnap = await db.collection('orders')
+                .where('storeId', '==', storeId)
+                .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo))
+                .get();
+
+            // 3. Somar o consumo (Ficha Técnica) dos pedidos Concluídos
+            const consumption = {};
+            ordersSnap.forEach(doc => {
+                const order = doc.data();
+                if (order.status !== 'completed') return; // Ignora cancelados ou em andamento
+                
+                if (order.items && Array.isArray(order.items)) {
+                    order.items.forEach(item => {
+                        if (item.consumedIngredients && Array.isArray(item.consumedIngredients)) {
+                            item.consumedIngredients.forEach(ci => {
+                                if (!consumption[ci.ingredientId]) consumption[ci.ingredientId] = 0;
+                                consumption[ci.ingredientId] += (Number(item.quantity) * Number(ci.qty));
+                            });
+                        }
+                    });
+                }
+            });
+
+            // 4. Montar os dados para o cérebro da IA (Gemini)
+            let promptData = [];
+            for (const [id, totalConsumed] of Object.entries(consumption)) {
+                if (ingredientsMap[id]) {
+                    promptData.push(`- ${ingredientsMap[id].name}: Gasto em 30 dias = ${totalConsumed.toFixed(2)} ${ingredientsMap[id].unit} | Estoque Atual na geladeira = ${ingredientsMap[id].currentStock} ${ingredientsMap[id].unit}`);
+                }
+            }
+
+            if (promptData.length === 0) {
+                return res.status(200).json({ success: true, insight: "Nenhum insumo da ficha técnica foi gasto nos últimos 30 dias." });
+            }
+
+            const fullPrompt = `Você é um gestor de estoque e inteligência de compras para restaurantes.
+            Analisei as vendas reais dos últimos 30 dias de uma loja. Aqui está o consumo e o estoque atual:
+            ${promptData.join('\n')}
+
+            Sua tarefa:
+            Crie um relatório curto, direto e focado em ação para o dono da loja, projetando a necessidade de compra para os próximos ${daysToPredict} dias baseando-se na média diária de consumo.
+            - Avise de forma destacada se o estoque de algum item NÃO for aguentar a previsão dos próximos ${daysToPredict} dias (Risco de acabar).
+            - Sugira uma lista de compras clara e objetiva para esse período de ${daysToPredict} dias.
+            - Use emojis, seja cordial e não faça saudações muito longas.
+            - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
+            });
+
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                return res.status(200).json({ success: false, error: "Erro ao processar resposta do Google Gemini." });
+            }
+
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                return res.status(200).json({ success: true, insight: data.candidates[0].content.parts[0].text });
+            } else {
+                return res.status(200).json({ success: false, error: data.error?.message || "A IA não conseguiu gerar o relatório." });
+            }
+
+        } catch (error) {
+            console.error("Erro no Stock Predict:", error);
+            return res.status(500).json({ error: error.message });
+        }
     }
-}
+
+    // ------------------------------------------------------------------------
+    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/generate-promo-copy') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeName, storeNiche, productName, productDesc, productPrice } = req.body;
+            
+            if (!productName) return res.status(400).json({ error: 'Nome do produto é obrigatório.' });
+
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) {
+                return res.status(200).json({ success: false, error: "Chave do Gemini não configurada na Vercel." });
+            }
+
+            // O prompt força a IA a devolver um JSON puro, blindando para o frontend ler certinho
+            const prompt = `Atue como um Copywriter Especialista em Marketing para Delivery.
+            Crie textos persuasivos, usando gatilhos mentais (escassez, desejo, urgência) para vender o seguinte produto:
+            
+            - Produto: ${productName}
+            - Preço: R$ ${Number(productPrice).toFixed(2)}
+            - Descrição atual: ${productDesc || 'Sem descrição detalhada'}
+            - Loja: ${storeName} (Nicho: ${storeNiche})
+
+            Retorne SUA RESPOSTA EXATAMENTE NO FORMATO JSON ABAIXO. NÃO adicione nenhum texto antes ou depois, NÃO use formatação markdown (como \`\`\`json). Apenas o objeto JSON puro, pronto para ser lido via código:
+            {
+                "whatsapp": "Texto curto, magnético e com emojis, ideal para disparo no WhatsApp. Use gatilhos mentais e inclua o preço.",
+                "instagram": "Legenda envolvente para o feed do Instagram, criando desejo e fazendo CTA (chamada para ação) para pedir no link da bio. Inclua o preço.",
+                "hashtags": "#delivery #nomeDoNicho #etc"
+            }`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+
+            const responseText = await response.text();
+            let aiData;
+            try {
+                aiData = JSON.parse(responseText);
+            } catch (e) {
+                console.error("Erro no Parse da resposta da IA:", responseText);
+                return res.status(200).json({ success: false, error: "Falha de comunicação com o Google Gemini." });
+            }
+
+            if (aiData.candidates && aiData.candidates[0] && aiData.candidates[0].content) {
+                let rawJsonText = aiData.candidates[0].content.parts[0].text;
+                // Blindagem: Limpa a string caso o Gemini teime em colocar as crases do Markdown
+                rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                
+                try {
+                    const parsedResult = JSON.parse(rawJsonText);
+                    return res.status(200).json({ 
+                        success: true, 
+                        whatsapp: parsedResult.whatsapp,
+                        instagram: parsedResult.instagram,
+                        hashtags: parsedResult.hashtags
+                    });
+                } catch (parseError) {
+                    console.error("Erro ao converter string do Gemini em JSON:", rawJsonText);
+                    return res.status(200).json({ success: false, error: "A IA não retornou o formato esperado." });
+                }
+            } else {
+                return res.status(200).json({ success: false, error: "Resposta vazia da Inteligência Artificial." });
+            }
+
+        } catch (error) {
+            console.error("Erro na IA de Copy:", error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ============================================
