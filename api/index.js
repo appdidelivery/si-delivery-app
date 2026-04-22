@@ -2636,6 +2636,87 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(500).json({ error: `Erro interno no servidor ao conectar com o Google: ${error.message}` });
         }
     }
+    // ------------------------------------------------------------------------
+    // 24. GOOGLE OAUTH: GERAR LINK DE LOGIN (CONSENT SCREEN)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/google-auth') {
+        if (req.method !== 'GET') return res.status(405).end();
+        const { storeId } = req.query;
+        if (!storeId) return res.status(400).send("Parâmetro storeId é obrigatório.");
+
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        if (!clientId) return res.status(500).send("GOOGLE_CLIENT_ID não configurado no servidor.");
+
+        const isLocal = req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1');
+        const redirectUri = isLocal ? 'http://localhost:3000/api/google-callback' : 'https://app.velodelivery.com.br/api/google-callback';
+
+        // Escopo oficial para gerenciar as postagens e dados do Meu Negócio
+        const scope = encodeURIComponent('https://www.googleapis.com/auth/business.manage');
+        
+        // prompt=consent e access_type=offline são CRÍTICOS para recebermos o Refresh Token
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${storeId}`;
+
+        res.writeHead(302, { Location: authUrl });
+        res.end();
+    }
+    // ------------------------------------------------------------------------
+    // 25. GOOGLE OAUTH: CALLBACK E SALVAMENTO DE TOKENS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/google-callback') {
+        if (req.method !== 'GET') return res.status(405).end();
+        
+        const { code, state, error } = req.query;
+        
+        if (error) return res.status(400).send("Acesso negado pelo usuário no Google.");
+        if (!code || !state) return res.status(400).send("Parâmetros do Google ausentes.");
+
+        const storeId = state; // O state carrega o ID da loja do cliente
+        const isLocal = req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1');
+        const redirectUri = isLocal ? 'http://localhost:3000/api/google-callback' : 'https://app.velodelivery.com.br/api/google-callback';
+
+        try {
+            // 1. Troca o código de autorização pelos Tokens de Acesso
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: process.env.GOOGLE_CLIENT_ID,
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                    code: code,
+                    grant_type: 'authorization_code',
+                    redirect_uri: redirectUri
+                })
+            });
+
+            const tokenData = await tokenRes.json();
+            
+            if (!tokenRes.ok) {
+                console.error("❌ Erro ao gerar Token Google:", tokenData);
+                throw new Error(tokenData.error_description || "Erro ao obter token do Google");
+            }
+
+            // 2. Salva os tokens de forma segura no Firebase, atrelados ao lojista
+            await db.collection('settings').doc(storeId).set({
+                integrations: {
+                    google_my_business: {
+                        accessToken: tokenData.access_token,
+                        refreshToken: tokenData.refresh_token || null, // Salva o refresh se vier
+                        expiresIn: tokenData.expires_in,
+                        connectedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }
+                }
+            }, { merge: true });
+
+            // 3. Redireciona de volta para o painel administrativo da Velo
+            const returnHost = isLocal ? 'http://localhost:5173' : 'https://app.velodelivery.com.br';
+            res.writeHead(302, { Location: `${returnHost}/admin?google_connected=true` });
+            res.end();
+
+        } catch (err) {
+            console.error("❌ Erro Fatal no Google Callback:", err);
+            res.status(500).send(`Erro interno ao autorizar Google: ${err.message}`);
+        }
+    }
 
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)

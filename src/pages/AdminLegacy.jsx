@@ -7137,6 +7137,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                             <button 
                                                 onClick={() => {
+                                                    // BLINDAGEM OAUTH: Se for o Google, ignora o Modal manual e faz o fluxo automático
+                                                    if (app.id === 'google_my_business' && !isConnected) {
+                                                        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                                        const authUrl = isLocal 
+                                                            ? `http://localhost:3000/api/google-auth?storeId=${storeId}` 
+                                                            : `https://app.velodelivery.com.br/api/google-auth?storeId=${storeId}`;
+                                                        window.location.href = authUrl;
+                                                        return;
+                                                    }
+                                                    
                                                     setSelectedIntegration(app);
                                                     setIntegrationForm(savedData); // Carrega os dados existentes pro input
                                                     setIsIntegrationModalOpen(true);
