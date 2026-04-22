@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
 import { Star, ChevronLeft, ChevronRight, MessageSquare, Loader2 } from 'lucide-react';
+import { FaGoogle } from 'react-icons/fa6';
 
 // Recebemos o storeId como prop (ex: 'csi') para filtrar só as avaliações dessa loja
 export default function ReviewsAdmin({ storeId = 'csi' }) {
@@ -121,13 +122,28 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                     <td colSpan="4" className="p-8 text-center text-slate-400 font-bold">Nenhuma avaliação recebida ainda.</td>
                   </tr>
                 ) : (
-                  reviews.map((review) => (
+                  reviews.map((review) => {
+                    const isGoogle = review.source === 'google';
+                    const customerDisplay = isGoogle 
+                        ? review.customerName 
+                        : (review.customerName || (review.userId ? review.userId.slice(0, 8) + '...' : 'Cliente VIP'));
+
+                    return (
                     <tr key={review.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <td className="p-4 text-sm font-semibold text-slate-600">
+                      <td className="p-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
                         {formatDate(review.createdAt)}
                       </td>
-                      <td className="p-4 text-xs font-bold text-slate-400 bg-slate-50/50 rounded-lg">
-                        {review.userId.slice(0, 8)}...
+                      <td className="p-4">
+                        <div className="flex flex-col items-start gap-1.5">
+                          <span className="text-xs font-bold text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                            {customerDisplay}
+                          </span>
+                          {isGoogle && (
+                            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border border-blue-100 shadow-sm">
+                              <FaGoogle size={10} /> Avaliação Google
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4">
                         <div className="flex gap-1">
@@ -142,7 +158,7 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                       </td>
                       <td className="p-4">
                         {review.comment ? (
-                          <div className="flex items-start gap-2 text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-xl">
+                          <div className="flex items-start gap-2 text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <MessageSquare size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
                             <span className="italic">"{review.comment}"</span>
                           </div>
@@ -151,7 +167,7 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                         )}
                       </td>
                     </tr>
-                  ))
+                  )})
                 )}
               </tbody>
             </table>

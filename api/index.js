@@ -2559,6 +2559,84 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
+    // ------------------------------------------------------------------------
+    // 23. GOOGLE MEU NEGÓCIO: POSTAR OFERTA / ATUALIZAÇÃO
+    // ------------------------------------------------------------------------
+    else if (path === '/api/post-google-update') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, locationId, summary, imageUrl, productUrl } = req.body;
+
+            if (!storeId || !locationId || !summary || !imageUrl) {
+                return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
+            }
+
+            // 1. Busca o Token de Acesso da loja no Firestore
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const gmbConfig = settingsDoc.exists ? settingsDoc.data().integrations?.google_my_business : null;
+
+            if (!gmbConfig || !gmbConfig.accessToken) {
+                return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado na aba Integrações.' });
+            }
+
+            // 2. Padronização do Endereço do Local na API do Google
+            // O formato exigido é "accounts/{accountId}/locations/{locationId}"
+            const parentName = locationId.includes('accounts/') ? locationId : `locations/${locationId}`;
+
+            // 3. Monta o Payload oficial para a API (Tipo: ORDER)
+            const googlePayload = {
+                languageCode: 'pt-BR',
+                summary: summary,
+                callToAction: {
+                    actionType: 'ORDER', // Gera o botão "Fazer Pedido"
+                    url: productUrl
+                },
+                media: [
+                    {
+                        mediaFormat: 'PHOTO',
+                        sourceUrl: imageUrl
+                    }
+                ]
+            };
+
+            // 4. Comunicação com o Google Business Profile (Local Posts)
+            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${gmbConfig.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(googlePayload)
+            });
+
+            const googleData = await googleRes.json();
+
+            // 5. Captura de Erros da API do Google (Ex: Imagem inválida, Token expirado)
+            if (!googleRes.ok) {
+                console.error("❌ Erro retornado pela API do Google:", JSON.stringify(googleData));
+                
+                // Formatação amigável do erro para o Lojista
+                let errorMsg = googleData.error?.message || 'Falha ao processar postagem.';
+                if (errorMsg.includes('Request is missing required authentication') || errorMsg.includes('Unauthenticated')) {
+                    errorMsg = 'O Token de acesso está inválido ou expirou. Por favor, conecte a conta novamente na aba Integrações.';
+                } else if (errorMsg.includes('Invalid Image') || errorMsg.includes('media')) {
+                    errorMsg = 'O formato ou tamanho da imagem foi rejeitado pelo Google.';
+                } else if (errorMsg.includes('NotFound')) {
+                    errorMsg = 'ID do Local incorreto. Verifique o Location ID nas configurações.';
+                }
+
+                return res.status(400).json({ error: errorMsg });
+            }
+
+            return res.status(200).json({ success: true, post: googleData });
+
+        } catch (error) {
+            console.error('❌ Erro de Conexão (Post Google):', error);
+            return res.status(500).json({ error: `Erro interno no servidor ao conectar com o Google: ${error.message}` });
+        }
+    }
+
     // ============================================================================
     // ROTA NÃO ENCONTRADA (Fallback de segurança)
     // ============================================================================

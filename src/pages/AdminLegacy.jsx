@@ -4191,10 +4191,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 ) : reviewsList.map(r => (
                                     <div key={r.id} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
-                                        <div className="flex justify-between items-start">
+                                       <div className="flex justify-between items-start">
                                             <div>
-                                                <span className="font-black text-slate-800 uppercase text-lg">{r.customerName}</span>
-                                                <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase">Pedido: #{r.orderId}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-black text-slate-800 uppercase text-lg">{r.customerName}</span>
+                                                    {r.source === 'google' && (
+                                                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border border-blue-100">
+                                                            <FaGoogle size={10} /> Avaliação do Google
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase">
+                                                    {r.source === 'google' ? 'Importado do Maps' : `Pedido: #${r.orderId}`}
+                                                </p>
                                             </div>
                                             <div className="flex text-yellow-400">
                                                 {[...Array(5)].map((_, i) => <Star key={i} size={18} fill={i < r.rating ? "currentColor" : "none"} />)}
@@ -7051,17 +7060,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             helpUrl: 'https://ads.google.com/aw/conversions',
                             helpText: 'Ver minhas Conversões no Google Ads'
                         },
-                        { 
-                            id: 'order_with_google', 
-                            name: 'Google Maps (Pedidos)', 
-                            desc: 'Botão "Fazer Pedido" direto na Busca e Maps.', 
-                            icon: <FaStore className="text-orange-500" size={40}/>, 
-                            fields:[
-                                {key: 'merchantId', label: 'ID da sua Loja no Google Actions'}
-                            ],
-                            helpUrl: 'https://partnerdash.google.com/',
-                            helpText: 'Acessar o Actions Center'
-                        },
+                        { 
+                            id: 'google_my_business', 
+                            name: 'Google Meu Negócio', 
+                            desc: 'Sincronize avaliações e poste ofertas direto do painel Velo.', 
+                            icon: <FaStore className="text-blue-500" size={40}/>, 
+                            fields:[
+                                {key: 'locationId', label: 'ID do Local (Google Location ID)'},
+                                {key: 'accessToken', label: 'Token de Acesso (Gerado pelo Backend)'}
+                            ],
+                            helpUrl: 'https://business.google.com/locations',
+                            helpText: 'Conectar Conta Google e Buscar ID'
+                        },
                         { 
                             id: 'gtm', 
                             name: 'Google Tag Manager', 
@@ -9358,6 +9368,51 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
                                     
+                                    {/* Google Meu Negócio - Publicação Direta */}
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
+                                                <FaGoogle size={16} /> Postar Oferta no Google
+                                            </h3>
+                                            <button 
+                                                onClick={async () => {
+                                                    if (!settings?.integrations?.google_my_business?.locationId) {
+                                                        return alert("Configure o ID do seu Google Meu Negócio na aba de Integrações primeiro.");
+                                                    }
+                                                    if (!promoCopyProduct?.imageUrl) {
+                                                        return alert("O produto precisa de uma imagem para ser postado no Google.");
+                                                    }
+                                                    
+                                                    // Simulando chamada para sua API Route que vai lidar com o Google
+                                                    try {
+                                                        const res = await fetch('/api/post-google-update', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({
+                                                                storeId: storeId,
+                                                                locationId: settings.integrations.google_my_business.locationId,
+                                                                summary: promoCopyResult.instagram, // Usa a copy do insta como base
+                                                                imageUrl: promoCopyProduct.imageUrl,
+                                                                productUrl: `https://${storeId}.velodelivery.com.br`
+                                                            })
+                                                        });
+                                                        
+                                                        if (res.ok) alert("✅ Oferta postada com sucesso no perfil do Google!");
+                                                        else alert("❌ Erro ao postar. Verifique as configurações de integração.");
+                                                    } catch (e) {
+                                                        alert("Erro de conexão ao tentar postar no Google.");
+                                                    }
+                                                }} 
+                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
+                                            >
+                                                <UploadCloud size={14}/> Publicar Agora
+                                            </button>
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-500">
+                                            Cria uma postagem de "Novidade/Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O botão do post levará o cliente para o seu cardápio Velo.
+                                        </p>
+                                    </div>
+                                    
                                     <button 
                                         onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
                                         className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
@@ -9443,11 +9498,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
                                             value={promoCopyResult.instagram}
                                         />
-                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
+                                       <div className="bg-white p-3 rounded-xl border border-pink-100">
                                             <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
                                             <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
                                         </div>
                                     </div>
+
+                                    {/* --- INÍCIO: GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
+                                                <FaGoogle size={16} /> Postar Oferta no Google
+                                            </h3>
+                                            <button 
+                                                onClick={async () => {
+                                                    // 1. Trava: Verifica se o Lojista configurou o Google na aba Integrações
+                                                    if (!settings?.integrations?.google_my_business?.locationId) {
+                                                        return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
+                                                    }
+                                                    // 2. Trava: O Google exige uma imagem para postar ofertas
+                                                    if (!promoCopyProduct?.imageUrl) {
+                                                        return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
+                                                    }
+                                                    
+                                                    // 3. Chamada para o Backend (que falará com a API do Google)
+                                                    try {
+                                                        const res = await fetch('/api/post-google-update', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({
+                                                                storeId: storeId,
+                                                                locationId: settings.integrations.google_my_business.locationId,
+                                                                summary: promoCopyResult.instagram, // Usa o texto do Insta como base para o Google
+                                                                imageUrl: promoCopyProduct.imageUrl,
+                                                                productUrl: `https://${storeId}.velodelivery.com.br/p/${promoCopyProduct.id}`
+                                                            })
+                                                        });
+                                                        
+                                                        const data = await res.json();
+                                                        
+                                                        if (res.ok) {
+                                                            alert("✅ Oferta postada com sucesso no seu Perfil do Google!");
+                                                        } else {
+                                                            alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                        }
+                                                    } catch (e) {
+                                                        alert("Erro de conexão ao tentar postar no Google.");
+                                                    }
+                                                }} 
+                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
+                                            >
+                                                <UploadCloud size={14}/> Publicar Agora
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-500 leading-tight">
+                                            Isso criará uma postagem de "Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O cliente verá um botão de comprar que levará direto para o seu cardápio.
+                                        </p>
+                                    </div>
+                                    {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
                                     
                                     <button 
                                         onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
