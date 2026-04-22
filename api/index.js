@@ -2512,8 +2512,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 })
             });
 
-            // CORREÇÃO: Lemos diretamente como JSON. O método .text() gera erro (is not a function) 
-            // em algumas versões do Node.js no ambiente Serverless da Vercel.
+            // CORREÇÃO APLICADA AQUI NO ARQUIVO ISOLADO
             let aiData;
             try {
                 aiData = await response.json();
