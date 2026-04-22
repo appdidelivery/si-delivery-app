@@ -2559,7 +2559,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
-    // ------------------------------------------------------------------------
+    /// ------------------------------------------------------------------------
     // 23. GOOGLE MEU NEGÓCIO: POSTAR OFERTA / ATUALIZAÇÃO
     // ------------------------------------------------------------------------
     else if (path === '/api/post-google-update') {
@@ -2572,80 +2572,68 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
             }
 
-            // 1. Busca o Token de Acesso da loja no Firestore
             const settingsDoc = await db.collection('settings').doc(storeId).get();
             const gmbConfig = settingsDoc.exists ? settingsDoc.data().integrations?.google_my_business : null;
 
             if (!gmbConfig || !gmbConfig.accessToken) {
-                return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado na aba Integrações.' });
+                return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // 2. Padronização do Endereço do Local na API do Google
-            const parentName = locationId.includes('accounts/') ? locationId : `locations/${locationId}`;
+            // --- PILOTO AUTOMÁTICO: DESCOBRIR ID DA CONTA ---
+            let parentName = locationId.trim();
+            if (!parentName.includes('accounts/')) {
+                const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+                    headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
+                });
+                const accData = await accRes.json();
+                
+                if (accData.accounts && accData.accounts.length > 0) {
+                    const accountString = accData.accounts[0].name; // ex: "accounts/12345"
+                    parentName = `${accountString}/locations/${parentName.replace('locations/', '')}`;
+                } else {
+                    return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada neste email do Google.' });
+                }
+            }
 
-            // BLINDAGEM DE TEXTO: O Google é chato com emojis complexos e formatações.
-            // Aqui removemos coisas que fazem o Google travar e limitamos a 1400 caracteres.
+            // LIMPA EMOJIS COMPLEXOS QUE TRAVAM O GOOGLE
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
 
-            // 3. Monta o Payload oficial para a API v4 do Google
             const googlePayload = {
                 languageCode: 'pt-BR',
                 summary: cleanSummary,
-                callToAction: {
-                    actionType: 'ORDER', // Cria o botão azul "Fazer Pedido"
-                    url: productUrl
-                },
-                media: [
-                    {
-                        mediaFormat: 'PHOTO',
-                        sourceUrl: imageUrl 
-                    }
-                ]
+                callToAction: { actionType: 'ORDER', url: productUrl },
+                media: [{ mediaFormat: 'PHOTO', sourceUrl: imageUrl }]
             };
 
-            // 4. Comunicação com o Google Business Profile (Local Posts)
             const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${gmbConfig.accessToken}`,
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify(googlePayload)
             });
 
-            // 5. BLINDAGEM ANTI-CRASH (Evita o erro Unexpected token <)
+            // PREVINE O ERRO "UNEXPECTED TOKEN <"
             const responseText = await googleRes.text();
             let googleData = {};
             
             try {
                 googleData = JSON.parse(responseText);
             } catch (parseError) {
-                // Se cair aqui, o Google mandou um HTML de erro 404 (ID incorreto)
-                console.error("❌ O Google não retornou um JSON válido. Resposta crua:", responseText);
-                return res.status(400).json({ error: 'A API do Google falhou. Verifique se o seu Location ID está correto (deve conter "accounts/.../locations/...").' });
+                console.error("❌ O Google retornou HTML:", responseText);
+                return res.status(400).json({ error: 'O ID da loja (Location ID) está incorreto ou você não tem permissão para postar nela.' });
             }
 
-            // 6. Captura de Erros da API do Google em formato JSON
             if (!googleRes.ok) {
-                console.error("❌ Erro retornado pela API do Google:", JSON.stringify(googleData));
-                
                 let errorMsg = googleData.error?.message || 'Falha ao processar postagem.';
-                if (errorMsg.includes('Unauthenticated') || errorMsg.includes('missing required authentication')) {
-                    errorMsg = 'O Token de acesso expirou. Por favor, clique em Reconectar na aba Integrações.';
-                } else if (errorMsg.includes('Invalid Image') || errorMsg.includes('media')) {
-                    errorMsg = 'A imagem foi rejeitada pelo Google. Tente uma foto com resolução menor ou em outro formato.';
-                } else if (errorMsg.includes('NotFound') || errorMsg.includes('parent')) {
-                    errorMsg = 'ID do Local incorreto! O Location ID deve conter as palavras "accounts" e "locations" (Ex: accounts/111/locations/222).';
-                }
-
+                if (errorMsg.includes('Unauthenticated')) errorMsg = 'Token expirou. Reconecte na aba Integrações.';
+                else if (errorMsg.includes('Invalid Image')) errorMsg = 'A imagem foi rejeitada pelo Google.';
                 return res.status(400).json({ error: errorMsg });
             }
 
             return res.status(200).json({ success: true, post: googleData });
 
         } catch (error) {
-            console.error('❌ Erro de Conexão (Post Google):', error);
-            return res.status(500).json({ error: `Erro interno no servidor ao conectar com o Google: ${error.message}` });
+            console.error('❌ Erro Post Google:', error);
+            return res.status(500).json({ error: `Erro no servidor: ${error.message}` });
         }
     }
     // ------------------------------------------------------------------------
@@ -2799,11 +2787,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
     // 27. GOOGLE MEU NEGÓCIO: SINCRONIZAÇÃO AUTOMÁTICA (CRON)
     // ------------------------------------------------------------------------
     else if (path === '/api/sync-google-reviews') {
-        // Permitimos GET para facilitar o teste manual no navegador e chamadas de Cron externa
         try {
             console.log("🔄 Iniciando Sincronização Global de Avaliações Google...");
-            
-            // 1. Busca todas as lojas que têm integração com Google configurada
             const settingsSnap = await db.collection('settings').get();
             let totalSync = 0;
 
@@ -2814,7 +2799,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 if (!config || !config.locationId || !config.refreshToken) return;
 
                 try {
-                    // 2. Renovação Automática do Token (Refresh)
+                    // 1. Renovação Automática do Token
                     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -2828,11 +2813,23 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
                     const tokenData = await tokenRes.json();
                     if (!tokenRes.ok) throw new Error("Falha ao renovar token");
-
                     const activeToken = tokenData.access_token;
 
-                    // 3. Busca Avaliações na API do Google Business
-                    const parentName = config.locationId.includes('accounts/') ? config.locationId : `locations/${config.locationId}`;
+                    // 2. PILOTO AUTOMÁTICO: DESCOBRIR ID DA CONTA
+                    let parentName = config.locationId.trim();
+                    if (!parentName.includes('accounts/')) {
+                        const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+                            headers: { 'Authorization': `Bearer ${activeToken}` }
+                        });
+                        const accData = await accRes.json();
+                        if (accData.accounts && accData.accounts.length > 0) {
+                            parentName = `${accData.accounts[0].name}/locations/${parentName.replace('locations/', '')}`;
+                        } else {
+                            throw new Error("Nenhuma conta encontrada.");
+                        }
+                    }
+
+                    // 3. Busca Avaliações
                     const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/reviews`, {
                         headers: { 'Authorization': `Bearer ${activeToken}` }
                     });
@@ -2843,13 +2840,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     const googleReviews = googleData.reviews || [];
                     const batch = db.batch();
 
-                    // 4. Injeta no Firestore com Blindagem de Duplicados
                     googleReviews.forEach(gr => {
                         const reviewRef = db.collection('reviews').doc(`google_${gr.reviewId}`);
                         batch.set(reviewRef, {
                             storeId: storeId,
                             source: 'google',
-                            googleReviewName: gr.name, // Nome completo para a API de resposta
+                            googleReviewName: gr.name, 
                             customerName: gr.reviewer?.displayName || 'Cliente Google',
                             rating: gr.starRating === 'FIVE' ? 5 : gr.starRating === 'FOUR' ? 4 : gr.starRating === 'THREE' ? 3 : gr.starRating === 'TWO' ? 2 : 1,
                             comment: gr.comment || '',
@@ -2877,9 +2873,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
     }
 
     // ============================================================================
-
-    // ============================================================================
-    // ROTA NÃO ENCONTRADA (Fallback de segurança)
+    // ROTA NÃO ENCONTRADA
     // ============================================================================
     else {
         return res.status(404).json({ error: 'Rota da API não foi encontrada no index.js', requestedPath: path });
