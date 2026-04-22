@@ -188,11 +188,10 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 // =======================================================================
-  // SDK EFÍ PAY: Carrega o script anti-fraude (OTIMIZADO - DEFERRED)
+  // SDK EFÍ PAY: Carrega o script anti-fraude (OTIMIZADO PAGESPEED)
   // =======================================================================
   useEffect(() => {
-      // Otimização PageSpeed: Atrasamos o script pesado em 4 segundos.
-      // O cliente não fará checkout antes disso, e liberamos a CPU para a vitrine carregar rápido.
+      // Atrasamos o script pesado em 4 segundos. O cliente não fará checkout antes disso.
       const timerEfi = setTimeout(() => {
           if (!document.getElementById('efi-sdk')) {
               window.$gn = {
@@ -208,7 +207,6 @@ export default function Home() {
               script.defer = true;
               script.id = 'efi-sdk';
               
-              // Injeta o script apenas após a página estar respirando
               document.head.appendChild(script);
               console.log("💳 SDK Anti-fraude da Efí carregado (Lazy Load)!");
           }
