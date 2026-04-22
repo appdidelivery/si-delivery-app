@@ -9796,6 +9796,66 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     >
                                         <RefreshCw size={16}/> Gerar Outra Opção
                                     </button>
+
+                                    {/* --- GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
+                                                <FaGoogle size={16} /> Publicar Oferta no Google Maps
+                                            </h3>
+                                            <button 
+                                                onClick={async () => {
+                                                    if (!settings?.integrations?.google_my_business?.locationId) {
+                                                        return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
+                                                    }
+                                                    if (!promoCopyProduct?.imageUrl) {
+                                                        return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
+                                                    }
+                                                    
+                                                    try {
+                                                        // Botão visual de carregamento
+                                                        const btn = e.currentTarget;
+                                                        const oldText = btn.innerHTML;
+                                                        btn.innerHTML = '<Loader2 class="animate-spin" size="14"/> Publicando...';
+                                                        btn.disabled = true;
+
+                                                        const res = await fetch('/api/post-google-update', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({
+                                                                storeId: storeId,
+                                                                locationId: settings.integrations.google_my_business.locationId,
+                                                                summary: promoCopyResult.instagram, 
+                                                                imageUrl: promoCopyProduct.imageUrl,
+                                                                productUrl: `https://${storeId}.velodelivery.com.br`
+                                                            })
+                                                        });
+                                                        
+                                                        const data = await res.json();
+                                                        
+                                                        btn.innerHTML = oldText;
+                                                        btn.disabled = false;
+
+                                                        if (res.ok) {
+                                                            alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
+                                                        } else {
+                                                            alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                        }
+                                                    } catch (e) {
+                                                        alert("Erro de conexão ao tentar postar no Google.");
+                                                    }
+                                                }} 
+                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
+                                            >
+                                                <UploadCloud size={14}/> Publicar Agora
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-500 leading-tight">
+                                            Isso criará uma postagem de "Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O cliente verá um botão "Fazer Pedido" que levará direto para o seu cardápio.
+                                        </p>
+                                    </div>
+                                    {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
+
                                 </div>
                             )}
                         </motion.div>
@@ -9804,7 +9864,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </AnimatePresence>
             {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
 
-            {/* WIDGET DE IA ADICIONADO AQUI */}
             <VeloSupportWidget />
         </div>
     );
