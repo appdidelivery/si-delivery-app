@@ -35,18 +35,29 @@ export default function AdminSaaS() {
         'appdidelivery@gmail.com'
     ]; 
 
-    useEffect(() => {
+   useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (!user) { navigate('/login'); return; }
+            // Se o usuário parecer nulo, damos uma pequena pausa para o Firebase ter certeza
+            if (!user) { 
+                setTimeout(() => {
+                    navigate('/login', { replace: true });
+                }, 500);
+                return; 
+            }
+            
             const userEmail = user.email ? user.email.toLowerCase() : 'sem-email';
 
             if (!MASTER_EMAILS.includes(userEmail)) {
                 alert(`ACESSO NEGADO!\n\nEmail bloqueado: ${userEmail}\nAdicione na lista MASTER_EMAILS no código.`);
-                navigate('/admin'); return;
+                navigate('/admin', { replace: true }); 
+                return;
             }
+            
+            // Se passou pelas travas, carrega os dados
             await fetchSaaSData();
             setGlobalLoading(false);
         });
+        
         return () => unsubscribe();
     }, [navigate]);
 
