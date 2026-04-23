@@ -1882,13 +1882,22 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(400).json({ error: "Erro ao processar pagamento no Mercado Pago.", details: data });
             }
 
-            // SE FOR PIX: Extrai o QR Code e salva no Firebase para a tela de Tracking exibir
+           // SE FOR PIX: Extrai o QR Code e salva no Firebase para a tela de Tracking exibir
             if (payment_method_id === 'pix') {
+                // TRAVA DE SEGURANÇA: Se o Mercado Pago não devolver o código, aborta!
+                if (!data.point_of_interaction?.transaction_data?.qr_code) {
+                    console.error("❌ MP não retornou o QR Code do PIX. Detalhes:", data);
+                    return res.status(400).json({ 
+                        error: "O Mercado Pago não conseguiu gerar a chave PIX.", 
+                        details: data.status_detail || "Sua conta do Mercado Pago pode estar exigindo CPF obrigatório para transações PIX." 
+                    });
+                }
+
                 await db.collection('orders').doc(orderId).set({
                     paymentIntentId: String(data.id),
                     mpPaymentStatus: data.status,
-                    pixCopiaECola: data.point_of_interaction?.transaction_data?.qr_code,
-                    pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction?.transaction_data?.qr_code_base64}`
+                    pixCopiaECola: data.point_of_interaction.transaction_data.qr_code,
+                    pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
                 }, { merge: true });
 
                 return res.status(200).json({ success: true, isPix: true, id: data.id });

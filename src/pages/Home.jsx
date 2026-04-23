@@ -1687,19 +1687,19 @@ export default function Home() {
       const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup'].includes(customer.payment);
 
     const orderData = {
-        customerName: customer.name || "", 
-        customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
-        customerPhone: customer.phone || "",
-        paymentMethod: customer.payment || "", 
-        paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
-        customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
-        items: sanitizedCart,
-        subtotal: subtotal || 0, 
-        shippingFee: (isWaiterMode || isPickup) ? 0 : (shippingFee || 0), 
-        total: finalTotal || 0, 
-        status: isOfflinePayment ? 'pending' : 'aguardando_pagamento', 
-        createdAt: serverTimestamp(),
-        storeId: storeId || "",
+        customerName: customer.name || "", 
+        customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
+        customerPhone: customer.phone || "",
+        paymentMethod: customer.payment || "", 
+        paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
+        customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
+        items: sanitizedCart,
+        subtotal: subtotal || 0, 
+        shippingFee: (isWaiterMode || isPickup) ? 0 : (shippingFee || 0), 
+        total: finalTotal || 0, 
+        status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
+        createdAt: serverTimestamp(),
+        storeId: storeId || "",
         // Adicionando as TAGs para o Modo Garçom e Retirada:
         tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
         mesa: isWaiterMode ? tableNumber : null,
