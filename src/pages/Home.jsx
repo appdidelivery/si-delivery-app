@@ -2271,12 +2271,18 @@ if (window.fbq) {
           }
       };
 
-      mountMpBrick();
+        // CORREÇÃO: Pequeno delay (250ms) para garantir que o React já desenhou a <div id="cardPaymentBrick_container"> no DOM
+        const renderTimer = setTimeout(() => {
+            if (document.getElementById('cardPaymentBrick_container')) {
+                mountMpBrick();
+            }
+        }, 250);
 
-      return () => {
-          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
-      };
-  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
+        return () => {
+            clearTimeout(renderTimer);
+            if (cardPaymentBrickController) cardPaymentBrickController.unmount();
+        };
+    }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
   // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
 
  return (
