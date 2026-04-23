@@ -3183,41 +3183,63 @@ if (window.fbq) {
                                     const hasVeloPayCredit = storeSettings?.velopayCreditStatus === 'active';
                                     const hasStripe = !!storeSettings?.stripeConnectId;
                                     const hasMP = !!marketingSettings?.integrations?.mercadopago?.accessToken;
-                                    const hasMPPublicKey = !!marketingSettings?.integrations?.mercadopago?.publicKey; // Confirma se tem a chave pública para o Brick
+                                    const hasMPPublicKey = !!marketingSettings?.integrations?.mercadopago?.publicKey;
                                     const hasGateway = hasStripe || hasMP;
                                     const isPickup = customer.deliveryMethod === 'pickup';
 
-                                    const gatewayName = hasMP ? 'MERCADO PAGO' : (hasStripe ? 'STRIPE' : 'ONLINE');
-                                    
+                                    // Para o cliente, não importa qual banco processa. Ofertamos opções claras.
                                     let allMethods =[
-                                        { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
-                                        { id: 'pix', name: `${gatewayName} (PIX)`, icon: <QrCode size={20}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix },
-                                        { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
-                                        // --- ADIÇÃO: MERCADO PAGO TRANSPARENTE BRICKS ---
-                                        { id: 'mp_transparent', name: 'CARTÃO (NO APP)', icon: <CreditCard size={20}/>, showIf: hasMP && hasMPPublicKey && pmConfig.online !== false && !hasVeloPayCredit, isPremium: true },
-                                        { id: 'online', name: `CARTÃO (LINK SEGURO)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
-                                        { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
-                                        { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
-                                        { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
-                                        { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
-                                    ];
+                                        { id: 'velopay_pix', name: 'PIX (NA HORA)', icon: <QrCode size={24}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPixHighlight: true },
+                                        { id: 'pix', name: 'PIX (NA HORA)', icon: <QrCode size={24}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix, isPixHighlight: true },
+                                        { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
+                                        { id: 'mp_transparent', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasMP && hasMPPublicKey && pmConfig.online !== false && !hasVeloPayCredit, isPremium: true },
+                                        { id: 'online', name: `CARTÃO (SITE)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit && !hasMPPublicKey },
+                                        { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
+                                        { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
+                                        { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
+                                        { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
+                                    ];
 
-                                    return allMethods.filter(m => m.showIf).map(m => (
-                                  <button 
-                                      key={m.id} 
-                                      onClick={() => setCustomer({...customer, payment: m.id})} 
-                                      className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all relative overflow-hidden ${
-                                          customer.payment === m.id 
-                                            ? (m.isPremium ? 'bg-blue-600 border-blue-600 text-white shadow-md' : `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`) 
-                                            : (m.isPremium ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100' : 'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100')
-                                      }`}
-                                  >
-                                      {m.isPremium && <div className="absolute -top-6 -right-6 w-12 h-12 bg-white/20 rounded-full blur-md pointer-events-none"></div>}
-                                      {m.icon} 
-                                      <span className="text-[9px] font-black uppercase mt-1 text-center leading-tight px-1 z-10">{m.name}</span>
-                                  </button>
-                                ));
-                              })()}
+                                    return allMethods.filter(m => m.showIf).map(m => {
+                                        // Regras de cores atrativas com base na escolha do Lojista/Cliente
+                                        const isSelected = customer.payment === m.id;
+                                        let btnClasses = 'border-transparent bg-slate-50 text-slate-400 hover:bg-slate-100'; 
+                                        
+                                        if (isSelected) {
+                                            if (m.isPixHighlight) btnClasses = 'bg-emerald-500 border-emerald-500 text-white shadow-lg scale-[1.02] ring-2 ring-emerald-300 ring-offset-2';
+                                            else if (m.isPremium) btnClasses = 'bg-blue-600 border-blue-600 text-white shadow-md';
+                                            else btnClasses = `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`;
+                                        } else {
+                                            if (m.isPixHighlight) btnClasses = 'border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 shadow-sm shadow-emerald-100';
+                                            else if (m.isPremium) btnClasses = 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100';
+                                        }
+
+                                        return (
+                                            <button 
+                                                key={m.id} 
+                                                onClick={() => setCustomer({...customer, payment: m.id})} 
+                                                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all relative overflow-hidden ${btnClasses}`}
+                                            >
+                                                {/* Efeito de Brilho de Fundo */}
+                                                {(m.isPremium || m.isPixHighlight) && <div className="absolute -top-6 -right-6 w-12 h-12 bg-white/20 rounded-full blur-md pointer-events-none"></div>}
+                                                
+                                                {/* Tarja de DESTAQUE MÁXIMO para o PIX */}
+                                                {m.isPixHighlight && (
+                                                    <div className={`absolute top-0 left-0 right-0 text-[8px] font-black uppercase tracking-widest py-0.5 text-center shadow-sm ${isSelected ? 'bg-emerald-400 text-emerald-900' : 'bg-emerald-500 text-white'}`}>
+                                                        Mais Usado
+                                                    </div>
+                                                )}
+                                                
+                                                <div className={`${m.isPixHighlight ? 'mt-3' : ''} ${m.isPixHighlight && !isSelected ? 'text-emerald-600' : ''}`}>
+                                                    {m.icon}
+                                                </div> 
+                                                <span className={`text-[9px] font-black uppercase mt-1 text-center leading-tight px-1 z-10 ${m.isPixHighlight && !isSelected ? 'text-emerald-800' : ''}`}>
+                                                    {m.name}
+                                                </span>
+                                            </button>
+                                        );
+                                    });
+                                })()}
                             </div>
                             {customer.payment === 'dinheiro' && (
                                 <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
