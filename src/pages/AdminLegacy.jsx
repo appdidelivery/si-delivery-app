@@ -550,9 +550,10 @@ export default function Admin() {
             
             case 'banners': 
             case 'marketing': 
-            case 'partners': return userPermissions.marketing === true;
+            case 'partners': 
+            case 'insights': return userPermissions.marketing === true; // <-- CORREÇÃO: Insights e Parceiros liberados junto com Marketing
             
-            case 'finance': return userPermissions.finance === true; 
+            case 'finance': return userPermissions.finance === true;
             
             case 'team': return userPermissions.team === true; 
             
@@ -5403,7 +5404,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                             <div className="flex flex-wrap gap-2 mb-4">
                                                 {Object.entries(member.permissions || {}).filter(([_, v]) => v).map(([key]) => {
-                                                    const labels = { orders: 'Pedidos', products: 'Cardápio', customers: 'Clientes', store_settings: 'Loja', integrations: 'Integrações' };
+                                                    const labels = { orders: 'Pedidos', products: 'Cardápio', customers: 'Clientes', store_settings: 'Loja', integrations: 'Integrações', marketing: 'Marketing', finance: 'Financeiro', team: 'Equipe' };
                                                     return (
                                                         <span key={key} className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-green-100">
                                                             {labels[key] || key}
