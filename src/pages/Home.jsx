@@ -210,6 +210,17 @@ export default function Home() {
               document.head.appendChild(script);
               console.log("💳 SDK Anti-fraude da Efí carregado (Lazy Load)!");
           }
+
+          // --- INÍCIO DA INJEÇÃO DO MERCADO PAGO SDK (TRANSPARENTE) ---
+          if (!document.getElementById('mp-sdk')) {
+              const mpScript = document.createElement('script');
+              mpScript.src = 'https://sdk.mercadopago.com/js/v2';
+              mpScript.id = 'mp-sdk';
+              mpScript.async = true;
+              document.head.appendChild(mpScript);
+              console.log("💳 SDK Mercado Pago Bricks carregado (Lazy Load)!");
+          }
+          // --- FIM DA INJEÇÃO DO MERCADO PAGO SDK ---
       }, 4000);
 
       return () => clearTimeout(timerEfi);
@@ -1949,9 +1960,57 @@ if (window.fbq) {
                   return;
               }
           }
-          // 2. Fluxo Antigo: Mercado Pago ou Stripe (Para Cartão de Crédito)
           const hasStripe = storeSettings?.stripeConnectId;
           const hasMP = marketingSettings?.integrations?.mercadopago?.accessToken;
+
+          // --- NOVO FLUXO: PIX TRANSPARENTE MERCADO PAGO ---
+          if (customer.payment === 'pix' && hasMP) {
+              try {
+                  await setDoc(newOrderRef, { ...orderData, paymentStatus: 'aguardando_pix' });
+
+                  const response = await fetch('/api/processar-pagamento-transparente-velo', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          storeId: storeId,
+                          orderId: orderId,
+                          transaction_amount: finalTotal,
+                          payment_method_id: 'pix',
+                          payer: {
+                              email: customer.email || 'cliente@velodelivery.com.br',
+                              first_name: customer.name || 'Cliente'
+                          }
+                      })
+                  });
+
+                  const result = await response.json();
+                  
+                  if (!response.ok || !result.success) {
+                      throw new Error(result.error || "Erro ao gerar PIX");
+                  }
+
+                  // Limpa carrinho e vai pra tela de Tracking (que já exibirá o PIX gerado)
+                  if (cashbackDiscount > 0) {
+                      const cleanPhone = customer.phone.replace(/\D/g, '');
+                      try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+                  }
+
+                  localStorage.setItem('activeOrderId', orderId);
+                  setActiveOrderId(orderId);
+                  setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                  
+                  window.location.href = `/track/${orderId}?payment=pix_pending`;
+                  return;
+
+              } catch (err) {
+                  alert(`Erro ao gerar PIX: ${err.message}`);
+                  setIsFinalizing(false); submitLock.current = false;
+                  return;
+              }
+          }
+          // --- FIM FLUXO PIX TRANSPARENTE ---
+
+          // 2. Fluxo Antigo: Mercado Pago (Fallback de Link) ou Stripe
 
           if (!hasStripe && !hasMP) {
               alert("⚠️ Esta loja ainda não configurou pagamentos de cartão online.");
@@ -2080,8 +2139,148 @@ if (window.fbq) {
 
   const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
 
+  // --- INÍCIO: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS (CHECKOUT TRANSPARENTE) ---
+  useEffect(() => {
+      let cardPaymentBrickController;
+
+      const mountMpBrick = async () => {
+          if (customer.payment === 'mp_transparent' && window.MercadoPago && marketingSettings?.integrations?.mercadopago?.publicKey) {
+              try {
+                  const mp = new window.MercadoPago(marketingSettings.integrations.mercadopago.publicKey, { locale: 'pt-BR' });
+                  const bricksBuilder = mp.bricks();
+                  
+                  const settings = {
+                      initialization: {
+                          amount: finalTotal,
+                          payer: {
+                              email: customer.email || 'cliente@velodelivery.com.br',
+                          },
+                      },
+                      customization: {
+                          visual: {
+                              style: { theme: 'default' }
+                          },
+                          paymentMethods: { maxInstallments: 1 }
+                      },
+                      callbacks: {
+                          onReady: () => {
+                              const loadingDiv = document.getElementById('mp_brick_loading');
+                              if (loadingDiv) loadingDiv.style.display = 'none';
+                          },
+                          onSubmit: async (cardFormData) => {
+                              if (!isStoreOpenNow) return alert(storeMessage);
+                              if (cart.length === 0) return alert("Carrinho vazio!");
+                              setIsFinalizing(true);
+                              
+                              try {
+                                  // 1. Cria o Pedido no Firebase primeiro (Igual ao fluxo normal)
+                                  const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
+                                  const newOrderRef = doc(collection(db, "orders"));
+                                  const orderId = newOrderRef.id;
+                                  
+                                  const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
+                                  
+                                  const orderData = {
+                                      customerName: customer.name || "", 
+                                      customerAddress: fullAddress || "", 
+                                      customerPhone: customer.phone || "",
+                                      paymentMethod: "mp_transparent", 
+                                      paymentStatus: 'processing',
+                                      items: sanitizedCart,
+                                      subtotal: subtotal || 0, 
+                                      shippingFee: shippingFee || 0, 
+                                      total: finalTotal || 0, 
+                                      status: 'aguardando_pagamento', 
+                                      createdAt: serverTimestamp(),
+                                      storeId: storeId || "",
+                                      tipo: "delivery",
+                                      usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+                                      referredBy: localStorage.getItem('veloReferredBy') || null
+                                  };
+
+                                  if (appliedCoupon) {
+                                      orderData.couponCode = appliedCoupon.code || "";
+                                      orderData.discountAmount = discountAmount || 0;
+                                  }
+
+                                  await setDoc(newOrderRef, orderData);
+
+                                  // 2. Chama a nova rota do Backend de Pagamento Transparente
+                                  const response = await fetch('/api/processar-pagamento-transparente-velo', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                          storeId: storeId,
+                                          orderId: orderId,
+                                          transaction_amount: finalTotal,
+                                          token: cardFormData.token,
+                                          description: `Pedido Velo #${orderId.slice(-5)}`,
+                                          installments: cardFormData.installments,
+                                          payment_method_id: cardFormData.payment_method_id,
+                                          issuer_id: cardFormData.issuer_id,
+                                          payer: cardFormData.payer
+                                      })
+                                  });
+
+                                  const result = await response.json();
+
+                                  if (response.ok && result.success && (result.status === 'approved' || result.status === 'in_process')) {
+                                      // Sucesso!
+                                      await updateDoc(newOrderRef, { 
+                                          paymentStatus: result.status === 'approved' ? 'paid' : 'pending', 
+                                          status: result.status === 'approved' ? 'preparing' : 'aguardando_pagamento' 
+                                      });
+                                      
+                                      if (cashbackDiscount > 0) {
+                                          const cleanPhone = customer.phone.replace(/\D/g, '');
+                                          try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+                                      }
+
+                                      try { 
+                                          const vId = localStorage.getItem('veloVisitorId');
+                                          if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
+                                          if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); 
+                                      } catch(e){}
+
+                                      localStorage.setItem('activeOrderId', orderId);
+                                      setActiveOrderId(orderId);
+                                      setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                                      
+                                      window.location.href = `/track/${orderId}?payment=success`;
+                                  } else {
+                                      // Falha no pagamento
+                                      await updateDoc(newOrderRef, { paymentStatus: 'failed' });
+                                      alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + (result.error || result.status_detail));
+                                      setIsFinalizing(false);
+                                  }
+                              } catch (e) {
+                                  alert("Erro de conexão ao processar. Tente novamente.");
+                                  setIsFinalizing(false);
+                              }
+                          },
+                          onError: (error) => {
+                              console.error('Erro no componente MP Brick:', error);
+                          }
+                      }
+                  };
+
+                  cardPaymentBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', settings);
+              } catch(e) {
+                  console.error("Falha ao montar o MP Brick:", e);
+              }
+          }
+      };
+
+      mountMpBrick();
+
+      return () => {
+          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
+      };
+  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
+  // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
+
  return (
-  <div 
+  <div
     className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
     style={{
         ...(getDynamicFontFamily() ? { fontFamily: getDynamicFontFamily() } : {}),
@@ -2978,12 +3177,13 @@ if (window.fbq) {
                           <div id="area-pagamento">
                            <div className="grid grid-cols-2 gap-2 mt-2">
                              {(() => {
-                                    const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
+                                   const pmConfig = storeSettings.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
                                     
                                     const hasVeloPayPix = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
                                     const hasVeloPayCredit = storeSettings?.velopayCreditStatus === 'active';
                                     const hasStripe = !!storeSettings?.stripeConnectId;
                                     const hasMP = !!marketingSettings?.integrations?.mercadopago?.accessToken;
+                                    const hasMPPublicKey = !!marketingSettings?.integrations?.mercadopago?.publicKey; // Confirma se tem a chave pública para o Brick
                                     const hasGateway = hasStripe || hasMP;
                                     const isPickup = customer.deliveryMethod === 'pickup';
 
@@ -2993,7 +3193,9 @@ if (window.fbq) {
                                         { id: 'velopay_pix', name: 'PIX (RÁPIDO)', icon: <QrCode size={20}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPremium: true },
                                         { id: 'pix', name: `${gatewayName} (PIX)`, icon: <QrCode size={20}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix },
                                         { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
-                                        { id: 'online', name: `${gatewayName} (CARTÃO)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
+                                        // --- ADIÇÃO: MERCADO PAGO TRANSPARENTE BRICKS ---
+                                        { id: 'mp_transparent', name: 'CARTÃO (NO APP)', icon: <CreditCard size={20}/>, showIf: hasMP && hasMPPublicKey && pmConfig.online !== false && !hasVeloPayCredit, isPremium: true },
+                                        { id: 'online', name: `CARTÃO (LINK SEGURO)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit },
                                         { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
                                         { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
                                         { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
@@ -3020,6 +3222,18 @@ if (window.fbq) {
                             {customer.payment === 'dinheiro' && (
                                 <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
                             )}
+                            
+                            {/* --- INÍCIO: DIV ONDE O MERCADO PAGO BRICK VAI RENDERIZAR --- */}
+                            {customer.payment === 'mp_transparent' && (
+                                <div className="mt-4 w-full bg-slate-50 p-4 rounded-3xl border border-slate-200">
+                                    <div id="cardPaymentBrick_container"></div>
+                                    <div className="text-center text-slate-400 text-xs py-4 font-bold uppercase tracking-widest animate-pulse" id="mp_brick_loading">
+                                        Carregando Ambiente Seguro...
+                                    </div>
+                                </div>
+                            )}
+                            {/* --- FIM: DIV DO MERCADO PAGO BRICK --- */}
+
                           </div>
                       </>
                   )}
@@ -3038,13 +3252,16 @@ if (window.fbq) {
                       <div className="flex justify-between text-xl font-black italic mt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
 
-                  <button 
-                      onClick={finalizeOrder} 
-                      disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
-                      className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
-                  >
-                      {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
-                  </button>
+                  {/* Esconde o botão padrão se o MP Transparent estiver ativo (pois o formulário gerado pelo MP tem o próprio botão dele) */}
+                  {customer.payment !== 'mp_transparent' && (
+                      <button 
+                          onClick={finalizeOrder} 
+                          disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
+                          className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
+                      >
+                          {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
+                      </button>
+                  )}
 
                 </>
               )}

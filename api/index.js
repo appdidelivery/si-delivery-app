@@ -1808,6 +1808,106 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             return res.status(500).json({ error: error.message });
         }
     }
+   // ------------------------------------------------------------------------
+    // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/processar-pagamento-transparente-velo') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const {
+            storeId, orderId, transaction_amount, token, description, 
+            installments, payment_method_id, issuer_id, payer
+        } = req.body;
+
+        // Validação: Token só é obrigatório se NÃO FOR PIX
+        if (!storeId || !payment_method_id || !payer) {
+            return res.status(400).json({ error: 'Faltam dados obrigatórios para processar o pagamento.' });
+        }
+        if (payment_method_id !== 'pix' && !token) {
+            return res.status(400).json({ error: 'Token do cartão não fornecido.' });
+        }
+
+        try {
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const mpConfig = settingsDoc.data()?.integrations?.mercadopago;
+
+            if (!mpConfig || !mpConfig.accessToken) {
+                return res.status(400).json({ error: 'Mercado Pago não está configurado.' });
+            }
+
+            const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
+
+            const paymentPayload = {
+                transaction_amount: Number(transaction_amount),
+                description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo Delivery`,
+                payment_method_id: payment_method_id,
+                payer: {
+                    email: payer.email || 'cliente@velodelivery.com.br',
+                    first_name: payer.first_name || 'Cliente',
+                    identification: payer.identification || undefined
+                },
+                external_reference: orderId,
+                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,
+                application_fee: marketplaceFee > 0 ? marketplaceFee : undefined,
+                statement_descriptor: "VELO DELIVERY"
+            };
+
+            // Se for cartão, adiciona os dados específicos
+            if (payment_method_id !== 'pix') {
+                paymentPayload.token = token;
+                paymentPayload.installments = Number(installments) || 1;
+                paymentPayload.issuer_id = issuer_id;
+            }
+
+            const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${mpConfig.accessToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Idempotency-Key': `velo_${orderId}_${Date.now()}`
+                },
+                body: JSON.stringify(paymentPayload)
+            });
+
+            const data = await mpResponse.json();
+
+            if (!mpResponse.ok) {
+                console.error("❌ Erro MP Transparent:", data);
+                return res.status(400).json({ error: "Erro ao processar pagamento no Mercado Pago.", details: data });
+            }
+
+            // SE FOR PIX: Extrai o QR Code e salva no Firebase para a tela de Tracking exibir
+            if (payment_method_id === 'pix') {
+                await db.collection('orders').doc(orderId).set({
+                    paymentIntentId: String(data.id),
+                    mpPaymentStatus: data.status,
+                    pixCopiaECola: data.point_of_interaction?.transaction_data?.qr_code,
+                    pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction?.transaction_data?.qr_code_base64}`
+                }, { merge: true });
+
+                return res.status(200).json({ success: true, isPix: true, id: data.id });
+            }
+
+            // SE FOR CARTÃO
+            await db.collection('orders').doc(orderId).set({
+                paymentIntentId: String(data.id),
+                mpPaymentStatus: data.status,
+                mpPaymentStatusDetail: data.status_detail
+            }, { merge: true });
+
+            return res.status(200).json({ success: true, isPix: false, id: data.id, status: data.status });
+
+        } catch (error) {
+            console.error('❌ Erro ao processar MP Transparente:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
     // ------------------------------------------------------------------------
     // 16. MERCADO PAGO WEBHOOK (Mensalidades e Pedidos)
     // ------------------------------------------------------------------------
