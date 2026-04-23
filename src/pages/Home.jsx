@@ -2139,9 +2139,10 @@ if (window.fbq) {
 
   const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
 
-  // --- INÍCIO: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS (CHECKOUT TRANSPARENTE) ---
+ // --- INÍCIO: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS (CHECKOUT TRANSPARENTE) ---
   useEffect(() => {
       let cardPaymentBrickController;
+      let isActive = true; // Trava contra Race Condition (Troca rápida de abas de pagamento)
 
       const mountMpBrick = async () => {
           if (customer.payment === 'mp_transparent' && window.MercadoPago && marketingSettings?.integrations?.mercadopago?.publicKey) {
@@ -2264,25 +2265,27 @@ if (window.fbq) {
                       }
                   };
 
-                  cardPaymentBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', settings);
+                  // A MÁGICA: Só tenta injetar se a aba do cartão AINDA estiver ativa
+                  if (isActive && document.getElementById('cardPaymentBrick_container')) {
+                      cardPaymentBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', settings);
+                  }
               } catch(e) {
                   console.error("Falha ao montar o MP Brick:", e);
               }
           }
       };
 
-        // CORREÇÃO: Pequeno delay (250ms) para garantir que o React já desenhou a <div id="cardPaymentBrick_container"> no DOM
-        const renderTimer = setTimeout(() => {
-            if (document.getElementById('cardPaymentBrick_container')) {
-                mountMpBrick();
-            }
-        }, 250);
+      // Pequeno delay para garantir que a <div> teve tempo de ser desenhada no HTML
+      const renderTimer = setTimeout(() => {
+          if (isActive) mountMpBrick();
+      }, 300);
 
-        return () => {
-            clearTimeout(renderTimer);
-            if (cardPaymentBrickController) cardPaymentBrickController.unmount();
-        };
-    }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
+      return () => {
+          isActive = false; // Se o cliente clicou em PIX, aborta e anula a trava!
+          clearTimeout(renderTimer);
+          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
+      };
+  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
   // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
 
  return (
