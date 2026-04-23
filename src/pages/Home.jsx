@@ -1966,7 +1966,8 @@ if (window.fbq) {
           // --- NOVO FLUXO: PIX TRANSPARENTE MERCADO PAGO ---
           if (customer.payment === 'pix' && hasMP) {
               try {
-                  await setDoc(newOrderRef, { ...orderData, paymentStatus: 'aguardando_pix' });
+                  // CORREÇÃO: O status precisa ser 'pending' para o sistema e a tela de rastreio reconhecerem
+                  await setDoc(newOrderRef, { ...orderData, paymentStatus: 'pending' });
 
                   const response = await fetch('/api/processar-pagamento-transparente-velo', {
                       method: 'POST',

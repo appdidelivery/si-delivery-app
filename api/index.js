@@ -1896,6 +1896,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 await db.collection('orders').doc(orderId).set({
                     paymentIntentId: String(data.id),
                     mpPaymentStatus: data.status,
+                    velopayStatus: 'waiting_payment', // CORREÇÃO: Força o gatilho visual da tela de Rastreio
                     pixCopiaECola: data.point_of_interaction.transaction_data.qr_code,
                     pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
                 }, { merge: true });
