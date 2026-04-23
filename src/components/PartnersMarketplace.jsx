@@ -28,12 +28,13 @@ const mockPartners = [
   },
   {
     id: 3,
-    name: 'Click Food Studio',
-    category: 'Foto e Vídeo',
-    description: 'Fotografia gastronômica profissional e vídeos para Reels. Deixe seu cardápio irresistível e aumente a conversão.',
-    imageUrl: 'https://images.unsplash.com/photo-1542010589005-d1eabd3949f4?auto=format&fit=crop&w=400&q=80',
-    whatsapp: '5511999999992',
-    discount: '5 Fotos Extras de Brinde'
+    name: 'BGEstudio',
+    category: 'Foto e Vídeo', /* Como você só tem as categorias padrão que mandou antes, encaixei na mais próxima, mas você pode mudar para "Marketing" se adicionar essa categoria no filtro depois */
+    description: 'Transformamos a presença digital do seu delivery com design estratégico, vídeos, gestão de redes e tecnologia para atrair mais clientes.',
+    imageUrl: '/bgestudio-logo.png', 
+    whatsapp: '5548984643809',
+    badge: 'Agência Parceira',
+    discount: '3 Banners Exclusivos Grátis'
   },
   {
     id: 4,
