@@ -224,7 +224,7 @@ export default function Tracking() {
 
       <motion.div initial={{y: 20, opacity:0}} animate={{y:0, opacity:1}} className="bg-white rounded-[3rem] p-8 shadow-2xl max-w-md mx-auto border border-white overflow-hidden relative">
         
-        {order.paymentMethod === 'velopay_pix' && order.velopayStatus === 'waiting_payment' && order.paymentStatus !== 'paid' ? (
+        {((order.paymentMethod === 'velopay_pix' && order.velopayStatus === 'waiting_payment') || (order.paymentMethod === 'pix' && order.velopayStatus === 'waiting_payment')) && order.paymentStatus !== 'paid' ? (
             <div className="text-center">
                 <div className="absolute -top-32 -left-32 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
                 <div className="bg-slate-900 text-white p-3 rounded-2xl mb-6 inline-flex items-center justify-center gap-2 shadow-lg">
