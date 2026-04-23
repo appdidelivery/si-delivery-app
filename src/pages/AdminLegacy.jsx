@@ -674,8 +674,9 @@ export default function Admin() {
         status: 'open'
     });
     const [showPixModal, setShowPixModal] = useState(false);
-    const[loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
+    const [loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
     const [reviewsList, setReviewsList] = useState([]);
+    const [showAllVips, setShowAllVips] = useState(false); // CORREÇÃO: Estado que controla o limite da lista VIP
     const [replyText, setReplyText] = useState({});
     // --- ESTADOS DA CONFIGURAÇÃO DA ROLETA ---
     const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
@@ -1689,6 +1690,11 @@ const handleGenerateProductCopy = async () => {
     const updateStatusAndNotify = async (order, newStatus) => {
         // 1. Atualiza o status do pedido no banco de dados primeiro
         await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+        
+        // --- NOVO: AUTO IMPRESSÃO ---
+        if (newStatus === 'completed' && storeStatus?.autoPrintCompleted) {
+            printLabel(order);
+        }
         
         // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
         if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
@@ -4062,7 +4068,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
 
                         <div className="grid gap-4 max-w-4xl mx-auto">
-                            {customers.map((c, i) => {
+                            {customers.slice(0, showAllVips ? undefined : 5).map((c, i) => {
                                 const progressPercentage = Math.min(100, (c.points / (c.loyaltyGoal || 1)) * 100);
                                 const hasReachedGoal = c.points >= c.loyaltyGoal;
 
@@ -4111,6 +4117,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
                             )})}
+                            {customers.length > 5 && (
+                                <button 
+                                    onClick={() => setShowAllVips(!showAllVips)} 
+                                    className="w-full py-4 bg-slate-100 text-slate-500 font-black uppercase tracking-widest text-xs rounded-3xl hover:bg-slate-200 transition-all mt-4"
+                                >
+                                    {showAllVips ? 'Ver Menos' : `Ver todos os ${customers.length} Clientes VIP`}
+                                </button>
+                            )}
                         </div>
 
                         {/* --- NOVA GESTÃO DE AVALIAÇÕES E MISSÕES VIP --- */}
@@ -4606,10 +4620,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 )}
 
                                 {/* Resumo Final com Cálculo Inteligente de Troco */}
+{/* Resumo Final com Cálculo Inteligente de Troco */}
 {(() => {
     // 1. Calcula o total do pedido
     const cartSubtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
-    const cartTotal = Math.max(0, cartSubtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0));
+    const cartTotal = Math.max(0, cartSubtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount);
     
     // 2. Calcula o troco digitado pelo caixa
     const amountGiven = Number(manualCustomer.changeFor?.toString().replace(',', '.') || 0);
@@ -4618,6 +4633,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
     return (
         <div className="flex flex-col gap-3 mb-6 pt-4 border-t border-dashed border-slate-200">
+            {/* NOVO: CAMPO DE DESCONTO PDV */}
+            <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100 mb-2">
+                <span className="font-black text-green-700 uppercase tracking-widest text-[10px]">Desconto Extra R$</span>
+                <input 
+                    type="number" 
+                    placeholder="0.00" 
+                    className="w-24 p-2 bg-white rounded-lg font-black text-xs text-green-700 outline-none text-right focus:ring-2 ring-green-400"
+                    value={manualDiscountAmount || ''}
+                    onChange={(e) => setManualDiscountAmount(Number(e.target.value))}
+                />
+            </div>
+
             {/* Total Principal */}
             <div className="flex justify-between items-end">
                 <span className="font-black text-slate-400 uppercase tracking-widest text-xs">Total A Pagar</span>
@@ -4646,8 +4673,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
                                         if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
                                         
-                                        const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
-                                        const finalTotal = Math.max(0, subtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0));
+                                       const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
+                                        const finalTotal = Math.max(0, subtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount);
                                         
                                         const isPickup = manualCustomer.deliveryMethod === 'pickup';
                                         const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
@@ -4682,8 +4709,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 subtotal: subtotal,
                                                 shippingFee: isPickup ? 0 : manualShippingFee,
                                                 extraFee: 0,
-                                                discountAmount: 0,
-                                                couponCode: '',
+                                                discountAmount: manualDiscountAmount,
+                                                couponCode: manualDiscountAmount > 0 ? 'DESCONTO_PDV' : '',
                                                 total: finalTotal,
                                                 // 🚨 ATENÇÃO: Agora o status respeita o que o caixa escolheu!
                                                 status: manualCustomer.status || (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'),
@@ -4704,6 +4731,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     paymentStatus: 'pending' 
 });
                                             setManualShippingFee(0);
+                                            setManualDiscountAmount(0); // Zera o desconto pro próximo pedido
                                             alert("✅ Comanda lançada com sucesso!");
                                         } catch (e) {
                                             alert("Erro ao lançar venda no PDV.");
@@ -4713,7 +4741,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     disabled={manualCart.length === 0}
                                     className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                   Lançar Pedido {manualCart.length > 0 ? `(R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0))).toFixed(2)})` : ''}
+                                   Lançar Pedido {manualCart.length > 0 ? `(R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount)).toFixed(2)})` : ''}
                                 </button>
                             </div>
                             {/* FIM DA ÁREA DE SCROLL UNIFICADA */}
@@ -6741,6 +6769,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.posPickupEnabled !== false ? 'text-slate-800' : 'text-slate-500'}`}>🏪 Lançar Balcão/Mesa</span>
                                                 </div>
                                                 <input type="checkbox" checked={storeStatus.posPickupEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { posPickupEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer" />
+                                            </label>
+
+                                            {/* NOVO: AUTOMAÇÃO DE IMPRESSÃO */}
+                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all mt-2 ${storeStatus.autoPrintCompleted ? 'bg-white border-blue-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
+                                                <div>
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.autoPrintCompleted ? 'text-blue-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir "Concluído"</span>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-1">Imprime o ticket automaticamente ao marcar o pedido como ✅ Entregue.</p>
+                                                </div>
+                                                <input type="checkbox" checked={storeStatus.autoPrintCompleted || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintCompleted: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
                                             </label>
                                         </div>
                                     </div>
