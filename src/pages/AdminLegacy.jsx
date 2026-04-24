@@ -6716,12 +6716,83 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <span className="text-slate-400">VALOR (DESTINO): <strong className="text-blue-400 bg-blue-900/30 px-2 py-1 rounded select-all">cname.vercel-dns.com</strong></span>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-6 flex items-start gap-3 bg-slate-800/50 p-4 rounded-xl">
+                                                   <div className="mt-6 flex items-start gap-3 bg-slate-800/50 p-4 rounded-xl">
                                                         <div className="animate-pulse"><Clock size={20} className="text-orange-400"/></div>
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                                                            A propagação do DNS pode levar até 24h. <br/>Assim que você fizer a configuração acima, clique no botão do WhatsApp no canto da tela e avise nossa equipe para gerarmos seu Certificado de Segurança (SSL).
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed flex-1">
+                                                            A propagação do DNS pode levar até 24h. Após configurar no seu provedor, clique no botão abaixo para o sistema verificar se a internet já reconheceu o seu novo domínio.
                                                         </p>
                                                     </div>
+
+                                                    <button 
+    id="btn-check-dns"
+    onClick={async (e) => {
+        const btn = e.currentTarget;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Consultando Satélites...</span>';
+        btn.disabled = true;
+
+        try {
+            // 1. Limpa o domínio caso o cliente tenha colado "https://" ou "www." ou "/"
+            let rawDomain = storeStatus.customDomain || '';
+            rawDomain = rawDomain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+
+            // 2. Consulta a API Pública do Google DNS
+            const resA = await fetch(`https://dns.google/resolve?name=${rawDomain}&type=A`);
+            const dataA = await resA.json();
+
+            const resCname = await fetch(`https://dns.google/resolve?name=www.${rawDomain}&type=CNAME`);
+            const dataCname = await resCname.json();
+
+            // 3. Analisa as respostas
+            const hasA = dataA.Answer && dataA.Answer.length > 0;
+            const hasCname = dataCname.Answer && dataCname.Answer.length > 0;
+
+            const isVercelA = hasA && dataA.Answer.some(r => r.data === '76.76.21.21');
+            const isVercelCname = hasCname && dataCname.Answer.some(r => String(r.data).includes('vercel'));
+            
+            // Verifica se o IP retornado é da rede da Cloudflare (104.x ou 172.x)
+            const isCloudflare = hasA && dataA.Answer.some(r => r.data.startsWith('104.') || r.data.startsWith('172.'));
+
+            const aprovarDominio = async () => {
+                await updateDoc(doc(db, "stores", storeId), { domainStatus: 'ativo', customDomain: rawDomain });
+                setStoreStatus(prev => ({...prev, domainStatus: 'ativo', customDomain: rawDomain})); 
+                alert("✅ SUCESSO! Domínio ativado. Sua loja já está rodando no novo endereço!");
+            };
+
+            // 4. Árvore de Decisão Lógica
+            if (isVercelA || isVercelCname) {
+                // Cenário 1: Apontamento Perfeito para a Vercel (Passa Direto)
+                await aprovarDominio();
+            } else if (isCloudflare) {
+                // Cenário 2: Proxy da Cloudflare mascarando o IP
+                if(window.confirm(`⚠️ Detectamos que você usa a Cloudflare.\n\nSeu domínio está com IP mascarado. Se a sua loja JÁ ESTÁ ABRINDO normalmente ao digitar 'www.${rawDomain}' no navegador, clique em [OK] para forçar a ativação.`)) {
+                    await aprovarDominio();
+                }
+            } else if (hasA || hasCname) {
+                // Cenário 3: O domínio responde, mas com IP diferente do esperado (Pode ser provedor local ou delay de cache)
+                const ipEncontrado = hasA ? dataA.Answer[0].data : 'CNAME diferente';
+                if(window.confirm(`⚠️ O domínio responde pelo destino [${ipEncontrado}], que não é o IP padrão da plataforma.\n\nSe você tem certeza que a configuração foi feita corretamente e a loja JÁ ESTÁ ABRINDO no seu celular, clique em [OK] para Forçar a Ativação.`)) {
+                    await aprovarDominio();
+                }
+            } else {
+                // Cenário 4: NXDOMAIN (Não propagou nada de fato em nenhum lugar do mundo)
+                alert(`⏳ O domínio '${rawDomain}' ainda não está respondendo na rede mundial.\n\nAguarde a propagação dos servidores do seu provedor (Registro.br, Hostinger, Locaweb) e tente novamente em algumas horas.`);
+            }
+        } catch(err) {
+            // Cenário 5: Erro de Rede ou Navegador/AdBlock bloqueando a API do Google
+            if(window.confirm(`🚨 Erro de comunicação com o verificador de DNS (Pode ser o seu AdBlock).\n\nSe você TEM CERTEZA que a loja já está acessível no seu domínio personalizado, clique em [OK] para forçar a ativação no sistema.`)) {
+                await updateDoc(doc(db, "stores", storeId), { domainStatus: 'ativo' });
+                setStoreStatus(prev => ({...prev, domainStatus: 'ativo'})); 
+            }
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }}
+    className="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+>
+    <Globe size={16} /> Verificar Propagação Agora
+</button>
                                                 </div>
                                             )}
                                         </div>
