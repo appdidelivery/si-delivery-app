@@ -561,7 +561,8 @@ export default function Home() {
 // --- SISTEMA DE CARRINHO ABANDONADO (SALVA SILENCIOSAMENTE) ---
   useEffect(() => {
       const phoneStr = customer?.phone?.replace(/\D/g, '') || '';
-      
+      const cleanPhone = phoneStr.replace(/\D/g, '');
+
       // Gera um ID de visitante temporário se o cliente ainda não digitou o telefone
       let visitorId = localStorage.getItem('veloVisitorId');
       if (!visitorId) {
@@ -570,17 +571,27 @@ export default function Home() {
       }
 
       const timeout = setTimeout(async () => {
-          const cartId = `cart_${storeId}_${visitorId}`; 
+          // Mapeia os dois IDs possíveis para evitar duplicidade ou carrinhos órfãos
+          const cartVisitorId = `cart_${storeId}_${visitorId}`;
+          const cartPhoneId = cleanPhone.length >= 10 ? `cart_${storeId}_${cleanPhone}` : null;
           
-          // 🚨 SE O CARRINHO ESTIVER VAZIO OU SEM TELEFONE, APAGA/NÃO SALVA
-          const cleanPhone = phoneStr.replace(/\D/g, '');
-          if (cart.length === 0 || cleanPhone.length < 10) {
-              try { await deleteDoc(doc(db, "abandoned_carts", cartId)); } catch(e){}
+          const primaryCartId = cartPhoneId || cartVisitorId;
+
+          // 🚨 SE O CARRINHO ESTIVER VAZIO, MATA O REGISTRO EM TODOS OS LUGARES!
+          if (cart.length === 0) {
+              try { 
+                  await deleteDoc(doc(db, "abandoned_carts", cartVisitorId)); 
+                  if (cartPhoneId) await deleteDoc(doc(db, "abandoned_carts", cartPhoneId));
+              } catch(e){}
               return;
           }
-          // Se tiver itens, salva as informações
+
+          // Se não tem telefone, apenas aborta (não polui o banco com carrinhos impossíveis de recuperar)
+          if (cleanPhone.length < 10) return;
+
+          // Se tem itens e tem telefone, salva/atualiza no banco
           try {
-              await setDoc(doc(db, "abandoned_carts", cartId), {
+              await setDoc(doc(db, "abandoned_carts", primaryCartId), {
                   storeId: storeId,
                   customerName: customer?.name || "Visitante (Sem nome)",
                   customerPhone: customer?.phone || "",
@@ -588,7 +599,12 @@ export default function Home() {
                   subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
                   lastUpdated: serverTimestamp(),
                   status: 'abandoned'
-              }, { merge: true }); 
+              }, { merge: true });
+
+              // Se salvou com o Telefone, limpa o carrinho do VisitorId para não duplicar no painel
+              if (cartPhoneId) {
+                  try { await deleteDoc(doc(db, "abandoned_carts", cartVisitorId)); } catch(e){}
+              }
           } catch (e) { console.error("Erro ao salvar carrinho abandonado:", e); }
       }, 2000);
 
