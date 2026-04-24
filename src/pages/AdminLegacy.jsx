@@ -1114,32 +1114,36 @@ export default function Admin() {
         setTeamMembers([]);
 
         // Pedidos
+        let initialOrders = true;
         const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), (s) => {
-            s.docChanges().forEach((change) => {
-                if (change.type === "added" && change.doc.data().createdAt?.toMillis() > Date.now() - 10000) {
-                    new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
-                }
-            });
+            if (!initialOrders) {
+                s.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
+                    }
+                });
+            }
+            initialOrders = false;
             setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
        // Carrinhos Abandonados (Com som de notificação macio e Filtro de Telefone)
+       let initialCarts = true;
         const unsubAbandoned = onSnapshot(query(collection(db, "abandoned_carts"), where("storeId", "==", storeId), orderBy("lastUpdated", "desc")), (s) => {
-            // 🚨 FILTRO INTELIGENTE: Pega apenas carrinhos com telefone preenchido (mínimo 10 dígitos)
             const validCarts = s.docs
                 .map(d => ({ id: d.id, ...d.data() }))
                 .filter(cart => cart.customerPhone && String(cart.customerPhone).replace(/\D/g, '').length >= 10);
 
-            s.docChanges().forEach((change) => {
-                const data = change.doc.data();
-                const hasPhone = data.customerPhone && String(data.customerPhone).replace(/\D/g, '').length >= 10;
-                
-                // Só toca o som de alerta se for um carrinho novo RELEVANTE (com telefone)
-                if (change.type === "added" && hasPhone && data.lastUpdated?.toMillis() > Date.now() - 10000) {
-                    new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(() => { });
-                }
-            });
-            
+            if (!initialCarts) {
+                s.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const hasPhone = data.customerPhone && String(data.customerPhone).replace(/\D/g, '').length >= 10;
+                    if (change.type === "added" && hasPhone) {
+                        new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(() => { });
+                    }
+                });
+            }
+            initialCarts = false;
             setAbandonedCarts(validCarts);
         });
 
@@ -1241,6 +1245,7 @@ export default function Admin() {
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
         // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
+        let initialChat = true;
         const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
             let shouldPlaySound = false;
             let senderName = "Cliente";
@@ -1248,11 +1253,10 @@ export default function Admin() {
             // Descobre qual conversa o lojista está olhando agora
             const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
 
-            s.docChanges().forEach((change) => {
-                const data = change.doc.data();
-                if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
-                    if (data.receivedAt && data.receivedAt.toMillis && data.receivedAt.toMillis() > Date.now() - 10000) {
-                        
+            if (!initialChat) {
+                s.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
                         // Normaliza o número de quem mandou para bater com o número aberto na tela
                         let senderPhone = String(data.from || '').replace(/\D/g, '');
                         if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
@@ -1263,31 +1267,32 @@ export default function Admin() {
                             senderName = data.pushName || data.name || "Cliente";
                         }
                     }
-                }
-            });
+                });
 
-            // Toca o som APENAS UMA VEZ se for necessário
-            if (shouldPlaySound) {
-                const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
-                if (!isMuted) {
-                    const customSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
-                    const ringtone = new Audio(customSound);
-                    
-                    ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
-                    
-                    // DISPARA NOTIFICAÇÃO DO WINDOWS/MAC (Funciona em 2º plano!)
-                    if ("Notification" in window) {
-                        if (Notification.permission === "granted") {
-                            new Notification("💬 Nova Mensagem", {
-                                body: `${senderName} enviou uma mensagem!`,
-                                icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"
-                            });
-                        } else if (Notification.permission !== "denied") {
-                            Notification.requestPermission();
+                // Toca o som APENAS UMA VEZ se for necessário
+                if (shouldPlaySound) {
+                    const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
+                    if (!isMuted) {
+                        const customSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
+                        const ringtone = new Audio(customSound);
+                        
+                        ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
+                        
+                        // DISPARA NOTIFICAÇÃO DO WINDOWS/MAC (Funciona em 2º plano!)
+                        if ("Notification" in window) {
+                            if (Notification.permission === "granted") {
+                                new Notification("💬 Nova Mensagem", {
+                                    body: `${senderName} enviou uma mensagem!`,
+                                    icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"
+                                });
+                            } else if (Notification.permission !== "denied") {
+                                Notification.requestPermission();
+                            }
                         }
                     }
                 }
             }
+            initialChat = false; // Desativa a trava de load inicial
 
             // Conta quantas pessoas diferentes mandaram mensagem não lida
             const unreadDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().status === 'unread');
