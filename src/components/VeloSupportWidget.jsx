@@ -140,7 +140,8 @@ export default function VeloSupportWidget() {
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0, opacity: 0 }}
                         onClick={() => setIsOpen(true)}
-                        className="fixed bottom-6 right-6 z-[90] bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-slate-800 transition-all hover:scale-105 flex items-center justify-center border-4 border-slate-100"
+                        // CORREÇÃO RESPONSIVA: No mobile sobe para bottom-24, no desktop fica em bottom-6
+                        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[90] bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-slate-800 transition-all hover:scale-105 flex items-center justify-center border-4 border-slate-100"
                     >
                         <HelpCircle size={32} />
                     </motion.button>
@@ -154,7 +155,8 @@ export default function VeloSupportWidget() {
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="fixed bottom-6 right-6 z-[100] w-[380px] max-w-[calc(100vw-32px)] h-[600px] max-h-[calc(100vh-32px)] bg-white rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200"
+                        // CORREÇÃO RESPONSIVA: A janela do widget também precisa subir no mobile para não encostar na barra de navegação
+                        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[100] w-[380px] max-w-[calc(100vw-32px)] h-[600px] max-h-[calc(100vh-120px)] md:max-h-[calc(100vh-32px)] bg-white rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200"
                     >
                         {/* Header */}
                         <div className="bg-blue-600 text-white p-6 relative flex-shrink-0">

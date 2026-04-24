@@ -2996,8 +2996,8 @@ if (window.fbq) {
       <AnimatePresence>
         {showCheckout && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
-            <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[3.5rem] md:rounded-[3.5rem] p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
-              <button onClick={() => setShowCheckout(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><X size={32}/></button>
+            <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
+              <button onClick={() => setShowCheckout(false)} className="absolute top-6 right-6 md:top-10 md:right-10 text-slate-300 hover:text-slate-900"><X size={28}/></button>
               <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
               {!isWaiterMode && storeSettings.freeShippingThreshold > 0 && (
                   <div className="mb-6 bg-slate-50 p-4 rounded-3xl border border-slate-100">
@@ -3158,8 +3158,8 @@ if (window.fbq) {
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
-                    <input type="text" placeholder="Insira o código do cupom" className="flex-1 p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none" value={couponCode} onChange={e => setCouponCode(e.target.value)} />
-                    <button onClick={applyCoupon} className={`${currentTheme.primary} text-white p-5 rounded-[2rem] font-black uppercase shadow-xl ${currentTheme.hoverPrimary}`}>Aplicar</button>
+                    <input type="text" placeholder="Insira o código do cupom" className="flex-1 min-w-0 p-4 md:p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none text-sm md:text-base" value={couponCode} onChange={e => setCouponCode(e.target.value)} />
+                    <button onClick={applyCoupon} className={`${currentTheme.primary} text-white px-5 py-4 md:p-5 rounded-[2rem] font-black uppercase shadow-xl ${currentTheme.hoverPrimary} shrink-0 text-sm md:text-base`}>Aplicar</button>
                   </div>
                   {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
 
