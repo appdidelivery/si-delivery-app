@@ -24,7 +24,7 @@ const mockPartners = [
     whatsapp: '5541998989480',
     website: 'https://loja.mamedes.com.br',
     badge: 'Fábrica Parceira',
-    discount: '15% OFF na 1ª Compra'
+    discount: '5% OFF na 1ª Compra cupom PRIM05'
   },
   {
     id: 3,
