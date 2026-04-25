@@ -1401,28 +1401,34 @@ export default function Home() {
 
         if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
                     try {
-                        // 🚨 BLINDAGEM DE PRECISÃO GEOGRÁFICA: Injeta o CEP na requisição!
-                        // Evita que o Google jogue o pino no centro de avenidas longas e erre o cálculo de KM.
-                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, CEP: ${cep}, Brasil`);
+                        // 🚨 BLINDAGEM DO GOOGLE MAPS: Formato internacional perfeito para evitar 
+                        // que o Google confunda o bairro "Campinas" (SC) com a cidade "Campinas" (SP).
+                        // Omitimos o bairro e usamos apenas Rua, Cidade - UF, CEP, Pais
+                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`);
                         const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
-                const geoData = await geoRes.json();
+                        const geoData = await geoRes.json();
 
-                if (geoData.status === "OK" && geoData.results[0]) {
-                    const customerLat = geoData.results[0].geometry.location.lat;
-                    const customerLng = geoData.results[0].geometry.location.lng;
+                        if (geoData.status === "OK" && geoData.results[0]) {
+                            const customerLat = geoData.results[0].geometry.location.lat;
+                            const customerLng = geoData.results[0].geometry.location.lng;
 
-                    const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
-                            
-                            if (distanceKm !== null) {
-                                distanceCalculated = true;
+                            const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
+                            
+                            if (distanceKm !== null) {
+                                distanceCalculated = true;
                                 setDeliveryDistance(distanceKm);
-                                const matchedZone = [...zones]
+                                const matchedZone = [...zones]
+                                    .sort((a, b) => a.radius_km - b.radius_km)
+                                    .find(z => distanceKm <= z.radius_km);
 
-                        if (matchedZone) {
-                            setShippingFee(Number(matchedZone.fee));
-                            setDeliveryAreaMessage(`Taxa de Entrega: R$ ${Number(matchedZone.fee).toFixed(2)}`);
-                            return; 
-                        } else {
+                                if (matchedZone) {
+                                    // 🚨 BLINDAGEM DO NaN: Se o lojista digitou 5,99 com vírgula, trocamos por ponto na marra.
+                                    const safeFee = parseFloat(String(matchedZone.fee).replace(',', '.'));
+                                    
+                                    setShippingFee(safeFee);
+                                    setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)}`);
+                                    return; 
+                                } else {
                             throw new Error("Distância fora da área máxima de cobertura por KM.");
                         }
                     }
