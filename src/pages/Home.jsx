@@ -1399,9 +1399,11 @@ export default function Home() {
         let distanceCalculated = false;
 
         if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
-            try {
-                const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, Brasil`);
-                const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
+                    try {
+                        // 🚨 BLINDAGEM DE PRECISÃO GEOGRÁFICA: Injeta o CEP na requisição!
+                        // Evita que o Google jogue o pino no centro de avenidas longas e erre o cálculo de KM.
+                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, CEP: ${cep}, Brasil`);
+                        const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
                 const geoData = await geoRes.json();
 
                 if (geoData.status === "OK" && geoData.results[0]) {

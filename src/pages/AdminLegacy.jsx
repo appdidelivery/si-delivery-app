@@ -2094,7 +2094,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                 if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
                     try {
-                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, Brasil`);
+                        // 🚨 BLINDAGEM DE PRECISÃO GEOGRÁFICA: Injeta o CEP exato do cliente!
+                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.bairro}, ${data.localidade}, ${data.uf}, CEP: ${cleanCep}, Brasil`);
                         const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
                         const geoData = await geoRes.json();
 
