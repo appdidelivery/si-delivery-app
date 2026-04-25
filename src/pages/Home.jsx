@@ -890,7 +890,8 @@ export default function Home() {
   };
   
   const [isCepLoading, setIsCepLoading] = useState(false);
-  const[cepError, setCepError] = useState('');
+    const[cepError, setCepError] = useState('');
+    const [deliveryDistance, setDeliveryDistance] = useState(null);
 
   const scrollToCategory = async (categoryId) => {
     if (storeSettings?.layoutTheme === 'list') {
@@ -1411,12 +1412,11 @@ export default function Home() {
                     const customerLng = geoData.results[0].geometry.location.lng;
 
                     const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
-                    
-                    if (distanceKm !== null) {
-                        distanceCalculated = true;
-                        const matchedZone = [...zones]
-                            .sort((a, b) => a.radius_km - b.radius_km)
-                            .find(z => distanceKm <= z.radius_km);
+                            
+                            if (distanceKm !== null) {
+                                distanceCalculated = true;
+                                setDeliveryDistance(distanceKm);
+                                const matchedZone = [...zones]
 
                         if (matchedZone) {
                             setShippingFee(Number(matchedZone.fee));
@@ -1478,10 +1478,11 @@ export default function Home() {
           setCepError(distanceCalculated ? "Fora da área de cobertura por KM e sem taxa fixa." : "Região não atendida.");
         }
 
-      } catch (error) { 
-          setCepError(error.message); 
-          setCustomer(c => ({ ...c, street: '', neighborhood: '' })); 
-      } finally { 
+     } catch (error) { 
+          setCepError(error.message); 
+          setCustomer(c => ({ ...c, street: '', neighborhood: '' })); 
+          setDeliveryDistance(null);
+      } finally {
           setIsCepLoading(false); 
       }
     };
@@ -3172,7 +3173,16 @@ if (window.fbq) {
                   </div>
 
                   {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
-                  {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
+                  {!isWaiterMode && deliveryAreaMessage && !cepError && (
+                      <p className={`${currentTheme.text} text-xs font-bold text-center mb-4 flex flex-col items-center gap-1`}>
+                          <span>{deliveryAreaMessage}</span>
+                          {deliveryDistance !== null && (
+                              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                  Distância em linha reta: {deliveryDistance.toFixed(1)} km
+                              </span>
+                          )}
+                      </p>
+                  )}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
