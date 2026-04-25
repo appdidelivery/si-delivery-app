@@ -3179,16 +3179,7 @@ if (window.fbq) {
                   </div>
 
                   {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
-                  {!isWaiterMode && deliveryAreaMessage && !cepError && (
-                      <p className={`${currentTheme.text} text-xs font-bold text-center mb-4 flex flex-col items-center gap-1`}>
-                          <span>{deliveryAreaMessage}</span>
-                          {deliveryDistance !== null && (
-                              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                  Distância em linha reta: {deliveryDistance.toFixed(1)} km
-                              </span>
-                          )}
-                      </p>
-                  )}
+                  {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
