@@ -1271,10 +1271,25 @@ else if (!interactivePayload && storeDynamicData.systemPrompt) {
 
         // 2. Injeta as variáveis dinâmicas no System Prompt do banco
         const rawPrompt = storeDynamicData.systemPrompt;
-                                                    const injectedPrompt = rawPrompt
-                                                        .replace(/{Nome_do_Cliente}/g, customerName || 'Amigo(a)')
-                                                        .replace(/{Saldo_Cashback_VeloPay}/g, cashbackBalance)
-                                                        .replace(/{Nível_VIP}/g, tierVip);
+
+        // Motor de Tempo: Injeta um "relógio" invisível para a IA
+        const agora = new Date();
+        const horaBrasilia = new Date(agora.getTime() - (3 * 3600 * 1000));
+        const horaAtual = horaBrasilia.getHours();
+        let periodoDia = "da madrugada";
+        if (horaAtual >= 6 && horaAtual < 12) periodoDia = "da manhã";
+        else if (horaAtual >= 12 && horaAtual < 18) periodoDia = "da tarde";
+        else if (horaAtual >= 18 && horaAtual <= 23) periodoDia = "da noite";
+
+        const contextoTempo = `\n[REGRA DE TEMPO (INVISÍVEL PARA O CLIENTE): Agora são exatamente ${horaAtual} horas ${periodoDia}. Adapte a sua resposta para este exato momento do dia. NÃO ofereça produtos noturnos, de "saideira" ou fale "boa noite" se for de manhã ou de tarde.]\n`;
+
+        const injectedPrompt = rawPrompt
+            .replace(/{Nome_do_Cliente}/g, customerName || 'Amigo(a)')
+            .replace(/{Nome}/g, customerName || 'Amigo(a)') 
+            .replace(/{Saldo_Cashback_VeloPay}/g, cashbackBalance)
+            .replace(/{Saldo_Cashback}/g, cashbackBalance) 
+            .replace(/{Nível_VIP}/g, tierVip)
+            .replace(/{Tier_VIP}/g, tierVip) + contextoTempo;
 
                                                     const GEMINI_KEY = process.env.GEMINI_API_KEY;
                                                     
