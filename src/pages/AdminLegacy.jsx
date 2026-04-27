@@ -1001,6 +1001,7 @@ export default function Admin() {
     const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery' });
     const[manualCouponCode, setManualCouponCode] = useState('');
     const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
+    const [isSubmittingPOS, setIsSubmittingPOS] = useState(false);
 
     // Uploads
     const [imageFile, setImageFile] = useState(null);
@@ -4680,6 +4681,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
                                         if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
                                         
+                                        setIsSubmittingPOS(true); // BLOQUEIA O BOTÃO IMEDIATAMENTE
+                                        
                                        const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
                                         const finalTotal = Math.max(0, subtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount);
                                         
@@ -4743,12 +4746,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         } catch (e) {
                                             alert("Erro ao lançar venda no PDV.");
                                             console.error(e);
+                                        } finally {
+                                            setIsSubmittingPOS(false); // LIBERA O BOTÃO INDEPENDENTE DO RESULTADO
                                         }
                                     }} 
-                                    disabled={manualCart.length === 0}
-                                    className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={manualCart.length === 0 || isSubmittingPOS}
+                                    className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                   Lançar Pedido {manualCart.length > 0 ? `(R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount)).toFixed(2)})` : ''}
+                                   {isSubmittingPOS && <Loader2 className="animate-spin" size={24} />}
+                                   {isSubmittingPOS ? 'Processando...' : (manualCart.length > 0 ? `Lançar Pedido (R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount)).toFixed(2)})` : 'Lançar Pedido')}
                                 </button>
                             </div>
                             {/* FIM DA ÁREA DE SCROLL UNIFICADA */}
