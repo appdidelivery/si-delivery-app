@@ -89,6 +89,43 @@ export default function SEO({ title, description, image, productData }) {
                     // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
                     const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
                     
+                    // Puxa o catálogo global do Velo Data Fuel (se disponível) para injetar os produtos
+                    const storeCatalog = store?.products || store?.produtos || store?.produtosPrincipais;
+                    
+                    // Constrói o objeto do Cardápio (Menu) se for Restaurante/Hamburgueria
+                    let menuData = {};
+                    if (!isRetail) {
+                        if (storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
+                            menuData = {
+                                "hasMenu": {
+                                    "@type": "Menu",
+                                    "name": `Cardápio - ${fetchedName}`,
+                                    "url": `${baseUrl}/cardapio`,
+                                    "hasMenuSection": [
+                                        {
+                                            "@type": "MenuSection",
+                                            "name": "Destaques do Cardápio",
+                                            "hasMenuItem": storeCatalog.slice(0, 40).map((prod) => ({
+                                                "@type": "MenuItem",
+                                                "name": prod.name || prod.nome || "",
+                                                "description": prod.description || prod.descricao || fetchedDesc,
+                                                "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
+                                                "offers": {
+                                                    "@type": "Offer",
+                                                    "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
+                                                    "priceCurrency": "BRL"
+                                                }
+                                            }))
+                                        }
+                                    ]
+                                }
+                            };
+                        } else {
+                            // Fallback de segurança se o Firebase ainda não devolveu os itens
+                            menuData = { "hasMenu": `${baseUrl}/cardapio` };
+                        }
+                    }
+
                     // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
                         "@id": `${baseUrl}#store`,
@@ -101,11 +138,10 @@ export default function SEO({ title, description, image, productData }) {
                         "priceRange": "$$",
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
                         "address": addressObj,
-                        ...( !isRetail ? { "hasMenu": `${baseUrl}/cardapio` } : {} )
+                        ...menuData
                     };
 
-                    // Se for Varejo (Conveniência/Bebidas), forçamos a aba de Produtos lendo do contexto global (se disponível)
-                    const storeCatalog = store?.products || store?.produtos || store?.produtosPrincipais;
+                    // Se for Varejo (Conveniência/Bebidas), mantém a aba genérica de Produtos (containsPlace)
                     if (isRetail && storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
                         baseStoreSchema.containsPlace = storeCatalog.slice(0, 30).map((prod) => ({
                             "@type": "Product",
@@ -114,7 +150,7 @@ export default function SEO({ title, description, image, productData }) {
                             "description": prod.description || prod.descricao || fetchedDesc,
                             "offers": {
                                 "@type": "Offer",
-                                "price": prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0),
+                                "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
                                 "priceCurrency": "BRL",
                                 "availability": (prod.stock === undefined || Number(prod.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                                 "url": `${baseUrl}/produto/${prod.id}`
