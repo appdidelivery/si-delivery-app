@@ -6681,26 +6681,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
                                 </div>
-
-                                {/* NOVO CAMPO: CATEGORIA SEO DO GOOGLE */}
-                                <div className="mt-4 pt-4 border-t border-slate-100">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
-                                        <Search size={14} className="text-blue-500"/> Categoria no Google (Para exibir Menu na Busca)
-                                    </label>
-                                    <select 
-                                        value={storeStatus.seoCategory || 'restaurant'} 
-                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { seoCategory: e.target.value }, { merge: true })}
-                                        className="w-full p-5 bg-blue-50 text-blue-700 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-400 cursor-pointer"
-                                    >
-                                        <option value="burger">🍔 Hamburgueria / Lanches</option>
-                                        <option value="pizza">🍕 Pizzaria / Massas</option>
-                                        <option value="sweet">🍦 Açaiteria / Sorveteria / Doceria</option>
-                                        <option value="restaurant">🍽️ Restaurante / Sushi / Espetinho (Geral)</option>
-                                        <option value="default">🏪 Conveniência / Adega</option>
-                                        <option value="natural">🥗 Produtos Naturais / Hortifruti</option>
-                                    </select>
-                                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Esta categoria define como o Google vai ler o seu catálogo. Escolha a que mais se aproxima do seu negócio principal.</p>
-                                </div>
                                 </div>
                                 
                             </div>

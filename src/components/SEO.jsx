@@ -48,6 +48,12 @@ export default function SEO({ title, description, image, productData }) {
                     const fetchedImage = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || finalImage;
                     const fetchedDesc = fields.slogan?.stringValue || fields.message?.stringValue || finalDesc;
                     const fetchedWhatsapp = fields.whatsapp?.stringValue || "";
+                    const fetchedInstagram = fields.instagramUrl?.stringValue || "";
+                    const fetchedFacebook = fields.facebookUrl?.stringValue || "";
+                    const fetchedPriceRange = fields.priceRange?.stringValue || "$$";
+                    
+                    // Monta a lista de redes sociais para o Google associar
+                    const socialProfiles = [fetchedInstagram, fetchedFacebook].filter(link => link !== "");
                     
                     const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                     const ratingCount = fields.rating_count?.integerValue || 0;
@@ -213,7 +219,7 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
-                    // A) BASE DA ENTIDADE DA LOJA 
+                   // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
                         "@id": `${safeBaseUrl}#store`,
                         "@type": googleBusinessType,
@@ -222,9 +228,10 @@ export default function SEO({ title, description, image, productData }) {
                         "description": fetchedDesc,
                         "url": `https://${hostname}`,
                         "telephone": safeTelephone,
-                        "priceRange": "$$",
+                        "priceRange": fetchedPriceRange, // Agora dinâmico!
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
                         "address": addressObj,
+                        "sameAs": socialProfiles, // Associa as redes sociais ao site
                         ...( !isRetail ? { "servesCuisine": storeCuisine } : {} ),
                         ...menuData
                     };
