@@ -54,7 +54,7 @@ function CartUrlListener() {
         const [slugParam, qtyStr] = itemString.split(':');
         const quantity = parseInt(qtyStr, 10) || 1;
 
-        // Procura o produto. Se não tiver 'slug' no banco, ele deduz o slug a partir do nome
+        // Procura o produto
         const productFound = products.find(p => {
           const deducedSlug = (p.name || '').toLowerCase()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -81,7 +81,29 @@ function CartUrlListener() {
   return null;
 }
 
-// --- NOVO: MOTOR DE DEEP LINK (CAPACITOR) ---
+// --- MOTOR DE DEEP LINK (CAPACITOR) ---
+// Este componente escuta quando o celular injeta um link externo no App
+function DeepLinkListener() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      CapacitorApp.addListener('appUrlOpen', data => {
+        try {
+          const url = new URL(data.url);
+          const path = url.pathname + url.search;
+          if (path) {
+            navigate(path);
+          }
+        } catch (error) {
+          console.error("Erro ao interpretar o Deep Link:", error);
+        }
+      });
+    }
+  }, [navigate]);
+
+  return null;
+}
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
