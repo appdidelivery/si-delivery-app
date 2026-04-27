@@ -7,7 +7,7 @@ export default function useSmartRetention(marketingSettings, isCheckoutOpen, car
 
     useEffect(() => {
         // Verifica se a funcionalidade está ativada no painel do lojista
-        if (!marketingSettings?.smartCouponsEnabled) return;
+        if (!marketingSettings?.exitIntentActive) return;
         
         // Não dispara se o carrinho estiver vazio ou a oferta já foi mostrada hoje para o usuário
         if (cartLength === 0 || offerTriggered) return;
@@ -57,7 +57,7 @@ export default function useSmartRetention(marketingSettings, isCheckoutOpen, car
             activityEvents.forEach(evt => document.removeEventListener(evt, resetTimer));
             if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
         };
-    }, [marketingSettings?.smartCouponsEnabled, isCheckoutOpen, cartLength, offerTriggered]);
+   }, [marketingSettings?.exitIntentActive, isCheckoutOpen, cartLength, offerTriggered]);
 
     const acceptOffer = () => setShowOffer(false);
     const closeOffer = () => setShowOffer(false);

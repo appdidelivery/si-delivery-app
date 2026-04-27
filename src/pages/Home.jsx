@@ -845,29 +845,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!marketingSettings?.exitIntentActive) return;
-    const triggerExitIntent = () => {
-      const hasShown = localStorage.getItem('exitIntentShown');
-      const today = new Date().toDateString();
-      if (hasShown !== today) {
-        setShowExitModal(true);
-        localStorage.setItem('exitIntentShown', today); 
-      }
-    };
-    const handleMouseLeave = (e) => {
-      if (e.clientY <= 0) triggerExitIntent();
-    };
-    const timer = setTimeout(() => {
-       triggerExitIntent();
-    }, 30000); 
-    document.addEventListener('mouseleave', handleMouseLeave);
-    return () => {
-      document.removeEventListener('mouseleave', handleMouseLeave);
-      clearTimeout(timer);
-    };
-  }, [marketingSettings]);
-
-  useEffect(() => {
     if (showLastOrders) {
       const customerPhone = localStorage.getItem('customerPhone');
       if (customerPhone) {
