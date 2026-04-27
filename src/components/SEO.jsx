@@ -57,22 +57,22 @@ export default function SEO({ title, description, image, productData }) {
                     const absoluteFetchedImage = ensureAbsoluteUrl(fetchedImage);
 
                    // --- TRADUTOR DINÂMICO DE NICHOS PARA O GOOGLE ---
-                    let niche = fields.storeNiche?.stringValue || '';
+                    // Prioridade MÁXIMA para o novo campo seoCategory criado no painel. Se não existir, tenta o antigo storeNiche.
+                    let niche = fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || '';
                     
-                    // Inteligência Artificial de SEO: Dedução pelo domínio se o banco estiver vazio
+                    // Fallback de Segurança (Dedução pelo domínio) apenas se a loja for muito antiga e não tiver salvo nada
                     if (!niche) {
                         const hostLower = hostname.toLowerCase();
-                        
                         if (hostLower.includes('burguer') || hostLower.includes('burger') || hostLower.includes('lanche') || hostLower.includes('macanudo') || hostLower.includes('dog')) {
-                            niche = 'burger'; // Mapeia para FastFoodRestaurant
-                        } else if (hostLower.includes('acai') || hostLower.includes('açai') || hostLower.includes('sorvete') || hostLower.includes('doce') || hostLower.includes('gelato')) {
-                            niche = 'sweet'; // Mapeia para IceCreamShop
-                        } else if (hostLower.includes('pizza') || hostLower.includes('massa') || hostLower.includes('forno')) {
-                            niche = 'pizza'; // Mapeia para Restaurant
+                            niche = 'burger';
+                        } else if (hostLower.includes('acai') || hostLower.includes('açai') || hostLower.includes('sorvete') || hostLower.includes('doce')) {
+                            niche = 'sweet';
+                        } else if (hostLower.includes('pizza') || hostLower.includes('massa')) {
+                            niche = 'pizza';
                         } else if (hostLower.includes('conveniencia') || hostLower.includes('csi') || hostLower.includes('ng') || hostLower.includes('adega') || hostLower.includes('bebida')) {
-                            niche = 'default'; // Mapeia para ConvenienceStore
+                            niche = 'default';
                         } else {
-                            niche = 'restaurant'; // Padrão genérico forte para exibir o Menu caso não bata com nada acima
+                            niche = 'restaurant';
                         }
                     }
 
@@ -86,6 +86,7 @@ export default function SEO({ title, description, image, productData }) {
                         'restaurant': 'Restaurant',
                         'custom': 'LocalBusiness'
                     };
+                    // Se mesmo com tudo isso não achar, o padrão absoluto agora é Restaurant (para forçar o Menu nativo do Google)
                     const googleBusinessType = schemaTypes[niche] || 'Restaurant';
 
                     // CORREÇÃO 3: TRATAMENTO DE ENDEREÇO BLINDADO PARA O GOOGLE

@@ -26,7 +26,7 @@ import {
     GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
     GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
     GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry,
-    GiSandwich, GiEmpanada, GiKebabSpit, GiSoupBowl
+    GiSandwich, GiKebabSpit
 } from 'react-icons/gi';
 import { 
     FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
@@ -35,7 +35,7 @@ import {
     FaStore, FaCheese, FaPills, FaPrescriptionBottleMedical, 
     FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
     FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar,
-    FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot
+    FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot, FaBowlRice
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
@@ -71,7 +71,7 @@ const AVAILABLE_ICONS = [
   { id: 'HotDog', label: 'Cachorro Quente', component: <GiHotDog size={24} /> },
   { id: 'Pizza', label: 'Pizzaria', component: <GiPizzaSlice size={24} /> },
   { id: 'Fries', label: 'Porções / Fritas', component: <GiFrenchFries size={24} /> },
-  { id: 'Empanada', label: 'Pastel / Salgados', component: <GiEmpanada size={24} /> },
+  { id: 'Pastel', label: 'Pastel / Salgados', component: <FaCheese size={24} /> },
   { id: 'Tacos', label: 'Mexicana / Tacos', component: <GiTacos size={24} /> },
   { id: 'Kebab', label: 'Árabe / Esfirras', component: <GiKebabSpit size={24} /> },
   
@@ -82,7 +82,7 @@ const AVAILABLE_ICONS = [
   { id: 'Chicken', label: 'Frango Assado', component: <GiChickenOven size={24} /> },
   { id: 'Drumstick', label: 'Frango Frito', component: <FaDrumstickBite size={24} /> },
   { id: 'Noodles', label: 'Massas / Italiana', component: <GiNoodles size={24} /> },
-  { id: 'Soup', label: 'Sopas / Caldos', component: <GiSoupBowl size={24} /> },
+  { id: 'Soup', label: 'Sopas / Caldos', component: <FaBowlRice size={24} /> },
   { id: 'Sushi', label: 'Oriental / Sushi', component: <GiSushis size={24} /> },
   { id: 'Fish', label: 'Peixaria / Peixes', component: <FaFishFins size={24} /> },
   { id: 'Shrimp', label: 'Frutos do Mar', component: <GiShrimp size={24} /> },
@@ -6680,6 +6680,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         className="w-full p-5 bg-yellow-50 text-yellow-700 rounded-2xl font-bold border-none placeholder-yellow-300 outline-none focus:ring-2 ring-yellow-400" 
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
+                                </div>
+
+                                {/* NOVO CAMPO: CATEGORIA SEO DO GOOGLE */}
+                                <div className="mt-4 pt-4 border-t border-slate-100">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <Search size={14} className="text-blue-500"/> Categoria no Google (Para exibir Menu na Busca)
+                                    </label>
+                                    <select 
+                                        value={storeStatus.seoCategory || 'restaurant'} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { seoCategory: e.target.value }, { merge: true })}
+                                        className="w-full p-5 bg-blue-50 text-blue-700 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-400 cursor-pointer"
+                                    >
+                                        <option value="burger">🍔 Hamburgueria / Lanches</option>
+                                        <option value="pizza">🍕 Pizzaria / Massas</option>
+                                        <option value="sweet">🍦 Açaiteria / Sorveteria / Doceria</option>
+                                        <option value="restaurant">🍽️ Restaurante / Sushi / Espetinho (Geral)</option>
+                                        <option value="default">🏪 Conveniência / Adega</option>
+                                        <option value="natural">🥗 Produtos Naturais / Hortifruti</option>
+                                    </select>
+                                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Esta categoria define como o Google vai ler o seu catálogo. Escolha a que mais se aproxima do seu negócio principal.</p>
                                 </div>
                                 </div>
                                 
