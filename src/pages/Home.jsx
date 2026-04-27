@@ -2092,14 +2092,44 @@ if (window.fbq) {
       }
   },[selectedProduct?.id, productSlug, products, navigate]);
 
-  const displayCategories =[
-      { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
-      ...categories.map(c => ({ 
-          id: c.name, 
-          name: c.name, 
+  // --- INÍCIO: IA DE MENU DE ENGENHARIA (Personalização de Vitrine) ---
+  const favoriteCategory = React.useMemo(() => {
+      if (!lastOrders || lastOrders.length === 0) return null;
+      const catCount = {};
+      lastOrders.forEach(order => {
+          (order.items || []).forEach(item => {
+              if (item.category) {
+                  catCount[item.category] = (catCount[item.category] || 0) + 1;
+              }
+          });
+      });
+      // Acha a categoria que esse cliente específico mais comprou na vida
+      const sorted = Object.entries(catCount).sort((a, b) => b[1] - a[1]);
+      return sorted.length > 0 ? sorted[0][0] : null;
+  }, [lastOrders]);
+
+  const displayCategories = React.useMemo(() => {
+      const baseCats = categories.map(c => ({
+          id: c.name,
+          name: c.name,
           icon: renderCategoryIcon(c.icon, c.name)
-      }))
-  ];
+      }));
+
+      // A Mágica do iFood: Puxa a categoria favorita do cliente para o topo!
+      if (favoriteCategory) {
+          const favIndex = baseCats.findIndex(c => c.name === favoriteCategory);
+          if (favIndex > -1) {
+              const fav = baseCats.splice(favIndex, 1)[0];
+              baseCats.unshift(fav); 
+          }
+      }
+
+      return [
+          { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
+          ...baseCats
+      ];
+  }, [categories, favoriteCategory]);
+  // --- FIM: IA DE MENU DE ENGENHARIA ---
 
   const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds ||[]);
   const smartUpsell = products.filter(p => 
@@ -2430,6 +2460,48 @@ if (window.fbq) {
       </AnimatePresence>
 
       <div className="p-6">
+        {/* --- INÍCIO: FLASH DEALS (MODO TURBO IA) --- */}
+        <AnimatePresence>
+            {marketingSettings?.gamification?.flashDeals?.active && (() => {
+                const config = marketingSettings.gamification.flashDeals;
+                const now = new Date();
+                const [startH, startM] = (config.startTime || "00:00").split(':').map(Number);
+                const [endH, endM] = (config.endTime || "23:59").split(':').map(Number);
+                const currentMins = now.getHours() * 60 + now.getMinutes();
+                const startMins = startH * 60 + startM;
+                const endMins = endH * 60 + endM;
+
+                // Só aparece se estiver dentro do horário de "Hora Morta" definido pelo Admin
+                if (currentMins >= startMins && currentMins <= endMins) {
+                    return (
+                        <motion.div initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
+                            <div className="relative flex items-stretch rounded-2xl shadow-lg bg-red-600 text-white overflow-hidden border-2 border-red-400 animate-pulse">
+                                <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '16px 16px' }}></div>
+                                <div className="w-[25%] min-w-[85px] flex flex-col items-center justify-center p-3 relative z-10 bg-red-800/40">
+                                    <FaBoltLightning size={36} className="text-yellow-300 drop-shadow-md mb-1" />
+                                    <span className="bg-yellow-400 text-red-900 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Flash Deal</span>
+                                </div>
+                                <div className="relative w-0 border-l-[2px] border-dashed border-red-400/50 z-10"></div>
+                                <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                    <p className="font-black uppercase text-[9px] tracking-widest text-red-200 mb-1 flex items-center gap-1">
+                                        <Clock size={10} className="text-white"/> Termina em breve!
+                                    </p>
+                                    <p className="font-black uppercase text-sm md:text-base leading-tight drop-shadow-md">
+                                        HORA MORTA: {config.discountPercent}% OFF!
+                                    </p>
+                                    <p className="text-[10px] font-bold mt-1 text-red-100 leading-snug">
+                                        Use o cupom <strong className="text-yellow-300 tracking-wider text-xs bg-red-800/50 px-1 rounded">{config.couponCode}</strong> no checkout para resgatar.
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    );
+                }
+                return null;
+            })()}
+        </AnimatePresence>
+        {/* --- FIM: FLASH DEALS (MODO TURBO IA) --- */}
+
         {/* --- INÍCIO: BANNER COMPRE E GANHE (BOGO) --- */}
         <AnimatePresence>
             {marketingSettings?.buyAndGetPromo?.active && 

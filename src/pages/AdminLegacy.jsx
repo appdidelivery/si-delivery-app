@@ -5367,6 +5367,121 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                             <input type="checkbox" className="w-5 h-5 accent-purple-500 cursor-pointer" checked={settings.gamification?.badges || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, badges: e.target.checked } }, { merge: true })} />
                                         </div>
+
+                                        {/* --- INÍCIO: SMART BUNDLING (MARKET BASKET ANALYSIS) --- */}
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-indigo-500/30 hover:border-indigo-400 transition-all relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 bg-indigo-500/20 w-32 h-32 blur-3xl rounded-full pointer-events-none"></div>
+                                            <div className="flex items-center justify-between mb-4 relative z-10">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-indigo-500/20 p-2 rounded-xl text-indigo-400"><Sparkles size={20}/></div>
+                                                    <div>
+                                                        <p className="font-black text-white text-sm uppercase">Smart Bundling (IA)</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold">Mineração de dados p/ sugerir combos.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    // Motor de Market Basket Analysis (Algoritmo Apriori Simplificado)
+                                                    let pairs = {};
+                                                    orders.forEach(o => {
+                                                        if (o.status !== 'canceled' && o.items && o.items.length > 1) {
+                                                            const names = o.items.map(i => i.name).sort();
+                                                            for (let i = 0; i < names.length; i++) {
+                                                                for (let j = i + 1; j < names.length; j++) {
+                                                                    const key = `${names[i]} + ${names[j]}`;
+                                                                    pairs[key] = (pairs[key] || 0) + 1;
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                    const sorted = Object.entries(pairs).sort((a, b) => b[1] - a[1]);
+                                                    
+                                                    if (sorted.length > 0) {
+                                                        const topPair = sorted[0];
+                                                        if(window.confirm(`🤖 Velo IA detectou um padrão!\n\nSeus clientes costumam comprar juntos:\n👉 "${topPair[0]}" (${topPair[1]} vezes detectadas).\n\nDeseja criar o produto "Combo Perfeito" com esses itens agora?`)) {
+                                                            setForm({
+                                                                name: `Combo IA: ${topPair[0]}`,
+                                                                description: `Combo gerado por inteligência artificial baseado no que nossos clientes mais amam pedir juntos!`,
+                                                                price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: 'Combos', imageUrl: '', tag: '', stock: 100, hasDiscount: true, discountPercentage: 10, isFeatured: true, isBestSeller: true, quantityDiscounts: [], recommendedIds: [], complements: [], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet: [], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true
+                                                            });
+                                                            setActiveTab('products');
+                                                            setIsModalOpen(true);
+                                                        }
+                                                    } else {
+                                                        alert("Ainda não há histórico suficiente de pedidos com múltiplos itens na sua loja para a IA minerar padrões.");
+                                                    }
+                                                }}
+                                                className="w-full bg-indigo-600/30 text-indigo-300 hover:text-white hover:bg-indigo-600 border border-indigo-500/50 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all relative z-10"
+                                            >
+                                                Analisar Pedidos e Sugerir Combo
+                                            </button>
+                                        </div>
+                                        {/* --- FIM: SMART BUNDLING --- */}
+
+                                        {/* --- INÍCIO: FLASH DEALS (MODO TURBO) --- */}
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-red-500/30 hover:border-red-400 transition-all">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-red-500/20 p-2 rounded-xl text-red-400 mt-1"><FaBoltLightning size={20}/></div>
+                                                    <div className="pr-4">
+                                                        <p className="font-black text-white text-sm uppercase">Flash Deals (Hora Morta)</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Aciona descontos agressivos em horários de baixo movimento.</p>
+                                                    </div>
+                                                </div>
+                                                <input type="checkbox" className="w-5 h-5 accent-red-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.flashDeals?.active || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, active: e.target.checked } } }, { merge: true })} />
+                                            </div>
+                                            
+                                            {settings.gamification?.flashDeals?.active && (
+                                                <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-4 animate-in fade-in">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Hora de Baixa (Início)</label>
+                                                        <input 
+                                                            type="time" 
+                                                            value={settings.gamification?.flashDeals?.startTime || ''} 
+                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, startTime: e.target.value } } }, { merge: true })}
+                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Hora de Volta (Fim)</label>
+                                                        <input 
+                                                            type="time" 
+                                                            value={settings.gamification?.flashDeals?.endTime || ''} 
+                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, endTime: e.target.value } } }, { merge: true })}
+                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Desconto (%)</label>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Ex: 30"
+                                                            value={settings.gamification?.flashDeals?.discountPercent || ''} 
+                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, discountPercent: Number(e.target.value) } } }, { merge: true })}
+                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-red-400 font-black outline-none focus:border-red-500 text-sm"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Cupom Ativado</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ex: TURBO30"
+                                                            value={settings.gamification?.flashDeals?.couponCode || ''} 
+                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, couponCode: e.target.value.toUpperCase() } } }, { merge: true })}
+                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold uppercase outline-none focus:border-red-500 text-sm"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <p className="text-[10px] text-red-400 font-bold bg-red-900/20 p-2 rounded-lg border border-red-900/50 text-center">
+                                                            Durante o período acima, a loja exibirá um banner vermelho interativo forçando o cliente a comprar antes que o cronômetro expire.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* --- FIM: FLASH DEALS --- */}
+
                                     </div>
                                 </div>
                             </div>
