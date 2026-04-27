@@ -5425,8 +5425,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <div className="flex items-start gap-3">
                                                     <div className="bg-red-500/20 p-2 rounded-xl text-red-400 mt-1"><FaBoltLightning size={20}/></div>
                                                     <div className="pr-4">
-                                                        <p className="font-black text-white text-sm uppercase">Flash Deals (Hora Morta)</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Aciona descontos agressivos em horários de baixo movimento.</p>
+                                                        <p className="font-black text-white text-sm uppercase">Oferta Turbo (Urgência)</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Gera um gatilho de escassez com ofertas agressivas no app.</p>
                                                     </div>
                                                 </div>
                                                 <input type="checkbox" className="w-5 h-5 accent-red-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.flashDeals?.active || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, active: e.target.checked } } }, { merge: true })} />

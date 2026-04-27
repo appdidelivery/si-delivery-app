@@ -2460,176 +2460,148 @@ if (window.fbq) {
       </AnimatePresence>
 
       <div className="p-6">
-        {/* --- INÍCIO: FLASH DEALS (MODO TURBO IA) --- */}
-        <AnimatePresence>
-            {marketingSettings?.gamification?.flashDeals?.active && (() => {
-                const config = marketingSettings.gamification.flashDeals;
-                const now = new Date();
-                const [startH, startM] = (config.startTime || "00:00").split(':').map(Number);
-                const [endH, endM] = (config.endTime || "23:59").split(':').map(Number);
-                const currentMins = now.getHours() * 60 + now.getMinutes();
-                const startMins = startH * 60 + startM;
-                const endMins = endH * 60 + endM;
-
-                // Só aparece se estiver dentro do horário de "Hora Morta" definido pelo Admin
-                if (currentMins >= startMins && currentMins <= endMins) {
-                    return (
-                        <motion.div initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
-                            <div className="relative flex items-stretch rounded-2xl shadow-lg bg-red-600 text-white overflow-hidden border-2 border-red-400 animate-pulse">
-                                <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '16px 16px' }}></div>
-                                <div className="w-[25%] min-w-[85px] flex flex-col items-center justify-center p-3 relative z-10 bg-red-800/40">
-                                    <FaBoltLightning size={36} className="text-yellow-300 drop-shadow-md mb-1" />
-                                    <span className="bg-yellow-400 text-red-900 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Flash Deal</span>
-                                </div>
-                                <div className="relative w-0 border-l-[2px] border-dashed border-red-400/50 z-10"></div>
-                                <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
-                                    <p className="font-black uppercase text-[9px] tracking-widest text-red-200 mb-1 flex items-center gap-1">
-                                        <Clock size={10} className="text-white"/> Termina em breve!
-                                    </p>
-                                    <p className="font-black uppercase text-sm md:text-base leading-tight drop-shadow-md">
-                                        HORA MORTA: {config.discountPercent}% OFF!
-                                    </p>
-                                    <p className="text-[10px] font-bold mt-1 text-red-100 leading-snug">
-                                        Use o cupom <strong className="text-yellow-300 tracking-wider text-xs bg-red-800/50 px-1 rounded">{config.couponCode}</strong> no checkout para resgatar.
-                                    </p>
-                                </div>
-                            </div>
-                        </motion.div>
-                    );
-                }
-                return null;
-            })()}
-        </AnimatePresence>
-        {/* --- FIM: FLASH DEALS (MODO TURBO IA) --- */}
-
-        {/* --- INÍCIO: BANNER COMPRE E GANHE (BOGO) --- */}
-        <AnimatePresence>
-            {marketingSettings?.buyAndGetPromo?.active && 
-             marketingSettings?.buyAndGetPromo?.rewardProductId &&
-             isWithinRecurringSchedule(marketingSettings.buyAndGetPromo.recurringDay, marketingSettings.buyAndGetPromo.recurringStart, marketingSettings.buyAndGetPromo.recurringEnd) && (() => {
-                const rewardProd = products.find(p => p.id === marketingSettings.buyAndGetPromo.rewardProductId);
-                if (!rewardProd) return null;
-
-                const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
-                const triggerProducts = products.filter(p => triggerIds.includes(p.id));
-                
-                // Removida a trava do carrinho. O Banner deve ser uma propaganda fixa na Home.
-                let triggerText = "os itens participantes";
-                if (triggerProducts.length === 1) {
-                    triggerText = triggerProducts[0].name;
-                } else if (triggerProducts.length === 2) {
-                    triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
-                } else if (triggerProducts.length > 2) {
-                    triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
-                }
-
-                // Puxa o texto personalizado do painel Admin
-                const customPromoText = marketingSettings.buyAndGetPromo.promoText;
-
-                return (
-                    <motion.div initial={{height:0, opacity:0, scale:0.95}} animate={{height:'auto', opacity:1, scale:1}} exit={{height:0, opacity:0, scale:0.95}} className="mb-6 relative z-20 w-full">
-                        <div className="relative flex items-stretch rounded-2xl shadow-lg bg-teal-600 text-white overflow-hidden border border-teal-400">
-                            {/* Efeito de Fundo Pontilhado para dar textura */}
-                            <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
-                            
-                            {/* Lado Esquerdo (Ícone com Animação) */}
-                            <div className="w-[25%] min-w-[85px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
-                                <Gift size={36} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
-                                <span className="bg-yellow-400 text-teal-900 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
-                            </div>
-
-                            {/* Divisor Estilo Ticket */}
-                            <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
-
-                            {/* Textos Magnéticos */}
-                            <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
-                                <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
-                                    <Zap size={10} className="text-yellow-400"/> Oferta Especial
-                                </p>
-                                <p className="font-black uppercase text-sm md:text-base leading-tight drop-shadow-md">
-                                    {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
-                                </p>
-                                <p className="text-[10px] font-bold mt-1 text-teal-100 leading-snug">
-                                    Adicione <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra de graça no carrinho.
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-                );
-            })()}
-        </AnimatePresence>
-        {/* --- FIM: BANNER COMPRE E GANHE (BOGO) --- */}
-       {/* --- INÍCIO: NOVO FORMATO DE CUPOM NA VITRINE (CARROSSEL) --- */}
+        {/* --- INÍCIO: SMART PROMOS CAROUSEL (Oferta Turbo, BOGO, Tarjas) --- */}
         <AnimatePresence>
             {(() => {
-                // 1. Filtra apenas os banners que estão ativos e dentro do horário
-                const activeSmartBanners = marketingSettings?.promoActive && marketingSettings?.smartBanners 
-                    ? marketingSettings.smartBanners.filter(b => b.topBarText && isWithinRecurringSchedule(b.recurringDay, b.recurringStart, b.recurringEnd))
-                    : [];
+                const activePromos = [];
+                const now = new Date();
+                const currentMins = now.getHours() * 60 + now.getMinutes();
 
-                // 2. Se não tiver nenhum, não renderiza nada
-                if (activeSmartBanners.length === 0) return null;
+                // 1. Oferta Turbo (Antiga Hora Morta)
+                if (marketingSettings?.gamification?.flashDeals?.active) {
+                    const config = marketingSettings.gamification.flashDeals;
+                    const [startH, startM] = (config.startTime || "00:00").split(':').map(Number);
+                    const [endH, endM] = (config.endTime || "23:59").split(':').map(Number);
+                    const startMins = startH * 60 + startM;
+                    const endMins = endH * 60 + endM;
 
-                // 3. Renderiza o Carrossel
+                    if (currentMins >= startMins && currentMins <= endMins) {
+                        activePromos.push(
+                            <div key="flash-deal" className="pb-8 px-1 h-full">
+                                <div className="relative flex items-stretch rounded-2xl shadow-md bg-red-600 text-white overflow-hidden text-left h-full border-2 border-red-400">
+                                    <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '16px 16px' }}></div>
+                                    <div className="w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 bg-red-800/40">
+                                        <FaBoltLightning size={32} className="text-yellow-300 drop-shadow-md mb-1 animate-pulse" />
+                                    </div>
+                                    <div className="relative w-0 border-l-[2px] border-dashed border-red-400/50 z-10"></div>
+                                    <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                        <p className="font-black uppercase text-[9px] tracking-widest text-red-200 mb-1 flex items-center gap-1">
+                                            <Clock size={10} className="text-white"/> Termina em breve!
+                                        </p>
+                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
+                                            OFERTA TURBO: {config.discountPercent}% OFF!
+                                        </p>
+                                        <p className="text-[9px] font-bold text-red-100 leading-snug">
+                                            Use o cupom <strong className="text-yellow-300 tracking-wider text-[10px] bg-red-800/50 px-1 rounded">{config.couponCode}</strong> no checkout.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+                }
+
+                // 2. Compre e Ganhe (BOGO)
+                if (marketingSettings?.buyAndGetPromo?.active && marketingSettings?.buyAndGetPromo?.rewardProductId && isWithinRecurringSchedule(marketingSettings.buyAndGetPromo.recurringDay, marketingSettings.buyAndGetPromo.recurringStart, marketingSettings.buyAndGetPromo.recurringEnd)) {
+                    const rewardProd = products.find(p => p.id === marketingSettings.buyAndGetPromo.rewardProductId);
+                    if (rewardProd) {
+                        const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
+                        const triggerProducts = products.filter(p => triggerIds.includes(p.id));
+                        let triggerText = "os itens participantes";
+                        if (triggerProducts.length === 1) triggerText = triggerProducts[0].name;
+                        else if (triggerProducts.length === 2) triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
+                        else if (triggerProducts.length > 2) triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
+
+                        const customPromoText = marketingSettings.buyAndGetPromo.promoText;
+
+                        activePromos.push(
+                            <div key="bogo" className="pb-8 px-1 h-full">
+                                <div className="relative flex items-stretch rounded-2xl shadow-md bg-teal-600 text-white overflow-hidden text-left h-full border border-teal-400">
+                                    <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+                                    <div className="w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
+                                        <Gift size={32} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
+                                        <span className="bg-yellow-400 text-teal-900 text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
+                                    </div>
+                                    <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
+                                    <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                        <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
+                                            <Zap size={10} className="text-yellow-400"/> Oferta Especial
+                                        </p>
+                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
+                                            {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
+                                        </p>
+                                        <p className="text-[9px] font-bold text-teal-100 leading-snug">
+                                            Adicione <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra no carrinho.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+                }
+
+                // 3. Smart Banners (Tarjas do Admin Estilo iFood)
+                if (marketingSettings?.promoActive && marketingSettings?.smartBanners) {
+                    const activeSmartBanners = marketingSettings.smartBanners.filter(b => b.topBarText && isWithinRecurringSchedule(b.recurringDay, b.recurringStart, b.recurringEnd));
+                    
+                    activeSmartBanners.forEach((banner, index) => {
+                        activePromos.push(
+                            <div key={`smart-${index}`} className="pb-8 px-1 h-full">
+                                <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden text-left h-full`}>
+                                    <div className="absolute inset-1 border-[2px] border-dashed border-white/30 rounded-xl pointer-events-none"></div>
+                                    <div className="w-[25%] min-w-[70px] flex items-center justify-center p-3 relative z-10">
+                                        <Gift size={32} className="text-white drop-shadow-md animate-pulse" />
+                                    </div>
+                                    <div className="relative w-0 border-l-[2px] border-dashed border-white/40 my-1 z-10">
+                                        <div className="absolute -top-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
+                                        <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
+                                    </div>
+                                    <div className="flex-1 p-4 pl-6 flex flex-col justify-center z-10">
+                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1.5">
+                                            {banner.topBarText}
+                                        </p>
+                                        {banner.topBarCoupon ? (
+                                            <button onClick={() => {
+                                                navigator.clipboard.writeText(banner.topBarCoupon);
+                                                setCouponCode(banner.topBarCoupon);
+                                                alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
+                                                document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
+                                            }} className="self-start mt-1 bg-white text-slate-800 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-100 flex items-center gap-1 shadow-sm active:scale-95">
+                                                <Copy size={12} /> Copiar: {banner.topBarCoupon}
+                                            </button>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">Oferta Especial 🔥</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    });
+                }
+
+                if (activePromos.length === 0) return null;
+
                 return (
                     <motion.div initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.95 }} className="mb-6 relative z-20 w-full">
                         <Carousel 
                             showThumbs={false} 
                             showStatus={false} 
-                            showArrows={false} // Tira as setas laterais para ficar limpo no mobile
-                            infiniteLoop={activeSmartBanners.length > 1} 
-                            autoPlay={activeSmartBanners.length > 1} 
-                            interval={4000} // Troca a cada 4 segundos
+                            showArrows={false} 
+                            infiniteLoop={activePromos.length > 1} 
+                            autoPlay={activePromos.length > 1} 
+                            interval={4000} 
                             stopOnHover={true}
                             swipeable={true}
                             emulateTouch={true}
-                            showIndicators={activeSmartBanners.length > 1} // Só mostra as bolinhas se tiver mais de 1
+                            showIndicators={activePromos.length > 1} 
                         >
-                            {activeSmartBanners.map((banner, index) => (
-                                <div key={index} className="pb-8 px-1"> {/* pb-8 dá espaço para as bolinhas não cobrirem o ticket */}
-                                    <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden text-left h-full`}>
-                                        
-                                        {/* Borda tracejada geral */}
-                                        <div className="absolute inset-1 border-[2px] border-dashed border-white/30 rounded-xl pointer-events-none"></div>
-                                        
-                                        {/* Lado Esquerdo (Ícone) */}
-                                        <div className="w-[25%] min-w-[70px] flex items-center justify-center p-3 relative z-10">
-                                            <Gift size={32} className="text-white drop-shadow-md animate-pulse" />
-                                        </div>
-
-                                        {/* Divisor Central com recortes (Ticket Style) */}
-                                        <div className="relative w-0 border-l-[2px] border-dashed border-white/40 my-1 z-10">
-                                            <div className="absolute -top-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
-                                            <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
-                                        </div>
-
-                                        {/* Lado Direito (Textos e Botão) */}
-                                        <div className="flex-1 p-4 pl-6 flex flex-col justify-center z-10">
-                                            <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1.5">
-                                                {banner.topBarText}
-                                            </p>
-                                            {banner.topBarCoupon ? (
-                                                <button onClick={() => {
-                                                    navigator.clipboard.writeText(banner.topBarCoupon);
-                                                    setCouponCode(banner.topBarCoupon);
-                                                    alert(`Cupom ${banner.topBarCoupon} copiado e pronto para uso!`);
-                                                    document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
-                                                }} className="self-start mt-1 bg-white text-slate-800 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-100 flex items-center gap-1 shadow-sm active:scale-95">
-                                                    <Copy size={12} /> Copiar: {banner.topBarCoupon}
-                                                </button>
-                                            ) : (
-                                                <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">Oferta Especial 🔥</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                            {activePromos}
                         </Carousel>
                     </motion.div>
                 );
             })()}
         </AnimatePresence>
-        {/* --- FIM: NOVO FORMATO DE CUPOM NA VITRINE (CARROSSEL) --- */}
+        {/* --- FIM: SMART PROMOS CAROUSEL --- */}
 
         <div className="relative mb-8 mt-2">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
