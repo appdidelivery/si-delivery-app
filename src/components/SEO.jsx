@@ -62,12 +62,17 @@ export default function SEO({ title, description, image, productData }) {
                     // Inteligência Artificial de SEO: Dedução pelo domínio se o banco estiver vazio
                     if (!niche) {
                         const hostLower = hostname.toLowerCase();
-                        if (hostLower.includes('burguer') || hostLower.includes('burger') || hostLower.includes('lanche') || hostLower.includes('macanudo')) {
-                            niche = 'burger';
-                        } else if (hostLower.includes('conveniencia') || hostLower.includes('csi') || hostLower.includes('ng')) {
-                            niche = 'default';
+                        
+                        if (hostLower.includes('burguer') || hostLower.includes('burger') || hostLower.includes('lanche') || hostLower.includes('macanudo') || hostLower.includes('dog')) {
+                            niche = 'burger'; // Mapeia para FastFoodRestaurant
+                        } else if (hostLower.includes('acai') || hostLower.includes('açai') || hostLower.includes('sorvete') || hostLower.includes('doce') || hostLower.includes('gelato')) {
+                            niche = 'sweet'; // Mapeia para IceCreamShop
+                        } else if (hostLower.includes('pizza') || hostLower.includes('massa') || hostLower.includes('forno')) {
+                            niche = 'pizza'; // Mapeia para Restaurant
+                        } else if (hostLower.includes('conveniencia') || hostLower.includes('csi') || hostLower.includes('ng') || hostLower.includes('adega') || hostLower.includes('bebida')) {
+                            niche = 'default'; // Mapeia para ConvenienceStore
                         } else {
-                            niche = 'restaurant'; // Padrão mais forte que LocalBusiness para ativar cardápio
+                            niche = 'restaurant'; // Padrão genérico forte para exibir o Menu caso não bata com nada acima
                         }
                     }
 
