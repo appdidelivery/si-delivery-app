@@ -6,6 +6,7 @@ import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Nav
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import { Carousel } from 'react-responsive-carousel';
+import useSmartRetention from '../hooks/useSmartRetention';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
@@ -616,6 +617,7 @@ export default function Home() {
         promoBannerUrls:[]
   });
   const[showExitModal, setShowExitModal] = useState(false);
+  const { showOffer: showSmartOffer, acceptOffer: acceptSmartOffer, closeOffer: closeSmartOffer } = useSmartRetention(marketingSettings, showCheckout, cart.length);
 // --- NOVO MOTOR: INJEÇÃO AUTOMÁTICA DE BRINDE (COMPRE E GANHE) ---
   useEffect(() => {
       if (!marketingSettings?.buyAndGetPromo?.active || !marketingSettings?.buyAndGetPromo?.rewardProductId) return;
@@ -3900,6 +3902,45 @@ if (window.fbq) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- MODAL DA IA DE RETENÇÃO (SMART RETENTION) --- */}
+      <AnimatePresence>
+        {showSmartOffer && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[400] p-4">
+            <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 text-center relative shadow-2xl overflow-hidden border-4 border-rose-500">
+              <button onClick={closeSmartOffer} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+              
+              <div className="bg-rose-100 text-rose-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                 <Gift size={40} />
+              </div>
+              
+              <h2 className="text-3xl font-black italic tracking-tighter uppercase mb-2 text-slate-900">Espere!</h2>
+              <p className="text-sm font-bold text-slate-500 mb-6">Você esqueceu itens no carrinho. Preparamos um presente para você fechar agora:</p>
+              
+              <div className="bg-rose-50 border border-rose-200 p-6 rounded-3xl mb-6">
+                 <p className="text-[10px] font-black uppercase tracking-widest text-rose-400 mb-1">Cupom Exclusivo</p>
+                 <p className="text-3xl font-black text-rose-600 uppercase tracking-widest">{marketingSettings?.exitIntentCoupon || 'VOLTA10'}</p>
+                 <p className="text-xs text-rose-500 font-bold mt-2">{marketingSettings?.exitIntentMessage || 'Ganhe um desconto especial finalizando hoje!'}</p>
+              </div>
+              
+              <button 
+                onClick={() => {
+                    setCouponCode(marketingSettings?.exitIntentCoupon || 'VOLTA10');
+                    acceptSmartOffer();
+                    setShowCheckout(true);
+                }} 
+                className="w-full bg-rose-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-rose-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                  <ShoppingCart size={18}/> Aplicar Cupom e Finalizar
+              </button>
+              <button onClick={closeSmartOffer} className="w-full mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">
+                  Não, quero perder o desconto
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       </div>
 
     </div>
