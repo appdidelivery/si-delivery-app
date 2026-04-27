@@ -1246,7 +1246,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                             const nomeOuVazio = firstName ? `, *${firstName}*` : '';
                                             const nomeOuAmigo = firstName ? ` *${firstName}*` : ' *amigo(a)*';
 
-                                            // 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA PARA NÃO TRAVAR)
+                                            /// 2. AVALIAÇÃO LÓGICA (A ORDEM IMPORTA PARA NÃO TRAVAR)
                                             if (needsSupport) {
                                                 const supportMsg = `Poxa${nomeOuVazio}, vi que você precisa de uma ajudinha por aqui! 👩‍💻\n\nJá chamei a nossa equipe e alguém real vai te responder em instantes para resolver isso da melhor forma possível, tá bom? Só um minutinho!`;
                                                 replyPayload = { type: "text", text: { body: supportMsg } };
@@ -1254,6 +1254,60 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 triggerInternalAlert = true;
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             } 
+                                            /// --- INÍCIO: MIDDLEWARE DE IA ADITIVO (AGENTE VELO) ---
+else if (!interactivePayload && storeDynamicData.systemPrompt) {
+    // Roteamento para a IA (Trata texto natural com injeção de contexto)
+    try {
+        let cashbackBalance = "0,00";
+        let tierVip = "Visitante";
+        
+        // 1. Puxa os dados da carteira do cliente (VeloPay)
+        const walletSnap = await db.collection('wallets').doc(`${storeId}_${normalizedPhone}`).get();
+        if (walletSnap.exists) {
+            const walletData = walletSnap.data();
+            cashbackBalance = Number(walletData.balance || 0).toFixed(2).replace('.', ',');
+            tierVip = walletData.tier || "Cliente Padrão";
+        }
+
+        // 2. Injeta as variáveis dinâmicas no System Prompt do banco
+        const rawPrompt = storeDynamicData.systemPrompt;
+                                                    const injectedPrompt = rawPrompt
+                                                        .replace(/{Nome_do_Cliente}/g, customerName || 'Amigo(a)')
+                                                        .replace(/{Saldo_Cashback_VeloPay}/g, cashbackBalance)
+                                                        .replace(/{Nível_VIP}/g, tierVip);
+
+                                                    const GEMINI_KEY = process.env.GEMINI_API_KEY;
+                                                    
+                                                    if (GEMINI_KEY && messageText) {
+                                                        // 3. Comunicação Nativa com o LLM (Gemini)
+                                                        const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ 
+                                                                systemInstruction: { parts: [{ text: injectedPrompt }] },
+                                                                contents: [{ parts: [{ text: messageText }] }] 
+                                                            })
+                                                        });
+                                                        
+                                                        const aiData = await aiResponse.json();
+                                                        
+                                                        if (aiResponse.ok && aiData.candidates && aiData.candidates[0]?.content?.parts[0]?.text) {
+                                                            const botReply = aiData.candidates[0].content.parts[0].text.trim();
+                                                            replyPayload = { type: "text", text: { body: botReply } };
+                                                            logTextForPanel = `🤖 [Agente IA] ${botReply}`;
+                                                        } else {
+                                                            throw new Error("IA não retornou resposta válida");
+                                                        }
+                                                    } else {
+                                                        throw new Error("Chave da IA ausente ou mensagem de cliente vazia");
+                                                    }
+                                                } catch (aiErr) {
+                                                    console.error("⚠️ Erro no Agente IA, acionando Fallback (Menu Clássico):", aiErr.message);
+                                                    replyPayload = generateMainMenu();
+                                                    logTextForPanel = `🤖 [Menu de Boas Vindas Fallback Enviado]`;
+                                                }
+                                            }
+                                            // --- FIM: MIDDLEWARE DE IA ADITIVO ---
                                             else if (isGreeting) {
                                                 replyPayload = generateMainMenu();
                                                 logTextForPanel = `🤖 [Menu de Boas Vindas Enviado para ${firstName || 'Cliente'}]`;
