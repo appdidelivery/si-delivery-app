@@ -26,7 +26,7 @@ import {
     GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
     GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
     GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry,
-    GiSandwich, GiEmpanada, GiKebabSpit, GiSoupBowl, GiBeerGlass
+    GiSandwich, GiEmpanada, GiKebabSpit, GiSoupBowl
 } from 'react-icons/gi';
 import { 
     FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
@@ -91,7 +91,7 @@ const AVAILABLE_ICONS = [
   
   // Bebidas Alcoólicas
   { id: 'Beer', label: 'Cervejas', component: <GiBeerBottle size={24} /> },
-  { id: 'BeerGlass', label: 'Chopp / Artesanal', component: <GiBeerGlass size={24} /> },
+  { id: 'BeerGlass', label: 'Chopp / Artesanal', component: <FaMugHot size={24} /> },
   { id: 'Drink', label: 'Destilados / Drinks', component: <GiMartini size={24} /> },
   { id: 'WineGlass', label: 'Vinhos', component: <FaWineGlass size={24} /> },
   { id: 'Champagne', label: 'Espumantes', component: <FaChampagneGlasses size={24} /> },
