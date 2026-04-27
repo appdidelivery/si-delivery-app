@@ -56,8 +56,21 @@ export default function SEO({ title, description, image, productData }) {
                     const ensureAbsoluteUrl = (path) => path?.startsWith('http') ? path : `${safeOrigin}${path}`;
                     const absoluteFetchedImage = ensureAbsoluteUrl(fetchedImage);
 
-                    // --- TRADUTOR DINÂMICO DE NICHOS PARA O GOOGLE ---
-                    const niche = fields.storeNiche?.stringValue || 'default';
+                   // --- TRADUTOR DINÂMICO DE NICHOS PARA O GOOGLE ---
+                    let niche = fields.storeNiche?.stringValue || '';
+                    
+                    // Inteligência Artificial de SEO: Dedução pelo domínio se o banco estiver vazio
+                    if (!niche) {
+                        const hostLower = hostname.toLowerCase();
+                        if (hostLower.includes('burguer') || hostLower.includes('burger') || hostLower.includes('lanche') || hostLower.includes('macanudo')) {
+                            niche = 'burger';
+                        } else if (hostLower.includes('conveniencia') || hostLower.includes('csi') || hostLower.includes('ng')) {
+                            niche = 'default';
+                        } else {
+                            niche = 'restaurant'; // Padrão mais forte que LocalBusiness para ativar cardápio
+                        }
+                    }
+
                     const schemaTypes = {
                         'burger': 'FastFoodRestaurant',
                         'pizza': 'Restaurant',
@@ -65,9 +78,10 @@ export default function SEO({ title, description, image, productData }) {
                         'sweet': 'IceCreamShop',
                         'natural': 'GroceryStore',
                         'default': 'ConvenienceStore',
+                        'restaurant': 'Restaurant',
                         'custom': 'LocalBusiness'
                     };
-                    const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
+                    const googleBusinessType = schemaTypes[niche] || 'Restaurant';
 
                     // CORREÇÃO 3: TRATAMENTO DE ENDEREÇO BLINDADO PARA O GOOGLE
                     let addressObj = { "@type": "PostalAddress", "addressCountry": "BR", "addressLocality": "Brasil" };
@@ -83,29 +97,65 @@ export default function SEO({ title, description, image, productData }) {
                         addressObj.streetAddress = "Endereço não informado";
                     }
 
-                    // CORREÇÃO 4: TELEFONE DE SEGURANÇA (Evita o erro "telephone" ausente)
+                    // CORREÇÃO 4: TELEFONE DE SEGURANÇA
                     const safeTelephone = fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "+5500000000000";
 
                     // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
                     const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
                     
-                    // Puxa o catálogo global do Velo Data Fuel (se disponível) para injetar os produtos
-                    const storeCatalog = store?.products || store?.produtos || store?.produtosPrincipais;
+                    // --- BUSCA DIRETA DE PRODUTOS PARA O GOOGLEBOT (BLINDAGEM CONTRA RACE CONDITION) ---
+                    let seoProducts = [];
+                    const contextProducts = store?.products || store?.produtos || store?.produtosPrincipais;
+                    
+                    if (contextProducts && Array.isArray(contextProducts) && contextProducts.length > 0) {
+                        seoProducts = contextProducts;
+                    } else {
+                        // Resgate Direto REST API: Se o robô for mais rápido que o React, buscamos os produtos à força!
+                        try {
+                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+                            const queryBody = {
+                                structuredQuery: {
+                                    from: [{ collectionId: "products" }],
+                                    where: { fieldFilter: { field: { fieldPath: "storeId" }, op: "EQUAL", value: { stringValue: storeId } } },
+                                    limit: { value: 30 }
+                                }
+                            };
+                            const prodRes = await fetch(queryUrl, { method: 'POST', body: JSON.stringify(queryBody) });
+                            if (prodRes.ok) {
+                                const prodData = await prodRes.json();
+                                seoProducts = prodData.map(item => {
+                                    if(!item.document) return null;
+                                    const pf = item.document.fields;
+                                    return {
+                                        id: item.document.name.split('/').pop(),
+                                        name: pf.name?.stringValue || '',
+                                        description: pf.description?.stringValue || '',
+                                        imageUrl: pf.imageUrl?.stringValue || '',
+                                        price: pf.price?.doubleValue || pf.price?.integerValue || 0,
+                                        promotionalPrice: pf.promoPrice?.doubleValue || pf.promoPrice?.integerValue || 0,
+                                        stock: pf.stock?.integerValue !== undefined ? pf.stock.integerValue : 1
+                                    };
+                                }).filter(Boolean);
+                            }
+                        } catch (e) { console.error("Erro no resgate de produtos pro SEO:", e); }
+                    }
+
+                    const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                     
                     // Constrói o objeto do Cardápio (Menu) se for Restaurante/Hamburgueria
                     let menuData = {};
                     if (!isRetail) {
-                        if (storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
+                        if (seoProducts.length > 0) {
                             menuData = {
                                 "hasMenu": {
                                     "@type": "Menu",
                                     "name": `Cardápio - ${fetchedName}`,
-                                    "url": `${baseUrl}/cardapio`,
+                                    "url": `${safeBaseUrl}/cardapio`,
                                     "hasMenuSection": [
                                         {
                                             "@type": "MenuSection",
                                             "name": "Destaques do Cardápio",
-                                            "hasMenuItem": storeCatalog.slice(0, 40).map((prod) => ({
+                                            "hasMenuItem": seoProducts.slice(0, 40).map((prod) => ({
                                                 "@type": "MenuItem",
                                                 "name": prod.name || prod.nome || "",
                                                 "description": prod.description || prod.descricao || fetchedDesc,
@@ -121,14 +171,13 @@ export default function SEO({ title, description, image, productData }) {
                                 }
                             };
                         } else {
-                            // Fallback de segurança se o Firebase ainda não devolveu os itens
-                            menuData = { "hasMenu": `${baseUrl}/cardapio` };
+                            menuData = { "hasMenu": `${safeBaseUrl}/cardapio` };
                         }
                     }
 
                     // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
-                        "@id": `${baseUrl}#store`,
+                        "@id": `${safeBaseUrl}#store`,
                         "@type": googleBusinessType,
                         "name": fetchedName,
                         "image": absoluteFetchedImage,
@@ -142,8 +191,8 @@ export default function SEO({ title, description, image, productData }) {
                     };
 
                     // Se for Varejo (Conveniência/Bebidas), mantém a aba genérica de Produtos (containsPlace)
-                    if (isRetail && storeCatalog && Array.isArray(storeCatalog) && storeCatalog.length > 0) {
-                        baseStoreSchema.containsPlace = storeCatalog.slice(0, 30).map((prod) => ({
+                    if (isRetail && seoProducts.length > 0) {
+                        baseStoreSchema.containsPlace = seoProducts.slice(0, 30).map((prod) => ({
                             "@type": "Product",
                             "name": prod.name || prod.nome || "",
                             "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
@@ -153,7 +202,7 @@ export default function SEO({ title, description, image, productData }) {
                                 "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
                                 "priceCurrency": "BRL",
                                 "availability": (prod.stock === undefined || Number(prod.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                                "url": `${baseUrl}/produto/${prod.id}`
+                                "url": `${safeBaseUrl}/produto/${prod.id}`
                             }
                         }));
                     }
