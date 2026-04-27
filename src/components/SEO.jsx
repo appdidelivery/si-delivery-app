@@ -148,6 +148,28 @@ export default function SEO({ title, description, image, productData }) {
 
                     const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                     
+                    // --- REGRAS PADRÃO DO MERCHANT CENTER (FRETE E DEVOLUÇÃO) ---
+                    const baseDeliveryFee = fields.delivery_fee?.doubleValue || fields.delivery_fee?.integerValue || 5.00; // Taxa de entrega padrão de segurança
+                    const merchantCenterRules = {
+                        "hasMerchantReturnPolicy": {
+                            "@type": "MerchantReturnPolicy",
+                            "returnPolicyCategory": "https://schema.org/MerchantReturnNotPermitted",
+                            "description": "Itens de alimentação e consumo imediato não permitem devolução, exceto avarias."
+                        },
+                        "shippingDetails": {
+                            "@type": "OfferShippingDetails",
+                            "shippingRate": {
+                                "@type": "MonetaryAmount",
+                                "value": baseDeliveryFee,
+                                "currency": "BRL"
+                            },
+                            "shippingDestination": {
+                                "@type": "DefinedRegion",
+                                "addressCountry": "BR"
+                            }
+                        }
+                    };
+
                     // Constrói o objeto do Cardápio (Menu) se for Restaurante/Hamburgueria
                     let menuData = {};
                     if (!isRetail) {
@@ -169,7 +191,8 @@ export default function SEO({ title, description, image, productData }) {
                                                 "offers": {
                                                     "@type": "Offer",
                                                     "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
-                                                    "priceCurrency": "BRL"
+                                                    "priceCurrency": "BRL",
+                                                    ...merchantCenterRules
                                                 }
                                             }))
                                         }
@@ -180,6 +203,15 @@ export default function SEO({ title, description, image, productData }) {
                             menuData = { "hasMenu": `${safeBaseUrl}/cardapio` };
                         }
                     }
+
+                    // --- MAPA DE COZINHAS PARA RESTAURANTES (servesCuisine) ---
+                    const cuisineMap = {
+                        'burger': 'Hamburgers, Fast Food, Lanches',
+                        'pizza': 'Pizza, Massas, Italiana',
+                        'sweet': 'Sobremesas, Doces, Açaí',
+                        'restaurant': 'Brasileira, Marmitas, Pratos Feitos'
+                    };
+                    const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
                     // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
@@ -193,6 +225,7 @@ export default function SEO({ title, description, image, productData }) {
                         "priceRange": "$$",
                         "paymentAccepted": ["Cash", "Credit Card", "Pix"],
                         "address": addressObj,
+                        ...( !isRetail ? { "servesCuisine": storeCuisine } : {} ),
                         ...menuData
                     };
 
@@ -208,7 +241,8 @@ export default function SEO({ title, description, image, productData }) {
                                 "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
                                 "priceCurrency": "BRL",
                                 "availability": (prod.stock === undefined || Number(prod.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                                "url": `${safeBaseUrl}/produto/${prod.id}`
+                                "url": `${safeBaseUrl}/produto/${prod.id}`,
+                                ...merchantCenterRules
                             }
                         }));
                     }
