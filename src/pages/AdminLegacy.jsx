@@ -6679,12 +6679,68 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         onChange={(e) => updateDoc(doc(db, "stores", storeId), { googleReviewUrl: e.target.value }, { merge: true })} 
                                         className="w-full p-5 bg-yellow-50 text-yellow-700 rounded-2xl font-bold border-none placeholder-yellow-300 outline-none focus:ring-2 ring-yellow-400" 
                                     />
-                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
+                                   <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Cole aqui o link do Google para seus clientes ganharem pontos avaliando SUA loja.</p>
                                 </div>
+
+                                {/* --- NOVOS CAMPOS: SEO E REDES SOCIAIS --- */}
+                                <div className="pt-6 mt-6 border-t border-slate-100">
+                                    <h3 className="text-sm font-black text-slate-700 uppercase mb-4 flex items-center gap-2">
+                                        <Globe size={16} className="text-blue-500" /> Presença Online e SEO
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Categoria no Google (SEO)</label>
+                                            <select 
+                                                value={storeStatus.seoCategory || 'restaurant'} 
+                                                onChange={(e) => updateDoc(doc(db, "stores", storeId), { seoCategory: e.target.value }, { merge: true })}
+                                                className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                            >
+                                                <option value="burger">Hamburgueria / Fast Food</option>
+                                                <option value="pizza">Pizzaria / Massas</option>
+                                                <option value="sweet">Açaiteria / Doceria</option>
+                                                <option value="restaurant">Restaurante / Marmitaria</option>
+                                                <option value="default">Conveniência / Bebidas</option>
+                                                <option value="natural">Hortifruti / Natural</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Faixa de Preço no Google</label>
+                                            <select 
+                                                value={storeStatus.priceRange || '$$'} 
+                                                onChange={(e) => updateDoc(doc(db, "stores", storeId), { priceRange: e.target.value }, { merge: true })}
+                                                className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                            >
+                                                <option value="$">$ (Barato)</option>
+                                                <option value="$$">$$ (Moderado)</option>
+                                                <option value="$$$">$$$ (Caro)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Link do Instagram</label>
+                                            <input 
+                                                type="url" 
+                                                placeholder="Ex: https://instagram.com/sualoja" 
+                                                value={storeStatus.instagramUrl || ''} 
+                                                onChange={(e) => updateDoc(doc(db, "stores", storeId), { instagramUrl: e.target.value }, { merge: true })} 
+                                                className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 mb-2 ml-2">Link do Facebook</label>
+                                            <input 
+                                                type="url" 
+                                                placeholder="Ex: https://facebook.com/sualoja" 
+                                                value={storeStatus.facebookUrl || ''} 
+                                                onChange={(e) => updateDoc(doc(db, "stores", storeId), { facebookUrl: e.target.value }, { merge: true })} 
+                                                className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500" 
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                                
+
                             </div>
-                            {/* --- NOVO: DOMÍNIO PRÓPRIO (WHITE-LABEL) --- */}
+                        </div>
+                        {/* --- NOVO: DOMÍNIO PRÓPRIO (WHITE-LABEL) --- */}
                                 <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-xl border border-slate-700 space-y-6 mt-6 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none"><Globe size={150}/></div>
                                     <div className="relative z-10">
