@@ -1020,7 +1020,7 @@ export default function Admin() {
 
     // Pedido Manual
     const[manualCart, setManualCart] = useState([]);
-    const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery' });
+    const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery', splitPayments: [] });
     const[manualCouponCode, setManualCouponCode] = useState('');
     const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
     const [isSubmittingPOS, setIsSubmittingPOS] = useState(false);
@@ -4585,29 +4585,77 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                         )}
 
-                                        {/* LINHA 3: FORMA DE PAGAMENTO E TROCO */}
-                                        <div className="flex gap-2">
-                                            <select 
-                                                className="flex-1 p-4 bg-blue-50 text-blue-800 rounded-xl font-black text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-blue-100" 
-                                                value={manualCustomer.payment || 'pix'} 
-                                                onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
-                                            >
-                                                <option value="pix">💠 PIX</option>
-                                                <option value="cartao">💳 Cartão (Maquininha)</option>
-                                                <option value="dinheiro">💵 Dinheiro (Espécie)</option>
-                                            </select>
+                                      {/* LINHA 3: FORMA DE PAGAMENTO E TROCO */}
+<div className="flex flex-col gap-2">
+    {(manualCustomer.splitPayments && manualCustomer.splitPayments.length > 0) ? (
+        <div className="space-y-2 border border-blue-100 p-3 rounded-2xl bg-blue-50/50">
+            <div className="flex justify-between items-center mb-1">
+                <span className="text-[10px] font-black uppercase text-blue-800 tracking-widest">Pagamento Dividido</span>
+                <button onClick={() => setManualCustomer({ ...manualCustomer, splitPayments: [] })} className="text-[9px] font-bold text-red-500 uppercase hover:underline">Cancelar Divisão</button>
+            </div>
+            {manualCustomer.splitPayments.map((pag, index) => (
+                <div key={index} className="flex gap-2 items-center w-full">
+                    <select
+                        className="w-1/2 p-3 bg-white text-slate-800 rounded-xl font-black text-[10px] sm:text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-slate-200 shadow-sm"
+                        value={pag.method}
+                        onChange={e => {
+                            const newSplit = [...manualCustomer.splitPayments];
+                            newSplit[index].method = e.target.value;
+                            setManualCustomer({ ...manualCustomer, splitPayments: newSplit });
+                        }}
+                    >
+                        <option value="pix">💠 PIX</option>
+                        <option value="cartao">💳 Cartão</option>
+                        <option value="dinheiro">💵 Dinheiro</option>
+                    </select>
+                    <input
+                        type="number"
+                        step="0.01"
+                        placeholder="R$ 0.00"
+                        className="flex-1 min-w-[70px] p-3 bg-white rounded-xl font-black text-xs outline-none focus:ring-2 ring-blue-500 text-center border border-slate-200 shadow-sm"
+                        value={pag.amount || ''}
+                        onChange={e => {
+                            const newSplit = [...manualCustomer.splitPayments];
+                            newSplit[index].amount = parseFloat(e.target.value) || 0;
+                            setManualCustomer({ ...manualCustomer, splitPayments: newSplit });
+                        }}
+                    />
+                    <button onClick={() => {
+                        const newSplit = manualCustomer.splitPayments.filter((_, i) => i !== index);
+                        setManualCustomer({ ...manualCustomer, splitPayments: newSplit });
+                    }} className="p-3 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-xl transition-colors shrink-0"><Trash2 size={16}/></button>
+                </div>
+            ))}
+            <button onClick={() => setManualCustomer({ ...manualCustomer, splitPayments: [...manualCustomer.splitPayments, { method: 'cartao', amount: 0 }] })} className="w-full py-2 bg-blue-100 text-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-200 transition-colors mt-2 shadow-sm">+ Adicionar Forma</button>
+        </div>
+    ) : (
+        <div className="flex gap-2">
+            <select 
+                className="flex-1 p-4 bg-blue-50 text-blue-800 rounded-xl font-black text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-blue-100 shadow-sm" 
+                value={manualCustomer.payment || 'pix'} 
+                onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
+            >
+                <option value="pix">💠 PIX</option>
+                <option value="cartao">💳 Cartão (Maquininha)</option>
+                <option value="dinheiro">💵 Dinheiro (Espécie)</option>
+            </select>
 
-                                            {/* SÓ MOSTRA O CAMPO DE TROCO SE FOR DINHEIRO */}
-                                            {manualCustomer.payment === 'dinheiro' && (
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="Troco p/ R$?" 
-                                                    className="w-32 p-4 bg-green-50 text-green-800 rounded-xl font-black text-xs outline-none focus:ring-2 ring-green-500 text-center border border-green-100 placeholder:text-green-300" 
-                                                    value={manualCustomer.changeFor || ''} 
-                                                    onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} 
-                                                />
-                                            )}
-                                        </div>
+            {manualCustomer.payment === 'dinheiro' && (
+                <input 
+                    type="number" 
+                    placeholder="Troco p/ R$?" 
+                    className="w-32 p-4 bg-green-50 text-green-800 rounded-xl font-black text-xs outline-none focus:ring-2 ring-green-500 text-center border border-green-100 placeholder:text-green-300 shadow-sm" 
+                    value={manualCustomer.changeFor || ''} 
+                    onChange={e => setManualCustomer({ ...manualCustomer, changeFor: e.target.value })} 
+                />
+            )}
+            
+            <button onClick={() => setManualCustomer({ ...manualCustomer, splitPayments: [{ method: manualCustomer.payment || 'pix', amount: 0 }, { method: 'cartao', amount: 0 }] })} className="px-3 bg-blue-100 text-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-200 transition-colors flex items-center justify-center text-center leading-tight shadow-sm shrink-0">
+                Dividir<br/>Pagto
+            </button>
+        </div>
+    )}
+</div>
 
                                         {/* LINHA 4: CONTROLE DE STATUS (COZINHA E PAGAMENTO) */}
                                         <div className="flex gap-2 p-3 bg-slate-100 rounded-xl border border-slate-200">
@@ -4615,11 +4663,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cozinha/Estoque</label>
     <select 
         className="w-full bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer"
-        // 👇 IDENTIFICA SE É CONVENIÊNCIA/ADEGA PARA MUDAR O PADRÃO:
         value={manualCustomer.status || (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing')}
         onChange={e => setManualCustomer({ ...manualCustomer, status: e.target.value })}
     >
-        {/* Se for conveniência, inverte a ordem para 'Entregar na Hora' aparecer primeiro visualmente */}
         {['default', 'drinks'].includes(storeStatus?.storeNiche) ? (
             <>
                 <option value="completed">✅ Entregar na Hora</option>
@@ -4649,27 +4695,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 )}
 
-                                {/* Resumo Final com Cálculo Inteligente de Troco */}
-{/* Resumo Final com Cálculo Inteligente de Troco */}
+                                {/* Resumo Final Integrado com o Botão para garantir Validação */}
 {(() => {
     // 1. Calcula o total do pedido
     const cartSubtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
     const cartTotal = Math.max(0, cartSubtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount);
     
-    // 2. Calcula o troco digitado pelo caixa
+    // 2. Calcula o troco e as Divisões Híbridas
     const amountGiven = Number(manualCustomer.changeFor?.toString().replace(',', '.') || 0);
-    const isDinheiro = manualCustomer.payment === 'dinheiro';
+    const isSplitActive = manualCustomer.splitPayments && manualCustomer.splitPayments.length > 0;
+    const isDinheiro = manualCustomer.payment === 'dinheiro' && !isSplitActive;
     const changeValue = amountGiven - cartTotal;
 
+    // Lógica do Pagamento Dividido
+    const splitTotal = isSplitActive ? manualCustomer.splitPayments.reduce((a, p) => a + (Number(p.amount) || 0), 0) : 0;
+    const splitDiff = cartTotal - splitTotal;
+    
+    // Impede o Lançamento se o pagamento misto não for exato (Diferença > 0.01 pra ignorar dízimas float)
+    const isSplitInvalid = isSplitActive && Math.abs(splitDiff) > 0.01;
+
     return (
+        <>
         <div className="flex flex-col gap-3 mb-6 pt-4 border-t border-dashed border-slate-200">
-            {/* NOVO: CAMPO DE DESCONTO PDV */}
+            {/* CAMPO DE DESCONTO PDV */}
             <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100 mb-2">
                 <span className="font-black text-green-700 uppercase tracking-widest text-[10px]">Desconto Extra R$</span>
                 <input 
                     type="number" 
                     placeholder="0.00" 
-                    className="w-24 p-2 bg-white rounded-lg font-black text-xs text-green-700 outline-none text-right focus:ring-2 ring-green-400"
+                    className="w-24 p-2 bg-white rounded-lg font-black text-xs text-green-700 outline-none text-right focus:ring-2 ring-green-400 shadow-sm"
                     value={manualDiscountAmount || ''}
                     onChange={(e) => setManualDiscountAmount(Number(e.target.value))}
                 />
@@ -4683,7 +4737,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </span>
             </div>
 
-            {/* Display do Troco (Só aparece se for dinheiro e digitou algum valor) */}
+            {/* Display do Troco (Dinheiro Único) */}
             {isDinheiro && amountGiven > 0 && (
                 <div className={`flex justify-between items-center p-3 rounded-2xl border-2 transition-all ${changeValue >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200 animate-pulse'}`}>
                     <span className={`font-black text-[10px] uppercase tracking-widest ${changeValue >= 0 ? 'text-green-700' : 'text-red-600'}`}>
@@ -4694,90 +4748,110 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </span>
                 </div>
             )}
+
+            {/* Display Validação da Divisão de Pagamento */}
+            {isSplitActive && (
+                <div className={`flex justify-between items-center p-3 rounded-2xl border-2 transition-all ${!isSplitInvalid ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-orange-50 border-orange-200 animate-pulse'}`}>
+                    <span className={`font-black text-[10px] uppercase tracking-widest ${!isSplitInvalid ? 'text-green-700' : 'text-orange-600'}`}>
+                        {!isSplitInvalid ? 'Valores Conferem:' : (splitDiff > 0 ? `Falta Lançar:` : 'Valor Excedente:')}
+                    </span>
+                    <span className={`text-2xl font-black italic ${!isSplitInvalid ? 'text-green-600' : 'text-orange-500'}`}>
+                        R$ {Math.abs(splitDiff).toFixed(2)}
+                    </span>
+                </div>
+            )}
         </div>
+
+        <button 
+            onClick={async () => {
+                if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
+                if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
+                
+                // Trava de Segurança Mestra no OnClick
+                if (isSplitInvalid) {
+                    return alert(`O pagamento misto não bate com o valor da conta!\n\nTotal do Pedido: R$ ${cartTotal.toFixed(2)}\nLançado no Pagamento: R$ ${splitTotal.toFixed(2)}`);
+                }
+                
+                setIsSubmittingPOS(true);
+                
+                const isPickup = manualCustomer.deliveryMethod === 'pickup';
+                const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
+                const finalName = manualCustomer.name || 'Cliente Avulso (Balcão)';
+
+                const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+                const sellerEmail = auth.currentUser?.email || 'owner';
+
+                try {
+                    // === BAIXA DE INSUMOS (PDV BALCÃO) ===
+                    const promisesBaixa = [];
+                    manualCart.forEach(cartItem => {
+                        if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
+                            cartItem.consumedIngredients.forEach(ci => {
+                                const ingRef = doc(db, "ingredients", ci.ingredientId);
+                                const totalGasto = Number(cartItem.quantity) * Number(ci.qty);
+                                promisesBaixa.push(updateDoc(ingRef, { stock: increment(-totalGasto) }));
+                            });
+                        }
+                    });
+                    if (promisesBaixa.length > 0) {
+                        await Promise.all(promisesBaixa).catch(e => console.error("Erro ao baixar insumo:", e));
+                    }
+
+                    await addDoc(collection(db, "orders"), { 
+                        ...manualCustomer,
+                        customerName: finalName, 
+                        customerAddress: finalAddress, 
+                        customerPhone: manualCustomer.phone || '', 
+                        items: manualCart,
+                        subtotal: cartSubtotal,
+                        shippingFee: isPickup ? 0 : manualShippingFee,
+                        extraFee: 0,
+                        discountAmount: manualDiscountAmount,
+                        couponCode: manualDiscountAmount > 0 ? 'DESCONTO_PDV' : '',
+                        total: cartTotal,
+                        
+                        // ✅ SALVAMENTO DO PAGAMENTO MISTO
+                        paymentMethod: isSplitActive ? 'misto' : (manualCustomer.payment || 'pix'),
+                        pagamentosSplit: isSplitActive ? manualCustomer.splitPayments : null,
+                        
+                        status: manualCustomer.status || (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'),
+                        paymentStatus: manualCustomer.paymentStatus || 'pending',
+                        changeFor: isDinheiro ? manualCustomer.changeFor : null,
+                        tipo: isPickup ? 'local' : 'delivery',
+                        createdAt: serverTimestamp(), 
+                        storeId: storeId,
+                        source: 'manual_pdv',
+                        vendedor: sellerName,
+                        sellerEmail: sellerEmail 
+                    });
+
+                    // Limpeza Final
+                    setManualCart([]);
+                    setManualCustomer({ 
+                        name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'pickup', mesa: '', 
+                        status: (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'), 
+                        paymentStatus: 'pending',
+                        splitPayments: [] // Zera o split state
+                    });
+                    setManualShippingFee(0);
+                    setManualDiscountAmount(0);
+                    alert("✅ Comanda lançada com sucesso!");
+                } catch (e) {
+                    alert("Erro ao lançar venda no PDV.");
+                    console.error(e);
+                } finally {
+                    setIsSubmittingPOS(false);
+                }
+            }} 
+            disabled={manualCart.length === 0 || isSubmittingPOS || isSplitInvalid}
+            className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+            {isSubmittingPOS && <Loader2 className="animate-spin" size={24} />}
+            {isSubmittingPOS ? 'Processando...' : (manualCart.length > 0 ? `Lançar Pedido (R$ ${cartTotal.toFixed(2)})` : 'Lançar Pedido')}
+        </button>
+        </>
     );
 })()}
-
-                                <button 
-                                    onClick={async () => {
-                                        if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
-                                        if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
-                                        
-                                        setIsSubmittingPOS(true); // BLOQUEIA O BOTÃO IMEDIATAMENTE
-                                        
-                                       const subtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
-                                        const finalTotal = Math.max(0, subtotal + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount);
-                                        
-                                        const isPickup = manualCustomer.deliveryMethod === 'pickup';
-                                        const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
-                                        const finalName = manualCustomer.name || 'Cliente Avulso (Balcão)';
-
-                                        const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
-                                        const sellerEmail = auth.currentUser?.email || 'owner';
-
-                                        try {
-                                            // === BAIXA DE INSUMOS (PDV BALCÃO) ===
-                                            const promisesBaixa = [];
-                                            manualCart.forEach(cartItem => {
-                                                if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
-                                                    cartItem.consumedIngredients.forEach(ci => {
-                                                        const ingRef = doc(db, "ingredients", ci.ingredientId);
-                                                        const totalGasto = Number(cartItem.quantity) * Number(ci.qty);
-                                                        promisesBaixa.push(updateDoc(ingRef, { stock: increment(-totalGasto) }));
-                                                    });
-                                                }
-                                            });
-                                            if (promisesBaixa.length > 0) {
-                                                await Promise.all(promisesBaixa).catch(e => console.error("Erro ao baixar insumo:", e));
-                                            }
-                                            // ====================================
-
-                                            await addDoc(collection(db, "orders"), { 
-                                                ...manualCustomer,
-                                                customerName: finalName, 
-                                                customerAddress: finalAddress, 
-                                                customerPhone: manualCustomer.phone || '', 
-                                                items: manualCart,
-                                                subtotal: subtotal,
-                                                shippingFee: isPickup ? 0 : manualShippingFee,
-                                                extraFee: 0,
-                                                discountAmount: manualDiscountAmount,
-                                                couponCode: manualDiscountAmount > 0 ? 'DESCONTO_PDV' : '',
-                                                total: finalTotal,
-                                                // 🚨 ATENÇÃO: Agora o status respeita o que o caixa escolheu!
-                                                status: manualCustomer.status || (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'),
-                                                paymentStatus: manualCustomer.paymentStatus || 'pending',
-                                                changeFor: manualCustomer.payment === 'dinheiro' ? manualCustomer.changeFor : null,
-                                                tipo: isPickup ? 'local' : 'delivery',
-                                                createdAt: serverTimestamp(), 
-                                                storeId: storeId,
-                                                source: 'manual_pdv',
-                                                vendedor: sellerName,
-                                                sellerEmail: sellerEmail 
-                                            });
-
-                                            setManualCart([]);
-                                            setManualCustomer({ 
-    name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'pickup', mesa: '', 
-    status: (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'), 
-    paymentStatus: 'pending' 
-});
-                                            setManualShippingFee(0);
-                                            setManualDiscountAmount(0); // Zera o desconto pro próximo pedido
-                                            alert("✅ Comanda lançada com sucesso!");
-                                        } catch (e) {
-                                            alert("Erro ao lançar venda no PDV.");
-                                            console.error(e);
-                                        } finally {
-                                            setIsSubmittingPOS(false); // LIBERA O BOTÃO INDEPENDENTE DO RESULTADO
-                                        }
-                                    }} 
-                                    disabled={manualCart.length === 0 || isSubmittingPOS}
-                                    className="w-full bg-green-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                   {isSubmittingPOS && <Loader2 className="animate-spin" size={24} />}
-                                   {isSubmittingPOS ? 'Processando...' : (manualCart.length > 0 ? `Lançar Pedido (R$ ${Math.max(0, (manualCart.reduce((a, i) => a + (i.price * i.quantity), 0) + (manualCustomer.deliveryMethod === 'delivery' ? manualShippingFee : 0) - manualDiscountAmount)).toFixed(2)})` : 'Lançar Pedido')}
-                                </button>
                             </div>
                             {/* FIM DA ÁREA DE SCROLL UNIFICADA */}
                             </div>
