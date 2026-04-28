@@ -7837,14 +7837,51 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div>
                                         <textarea 
                                             rows="2" 
-                                            placeholder="Breve Descrição do Produto (Opcional mas recomendado)" 
+                                            placeholder="Breve Descrição do Produto (Ex: Hambúrguer artesanal com blend bovino grelhado...)" 
                                             className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none focus:ring-2 ring-blue-500 transition-all" 
                                             value={form.description} 
                                             onChange={e => setForm({ ...form, description: e.target.value })}
                                         ></textarea>
-                                        <p className="text-[11px] text-slate-400 font-bold mt-2 ml-4">
-                                            Detalhes atrativos ajudam a vender mais e melhoram seu posicionamento orgânico.
-                                        </p>
+                                        
+                                        {/* MEDIDOR DE FORÇA DE SEO / IA */}
+                                        {(() => {
+                                            const desc = form.description || '';
+                                            const length = desc.length;
+                                            
+                                            // Análise Semântica Básica para IA (Entity Resolution)
+                                            const hasKeywords = /(artesanal|grelhado|fresco|blend|caseiro|especial|tradicional|premium|bairro|região)/i.test(desc);
+                                            
+                                            let score = 0;
+                                            let color = 'bg-slate-200';
+                                            let text = 'Oculto para Buscas (Muito Curto)';
+                                            let textColor = 'text-slate-500';
+
+                                            if (length > 10) { score = 33; color = 'bg-red-400'; text = 'Fraco (Cardápio Mudo)'; textColor = 'text-red-600'; }
+                                            if (length > 30) { score = 66; color = 'bg-orange-400'; text = 'Bom (Aceitável)'; textColor = 'text-orange-600'; }
+                                            if (length > 50 && hasKeywords) { score = 100; color = 'bg-green-500'; text = 'Excelente (Pronto para IAs)'; textColor = 'text-green-600'; }
+
+                                            return (
+                                                <div className="mt-3 px-4">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                                                            <Sparkles size={12}/> Força para o Google/IAs:
+                                                        </span>
+                                                        <span className={`text-[10px] font-black uppercase ${textColor}`}>
+                                                            {text}
+                                                        </span>
+                                                    </div>
+                                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full ${color} transition-all duration-500`} 
+                                                            style={{ width: `${score}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-tight">
+                                                        {score < 100 ? "IAs preferem descrições longas contendo os ingredientes, tipo de preparo (ex: artesanal, grelhado) e relevância local." : "Perfeito! As inteligências artificiais têm contexto rico para recomendar este produto."}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* BOX DE EXEMPLO PERFEITO DE SEO */}
