@@ -4330,13 +4330,41 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                         ) : (
                                             <div className="mt-2 flex flex-col md:flex-row gap-2">
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Escreva uma resposta pública..." 
-                                                    className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none text-sm font-bold focus:ring-2 ring-blue-500"
-                                                    value={replyText[r.id] || ''}
-                                                    onChange={(e) => setReplyText({...replyText,[r.id]: e.target.value})}
-                                                />
+                                                {/* CAMPO DE RESPOSTA ATUALIZADO */}
+                                                <div className="flex-1 relative">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Escreva uma resposta pública..." 
+                                                        className="w-full p-4 pr-12 bg-slate-50 border border-slate-100 rounded-2xl outline-none text-sm font-bold focus:ring-2 ring-blue-500 transition-all text-slate-700"
+                                                        value={replyText[r.id] || ''}
+                                                        onChange={(e) => setReplyText({...replyText,[r.id]: e.target.value})}
+                                                    />
+                                                    
+                                                    {/* BOTÃO MÁGICO DE RESPOSTA IA (INJETADO DENTRO DO INPUT) */}
+                                                    <button 
+                                                        type="button"
+                                                        title="Sugerir resposta otimizada com IA"
+                                                        onClick={async () => {
+                                                            // Gera um copy rápido baseado na nota e no produto (se existir)
+                                                            const isPositive = r.rating >= 4;
+                                                            const itemMention = r.productName ? ` o nosso famoso ${r.productName}` : ' o seu pedido';
+                                                            const localeMention = storeStatus.address ? ` aqui na região` : '';
+                                                            
+                                                            let suggestedReply = '';
+                                                            if (isPositive) {
+                                                                suggestedReply = `Olá ${r.customerName.split(' ')[0]}! Que alegria saber que você curtiu${itemMention}${localeMention}. Muito obrigado pela avaliação 5 estrelas! Sempre que precisar de um delivery de qualidade, a ${storeStatus.name} está à disposição.`;
+                                                            } else {
+                                                                suggestedReply = `Olá ${r.customerName.split(' ')[0]}. Lamentamos que a sua experiência com${itemMention} não tenha sido ideal. Trabalhamos duro na ${storeStatus.name} para manter a excelência e adoraríamos entender melhor o que houve. Por favor, nos chame no WhatsApp para resolvermos isso.`;
+                                                            }
+                                                            
+                                                            setReplyText({...replyText, [r.id]: suggestedReply});
+                                                        }}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-100 text-purple-600 rounded-xl hover:bg-purple-600 hover:text-white transition-all active:scale-95"
+                                                    >
+                                                        <Sparkles size={16} />
+                                                    </button>
+                                                </div>
+                                                
                                                 <button 
                                                     onClick={async (e) => {
                                                         if(!replyText[r.id]) return;
