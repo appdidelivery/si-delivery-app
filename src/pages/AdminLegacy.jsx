@@ -2655,9 +2655,53 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </span>
                 )}
             </div>
-        </div>
-    );
+                </div>
+            );
 })()}
+
+                            {/* --- NOVO: CHECKLIST DE SAÚDE GEO/SEO --- */}
+                            {(() => {
+                                const checks = [
+                                    { id: 'slogan', title: 'Slogan/Descrição', done: !!storeStatus?.slogan && storeStatus.slogan.length > 5, action: 'Preencher Slogan', tab: 'store_settings' },
+                                    { id: 'address', title: 'Endereço (NAP)', done: !!storeStatus?.address && storeStatus.address.length > 10, action: 'Configurar Endereço', tab: 'store_settings' },
+                                    { id: 'schedule', title: 'Horários de Funcionamento', done: Object.values(storeStatus?.schedule || {}).some(d => d.open), action: 'Definir Horários', tab: 'store_settings' },
+                                    { id: 'google', title: 'Link do Google', done: !!storeStatus?.googleReviewUrl, action: 'Vincular Maps', tab: 'store_settings' }
+                                ];
+                                
+                                const completedCount = checks.filter(c => c.done).length;
+                                const progress = (completedCount / checks.length) * 100;
+                                
+                                // Oculta o widget se a loja estiver 100% otimizada para manter a dashboard limpa
+                                if (completedCount === checks.length) return null;
+
+                                return (
+                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-[2rem] mb-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                                        <div className="flex-1 w-full">
+                                            <h3 className="text-blue-800 font-black uppercase tracking-widest text-xs flex items-center gap-2 mb-2">
+                                                <Globe size={16}/> Saúde de Busca da Loja (GEO/SEO)
+                                            </h3>
+                                            <p className="text-[10px] font-bold text-slate-500 mb-3 leading-relaxed">
+                                                Complete estes itens para que inteligências artificiais e motores de busca locais consigam recomendar o seu delivery.
+                                            </p>
+                                            <div className="h-2 w-full bg-white rounded-full overflow-hidden border border-blue-100">
+                                                <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 md:max-w-[50%] justify-end">
+                                            {checks.filter(c => !c.done).map(c => (
+                                                <button 
+                                                    key={c.id}
+                                                    onClick={() => setActiveTab(c.tab)}
+                                                    className="bg-white text-blue-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1 active:scale-95"
+                                                >
+                                                    ⚠️ {c.action}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
     <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Visitas Hoje</p>
