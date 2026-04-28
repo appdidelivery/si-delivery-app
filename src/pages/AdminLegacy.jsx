@@ -8028,6 +8028,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </select>
 
                                 <div>
+                                    <label className="text-xs font-black uppercase tracking-widest text-blue-600 ml-2 flex items-center gap-2">
+                                        <Tags size={14} className="text-blue-500"/> Tags Semânticas (Atributos para IA)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ex: Contém Lactose, Serve 2 pessoas, Apimentado, Artesanal..." 
+                                        className="w-full p-6 bg-blue-50 text-blue-800 rounded-3xl outline-none font-bold border-none mt-1 focus:ring-2 ring-blue-400 transition-all placeholder-blue-300 shadow-sm" 
+                                        value={form.tag || ''} 
+                                        onChange={e => setForm({ ...form, tag: e.target.value })} 
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-2 ml-4 font-bold">
+                                        Separado por vírgula. Estas tags viram código estruturado (Schema) para o Google e IAs recomendarem o seu prato com precisão.
+                                    </p>
+                                </div>
+
+                                <div className="pt-4 mt-4 border-t border-slate-100">
                                     <label className="text-xs font-bold text-slate-400 ml-2">Variações Simples (Separadas por vírgula)</label>
                                     <input 
                                         type="text" 
