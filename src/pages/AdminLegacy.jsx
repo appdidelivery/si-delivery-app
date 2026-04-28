@@ -1660,18 +1660,52 @@ const handleGenerateProductCopy = async () => {
 
             const data = await res.json();
 
-            if (res.ok) {
-                // Atualiza o banco de dados marcando como estornado
-                await updateDoc(doc(db, "orders", order.id), { 
-                    paymentStatus: 'refunded', 
-                    status: 'canceled',
-                    refundedAt: serverTimestamp()
-                });
-                alert("✅ Pagamento estornado e pedido cancelado com sucesso!");
-            } else {
-                alert(`❌ Erro ao estornar: ${data.error || 'Erro desconhecido'}`);
-            }
-        } catch (error) {
+            if (res.ok) {
+                // Atualiza o banco de dados marcando como estornado
+                await updateDoc(doc(db, "orders", order.id), { 
+                    paymentStatus: 'refunded', 
+                    status: 'canceled',
+                    refundedAt: serverTimestamp()
+                });
+                alert("✅ Pagamento estornado e pedido cancelado com sucesso!");
+
+                // Disparo de Comprovante via WhatsApp Oficial (Se configurado)
+                if (settings?.integrations?.whatsapp?.apiToken && order.customerPhone) {
+                    const phoneRaw = String(order.customerPhone).replace(/\D/g, '');
+                    const cleanPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
+                    const refundMsg = `❌ *PEDIDO CANCELADO E ESTORNADO*\n\nOlá ${order.customerName.split(' ')[0]}, o seu pedido #${order.id.slice(-5).toUpperCase()} foi cancelado e o valor de *R$ ${Number(order.total).toFixed(2)}* foi integralmente devolvido para a sua conta/cartão via Mercado Pago.\n\n🧾 *ID do Comprovante de Estorno:* ${data.refundId}\n\nO prazo para constar na fatura depende da operadora do seu cartão.`;
+                    
+                    try {
+                        const waRes = await fetch('/api/whatsapp-send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'chat_reply',
+                                storeId: storeId,
+                                toPhone: cleanPhone,
+                                dynamicParams: { text: refundMsg }
+                            })
+                        });
+
+                        if (waRes.ok) {
+                            await addDoc(collection(db, 'whatsapp_inbound'), {
+                                storeId: storeId,
+                                to: cleanPhone,
+                                text: refundMsg,
+                                receivedAt: serverTimestamp(),
+                                status: 'read',
+                                direction: 'outbound'
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Erro ao enviar comprovante de estorno via WhatsApp", e);
+                    }
+                }
+
+            } else {
+                alert(`❌ Erro ao estornar: ${data.error || 'Erro desconhecido'}`);
+            }
+        } catch (error) {
             console.error("Erro ao estornar:", error);
             alert("Erro de conexão ao tentar realizar o estorno.");
         }
@@ -1712,7 +1746,13 @@ const handleGenerateProductCopy = async () => {
                 ${temCorte ? '<center><br>✂--- CORTE AQUI ---✂</center>' : ''}
             </div>
         `;
-        w.document.write(`<html><body style="margin:0; padding:0;">${gerarVia('VIA DA LOJA', true)}${gerarVia('VIA DO ENTREGADOR', false)}<script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`);
+        
+        const printMode = storeStatus.printMode || 'both';
+        const htmlContent = printMode === 'kitchen' 
+            ? gerarVia('VIA DA LOJA (COZINHA)', false) 
+            : `${gerarVia('VIA DA LOJA', true)}${gerarVia('VIA DO ENTREGADOR', false)}`;
+            
+        w.document.write(`<html><body style="margin:0; padding:0;">${htmlContent}<script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`);
         w.document.close();
     };
 
@@ -7194,14 +7234,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <input type="checkbox" checked={storeStatus.posPickupEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { posPickupEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer" />
                                             </label>
 
-                                            {/* NOVO: AUTOMAÇÃO DE IMPRESSÃO */}
-                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all mt-2 ${storeStatus.autoPrintCompleted ? 'bg-white border-blue-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
-                                                <div>
-                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.autoPrintCompleted ? 'text-blue-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir "Concluído"</span>
-                                                    <p className="text-[9px] font-bold text-slate-400 mt-1">Imprime o ticket automaticamente ao marcar o pedido como ✅ Entregue.</p>
+                                            {/* NOVO: AUTOMAÇÃO DE IMPRESSÃO E VIAS */}
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.autoPrintCompleted ? 'bg-white border-blue-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
+                                                    <div>
+                                                        <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.autoPrintCompleted ? 'text-blue-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir "Concluído"</span>
+                                                        <p className="text-[9px] font-bold text-slate-400 mt-1">Imprime o ticket automaticamente ao marcar o pedido como ✅ Entregue.</p>
+                                                    </div>
+                                                    <input type="checkbox" checked={storeStatus.autoPrintCompleted || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintCompleted: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
+                                                </label>
+                                                
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Formato de Impressão (Vias)</label>
+                                                    <select 
+                                                        value={storeStatus.printMode || 'both'} 
+                                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { printMode: e.target.value }, { merge: true })}
+                                                        className="w-full p-3 bg-white rounded-xl font-bold text-xs text-slate-700 outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer"
+                                                    >
+                                                        <option value="both">📄 Imprimir 2 Vias (Loja + Entregador)</option>
+                                                        <option value="kitchen">🍳 Imprimir 1 Via (Apenas Cozinha)</option>
+                                                    </select>
                                                 </div>
-                                                <input type="checkbox" checked={storeStatus.autoPrintCompleted || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintCompleted: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
-                                            </label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

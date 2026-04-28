@@ -1219,8 +1219,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
                                                     { id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" },
                                                     { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
-                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" },
-                                                    { id: "btn_support", title: "👩‍💻 Falar Atendente", description: "Dúvidas ou problemas" }
+                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" }
                                                 );
 
                                                 return {
