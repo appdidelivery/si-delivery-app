@@ -4890,6 +4890,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     >
                         <option value="pix">💠 PIX</option>
                         <option value="cartao">💳 Cartão</option>
+                        <option value="voucher">🎟️ Vale Refeição</option>
                         <option value="dinheiro">💵 Dinheiro</option>
                     </select>
                     <input
@@ -4921,6 +4922,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             >
                 <option value="pix">💠 PIX</option>
                 <option value="cartao">💳 Cartão (Maquininha)</option>
+                <option value="voucher">🎟️ Vale Refeição</option>
                 <option value="dinheiro">💵 Dinheiro (Espécie)</option>
                 {settings?.enableFiado && <option value="fiado">📒 Caderneta (Fiado)</option>}
             </select>
@@ -6459,14 +6461,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* CANAL 1: PAGAMENTOS ONLINE (APP) */}
                                 <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100">
                                     <h3 className="text-[11px] font-black text-blue-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <ExternalLink size={16} className="text-blue-500"/> Pagamentos Online (App)
-                                    </h3>
-                                    <div className="flex flex-col gap-3">
-                                        {[
-                                            { id: 'online', label: '💳 CARTÃO DE CRÉDITO' },
-                                            { id: 'pix', label: '⚡ PIX AUTOMÁTICO' },
-                                            { id: 'offline_pix', label: '💠 PIX COPIA E COLA' },
-                                        ].map(pm => {
+                                        <ExternalLink size={16} className="text-blue-500"/> Pagamentos Online (App)
+                                    </h3>
+                                    <div className="flex flex-col gap-3">
+                                        
+                                        {/* --- INÍCIO: GUIA EDUCATIVO VALE REFEIÇÃO --- */}
+                                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 mb-2">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-800 flex items-center gap-2 mb-2">
+                                                <ShieldCheck size={14} className="text-blue-600"/> Como aceitar Vale Refeição?
+                                            </h4>
+                                            <ol className="text-[10px] text-blue-700 font-medium mb-4 space-y-1.5 ml-3 list-decimal marker:font-black">
+                                                <li>Sua conta do Mercado Pago precisa ter o <strong>CNAE de Alimentação</strong> (Restaurante, Lanchonete, etc).</li>
+                                                <li>Você precisa ser credenciado nas bandeiras (Alelo, Sodexo, Ticket).</li>
+                                                <li>Vincule o seu código de afiliação dentro do painel do Mercado Pago.</li>
+                                            </ol>
+                                            <a 
+                                                href="https://www.mercadopago.com.br/vouchers" 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md active:scale-95"
+                                            >
+                                                Configurar no Mercado Pago <ExternalLink size={12}/>
+                                            </a>
+                                        </div>
+                                        {/* --- FIM: GUIA EDUCATIVO VALE REFEIÇÃO --- */}
+
+                                        {[
+                                            { id: 'online', label: '💳 CARTÃO DE CRÉDITO' },
+                                            { id: 'pix', label: '⚡ PIX AUTOMÁTICO' },
+                                            { id: 'offline_pix', label: '💠 PIX COPIA E COLA' },
+                                            { id: 'voucherOnline', label: '🎟️ VALE REFEIÇÃO (APP)' },
+                                        ].map(pm => {
                                             const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
                                             return (
                                                 <label key={pm.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-blue-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
@@ -6486,13 +6511,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* CANAL 2: NA ENTREGA */}
                                 <div className="bg-orange-50/50 p-5 rounded-3xl border border-orange-100">
                                     <h3 className="text-[11px] font-black text-orange-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <Truck size={16} className="text-orange-500"/> Na Entrega (Motoboy)
-                                    </h3>
-                                    <div className="flex flex-col gap-3">
-                                        {[
-                                            { id: 'cardDelivery', label: '💳 MÁQUINA DE CARTÃO' },
-                                            { id: 'cashDelivery', label: '💵 DINHEIRO EM ESPÉCIE' },
-                                        ].map(pm => {
+                                        <Truck size={16} className="text-orange-500"/> Na Entrega (Motoboy)
+                                    </h3>
+                                    <div className="flex flex-col gap-3">
+                                        {[
+                                            { id: 'cardDelivery', label: '💳 MÁQUINA DE CARTÃO' },
+                                            { id: 'cashDelivery', label: '💵 DINHEIRO EM ESPÉCIE' },
+                                            { id: 'voucherDelivery', label: '🎟️ VALE REFEIÇÃO (MÁQUINA)' },
+                                        ].map(pm => {
                                             const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
                                             return (
                                                 <label key={pm.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-orange-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>
@@ -6512,13 +6538,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* CANAL 3: NA RETIRADA */}
                                 <div className="bg-emerald-50/50 p-5 rounded-3xl border border-emerald-100">
                                     <h3 className="text-[11px] font-black text-emerald-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <Store size={16} className="text-emerald-500"/> Na Retirada (Balcão)
-                                    </h3>
-                                    <div className="flex flex-col gap-3">
-                                        {[
-                                            { id: 'cardPickup', label: '💳 MÁQUINA DE CARTÃO' },
-                                            { id: 'cashPickup', label: '💵 DINHEIRO EM ESPÉCIE' },
-                                        ].map(pm => {
+                                        <Store size={16} className="text-emerald-500"/> Na Retirada (Balcão)
+                                    </h3>
+                                    <div className="flex flex-col gap-3">
+                                        {[
+                                            { id: 'cardPickup', label: '💳 MÁQUINA DE CARTÃO' },
+                                            { id: 'cashPickup', label: '💵 DINHEIRO EM ESPÉCIE' },
+                                            { id: 'voucherPickup', label: '🎟️ VALE REFEIÇÃO (MÁQUINA)' },
+                                        ].map(pm => {
                                             const isActive = storeStatus.acceptedPayments?.[pm.id] ?? true; 
                                             return (
                                                 <label key={pm.id} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isActive ? 'bg-white border-emerald-400 shadow-sm' : 'bg-white/50 border-transparent opacity-60'}`}>

@@ -1672,7 +1672,7 @@ export default function Home() {
     }
 
   const hasOnlinePayments = storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken;
-    if (!isWaiterMode && !hasOnlinePayments &&['pix', 'cartao'].includes(customer.payment)) {
+    if (!isWaiterMode && !hasOnlinePayments &&['pix', 'cartao', 'voucherOnline'].includes(customer.payment)) {
         setIsFinalizing(false);
         return alert("Por favor, selecione uma das formas de pagamento disponíveis abaixo para a entrega.");
     }
@@ -1688,7 +1688,7 @@ export default function Home() {
       const orderId = newOrderRef.id;
 
      // No modo Garçom, força o envio direto e ignora o Gateway para não travar
-      const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup'].includes(customer.payment);
+      const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup', 'voucherDelivery', 'voucherPickup'].includes(customer.payment);
 
     const orderData = {
         customerName: customer.name || "", 
@@ -1785,7 +1785,7 @@ if (window.fbq) {
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
           const enderecoMsg = isWaiterMode ? `\n🍽️ *Mesa:* ${tableNumber}` : `\n📍 *Endereço:* ${fullAddress}`;
           
-        let obsMsg = '';
+       let obsMsg = '';
           if (isWaiterMode) {
               obsMsg = `\n💳 *Pagamento:* A combinar no Caixa / Salão`;
           } else if (customer.payment === 'dinheiro' || customer.payment === 'cashPickup') {
@@ -1794,6 +1794,10 @@ if (window.fbq) {
               obsMsg = `\n📱 *Pagamento:* PIX (Copia e Cola / Chave da Loja)`;
           } else if (customer.payment === 'cardPickup') {
               obsMsg = `\n💳 *Pagamento:* Cartão (Passar na Retirada no Balcão)`;
+          } else if (customer.payment === 'voucherPickup') {
+              obsMsg = `\n🎟️ *Pagamento:* Vale Refeição (Passar na Retirada no Balcão)`;
+          } else if (customer.payment === 'voucherDelivery') {
+              obsMsg = `\n🎟️ *Pagamento:* Vale Refeição na Entrega (Levar maquininha)`;
           } else {
               obsMsg = `\n💳 *Pagamento:* Cartão na Entrega (Levar maquininha)`;
           }
@@ -1830,7 +1834,7 @@ if (window.fbq) {
      // ======================================================================
       // FLUXO DE PAGAMENTO ONLINE (VELOPAY, STRIPE OU MERCADO PAGO)
       // ======================================================================
-      if (['cartao', 'pix', 'online', 'velopay_pix'].includes(customer.payment)) {
+      if (['cartao', 'pix', 'online', 'velopay_pix', 'voucherOnline'].includes(customer.payment)) {
           
          // 1. Prioridade Máxima: Se escolheu Pix Nativo do VeloPay
           if (customer.payment === 'velopay_pix') {
@@ -3312,9 +3316,12 @@ if (window.fbq) {
                                         { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
                                         { id: 'mp_transparent', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasMP && hasMPPublicKey && pmConfig.online !== false && !hasVeloPayCredit, isPremium: true },
                                         { id: 'online', name: `CARTÃO (SITE)`, icon: <CreditCard size={20}/>, showIf: hasGateway && pmConfig.online !== false && !hasVeloPayCredit && !hasMPPublicKey },
+                                        { id: 'voucherOnline', name: 'VALE REFEIÇÃO (SITE)', icon: <CreditCard size={20}/>, showIf: hasMP && pmConfig.voucherOnline === true, isPremium: true },
                                         { id: 'offline_credit_card', name: 'MÁQUINA NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.cardDelivery !== false },
+                                        { id: 'voucherDelivery', name: 'VALE REFEIÇÃO NA ENTREGA', icon: <Truck size={20}/>, showIf: !isPickup && pmConfig.voucherDelivery === true },
                                         { id: 'dinheiro', name: 'DINHEIRO (ENTREGA)', icon: <Banknote size={20}/>, showIf: !isPickup && pmConfig.cashDelivery !== false },
                                         { id: 'cardPickup', name: 'CARTÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.cardPickup !== false },
+                                        { id: 'voucherPickup', name: 'VALE REFEIÇÃO NO BALCÃO', icon: <CreditCard size={20}/>, showIf: isPickup && pmConfig.voucherPickup === true },
                                         { id: 'cashPickup', name: 'DINHEIRO NO BALCÃO', icon: <Banknote size={20}/>, showIf: isPickup && pmConfig.cashPickup !== false },
                                     ];
 
