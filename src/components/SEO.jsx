@@ -338,14 +338,13 @@ export default function SEO({ title, description, image, productData }) {
                                         }
                                     } : {}),
                                     
-                                    // OFERTA E VENDA
+                                   // OFERTA E VENDA
                                     "offers": {
                                         "@type": "Offer",
                                         "url": currentUrl,
                                         "priceCurrency": "BRL",
                                         "price": Number(rawPrice).toFixed(2),
                                         "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                                        // Google OBRIGA a ter data de validade. Se não tiver, jogamos para o ano que vem.
                                         "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
                                         "itemCondition": "https://schema.org/NewCondition",
                                         "seller": { 
@@ -353,8 +352,27 @@ export default function SEO({ title, description, image, productData }) {
                                             "name": fetchedName,
                                             "@id": `${baseUrl}#store` 
                                         },
-                                        // Puxamos a política de frete de devolução mestre gerada lá em cima
-                                        ...merchantCenterRules
+                                        // Puxa as regras de Devolução (Refund) com País que arrumamos antes
+                                        "hasMerchantReturnPolicy": merchantCenterRules.hasMerchantReturnPolicy,
+                                        // E aqui injetamos o TEMPO DE ENTREGA direto do seu Painel Admin!
+                                        "shippingDetails": {
+                                            ...merchantCenterRules.shippingDetails,
+                                            "deliveryTime": {
+                                                "@type": "ShippingDeliveryTime",
+                                                "handlingTime": {
+                                                    "@type": "QuantitativeValue",
+                                                    "minValue": 0,
+                                                    "maxValue": 15,
+                                                    "unitCode": "MIN"
+                                                },
+                                                "transitTime": {
+                                                    "@type": "QuantitativeValue",
+                                                    "minValue": 15,
+                                                    "maxValue": Number(productData.deliveryLeadTime || 50), // 👈 MÁGICA AQUI: Puxa o campo "Tempo de Entrega (min)", ou usa 50 min como segurança se ficar vazio.
+                                                    "unitCode": "MIN"
+                                                }
+                                            }
+                                        }
                                     }
                                 },
                                 // Ação de Pedido Direto
