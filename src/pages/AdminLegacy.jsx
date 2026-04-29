@@ -4232,8 +4232,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             {!settings.loyaltyActive && <p className="text-slate-400 font-bold mt-2">O Clube Fidelidade está desativado. Ative na aba 'Marketing' para ver os pontos.</p>}
                         </div>
 
-                        {/* --- PAINEL FINANCEIRO DA CADERNETA (RELATÓRIO DE DEVEDORES) --- */}
-                        {(() => {
+                       {/* --- PAINEL FINANCEIRO DA CADERNETA (RELATÓRIO DE DEVEDORES) --- */}
+                        {settings?.enableFiado && (() => {
                             const totalReceivable = customers.reduce((acc, c) => acc + (c.fiadoDebt || 0), 0);
                             const debtorsCount = customers.filter(c => (c.fiadoDebt || 0) > 0).length;
                             const totalCreditLimit = customers.reduce((acc, c) => acc + (c.fiadoEnabled ? (c.creditLimit || 0) : 0), 0);
@@ -4887,7 +4887,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         </div>
     ) : (
         <div className="flex gap-2">
-            <select 
+           <select 
                 className="flex-1 p-4 bg-blue-50 text-blue-800 rounded-xl font-black text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-blue-100 shadow-sm" 
                 value={manualCustomer.payment || 'pix'} 
                 onChange={e => setManualCustomer({ ...manualCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? manualCustomer.changeFor : '' })}
@@ -4895,7 +4895,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 <option value="pix">💠 PIX</option>
                 <option value="cartao">💳 Cartão (Maquininha)</option>
                 <option value="dinheiro">💵 Dinheiro (Espécie)</option>
-                <option value="fiado">📒 Caderneta (Fiado)</option>
+                {settings?.enableFiado && <option value="fiado">📒 Caderneta (Fiado)</option>}
             </select>
 
             {manualCustomer.payment === 'dinheiro' && (
@@ -6741,6 +6741,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     checked={settings?.enableIngredientsControl || false}
                                     onChange={async (e) => {
                                         await updateDoc(doc(db, "settings", storeId), { enableIngredientsControl: e.target.checked }, { merge: true });
+                                    }}
+                                    className="w-6 h-6 accent-blue-600 cursor-pointer"
+                                />
+                            </label>
+
+                            {/* NOVO: ATIVAR/DESATIVAR GESTÃO DE FIADO */}
+                            <label className="flex items-center justify-between cursor-pointer p-4 bg-slate-50 hover:bg-slate-100 transition-all rounded-2xl border border-slate-200 mt-4">
+                                <div className="flex flex-col">
+                                    <span className="font-black text-slate-700 uppercase">Gestão de Fiado (Caderneta)</span>
+                                    <span className="text-xs text-slate-500 font-bold mt-0.5">Ativa a opção de fiado no PDV e o relatório de devedores na aba Clientes VIP.</span>
+                                </div>
+                                <input 
+                                    type="checkbox" 
+                                    checked={settings?.enableFiado || false}
+                                    onChange={async (e) => {
+                                        await updateDoc(doc(db, "settings", storeId), { enableFiado: e.target.checked }, { merge: true });
                                     }}
                                     className="w-6 h-6 accent-blue-600 cursor-pointer"
                                 />
