@@ -710,11 +710,15 @@ export default function Admin() {
         legalName: '', document: '', phone: '', pixKey: ''
     });
     const [isSubmittingVeloPay, setIsSubmittingVeloPay] = useState(false);
-    // --- NOVO: ESTADOS DAS MISSÕES VIP ---
-    const [vipMissions, setVipMissions] = useState([]);
-    const [activeReviewTab, setActiveReviewTab] = useState('missions'); // Controla Aba Prints vs Avaliações
 
-    // --- 🚨 CÓDIGO DE RESGATE AUTOMÁTICO (COLE AQUI) 🚨 ---
+    // --- NOVOS ESTADOS (VIP / CADERNETA / MISSÕES) ---
+    const [isVipModalOpen, setIsVipModalOpen] = useState(false);
+    const [editingVip, setEditingVip] = useState(null);
+    const [storeCustomersDB, setStoreCustomersDB] = useState([]);
+    const [activeReviewTab, setActiveReviewTab] = useState('missions');
+    const [vipMissions, setVipMissions] = useState([]);
+
+// --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
     useEffect(() => {
         const rescueLostUser = async () => {
             // Se a loja não foi identificada (está null) MAS existe usuário logado
@@ -1270,6 +1274,12 @@ export default function Admin() {
             fetchedMissions.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setVipMissions(fetchedMissions);
         });
+
+        // --- NOVO: BUSCAR CLIENTES (CADERNETA/FIADO) ---
+        const unsubStoreCustomers = onSnapshot(query(collection(db, "store_customers"), where("storeId", "==", storeId)), (s) => {
+            setStoreCustomersDB(s.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+
         const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc")), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -1362,6 +1372,7 @@ export default function Admin() {
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
             if (unsubFleet) unsubFleet();
             if (unsubAnalyticsHistory) unsubAnalyticsHistory(); // <-- LIMPEZA DO LISTENER DE IA
+            if (unsubStoreCustomers) unsubStoreCustomers(); // <-- LIMPEZA DA CADERNETA
         };
     },[storeId]);
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
@@ -2062,10 +2073,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             if (p === 'N/A') return acc;
 
             if (!acc[p]) {
-                acc[p] = { name: o.customerName || 'Sem nome', phone: p, totalSpent: 0, orderCount: 0 };
+                acc[p] = { name: o.customerName || 'Sem nome', phone: p, totalSpent: 0, orderCount: 0, fiadoDebt: 0 };
             }
             acc[p].totalSpent += Number(o.total || 0);
             acc[p].orderCount += 1;
+            
+            // NOVO: Soma apenas o que foi comprado na Caderneta e ainda não foi pago
+            if (o.paymentMethod === 'fiado' && o.paymentStatus !== 'paid') {
+                acc[p].fiadoDebt += Number(o.total || 0);
+            }
+            
             return acc;
         }, {});
 
@@ -2082,10 +2099,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             const totalRedeemedPoints = redemptionsByCustomer[customer.phone] || 0;
             const currentPoints = totalEarnedPoints - totalRedeemedPoints;
 
+            // Busca os dados da caderneta salvos no banco
+            const dbData = storeCustomersDB.find(c => c.phone === customer.phone) || {};
+
             return {
                 ...customer,
                 points: currentPoints,
-                loyaltyGoal: loyaltyGoal, // Adiciona a meta ao objeto para fácil acesso no JSX
+                loyaltyGoal: loyaltyGoal, 
+                fiadoEnabled: dbData.fiadoEnabled || false,
+                billingDay: dbData.billingDay || 10,
+                creditLimit: dbData.creditLimit || 0, // Puxa o limite do banco
+                dbId: dbData.id || null
             };
         });
 
@@ -4221,12 +4245,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             {i === 0 ? <Crown /> : i + 1}
                                         </div>
                                         <div>
-                                            <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">{c.name}</h3>
-                                            <p className="text-slate-400 font-bold text-xs tracking-widest">{c.phone}</p>
+                                            <h3 className="font-black text-xl text-slate-800 uppercase leading-none mb-1">{c.name}</h3>
+                                            <p className="text-xs font-bold text-slate-400 tracking-widest">{c.phone}</p>
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingVip(c);
+                                                    setIsVipModalOpen(true);
+                                                }}
+                                                className="mt-2 bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-100"
+                                            >
+                                                ⚙️ Gerenciar Acesso
+                                            </button>
                                         </div>
                                     </div>
-
-                                    {/* Lógica de Exibição: Pontos ou Total Gasto */}
                                     <div className="w-full md:w-auto md:min-w-[250px] text-right">
                                         {settings.loyaltyActive ? (
                                             <>
@@ -4254,6 +4285,45 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">Total Comprado</p>
                                                 <p className="text-3xl font-black text-blue-600 italic">R$ {c.totalSpent.toFixed(2)}</p>
                                             </>
+                                        )}
+                                        
+                                        {/* NOVO: BLOCO DA CADERNETA (FIADO) */}
+                                        {c.fiadoEnabled && (
+                                            <div className="mt-4 pt-4 border-t border-slate-100/50 flex flex-col md:flex-row items-end justify-between gap-4 w-full">
+                                                <div className="text-left">
+                                                    <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1">Status Caderneta (Vence dia {c.billingDay})</p>
+                                                    <p className="text-sm font-bold text-slate-500">
+                                                        Em Aberto: <span className="text-red-500 font-black">R$ {c.fiadoDebt.toFixed(2)}</span> / Limite: R$ {c.creditLimit?.toFixed(2) || '0.00'}
+                                                    </p>
+                                                </div>
+                                                
+                                                {c.fiadoDebt > 0 && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            const lojaName = storeStatus.name || "Nossa Loja";
+                                                            const chavePix = storeStatus.velopayData?.pixKey || storeStatus.pixKey || "SUA_CHAVE_AQUI";
+                                                            const msg = `Olá, ${c.name.split(' ')[0]}! Tudo bem? Aqui é da *${lojaName}*.\n\nSua caderneta (fiado) fechou neste ciclo no valor de *R$ ${c.fiadoDebt.toFixed(2)}*.\n\n💳 Para facilitar, você pode pagar direto no nosso PIX:\n*${chavePix}*\n\nAssim que pagar, é só mandar o comprovante aqui que já liberamos seu limite novamente! Muito obrigado pela preferência.`;
+                                                            
+                                                            const phoneRaw = String(c.phone).replace(/\D/g, '');
+                                                            const cleanPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
+                                                            
+                                                            // Se a API estiver configurada, dispara por baixo dos panos, senão abre o App
+                                                            if (settings?.integrations?.whatsapp?.apiToken) {
+                                                                fetch('/api/whatsapp-send', { 
+                                                                    method: 'POST', 
+                                                                    headers: { 'Content-Type': 'application/json' }, 
+                                                                    body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msg } }) 
+                                                                }).then(() => alert("✅ Fatura enviada no WhatsApp do cliente via Bot!")).catch(() => window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank'));
+                                                            } else {
+                                                                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                            }
+                                                        }}
+                                                        className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-orange-200"
+                                                    >
+                                                        💸 Cobrar Fatura (Whats)
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -4777,6 +4847,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 <option value="pix">💠 PIX</option>
                 <option value="cartao">💳 Cartão (Maquininha)</option>
                 <option value="dinheiro">💵 Dinheiro (Espécie)</option>
+                <option value="fiado">📒 Caderneta (Fiado)</option>
             </select>
 
             {manualCustomer.payment === 'dinheiro' && (
@@ -4889,32 +4960,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             )}
 
             {/* Display Validação da Divisão de Pagamento */}
-            {isSplitActive && (
-                <div className={`flex justify-between items-center p-3 rounded-2xl border-2 transition-all ${!isSplitInvalid ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-orange-50 border-orange-200 animate-pulse'}`}>
-                    <span className={`font-black text-[10px] uppercase tracking-widest ${!isSplitInvalid ? 'text-green-700' : 'text-orange-600'}`}>
-                        {!isSplitInvalid ? 'Valores Conferem:' : (splitDiff > 0 ? `Falta Lançar:` : 'Valor Excedente:')}
-                    </span>
-                    <span className={`text-2xl font-black italic ${!isSplitInvalid ? 'text-green-600' : 'text-orange-500'}`}>
-                        R$ {Math.abs(splitDiff).toFixed(2)}
-                    </span>
+                    {isSplitActive && (
+                        <div className={`flex justify-between items-center p-3 rounded-2xl border-2 transition-all ${!isSplitInvalid ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-orange-50 border-orange-200 animate-pulse'}`}>
+                            <span className={`font-black text-[10px] uppercase tracking-widest ${!isSplitInvalid ? 'text-green-700' : 'text-orange-600'}`}>
+                                {!isSplitInvalid ? 'Valores Conferem:' : (splitDiff > 0 ? `Falta Lançar:` : 'Valor Excedente:')}
+                            </span>
+                            <span className={`text-2xl font-black italic ${!isSplitInvalid ? 'text-green-600' : 'text-orange-500'}`}>
+                                R$ {Math.abs(splitDiff).toFixed(2)}
+                            </span>
+                        </div>
+                    )}
                 </div>
-            )}
-        </div>
 
-        <button 
-            onClick={async () => {
-                if (manualCart.length === 0) return alert("Adicione produtos ao pedido!");
-                if (manualCustomer.deliveryMethod === 'delivery' && !manualCustomer.address) return alert("Preencha o endereço para entrega!");
-                
-                // Trava de Segurança Mestra no OnClick
-                if (isSplitInvalid) {
-                    return alert(`O pagamento misto não bate com o valor da conta!\n\nTotal do Pedido: R$ ${cartTotal.toFixed(2)}\nLançado no Pagamento: R$ ${splitTotal.toFixed(2)}`);
-                }
-                
-                setIsSubmittingPOS(true);
-                
-                const isPickup = manualCustomer.deliveryMethod === 'pickup';
-                const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
+                <button 
+                    onClick={async () => {
+                        const isPickup = manualCustomer.deliveryMethod === 'pickup';
+                        const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
                 const finalName = manualCustomer.name || 'Cliente Avulso (Balcão)';
 
                 const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
@@ -6987,7 +7048,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600" 
                                 />
                             </div>
-                                <div className="mt-4">
+                               <div className="mt-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <MessageCircle size={14}/> WhatsApp para Receber Pedidos
                                     </label>
@@ -7000,6 +7061,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Digite apenas números com DDD (ex: 55519...). É para esse número que o cliente será enviado.</p>
                                 </div>
+
+                                {/* NOVO CAMPO: CHAVE PIX INDEPENDENTE (COBRANÇAS) */}
+                                <div className="mt-4">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <QrCode size={14} className="text-blue-500"/> Chave PIX da Loja (Para Cobranças)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Sua chave PIX (CNPJ, Telefone, E-mail ou Aleatória)" 
+                                        value={storeStatus.pixKey || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "stores", storeId), { pixKey: e.target.value }, { merge: true })} 
+                                        className="w-full p-5 bg-blue-50 text-blue-700 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-400 placeholder-blue-300" 
+                                    />
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Usada para gerar cobranças no WhatsApp (Clientes VIP/Fiado).</p>
+                                </div>
+
                                 {/* NOVO CAMPO: LINK DO GOOGLE MEU NEGÓCIO */}
                                 <div className="mt-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
@@ -8101,15 +8178,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 })()}
 
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <input type="number" placeholder="Estoque" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
-                                    <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Estoque Disponível</label>
+                                        <input type="number" placeholder="Ex: 100" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                    </div>
+                                    <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px]">
                                         <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
                                         <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
                                     </label>
                                 </div>
 
-                               <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                                <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
 
@@ -10524,6 +10604,94 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
+
+            {/* --- INÍCIO: MODAL DE GESTÃO VIP (CADERNETA/FIADO) --- */}
+            <AnimatePresence>
+                {isVipModalOpen && editingVip && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
+                            <button onClick={() => setIsVipModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"><X size={20}/></button>
+                            
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-1">{editingVip.name}</h2>
+                            <p className="text-xs font-bold text-slate-500 tracking-widest uppercase mb-6">{editingVip.phone}</p>
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const payload = {
+                                        storeId: storeId,
+                                        name: editingVip.name,
+                                        phone: editingVip.phone,
+                                        fiadoEnabled: editingVip.fiadoEnabled,
+                                        billingDay: Number(editingVip.billingDay),
+                                        updatedAt: serverTimestamp()
+                                    };
+                                    
+                                    if (editingVip.dbId) {
+                                        await updateDoc(doc(db, "store_customers", editingVip.dbId), payload);
+                                    } else {
+                                        await addDoc(collection(db, "store_customers"), { ...payload, createdAt: serverTimestamp() });
+                                    }
+                                    
+                                    setIsVipModalOpen(false);
+                                    alert("✅ Configurações salvas com sucesso!");
+                                } catch (error) {
+                                    alert("Erro ao salvar dados do cliente.");
+                                }
+                            }} className="space-y-6">
+                                
+                                <div className="bg-orange-50 border border-orange-100 p-5 rounded-3xl">
+                                    <label className="flex items-center justify-between cursor-pointer mb-4 border-b border-orange-200/50 pb-4">
+                                        <div>
+                                            <span className="font-black uppercase tracking-tight text-xs text-orange-800">Liberar Fiado (PDV)</span>
+                                            <p className="text-[9px] text-orange-600/80 font-bold mt-1 leading-tight">Permite que a loja lance pedidos na caderneta para este número.</p>
+                                        </div>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={editingVip.fiadoEnabled} 
+                                            onChange={(e) => setEditingVip({ ...editingVip, fiadoEnabled: e.target.checked })} 
+                                            className="w-5 h-5 rounded-md accent-orange-600 cursor-pointer flex-shrink-0" 
+                                        />
+                                    </label>
+
+                                    {editingVip.fiadoEnabled && (
+                                        <div className="animate-in fade-in slide-in-from-top-2 grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Vencimento</label>
+                                                <select 
+                                                    value={editingVip.billingDay} 
+                                                    onChange={(e) => setEditingVip({ ...editingVip, billingDay: Number(e.target.value) })}
+                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 cursor-pointer border border-orange-200"
+                                                >
+                                                    <option value={5}>Dia 05</option>
+                                                    <option value={10}>Dia 10</option>
+                                                    <option value={15}>Dia 15</option>
+                                                    <option value={20}>Dia 20</option>
+                                                    <option value={25}>Dia 25</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Limite de Crédito (R$)</label>
+                                                <input 
+                                                    type="number" step="0.01" placeholder="Ex: 300.00"
+                                                    value={editingVip.creditLimit || ''} 
+                                                    onChange={(e) => setEditingVip({ ...editingVip, creditLimit: Number(e.target.value) })}
+                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 border border-orange-200"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-xl">
+                                    Salvar Ajustes
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE GESTÃO VIP --- */}
 
             <VeloSupportWidget />
         </div>
