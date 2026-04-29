@@ -1902,12 +1902,33 @@ const handleGenerateProductCopy = async () => {
 
     const handleSaveGeneralBanner = async (e) => {
         e.preventDefault();
+        
+        // 🛡️ BLINDAGEM ANTI-CLIQUE DUPLO
+        const btn = e.nativeEvent.submitter;
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.innerText = 'Salvando...';
+        }
+
         const dataToSave = { ...bannerForm, order: Number(bannerForm.order), storeId: storeId };
         try {
             if (editingBannerId) await updateDoc(doc(db, "banners", editingBannerId), dataToSave);
             else await addDoc(collection(db, "banners"), dataToSave);
-            setIsBannerModalOpen(false); alert("Banner salvo!");
-        } catch (error) { alert("Erro ao salvar banner."); console.error(error); }
+            
+            setIsBannerModalOpen(false); 
+            alert("✅ Banner salvo com sucesso!");
+        } catch (error) { 
+            alert("❌ Erro ao salvar banner."); 
+            console.error(error); 
+            
+            // Restaura o botão caso dê erro na rede
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.innerText = 'Salvar Banner';
+            }
+        }
     };
 
     const handleInitialSetup = async () => {
