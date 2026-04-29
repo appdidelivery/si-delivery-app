@@ -2086,6 +2086,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             return acc;
         }, {});
 
+        // NOVO: Adiciona na lista os clientes que foram cadastrados manualmente (que ainda não têm pedidos)
+        storeCustomersDB.forEach(dbCustomer => {
+            if (dbCustomer.phone && !spendingByCustomer[dbCustomer.phone]) {
+                spendingByCustomer[dbCustomer.phone] = {
+                    name: dbCustomer.name || 'Sem nome',
+                    phone: dbCustomer.phone,
+                    totalSpent: 0,
+                    orderCount: 0,
+                    fiadoDebt: 0
+                };
+            }
+        });
+
         // 2. Agrega o total de pontos já resgatados por cliente
         const redemptionsByCustomer = loyaltyRedemptions.reduce((acc, r) => {
             const phone = r.customerPhone || 'N/A';
@@ -4225,14 +4238,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                 {activeTab === 'customers' && (
                     <div className="space-y-6">
-                        <div className="text-center mb-6">
-                            <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">
-                                {settings.loyaltyActive ? 'FIDELIDADE E FIADO' : 'CLIENTES E CADERNETA'}
-                            </h1>
-                            {!settings.loyaltyActive && <p className="text-slate-400 font-bold mt-2">O Clube Fidelidade está desativado. Ative na aba 'Marketing' para ver os pontos.</p>}
+                        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                            <div className="text-center md:text-left">
+                                <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">
+                                    {settings?.enableFiado 
+                                        ? (settings.loyaltyActive ? 'FIDELIDADE E FIADO' : 'CLIENTES E CADERNETA')
+                                        : (settings.loyaltyActive ? 'CLUBE FIDELIDADE' : 'RANKING VIP')
+                                    }
+                                </h1>
+                                {!settings.loyaltyActive && <p className="text-slate-400 font-bold mt-2 text-sm">O Clube Fidelidade está desativado. Ative na aba 'Marketing'.</p>}
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setEditingVip({ name: '', phone: '', fiadoEnabled: false, billingDay: 10, creditLimit: 0, isNew: true });
+                                    setIsVipModalOpen(true);
+                                }} 
+                                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm uppercase tracking-widest whitespace-nowrap"
+                            >
+                                + NOVO CLIENTE
+                            </button>
                         </div>
 
-                       {/* --- PAINEL FINANCEIRO DA CADERNETA (RELATÓRIO DE DEVEDORES) --- */}
+                        {/* --- PAINEL FINANCEIRO DA CADERNETA (RELATÓRIO DE DEVEDORES) --- */}
                         {settings?.enableFiado && (() => {
                             const totalReceivable = customers.reduce((acc, c) => acc + (c.fiadoDebt || 0), 0);
                             const debtorsCount = customers.filter(c => (c.fiadoDebt || 0) > 0).length;
@@ -4336,7 +4363,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         )}
                                         
                                         {/* NOVO: BLOCO DA CADERNETA (FIADO) */}
-                                        {c.fiadoEnabled && (
+                                        {settings?.enableFiado && c.fiadoEnabled && (
                                             <div className="mt-4 pt-4 border-t border-slate-100/50 flex flex-col md:flex-row items-end justify-between gap-4 w-full">
                                                 <div className="text-left">
                                                     <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1">Status Caderneta (Vence dia {c.billingDay})</p>
@@ -10676,8 +10703,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
                             <button onClick={() => setIsVipModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"><X size={20}/></button>
                             
-                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-1">{editingVip.name}</h2>
-                            <p className="text-xs font-bold text-slate-500 tracking-widest uppercase mb-6">{editingVip.phone}</p>
+                            {editingVip.isNew ? (
+                                <div className="space-y-3 mb-6 pr-6">
+                                    <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-4">Novo Cliente</h2>
+                                    <input 
+                                        type="text" placeholder="Nome Completo *" required 
+                                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-500 text-slate-700" 
+                                        value={editingVip.name || ''} 
+                                        onChange={e => setEditingVip({...editingVip, name: e.target.value})} 
+                                    />
+                                    <input 
+                                        type="tel" placeholder="WhatsApp (Ex: 5511999999999) *" required 
+                                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-blue-500 text-slate-700" 
+                                        value={editingVip.phone || ''} 
+                                        onChange={e => setEditingVip({...editingVip, phone: String(e.target.value).replace(/\D/g, '')})} 
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-1">{editingVip.name}</h2>
+                                    <p className="text-xs font-bold text-slate-500 tracking-widest uppercase mb-6">{editingVip.phone}</p>
+                                </>
+                            )}
 
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
@@ -10704,48 +10751,50 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 }
                             }} className="space-y-6">
                                 
-                                <div className="bg-orange-50 border border-orange-100 p-5 rounded-3xl">
-                                    <label className="flex items-center justify-between cursor-pointer mb-4 border-b border-orange-200/50 pb-4">
-                                        <div>
-                                            <span className="font-black uppercase tracking-tight text-xs text-orange-800">Liberar Fiado (PDV)</span>
-                                            <p className="text-[9px] text-orange-600/80 font-bold mt-1 leading-tight">Permite que a loja lance pedidos na caderneta para este número.</p>
-                                        </div>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={editingVip.fiadoEnabled} 
-                                            onChange={(e) => setEditingVip({ ...editingVip, fiadoEnabled: e.target.checked })} 
-                                            className="w-5 h-5 rounded-md accent-orange-600 cursor-pointer flex-shrink-0" 
-                                        />
-                                    </label>
+                                {settings?.enableFiado && (
+                                    <div className="bg-orange-50 border border-orange-100 p-5 rounded-3xl mb-4">
+                                        <label className="flex items-center justify-between cursor-pointer mb-4 border-b border-orange-200/50 pb-4">
+                                            <div>
+                                                <span className="font-black uppercase tracking-tight text-xs text-orange-800">Liberar Fiado (PDV)</span>
+                                                <p className="text-[9px] text-orange-600/80 font-bold mt-1 leading-tight">Permite que a loja lance pedidos na caderneta para este número.</p>
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={editingVip.fiadoEnabled || false} 
+                                                onChange={(e) => setEditingVip({ ...editingVip, fiadoEnabled: e.target.checked })} 
+                                                className="w-5 h-5 rounded-md accent-orange-600 cursor-pointer flex-shrink-0" 
+                                            />
+                                        </label>
 
-                                    {editingVip.fiadoEnabled && (
-                                        <div className="animate-in fade-in slide-in-from-top-2 grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Vencimento</label>
-                                                <select 
-                                                    value={editingVip.billingDay} 
-                                                    onChange={(e) => setEditingVip({ ...editingVip, billingDay: Number(e.target.value) })}
-                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 cursor-pointer border border-orange-200"
-                                                >
-                                                    <option value={5}>Dia 05</option>
-                                                    <option value={10}>Dia 10</option>
-                                                    <option value={15}>Dia 15</option>
-                                                    <option value={20}>Dia 20</option>
-                                                    <option value={25}>Dia 25</option>
-                                                </select>
+                                        {editingVip.fiadoEnabled && (
+                                            <div className="animate-in fade-in slide-in-from-top-2 grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Vencimento</label>
+                                                    <select 
+                                                        value={editingVip.billingDay} 
+                                                        onChange={(e) => setEditingVip({ ...editingVip, billingDay: Number(e.target.value) })}
+                                                        className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 cursor-pointer border border-orange-200"
+                                                    >
+                                                        <option value={5}>Dia 05</option>
+                                                        <option value={10}>Dia 10</option>
+                                                        <option value={15}>Dia 15</option>
+                                                        <option value={20}>Dia 20</option>
+                                                        <option value={25}>Dia 25</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Limite de Crédito (R$)</label>
+                                                    <input 
+                                                        type="number" step="0.01" placeholder="Ex: 300.00"
+                                                        value={editingVip.creditLimit || ''} 
+                                                        onChange={(e) => setEditingVip({ ...editingVip, creditLimit: Number(e.target.value) })}
+                                                        className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 border border-orange-200"
+                                                    />
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Limite de Crédito (R$)</label>
-                                                <input 
-                                                    type="number" step="0.01" placeholder="Ex: 300.00"
-                                                    value={editingVip.creditLimit || ''} 
-                                                    onChange={(e) => setEditingVip({ ...editingVip, creditLimit: Number(e.target.value) })}
-                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 border border-orange-200"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-xl">
                                     Salvar Ajustes
