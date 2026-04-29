@@ -783,12 +783,18 @@ export default function Admin() {
     // Efeito para calcular a fatura em tempo real e Saldo VeloPay dinâmico
     useEffect(() => {
         if(orders.length > 0 || products.length > 0) {
-            // --- LÓGICA DE CICLO ROTATIVO (SAAS) ---
-            let diaVencimento = 10;
-            if (storeStatus?.createdAt) {
-                const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
-                if (!isNaN(dataCriacao)) diaVencimento = dataCriacao.getDate();
-            }
+            // --- LÓGICA DE CICLO ROTATIVO (SAAS) CORRIGIDA ---
+            let diaVencimento = storeStatus?.billingDay || 9; // Fallback para o dia do seu ciclo
+            
+            // BLINDAGEM: Trava o dia de vencimento com base no histórico real salvo no banco, 
+            // NUNCA mais usando a data de criação da loja para não resetar o excedente!
+            if (storeStatus?.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
+                const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
+                if (faturaReferencia.dueDate) {
+                    const dataRef = new Date(faturaReferencia.dueDate);
+                    if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
+                }
+            }
 
             const now = new Date();
             let startOfCycle, endOfCycle;
@@ -883,12 +889,12 @@ export default function Admin() {
             });
 
             // 🚨 NOVO: MOTOR DO SALDO VELOPAY BLINDADO (Calculado pelo Frontend)
-            const totalPixRecebido = orders
-                .filter(o => 
-                    ['velopay_pix', 'pix', 'link_mp'].includes(o.paymentMethod) && 
-                    ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(o.paymentStatus) &&
-                    o.source !== 'manual_pdv' && o.source !== 'manual' // Pega só vendas da loja online
-                )
+            const totalPixRecebido = orders
+                .filter(o => 
+                    ['velopay_pix', 'velopay_credit'].includes(o.paymentMethod) && 
+                    ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(o.paymentStatus) &&
+                    o.source !== 'manual_pdv' && o.source !== 'manual' // Pega só vendas da loja online
+                )
                 .reduce((acc, o) => acc + Number(o.veloNetAmount || o.total || 0), 0); // Lê o valor com a taxa descontada
 
             const totalSacado = withdrawalsList
@@ -6501,7 +6507,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     if (storeStatus?.createdAt) {
                                         const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
                                         if (!isNaN(dataCriacao)) {
-                                            const diaVencimento = dataCriacao.getDate();
+                                            let diaVencimento = storeStatus?.billingDay || 9;
+                                            if (history.length > 0 && history[history.length - 1].dueDate) {
+                                                const dataRef = new Date(history[history.length - 1].dueDate);
+                                                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
+                                            }
+                                            
                                             const hoje = new Date();
                                             let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1);
                                             
