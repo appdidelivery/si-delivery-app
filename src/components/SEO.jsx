@@ -154,12 +154,14 @@ export default function SEO({ title, description, image, productData }) {
 
                     const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                     
-                    // --- REGRAS PADRÃO DO MERCHANT CENTER (FRETE E DEVOLUÇÃO) ---
+                   // --- REGRAS PADRÃO DO MERCHANT CENTER (FRETE E DEVOLUÇÃO) ---
                     const baseDeliveryFee = fields.delivery_fee?.doubleValue || fields.delivery_fee?.integerValue || 5.00; // Taxa de entrega padrão de segurança
-                    const merchantCenterRules = {
+                   const merchantCenterRules = {
                         "hasMerchantReturnPolicy": {
                             "@type": "MerchantReturnPolicy",
+                            "applicableCountry": "BR",
                             "returnPolicyCategory": "https://schema.org/MerchantReturnNotPermitted",
+                            "merchantReturnLink": `${safeBaseUrl}/politicas`,
                             "description": "Itens de alimentação e consumo imediato não permitem devolução, exceto avarias."
                         },
                         "shippingDetails": {
@@ -172,6 +174,21 @@ export default function SEO({ title, description, image, productData }) {
                             "shippingDestination": {
                                 "@type": "DefinedRegion",
                                 "addressCountry": "BR"
+                            },
+                            "deliveryTime": {
+                                "@type": "ShippingDeliveryTime",
+                                "handlingTime": {
+                                    "@type": "QuantitativeValue",
+                                    "minValue": 0,
+                                    "maxValue": 15,
+                                    "unitCode": "MIN"
+                                },
+                                "transitTime": {
+                                    "@type": "QuantitativeValue",
+                                    "minValue": 15,
+                                    "maxValue": 60,
+                                    "unitCode": "MIN"
+                                }
                             }
                         }
                     };
@@ -243,6 +260,12 @@ export default function SEO({ title, description, image, productData }) {
                             "name": prod.name || prod.nome || "",
                             "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
                             "description": prod.description || prod.descricao || fetchedDesc,
+                            "sku": prod.id || "SKU-PADRAO",
+                            "identifierExists": false,
+                            "brand": {
+                                "@type": "Brand",
+                                "name": fetchedName || "Marca Própria"
+                            },
                             "offers": {
                                 "@type": "Offer",
                                 "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
@@ -273,31 +296,38 @@ export default function SEO({ title, description, image, productData }) {
                             "@context": "https://schema.org",
                             "@graph": [
                                 baseStoreSchema,
-                                {
+                               {
                                     "@type": ["Product", "MenuItem"],
                                     "@id": `${baseUrl}#product`,
                                     // DADOS BASE DO PRODUTO
-                                    "name": productData.name || "",
-                                    "description": productData.description || fetchedDesc || "",
-                                    "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
-                                    "sku": productData.sku || productData.id || "",
-                                    "gtin13": productData.gtin13 || productData.gtin || "",
+                                    "name": productData.name || "Produto",
+                                    "description": productData.description || fetchedDesc || "Produto oficial da loja.",
+                                   "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
+                                    "sku": productData.sku || productData.id || "SKU-PADRAO",
+                                    // Evita o erro fatal de "gtin" vazio e avisa o Google que o produto é de fabricação própria
+                                    ...(productData.gtin13 || productData.gtin ? { 
+                                        "gtin13": productData.gtin13 || productData.gtin 
+                                    } : { 
+                                        "identifierExists": false 
+                                    }),
                                     "brand": {
                                         "@type": "Brand",
-                                        "name": productData.brand || fetchedName || ""
+                                        "name": productData.brand || fetchedName || "Marca Própria"
                                     },
-                                    "category": productData.category || "",
+                                    ...(productData.category ? { "category": productData.category } : {}),
                                     
                                     // LOGÍSTICA E PREPARO
-                                    "prepTime": productData.prepTime ? `PT${productData.prepTime}M` : "",
+                                    ...(productData.prepTime ? { "prepTime": `PT${productData.prepTime}M` } : {}),
                                     
                                     // ALIMENTAÇÃO E CUSTOMIZAÇÃO
-                                    "suitableForDiet": productData.suitableForDiet || [],
-                                    "menuAddOn": productData.menuAddOn || [],
-                                    "nutrition": {
-                                        "@type": "NutritionInformation",
-                                        "calories": productData.calories ? `${productData.calories} kcal` : ""
-                                    },
+                                    ...(productData.suitableForDiet && productData.suitableForDiet.length > 0 ? { "suitableForDiet": productData.suitableForDiet } : {}),
+                                    ...(productData.menuAddOn && productData.menuAddOn.length > 0 ? { "menuAddOn": productData.menuAddOn } : {}),
+                                    ...(productData.calories ? {
+                                        "nutrition": {
+                                            "@type": "NutritionInformation",
+                                            "calories": `${productData.calories} kcal`
+                                        }
+                                    } : {}),
                                     
                                     // PROVA SOCIAL DO PRODUTO
                                     ...(productData.ratingValue ? {
@@ -315,30 +345,16 @@ export default function SEO({ title, description, image, productData }) {
                                         "priceCurrency": "BRL",
                                         "price": Number(rawPrice).toFixed(2),
                                         "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                                        "priceValidUntil": productData.priceValidUntil || "",
+                                        // Google OBRIGA a ter data de validade. Se não tiver, jogamos para o ano que vem.
+                                        "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
                                         "itemCondition": "https://schema.org/NewCondition",
                                         "seller": { 
                                             "@type": "Organization",
                                             "name": fetchedName,
                                             "@id": `${baseUrl}#store` 
                                         },
-                                        "deliveryLeadTime": {
-                                            "@type": "QuantitativeValue",
-                                            "value": productData.deliveryLeadTime || fields.deliveryLeadTime?.integerValue || "",
-                                            "unitCode": "MIN"
-                                        },
-                                        "shippingDetails": {
-                                            "@type": "OfferShippingDetails",
-                                            "shippingRate": {
-                                                "@type": "MonetaryAmount",
-                                                "value": fields.delivery_fee?.doubleValue || fields.delivery_fee?.integerValue || 0,
-                                                "currency": "BRL"
-                                            },
-                                            "shippingDestination": {
-                                                "@type": "DefinedRegion",
-                                                "addressCountry": "BR"
-                                            }
-                                        }
+                                        // Puxamos a política de frete de devolução mestre gerada lá em cima
+                                        ...merchantCenterRules
                                     }
                                 },
                                 // Ação de Pedido Direto
