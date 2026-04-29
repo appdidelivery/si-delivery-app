@@ -4225,14 +4225,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                 {activeTab === 'customers' && (
                     <div className="space-y-6">
-                        <div className="text-center mb-10">
+                        <div className="text-center mb-6">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900">
-                                {settings.loyaltyActive ? 'CLUBE FIDELIDADE' : 'RANKING VIP'}
+                                {settings.loyaltyActive ? 'FIDELIDADE E FIADO' : 'CLIENTES E CADERNETA'}
                             </h1>
                             {!settings.loyaltyActive && <p className="text-slate-400 font-bold mt-2">O Clube Fidelidade está desativado. Ative na aba 'Marketing' para ver os pontos.</p>}
                         </div>
 
+                        {/* --- PAINEL FINANCEIRO DA CADERNETA (RELATÓRIO DE DEVEDORES) --- */}
+                        {(() => {
+                            const totalReceivable = customers.reduce((acc, c) => acc + (c.fiadoDebt || 0), 0);
+                            const debtorsCount = customers.filter(c => (c.fiadoDebt || 0) > 0).length;
+                            const totalCreditLimit = customers.reduce((acc, c) => acc + (c.fiadoEnabled ? (c.creditLimit || 0) : 0), 0);
+                            const topDebtors = customers.filter(c => (c.fiadoDebt || 0) > 0).sort((a, b) => b.fiadoDebt - a.fiadoDebt);
+
+                            return (
+                                <div className="max-w-4xl mx-auto mb-10 animate-in fade-in slide-in-from-top-2">
+                                    <h2 className="text-xl font-black uppercase text-slate-800 mb-4 flex items-center gap-2">
+                                        📒 Relatório da Caderneta (Fiado)
+                                    </h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase text-orange-800 tracking-widest mb-1 flex items-center gap-2"><Users size={14}/> Inadimplentes</p>
+                                            <p className="text-4xl font-black text-orange-600 italic">{debtorsCount}</p>
+                                        </div>
+                                        <div className="bg-red-50 p-6 rounded-3xl border border-red-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase text-red-800 tracking-widest mb-1 flex items-center gap-2"><Banknote size={14}/> Total a Receber</p>
+                                            <p className="text-4xl font-black text-red-600 italic">R$ {totalReceivable.toFixed(2)}</p>
+                                        </div>
+                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1 flex items-center gap-2"><Shield size={14}/> Risco (Limite Usado)</p>
+                                            <p className="text-xl font-black text-slate-700 italic">
+                                                R$ {totalReceivable.toFixed(2)} <span className="text-sm font-bold text-slate-400">/ R$ {totalCreditLimit.toFixed(2)}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {topDebtors.length > 0 && (
+                                        <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 mb-2">🚨 Maiores Devedores Atuais:</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {topDebtors.slice(0, 5).map((d, idx) => (
+                                                    <span key={idx} className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-200">
+                                                        {d.name.split(' ')[0]}: R$ {d.fiadoDebt.toFixed(2)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
                         <div className="grid gap-4 max-w-4xl mx-auto">
+                            <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2 mt-4 mb-2">
+                                🏆 Ranking de Clientes (Geral)
+                            </h2>
                             {customers.slice(0, showAllVips ? undefined : 5).map((c, i) => {
                                 const progressPercentage = Math.min(100, (c.points / (c.loyaltyGoal || 1)) * 100);
                                 const hasReachedGoal = c.points >= c.loyaltyGoal;
@@ -8189,7 +8237,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </label>
                                 </div>
 
-                                <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                               <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                                     <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
 
