@@ -38,7 +38,8 @@ export default async function middleware(request) {
           "csi.com.br": "csi",
           "cowburguer.com.br": "cowburguer",
           "macanudorex.com.br": "macanudorex",
-          "ngconveniencia.com.br": "ng"
+          "ngconveniencia.com.br": "ng",
+          "rincaofood.com.br": "rincaofood",
       };
       storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
   }
