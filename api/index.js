@@ -1384,11 +1384,49 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
                                                     const cartTotal = cartDoc.data().items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
                                                     
-                                                    // 1. Muda o estado do carrinho para "Esperando Endereço"
-                                                    await cartRef.set({ step: 'awaiting_address', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                    // NOVO: Busca o último pedido do cliente para lembrar o endereço
+                                                    let lastAddress = null;
+                                                    let lastFee = 0;
+                                                    try {
+                                                        const lastOrderSnap = await db.collection('orders')
+                                                            .where('storeId', '==', storeId)
+                                                            .where('customerPhone', '==', normalizedPhone)
+                                                            .orderBy('createdAt', 'desc')
+                                                            .limit(1).get();
+                                                            
+                                                        if (!lastOrderSnap.empty) {
+                                                            const lData = lastOrderSnap.docs[0].data();
+                                                            if (lData.customerAddress && lData.customerAddress.length > 5 && lData.customerAddress !== 'Endereço não informado') {
+                                                                lastAddress = lData.customerAddress;
+                                                                lastFee = lData.shippingFee || 0;
+                                                            }
+                                                        }
+                                                    } catch(e) { console.error("Erro ao buscar histórico", e); }
                                                     
-                                                    replyPayload = { type: "text", text: { body: `🛒 *Subtotal: R$ ${cartTotal.toFixed(2)}*\n\n📍 Para calcularmos a taxa de entrega, por favor digite o seu *Endereço Completo* (Rua, Número, Bairro) ou o seu *CEP*:` } };
-                                                    logTextForPanel = `🤖 [Pediu Endereço para Frete]`;
+                                                    if (lastAddress) {
+                                                        // Achou endereço antigo! Oferece o atalho com botões Sim/Não
+                                                        await cartRef.set({ step: 'confirming_address', savedAddress: lastAddress, savedFee: lastFee, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                        
+                                                        replyPayload = {
+                                                            type: "interactive",
+                                                            interactive: {
+                                                                type: "button",
+                                                                body: { text: `🛒 *Subtotal: R$ ${cartTotal.toFixed(2)}*\n\n📍 Encontrei seu último endereço de entrega:\n*${lastAddress}*\n\nO pedido será para este mesmo local?` },
+                                                                action: {
+                                                                    buttons: [
+                                                                        { type: "reply", reply: { id: "btn_same_address", title: "✅ Sim, neste" } },
+                                                                        { type: "reply", reply: { id: "btn_new_address", title: "✏️ Não, outro" } }
+                                                                    ]
+                                                                }
+                                                            }
+                                                        };
+                                                        logTextForPanel = `🤖 [Lembrou Endereço Antigo]`;
+                                                    } else {
+                                                        // Cliente Novo - Vai direto pra pergunta do endereço
+                                                        await cartRef.set({ step: 'awaiting_address', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                        replyPayload = { type: "text", text: { body: `🛒 *Subtotal: R$ ${cartTotal.toFixed(2)}*\n\n📍 Para calcularmos a taxa de entrega, por favor digite o seu *Endereço Completo* (Rua, Número, Bairro) ou o seu *CEP*:` } };
+                                                        logTextForPanel = `🤖 [Pediu Endereço para Frete]`;
+                                                    }
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Seu carrinho está vazio${nomeOuVazio}! Adicione produtos pelo cardápio primeiro.` } };
                                                     logTextForPanel = `🤖 [Tentou Checkout com Carrinho Vazio]`;
@@ -1522,6 +1560,42 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     logTextForPanel = `🤖 [Carrinho Expirado]`;
                                                 }
                                             }
+                                            else if (interactivePayload === 'btn_new_address') {
+                                                const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
+                                                await cartRef.set({ step: 'awaiting_address', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                replyPayload = { type: "text", text: { body: `Sem problemas! 📍 Digite agora o seu *Novo Endereço Completo* (Rua, Número, Bairro) ou o seu *CEP*:` } };
+                                                logTextForPanel = `🤖 [Pediu NOVO Endereço]`;
+                                            }
+                                            else if (interactivePayload === 'btn_same_address') {
+                                                const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
+                                                const cartDoc = await cartRef.get();
+                                                const cartData = cartDoc.exists ? cartDoc.data() : null;
+                                                
+                                                if (cartData && cartData.savedAddress) {
+                                                    const cartTotal = cartData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    const freteCalculado = cartData.savedFee || 0;
+                                                    const finalTotal = cartTotal + freteCalculado;
+                                                    
+                                                    // Pula direto pro pagamento, reaproveitando a taxa antiga!
+                                                    await cartRef.set({ step: 'awaiting_payment', shippingFee: freteCalculado, deliveryAddress: cartData.savedAddress, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                    
+                                                    replyPayload = {
+                                                        type: "interactive",
+                                                        interactive: {
+                                                            type: "button",
+                                                            body: { text: `📍 *Endereço confirmado!*\n${cartData.savedAddress}\n\n🛵 Taxa de Entrega: R$ ${freteCalculado.toFixed(2)}\n🛒 Subtotal: R$ ${cartTotal.toFixed(2)}\n💰 *Total Final: R$ ${finalTotal.toFixed(2)}*\n\nComo você prefere pagar?` },
+                                                            action: {
+                                                                buttons: [
+                                                                    { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
+                                                                    { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Cartão na Entrega" } },
+                                                                    { type: "reply", reply: { id: "btn_pay_cash", title: "💵 Dinheiro" } }
+                                                                ]
+                                                            }
+                                                        }
+                                                    };
+                                                    logTextForPanel = `🤖 [Confirmou Endereço Antigo]`;
+                                                }
+                                            }
                                             else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
                                                 const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
                                                 const cartDoc = await cartRef.get();
@@ -1558,45 +1632,47 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                                                                 const distanceKm = R * c;
                                                                 
-                                                                // 3. Checa o valor nas Zonas de Entrega (Busca Super Agressiva e Anti-Bug de Vírgula)
+                                                                // 3. Checa o valor nas Zonas de Entrega (Busca Ultra Profunda - Inclui Subcoleções)
                                                                 const settingsDocMap = await db.collection('settings').doc(storeId).get();
                                                                 const settingsDataMap = settingsDocMap.exists ? settingsDocMap.data() : {};
                                                                 
                                                                 let rawZones = [];
-                                                                const possiveisLocais = [
-                                                                    storeDynamicData.deliveryZones,
-                                                                    storeDynamicData.deliveryFees,
-                                                                    storeDynamicData.delivery?.zones,
-                                                                    storeDynamicData.deliveryConfig?.zones,
-                                                                    settingsDataMap.deliveryZones,
-                                                                    settingsDataMap.delivery?.zones,
-                                                                    settingsDataMap.deliveryConfig?.zones
-                                                                ];
-
-                                                                // Varre todos os buracos possíveis no banco de dados até achar a tabela de entrega
-                                                                for (const local of possiveisLocais) {
-                                                                    if (Array.isArray(local) && local.length > 0) {
-                                                                        rawZones = local; break;
-                                                                    } else if (local && typeof local === 'object' && Array.isArray(local.zones) && local.zones.length > 0) {
-                                                                        rawZones = local.zones; break;
-                                                                    } else if (local && typeof local === 'object') {
-                                                                        const valores = Object.values(local);
-                                                                        if (valores.length > 0 && (valores[0].radius || valores[0].km || valores[0].raio)) {
-                                                                            rawZones = valores; break;
+                                                                
+                                                                const findZonesDeep = (obj) => {
+                                                                    if (!obj || typeof obj !== 'object') return null;
+                                                                    if (Array.isArray(obj) && obj.length > 0 && (obj[0].radius !== undefined || obj[0].km !== undefined || obj[0].raio !== undefined || obj[0].endKm !== undefined)) return obj;
+                                                                    for (const key of Object.keys(obj)) {
+                                                                        const val = obj[key];
+                                                                        if (val && typeof val === 'object') {
+                                                                            if (Array.isArray(val) && val.length > 0 && (val[0].radius !== undefined || val[0].km !== undefined || val[0].raio !== undefined || val[0].endKm !== undefined)) return val;
+                                                                            const innerVals = Object.values(val);
+                                                                            if (innerVals.length > 0 && typeof innerVals[0] === 'object' && (innerVals[0].radius !== undefined || innerVals[0].km !== undefined || innerVals[0].raio !== undefined || innerVals[0].endKm !== undefined)) return innerVals;
                                                                         }
                                                                     }
-                                                                }
-                                                                
-                                                                // FUNÇÃO NINJA: Transforma "8,50" em 8.50 matemático (Evita o erro NaN)
-                                                                const parseNumberBR = (val) => {
-                                                                    if (typeof val === 'number') return val;
-                                                                    if (!val) return 0;
-                                                                    return Number(String(val).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+                                                                    return null;
                                                                 };
 
+                                                                rawZones = findZonesDeep(storeDynamicData) || findZonesDeep(settingsDataMap) || [];
+                                                                
+                                                                // SE AINDA TIVER VAZIO, VAMOS CAÇAR NAS SUBCOLEÇÕES DO FIREBASE (Onde o Velo costuma esconder)
+                                                                if (rawZones.length === 0) {
+                                                                    const subCols = ['deliveryZones', 'zones', 'frete', 'taxas'];
+                                                                    for (const col of subCols) {
+                                                                        try {
+                                                                            const sub1 = await db.collection('stores').doc(storeId).collection(col).get();
+                                                                            if (!sub1.empty) { rawZones = sub1.docs.map(d => d.data()); break; }
+                                                                            const sub2 = await db.collection('settings').doc(storeId).collection(col).get();
+                                                                            if (!sub2.empty) { rawZones = sub2.docs.map(d => d.data()); break; }
+                                                                        } catch(e) {}
+                                                                    }
+                                                                }
+
+                                                                // HIGIENIZADOR DE VÍRGULA ("8,50" -> 8.50 matemático para o código não crashar)
+                                                                const parseBR = (v) => Number(String(v || 0).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+
                                                                 const zones = rawZones.map(z => ({
-                                                                    kmMax: parseNumberBR(z.radius || z.km || z.distance || z.raio || z.maxDistance),
-                                                                    valor: parseNumberBR(z.price || z.fee || z.taxa || z.value || z.valor || z.cost)
+                                                                    kmMax: parseBR(z.radius || z.km || z.distance || z.raio || z.maxDistance || z.endKm || z.ateKm),
+                                                                    valor: parseBR(z.price || z.fee || z.taxa || z.value || z.valor || z.cost || z.frete || z.preco)
                                                                 })).filter(z => z.kmMax > 0);
 
                                                                 zones.sort((a, b) => a.kmMax - b.kmMax);
@@ -1615,7 +1691,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     zoneFound = true;
                                                                 } else if (zones.length === 0) {
                                                                     freteCalculado = 0;
-                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Taxa a combinar)`;
+                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Calculado na loja)`;
                                                                     zoneFound = true;
                                                                 } else {
                                                                     replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
