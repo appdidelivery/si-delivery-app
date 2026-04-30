@@ -8756,27 +8756,44 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
                             <button onClick={() => setIsRateModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
                             <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingRateId ? 'Editar' : 'Nova'} Taxa</h2>
-                            <form onSubmit={async (e) => { 
-                                e.preventDefault(); 
-                                try { 
-                                    const cleanStart = rateForm.cepStart ? rateForm.cepStart.replace(/\D/g, '') : '';
-                                    const cleanEnd = rateForm.cepEnd ? rateForm.cepEnd.replace(/\D/g, '') : '';
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const vipData = {
+                                        name: vipForm.name,
+                                        phone: vipForm.phone,
+                                        cpf: vipForm.cpf || "", // Se tiver CPF salva, senão string vazia
+                                        allowTab: vipForm.allowTab || false,
+                                        tabLimit: Number(vipForm.tabLimit) || 0,
+                                        tabDueDate: Number(vipForm.tabDueDate) || 10,
+                                        storeId: storeId,
+                                        updatedAt: serverTimestamp() // Sempre marca quando foi alterado
+                                    };
 
-                                    const data = { 
-                                        neighborhood: rateForm.neighborhood, 
-                                        fee: parseFloat(rateForm.fee), 
-                                        cepStart: cleanStart,
-                                        cepEnd: cleanEnd,
-                                        storeId: storeId 
-                                    }; 
-                                    
-                                    if (editingRateId) await updateDoc(doc(db, "shipping_rates", editingRateId), data); 
-                                    else await addDoc(collection(db, "shipping_rates"), data); 
-                                    
-                                    setIsRateModalOpen(false); 
-                                    alert("Taxa salva com sucesso!");
-                                } catch (error) { alert(error.message); } 
-                            }} className="space-y-4">
+                                    if (editingVipId) {
+                                        // Se for edição, usamos o update normal
+                                        await updateDoc(doc(db, "customers", editingVipId), vipData);
+                                    } else {
+                                        // Se for novo, usamos setDoc com merge: true, usando o telefone (limpo) como ID
+                                        const cleanPhone = vipForm.phone.replace(/\D/g, '');
+                                        if(!cleanPhone) {
+                                            alert("Por favor, digite um telefone válido.");
+                                            return;
+                                        }
+                                        const customerRef = doc(db, "customers", cleanPhone);
+                                        await setDoc(customerRef, {
+                                            ...vipData,
+                                            createdAt: serverTimestamp() // Só marca a criação se for novo
+                                        }, { merge: true });
+                                    }
+
+                                    setIsVipModalOpen(false);
+                                    setVipForm({ name: '', phone: '', cpf: '', allowTab: false, tabLimit: '', tabDueDate: 10 });
+                                    alert("Cliente salvo com sucesso!");
+                                } catch (error) {
+                                    alert("Erro ao salvar cliente: " + error.message);
+                                }
+                            }} className="space-y-6">
 
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-400 ml-2">Nome de Identificação (Ex: Centro Expandido)</label>
