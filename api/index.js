@@ -1093,8 +1093,13 @@ export default async function handler(req, res) {
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
                                     });
 
-                                    let normalizedPhone = String(message.from).replace(/\D/g, '');
+                                   let normalizedPhone = String(message.from).replace(/\D/g, '');
                                     if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
+                                    
+                                    // CURA DO 9º DÍGITO: Garante que o Webhook e o Painel falem a mesma língua
+                                    if (normalizedPhone.length === 10) {
+                                        normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
+                                    }
 
                                     // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
