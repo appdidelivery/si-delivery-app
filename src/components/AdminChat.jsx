@@ -957,10 +957,10 @@ export default function AdminChat() {
                     <div className="flex flex-1 overflow-hidden w-full h-full z-10 relative">
                         {/* COLUNA DO CHAT */}
                         <div className="flex-1 min-w-0 flex flex-col relative bg-[#efeae2]">
-                            {/* Header do Chat */}
-                            <div className="h-16 px-4 bg-[#f0f2f5] border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
+                           {/* Header do Chat */}
+                            <div className="h-16 px-4 bg-[#f0f2f5] border-b border-gray-200 flex justify-between items-center z-10 shrink-0 w-full overflow-hidden">
                                 <div 
-                                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-200 p-2 rounded-xl transition-colors"
+                                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-200 p-2 rounded-xl transition-colors truncate"
                                     onClick={() => {
                                         setContactForm({
                                             name: getDisplayName(activeChat) !== `+${activeChat}` ? getDisplayName(activeChat) : '',
@@ -971,20 +971,20 @@ export default function AdminChat() {
                                     }}
                                     title="Ver dados do contato"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white shadow-sm">
+                                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white shadow-sm shrink-0">
                                         <User size={24} />
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="font-semibold text-gray-800 text-sm">
+                                    <div className="flex flex-col truncate">
+                                        <span className="font-semibold text-gray-800 text-sm truncate">
                                             {getDisplayName(activeChat)}
                                         </span>
                                         <span className="text-xs text-gray-500 cursor-pointer flex items-center gap-1 hover:text-blue-500">
-                                            {`+${activeChat}`} <Info size={12}/>
+                                            {`+${activeChat}`} <Info size={12} className="shrink-0"/>
                                         </span>
                                     </div>
                                 </div>
                             
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 shrink-0">
                                 <button 
                                     onClick={handleDeleteEntireChat}
                                     className="bg-white hover:bg-red-50 text-red-500 border border-gray-200 hover:border-red-500 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
@@ -994,7 +994,7 @@ export default function AdminChat() {
                                 </button>
                                 <button 
                                     onClick={handleEndSession}
-                                    className="bg-white hover:bg-green-50 text-[#008069] border border-gray-200 hover:border-[#008069] px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-2"
+                                    className="bg-white hover:bg-green-50 text-[#008069] border border-gray-200 hover:border-[#008069] px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-2"
                                 >
                                     🤖 Reativar Bot
                                 </button>
