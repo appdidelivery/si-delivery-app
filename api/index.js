@@ -1542,24 +1542,36 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                                                                 const distanceKm = R * c;
                                                                 
-                                                                // 3. Checa o valor nas Zonas de Entrega
-                                                                const zones = storeDynamicData.deliveryZones || [];
-                                                                zones.sort((a, b) => Number(a.radius) - Number(b.radius));
+                                                                // 3. Checa o valor nas Zonas de Entrega (Blindado contra variações de nomenclatura no Banco)
+                                                                const rawZones = storeDynamicData.deliveryZones || storeDynamicData.deliveryFees || storeDynamicData.zones || storeDynamicData.shippingZones || [];
+                                                                
+                                                                // Mapeia todas as possibilidades de nomes que você pode ter criado no painel
+                                                                const zones = rawZones.map(z => ({
+                                                                    kmMax: Number(z.radius || z.km || z.distance || z.raio || 0),
+                                                                    valor: Number(z.price || z.fee || z.taxa || z.value || z.valor || 0)
+                                                                })).filter(z => z.kmMax > 0);
+
+                                                                zones.sort((a, b) => a.kmMax - b.kmMax);
                                                                 
                                                                 let matchedZone = null;
                                                                 for (const zone of zones) {
-                                                                    if (distanceKm <= Number(zone.radius)) {
+                                                                    if (distanceKm <= zone.kmMax) {
                                                                         matchedZone = zone;
                                                                         break;
                                                                     }
                                                                 }
                                                                 
                                                                 if (matchedZone) {
-                                                                    freteCalculado = Number(matchedZone.price || 0);
+                                                                    freteCalculado = matchedZone.valor;
                                                                     distanceMsg = `(${distanceKm.toFixed(1)}km)`;
                                                                     zoneFound = true;
+                                                                } else if (zones.length === 0) {
+                                                                    // Se o bot não conseguiu ler o array do Firebase, ele zera o frete para NÃO travar a venda
+                                                                    freteCalculado = 0;
+                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Calculado na loja)`;
+                                                                    zoneFound = true;
                                                                 } else {
-                                                                    // Fora da Área
+                                                                    // Realmente está fora do raio máximo cadastrado
                                                                     replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
                                                                     logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
                                                                     await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
