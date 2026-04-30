@@ -1679,90 +1679,104 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 const cartData = cartDoc.exists ? cartDoc.data() : null;
 
                                                 // LÓGICA DE INTERCEPTAÇÃO DE ENDEREÇO
-                                                // LÓGICA DE INTERCEPTAÇÃO DE ENDEREÇO
                                                 if (cartData && cartData.step === 'awaiting_address') {
-                                                    const addressText = messageText;
-                                                    let freteCalculado = 0;
-                                                    let distanceMsg = "";
-                                                    let zoneFound = false;
-
-                                                    try {
-                                                        const mapsKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-                                                        const storeLat = storeDynamicData.address?.lat || storeDynamicData.lat || -30.0684;
-                                                        const storeLng = storeDynamicData.address?.lng || storeDynamicData.lng || -51.1097;
-
-                                                        if (mapsKey && storeLat && storeLng) {
-                                                            const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ', Brasil')}&key=${mapsKey}`);
-                                                            const geoData = await geoRes.json();
-                                                            
-                                                            if (geoData.results && geoData.results.length > 0) {
-                                                                const clientLat = geoData.results[0].geometry.location.lat;
-                                                                const clientLng = geoData.results[0].geometry.location.lng;
-                                                                
-                                                                const R = 6371;
-                                                                const dLat = (clientLat - storeLat) * Math.PI / 180;
-                                                                const dLng = (clientLng - storeLng) * Math.PI / 180;
-                                                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-                                                                
-                                                                // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
-                                                                const setSnap = await db.collection('settings').doc(storeId).get();
-                                                                const setDat = setSnap.exists ? setSnap.data() : {};
-
-                                                                let rawZ = storeDynamicData.delivery_zones || storeDynamicData.deliveryZones || setDat.delivery_zones || setDat.deliveryZones || [];
-                                                                if (rawZ && typeof rawZ === 'object' && !Array.isArray(rawZ)) rawZ = Object.values(rawZ);
-
-                                                                const parseBR = (v) => Number(String(v || 0).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-                                                                
-                                                                const finalZones = rawZ.map(z => ({ 
-                                                                    km: parseBR(z.radius_km || z.radius || z.km || z.raio), 
-                                                                    val: parseBR(z.fee || z.price || z.taxa || z.valor) 
-                                                                })).filter(z => z.km > 0);
-
-                                                                finalZones.sort((a,b) => a.km - b.km);
-
-                                                                const match = finalZones.find(z => distanceKm <= z.km);
-                                                                if (match) { 
-                                                                    freteCalculado = match.val; 
-                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km)`;
-                                                                    zoneFound = true; 
-                                                                } else if (finalZones.length === 0) {
-                                                                    freteCalculado = 0; 
-                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Tabela Vazia/Erro)`;
-                                                                    zoneFound = true;
-                                                                } else {
-                                                                    replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
-                                                                    logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
-                                                                    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                                                }
-                                                            }
-                                                        }
-                                                    } catch (err) {
-                                                        console.error("Erro no mapa btn_same_address:", err);
-                                                        zoneFound = true;
-                                                    }
-
-                                                    if (!replyPayload && zoneFound) {
-                                                        const cartTotal = cartData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-                                                        const finalTotal = cartTotal + freteCalculado;
-                                                        
-                                                        await cartRef.set({ step: 'awaiting_payment', shippingFee: freteCalculado, deliveryAddress: addressText, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-
-                                                        replyPayload = {
-                                                            type: "interactive",
-                                                            interactive: {
-                                                                type: "button",
-                                                                body: { text: `📍 *Endereço anotado!*\n${addressText}\n\n🛵 Taxa de Entrega: R$ ${freteCalculado.toFixed(2)} ${distanceMsg}\n🛒 Subtotal: R$ ${cartTotal.toFixed(2)}\n💰 *Total Final: R$ ${finalTotal.toFixed(2)}*\n\nComo você prefere pagar?` },
-                                                                action: {
-                                                                    buttons: [
-                                                                        { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
-                                                                        { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Cartão na Entrega" } },
-                                                                        { type: "reply", reply: { id: "btn_pay_cash", title: "💵 Dinheiro" } }
-                                                                    ]
-                                                                }
-                                                            }
+                                                    const addressText = messageText.trim();
+                                                    
+                                                    // 🚨 BLINDAGEM DE ENDEREÇO INCOMPLETO
+                                                    // Verifica se tem apenas números (CEP) ou se falta o número da casa
+                                                    const isOnlyNumbers = /^[\d\s\-]+$/.test(addressText);
+                                                    const hasNumbers = /\d/.test(addressText);
+                                                    const isSemNumero = /s\/n|sem n/i.test(addressText);
+                                                    
+                                                    if (addressText.length < 8 || isOnlyNumbers || (!hasNumbers && !isSemNumero)) {
+                                                        replyPayload = { 
+                                                            type: "text", 
+                                                            text: { body: `⚠️ *Endereço Incompleto!*\n\nPara o motoboy conseguir entregar, preciso que digite o endereço *COMPLETO* com o nome da Rua, o Número e o Bairro.\n\n*(Ex: Rua das Flores, 123 - Centro)*\n_Se o local não tiver número, escreva "S/N"._` } 
                                                         };
-                                                        logTextForPanel = `🤖 [Calculou Frete: R$ ${freteCalculado.toFixed(2)}]`;
+                                                        logTextForPanel = `🤖 [Bloqueou Endereço Incompleto: ${addressText}]`;
+                                                    } else {
+                                                        let freteCalculado = 0;
+                                                        let distanceMsg = "";
+                                                        let zoneFound = false;
+
+                                                        try {
+                                                            const mapsKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+                                                            const storeLat = storeDynamicData.address?.lat || storeDynamicData.lat || -30.0684;
+                                                            const storeLng = storeDynamicData.address?.lng || storeDynamicData.lng || -51.1097;
+
+                                                            if (mapsKey && storeLat && storeLng) {
+                                                                const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ', Brasil')}&key=${mapsKey}`);
+                                                                const geoData = await geoRes.json();
+                                                                
+                                                                if (geoData.results && geoData.results.length > 0) {
+                                                                    const clientLat = geoData.results[0].geometry.location.lat;
+                                                                    const clientLng = geoData.results[0].geometry.location.lng;
+                                                                    
+                                                                    const R = 6371;
+                                                                    const dLat = (clientLat - storeLat) * Math.PI / 180;
+                                                                    const dLng = (clientLng - storeLng) * Math.PI / 180;
+                                                                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+                                                                    const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                                                                    
+                                                                    // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
+                                                                    const setSnap = await db.collection('settings').doc(storeId).get();
+                                                                    const setDat = setSnap.exists ? setSnap.data() : {};
+
+                                                                    let rawZ = storeDynamicData.delivery_zones || storeDynamicData.deliveryZones || setDat.delivery_zones || setDat.deliveryZones || [];
+                                                                    if (rawZ && typeof rawZ === 'object' && !Array.isArray(rawZ)) rawZ = Object.values(rawZ);
+
+                                                                    const parseBR = (v) => Number(String(v || 0).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+                                                                    
+                                                                    const finalZones = rawZ.map(z => ({ 
+                                                                        km: parseBR(z.radius_km || z.radius || z.km || z.raio), 
+                                                                        val: parseBR(z.fee || z.price || z.taxa || z.valor) 
+                                                                    })).filter(z => z.km > 0);
+
+                                                                    finalZones.sort((a,b) => a.km - b.km);
+
+                                                                    const match = finalZones.find(z => distanceKm <= z.km);
+                                                                    if (match) { 
+                                                                        freteCalculado = match.val; 
+                                                                        distanceMsg = `(${distanceKm.toFixed(1)}km)`;
+                                                                        zoneFound = true; 
+                                                                    } else if (finalZones.length === 0) {
+                                                                        freteCalculado = 0; 
+                                                                        distanceMsg = `(${distanceKm.toFixed(1)}km - Tabela Vazia/Erro)`;
+                                                                        zoneFound = true;
+                                                                    } else {
+                                                                        replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
+                                                                        logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
+                                                                        await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                                    }
+                                                                }
+                                                            }
+                                                        } catch (err) {
+                                                            console.error("Erro no mapa btn_same_address:", err);
+                                                            zoneFound = true;
+                                                        }
+
+                                                        if (!replyPayload && zoneFound) {
+                                                            const cartTotal = cartData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                            const finalTotal = cartTotal + freteCalculado;
+                                                            
+                                                            await cartRef.set({ step: 'awaiting_payment', shippingFee: freteCalculado, deliveryAddress: addressText, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+                                                            replyPayload = {
+                                                                type: "interactive",
+                                                                interactive: {
+                                                                    type: "button",
+                                                                    body: { text: `📍 *Endereço anotado!*\n${addressText}\n\n🛵 Taxa de Entrega: R$ ${freteCalculado.toFixed(2)} ${distanceMsg}\n🛒 Subtotal: R$ ${cartTotal.toFixed(2)}\n💰 *Total Final: R$ ${finalTotal.toFixed(2)}*\n\nComo você prefere pagar?` },
+                                                                    action: {
+                                                                        buttons: [
+                                                                            { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
+                                                                            { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Cartão na Entrega" } },
+                                                                            { type: "reply", reply: { id: "btn_pay_cash", title: "💵 Dinheiro" } }
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            };
+                                                            logTextForPanel = `🤖 [Calculou Frete: R$ ${freteCalculado.toFixed(2)}]`;
+                                                        }
                                                     }
                                                 }
                                                 // SE NÃO ESTIVER ESPERANDO ENDEREÇO, SEGUE COM A BUSCA NORMAL DE PRODUTOS
