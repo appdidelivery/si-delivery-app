@@ -1283,61 +1283,75 @@ export default function Admin() {
         const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc")), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        // NOVO: Escuta as mensagens do WhatsApp para o alerta sonoro e bolinha vermelha
-        let initialChat = true;
-        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
-            let shouldPlaySound = false;
-            let senderName = "Cliente";
+       // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
+        let initialChat = true;
+        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
+            let shouldPlaySound = false;
+            let isHandoffAlert = false; // <-- NOVO: Flag de alerta crítico
+            let senderName = "Cliente";
+            let handoffMessageText = "";
 
-            // Descobre qual conversa o lojista está olhando agora
-            const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
+            // Lê a exata string que o botão de "Falar com Humano" envia (ou assume um padrão)
+            const handoffTriggerText = settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
 
-            if (!initialChat) {
-                s.docChanges().forEach((change) => {
-                    const data = change.doc.data();
-                    if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
-                        // Normaliza o número de quem mandou para bater com o número aberto na tela
-                        let senderPhone = String(data.from || '').replace(/\D/g, '');
-                        if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
+            // Descobre qual conversa o lojista está olhando agora
+            const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
 
-                        // REGRA MÁGICA: Só toca o som se a mensagem for de ALGUÉM DIFERENTE da tela aberta
-                        if (senderPhone !== activeChatInScreen) {
-                            shouldPlaySound = true; 
-                            senderName = data.pushName || data.name || "Cliente";
-                        }
-                    }
-                });
+            if (!initialChat) {
+                s.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
+                        // Normaliza o número
+                        let senderPhone = String(data.from || '').replace(/\D/g, '');
+                        if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
 
-                // Toca o som APENAS UMA VEZ se for necessário
-                if (shouldPlaySound) {
-                    const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
-                    if (!isMuted) {
-                        const customSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
-                        const ringtone = new Audio(customSound);
-                        
-                        ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
-                        
-                        // DISPARA NOTIFICAÇÃO DO WINDOWS/MAC (Funciona em 2º plano!)
-                        if ("Notification" in window) {
-                            if (Notification.permission === "granted") {
-                                new Notification("💬 Nova Mensagem", {
-                                    body: `${senderName} enviou uma mensagem!`,
-                                    icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png"
-                                });
-                            } else if (Notification.permission !== "denied") {
-                                Notification.requestPermission();
-                            }
-                        }
-                    }
-                }
-            }
-            initialChat = false; // Desativa a trava de load inicial
+                        // VERIFICAÇÃO DE TRANSBORDO: Se a mensagem contiver a palavra-chave configurada
+                        if (data.text && String(data.text).toLowerCase().includes(handoffTriggerText.toLowerCase())) {
+                            isHandoffAlert = true;
+                            handoffMessageText = data.text;
+                            shouldPlaySound = true; // Força o som mesmo se a tela já estiver aberta!
+                            senderName = data.pushName || data.name || "Cliente";
+                        } else if (senderPhone !== activeChatInScreen) {
+                            // REGRA MÁGICA NORMAL: Só toca o som se a mensagem for de ALGUÉM DIFERENTE da tela aberta
+                            shouldPlaySound = true; 
+                            senderName = data.pushName || data.name || "Cliente";
+                        }
+                    }
+                });
 
-            // Conta quantas pessoas diferentes mandaram mensagem não lida
-            const unreadDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().status === 'unread');
-            const unreadSenders = new Set(unreadDocs.map(d => d.data().from));
-            setUnreadChatsCount(unreadSenders.size);
-        });
+                // Toca o som APENAS UMA VEZ
+                if (shouldPlaySound) {
+                    const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
+                    if (!isMuted) {
+                        // Se for alerta de humano, toca o sino de alerta (Sino alto). Se não, o som padrão.
+                        const defaultSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
+                        const urgentSound = 'https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3';
+                        const ringtone = new Audio(isHandoffAlert ? urgentSound : defaultSound);
+                        
+                        ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
+                        
+                        // DISPARA NOTIFICAÇÃO DO SISTEMA
+                        if ("Notification" in window) {
+                            if (Notification.permission === "granted") {
+                                new Notification(isHandoffAlert ? "🚨 ATENDIMENTO HUMANO" : "💬 Nova Mensagem", {
+                                    body: isHandoffAlert ? `${senderName} quer falar com você. Assuma o chat!` : `${senderName} enviou uma mensagem!`,
+                                    icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
+                                    requireInteraction: isHandoffAlert // Trava a notificação na tela até o lojista fechar
+                                });
+                            } else if (Notification.permission !== "denied") {
+                                Notification.requestPermission();
+                            }
+                        }
+                    }
+                }
+            }
+            initialChat = false; // Desativa a trava de load inicial
+
+            // Conta quantas pessoas diferentes mandaram mensagem não lida
+            const unreadDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().status === 'unread');
+            const unreadSenders = new Set(unreadDocs.map(d => d.data().from));
+            setUnreadChatsCount(unreadSenders.size);
+        });
 
        // NOVO: Escuta a versão e changelog global do sistema
         const unsubSystem = onSnapshot(doc(db, "system", "updates"), (d) => {
