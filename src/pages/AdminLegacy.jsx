@@ -8771,10 +8771,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     };
 
                                     if (editingVipId) {
-                                        // Se for edição, atualiza o existente
                                         await updateDoc(doc(db, "customers", editingVipId), vipData);
                                     } else {
-                                        // Se for NOVO, cria no banco (Blindado com addDoc)
                                         vipData.createdAt = new Date();
                                         await addDoc(collection(db, "customers"), vipData);
                                     }
@@ -8783,7 +8781,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     setVipForm({ name: '', phone: '', cpf: '', allowTab: false, tabLimit: '', tabDueDate: 10 });
                                     alert("Cliente salvo com sucesso!");
                                 } catch (error) {
-                                    // Se der erro agora, ele vai nos mostrar o VERDADEIRO motivo na tela
                                     alert("ERRO NOVO: " + error.message);
                                     console.error("Erro completo:", error);
                                 }
