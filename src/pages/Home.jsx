@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
@@ -1867,7 +1867,8 @@ if (window.fbq) {
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
 
-             } catch (err) {
+            } catch (err) {
+                  await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
                   alert(`Erro VeloPay: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -1963,6 +1964,7 @@ if (window.fbq) {
                   return;
 
               } catch (err) {
+                  await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
                   alert(`Erro no Cartão: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2012,6 +2014,7 @@ if (window.fbq) {
                   return;
 
               } catch (err) {
+                  await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
                   alert(`Erro ao gerar PIX: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2210,12 +2213,15 @@ if (window.fbq) {
                           onSubmit: async (cardFormData) => {
                               if (!isStoreOpenNow) return alert(storeMessage);
                               if (cart.length === 0) return alert("Carrinho vazio!");
+                              if (submitLock.current) return; // 🛑 TRAVA DE TOQUE DUPLO DO MP
+                              submitLock.current = true;
                               setIsFinalizing(true);
                               
+                              let newOrderRef = null;
                               try {
-                                  // 1. Cria o Pedido no Firebase primeiro (Igual ao fluxo normal)
+                                  // 1. Cria o Pedido no Firebase primeiro
                                   const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
-                                  const newOrderRef = doc(collection(db, "orders"));
+                                  newOrderRef = doc(collection(db, "orders"));
                                   const orderId = newOrderRef.id;
                                   
                                   const fullAddress = `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
@@ -2245,7 +2251,7 @@ if (window.fbq) {
 
                                   await setDoc(newOrderRef, orderData);
 
-                                  // 2. Chama a nova rota do Backend de Pagamento Transparente
+                                  // 2. Chama a nova rota do Backend
                                   const response = await fetch('/api/processar-pagamento-transparente-velo', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
@@ -2289,13 +2295,16 @@ if (window.fbq) {
                                       window.location.href = `/track/${orderId}?payment=success`;
                                   } else {
                                       // Falha no pagamento
-                                      await updateDoc(newOrderRef, { paymentStatus: 'failed' });
+                                      if (newOrderRef) await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
                                       alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + (result.error || result.status_detail));
                                       setIsFinalizing(false);
+                                      submitLock.current = false;
                                   }
                               } catch (e) {
+                                  if (newOrderRef) await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
                                   alert("Erro de conexão ao processar. Tente novamente.");
                                   setIsFinalizing(false);
+                                  submitLock.current = false;
                               }
                           },
                           onError: (error) => {
