@@ -1382,55 +1382,71 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 const cartDoc = await cartRef.get();
                                                 
                                                 if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
-                                                    const cartTotal = cartDoc.data().items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    const items = cartDoc.data().items;
+                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
                                                     
-                                                    // NOVO: Busca o último pedido do cliente para lembrar o endereço
+                                                    // MONTA O RESUMO DO CARRINHO PARA O CLIENTE NÃO TER SURPRESAS
+                                                    const resumoItens = items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
+                                                    const cartSummaryText = `🛒 *Resumo do seu pedido:*\n${resumoItens}\n\n*Subtotal:* R$ ${cartTotal.toFixed(2)}`;
+
                                                     let lastAddress = null;
                                                     let lastFee = 0;
                                                     try {
                                                         const lastOrderSnap = await db.collection('orders')
                                                             .where('storeId', '==', storeId)
                                                             .where('customerPhone', '==', normalizedPhone)
-                                                            .orderBy('createdAt', 'desc')
-                                                            .limit(1).get();
-                                                            
+                                                            .orderBy('createdAt', 'desc').limit(1).get();
                                                         if (!lastOrderSnap.empty) {
                                                             const lData = lastOrderSnap.docs[0].data();
-                                                            if (lData.customerAddress && lData.customerAddress.length > 5 && lData.customerAddress !== 'Endereço não informado') {
+                                                            if (lData.customerAddress && lData.customerAddress.length > 5) {
                                                                 lastAddress = lData.customerAddress;
                                                                 lastFee = lData.shippingFee || 0;
                                                             }
                                                         }
-                                                    } catch(e) { console.error("Erro ao buscar histórico", e); }
+                                                    } catch(e) {}
                                                     
                                                     if (lastAddress) {
-                                                        // Achou endereço antigo! Oferece o atalho com botões Sim/Não
-                                                        await cartRef.set({ step: 'confirming_address', savedAddress: lastAddress, savedFee: lastFee, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                                        
+                                                        await cartRef.set({ step: 'confirming_address', savedAddress: lastAddress, savedFee: lastFee }, { merge: true });
                                                         replyPayload = {
                                                             type: "interactive",
                                                             interactive: {
                                                                 type: "button",
-                                                                body: { text: `🛒 *Subtotal: R$ ${cartTotal.toFixed(2)}*\n\n📍 Encontrei seu último endereço de entrega:\n*${lastAddress}*\n\nO pedido será para este mesmo local?` },
+                                                                body: { text: `${cartSummaryText}\n\n📍 *Pedir para o mesmo endereço?*\n${lastAddress}` },
                                                                 action: {
                                                                     buttons: [
                                                                         { type: "reply", reply: { id: "btn_same_address", title: "✅ Sim, neste" } },
-                                                                        { type: "reply", reply: { id: "btn_new_address", title: "✏️ Não, outro" } }
+                                                                        { type: "reply", reply: { id: "btn_new_address", title: "✏️ Não, outro" } },
+                                                                        { type: "reply", reply: { id: "btn_clear_cart", title: "🗑️ Refazer Pedido" } }
                                                                     ]
                                                                 }
                                                             }
                                                         };
-                                                        logTextForPanel = `🤖 [Lembrou Endereço Antigo]`;
+                                                        logTextForPanel = `🤖 [Enviou Resumo do Carrinho e Lembrou Endereço]`;
                                                     } else {
-                                                        // Cliente Novo - Vai direto pra pergunta do endereço
-                                                        await cartRef.set({ step: 'awaiting_address', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                                        replyPayload = { type: "text", text: { body: `🛒 *Subtotal: R$ ${cartTotal.toFixed(2)}*\n\n📍 Para calcularmos a taxa de entrega, por favor digite o seu *Endereço Completo* (Rua, Número, Bairro) ou o seu *CEP*:` } };
-                                                        logTextForPanel = `🤖 [Pediu Endereço para Frete]`;
+                                                        await cartRef.set({ step: 'awaiting_address' }, { merge: true });
+                                                        replyPayload = { 
+                                                            type: "interactive", 
+                                                            interactive: {
+                                                                type: "button",
+                                                                body: { text: `${cartSummaryText}\n\n📍 Para calcularmos a taxa de entrega, digite seu *Endereço Completo* ou *CEP* abaixo:` },
+                                                                action: {
+                                                                    buttons: [
+                                                                        { type: "reply", reply: { id: "btn_clear_cart", title: "🗑️ Refazer Pedido" } }
+                                                                    ]
+                                                                }
+                                                            } 
+                                                        };
+                                                        logTextForPanel = `🤖 [Enviou Resumo do Carrinho e Pediu Endereço]`;
                                                     }
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Seu carrinho está vazio${nomeOuVazio}! Adicione produtos pelo cardápio primeiro.` } };
-                                                    logTextForPanel = `🤖 [Tentou Checkout com Carrinho Vazio]`;
                                                 }
+                                            }
+                                            else if (isClearCart) {
+                                                const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
+                                                await cartRef.delete();
+                                                replyPayload = { type: "text", text: { body: `🗑️ Seu carrinho foi esvaziado!\n\nSe quiser começar de novo, é só mandar um "Oi" ou acessar o nosso cardápio no link da loja.` } };
+                                                logTextForPanel = `🤖 [Limpou o Carrinho]`;
                                             }
                                             else if (isPayPix || isPayCardDelivery || isPayCash) {
                                                 const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
