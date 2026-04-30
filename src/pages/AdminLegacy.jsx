@@ -10782,7 +10782,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     setIsVipModalOpen(false);
                                     alert("✅ Configurações salvas com sucesso!");
                                 } catch (error) {
-                                    alert("Erro ao salvar dados do cliente.");
+                                    console.error("Erro completo:", error);
+                                    alert("ERRO: " + error.message);
                                 }
                             }} className="space-y-6">
                                 
