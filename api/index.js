@@ -1415,7 +1415,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     const newOrderRef = db.collection('orders').doc();
                                                     await newOrderRef.set({
                                                         storeId: storeId,
-                                                        customerName: customerName || pushName || 'Cliente WhatsApp',
+                                                        customerName: customerName || 'Cliente WhatsApp', // 👈 CORRIGIDO AQUI (Sem o pushName)
                                                         customerPhone: normalizedPhone,
                                                         items: items,
                                                         total: cartTotal,
