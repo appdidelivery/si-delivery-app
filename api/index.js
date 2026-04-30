@@ -1153,13 +1153,13 @@ export default async function handler(req, res) {
                                             const isGreeting = greetings.some(g => incomingTextLower === g || incomingTextLower.startsWith(`${g} `));
 
                                             const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
-                                            const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
+                                            const needsSupport = isMedia || interactivePayload === 'btn_support' || (!interactivePayload && supportKeywords.some(kw => incomingTextLower.includes(kw)));
 
-                                            const isFaqEndereco = interactivePayload === 'btn_info' || ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw));
-                                            const isFaqPagamento = interactivePayload === 'btn_payment' || ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqEndereco = interactivePayload === 'btn_info' || (!interactivePayload && ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw)));
+                                            const isFaqPagamento = interactivePayload === 'btn_payment' || (!interactivePayload && ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw)));
 
                                             const isMenuTrigger = interactivePayload === 'btn_menu';
-                                            const isOrderWaTrigger = interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw));
+                                            const isOrderWaTrigger = interactivePayload === 'btn_order_wa' || (!interactivePayload && ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw)));
                                             const isProductSelection = interactivePayload ? interactivePayload.startsWith('prod_') : false;
                                             const isCartCheckout = interactivePayload === 'btn_checkout_wa';
                                             const isClearCart = interactivePayload === 'btn_clear_cart';
@@ -1169,8 +1169,8 @@ export default async function handler(req, res) {
                                             const isPayCardDelivery = interactivePayload === 'btn_pay_card_delivery';
                                             const isPayCash = interactivePayload === 'btn_pay_cash';
 
-                                            const isStatusTrigger = interactivePayload === 'btn_status' || ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw));
-                                            const isRepeatTrigger = interactivePayload === 'btn_repeat' || ['repetir', 'mesmo pedido', 'quero o mesmo'].some(kw => incomingTextLower.includes(kw));
+                                            const isStatusTrigger = interactivePayload === 'btn_status' || (!interactivePayload && ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw)));
+                                            const isRepeatTrigger = interactivePayload === 'btn_repeat' || (!interactivePayload && ['repetir', 'mesmo pedido', 'quero o mesmo'].some(kw => incomingTextLower.includes(kw)));
 
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
                                             const storeName = storeDynamicData.name || 'nossa loja';
