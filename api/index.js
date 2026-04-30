@@ -1594,55 +1594,36 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const dLat = (clientLat - storeLat) * Math.PI / 180;
                                                                 const dLng = (clientLng - storeLng) * Math.PI / 180;
                                                                 const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                                                                const distanceKm = R * c;
+                                                                const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
                                                                 
-                                                                // 3. Checa o valor nas Zonas de Entrega (Busca Ultra Profunda - Inclui Subcoleções)
-                                                                const settingsDocMap = await db.collection('settings').doc(storeId).get();
-                                                                const settingsDataMap = settingsDocMap.exists ? settingsDocMap.data() : {};
-                                                                
-                                                                let rawZones = [];
-                                                                const possiveisLocais = [
-                                                                    storeDynamicData.delivery_zones, // Prioridade para o formato CSI
-                                                                    storeDynamicData.deliveryZones,
-                                                                    settingsDataMap.delivery_zones,
-                                                                    settingsDataMap.deliveryZones
-                                                                ];
+                                                                // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
+                                                                const setSnap = await db.collection('settings').doc(storeId).get();
+                                                                const setDat = setSnap.exists ? setSnap.data() : {};
 
-                                                                for (const local of possiveisLocais) {
-                                                                    if (Array.isArray(local) && local.length > 0) {
-                                                                        rawZones = local; break;
-                                                                    }
-                                                                }
+                                                                let rawZ = storeDynamicData.delivery_zones || storeDynamicData.deliveryZones || setDat.delivery_zones || setDat.deliveryZones || [];
+                                                                if (rawZ && typeof rawZ === 'object' && !Array.isArray(rawZ)) rawZ = Object.values(rawZ);
 
                                                                 const parseBR = (v) => Number(String(v || 0).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-
-                                                                const zones = rawZones.map(z => ({
-                                                                    kmMax: parseBR(z.radius_km || z.radius || z.km || z.raio), // radius_km do print
-                                                                    valor: parseBR(z.fee || z.price || z.valor) // fee do print
-                                                                })).filter(z => z.kmMax > 0);
-
-                                                                zones.sort((a, b) => a.kmMax - b.kmMax);
                                                                 
-                                                                let matchedZone = null;
-                                                                for (const zone of zones) {
-                                                                    if (distanceKm <= zone.kmMax) {
-                                                                        matchedZone = zone;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                                
-                                                                if (matchedZone) {
-                                                                    freteCalculado = matchedZone.valor;
+                                                                const finalZones = rawZ.map(z => ({ 
+                                                                    km: parseBR(z.radius_km || z.radius || z.km || z.raio), 
+                                                                    val: parseBR(z.fee || z.price || z.taxa || z.valor) 
+                                                                })).filter(z => z.km > 0);
+
+                                                                finalZones.sort((a,b) => a.km - b.km);
+
+                                                                const match = finalZones.find(z => distanceKm <= z.km);
+                                                                if (match) { 
+                                                                    freteCalculado = match.val; 
                                                                     distanceMsg = `(${distanceKm.toFixed(1)}km)`;
-                                                                    zoneFound = true;
-                                                                } else if (zones.length === 0) {
-                                                                    freteCalculado = 0;
-                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Taxa a combinar)`;
+                                                                    zoneFound = true; 
+                                                                } else if (finalZones.length === 0) {
+                                                                    freteCalculado = 0; 
+                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Tabela Vazia/Erro)`;
                                                                     zoneFound = true;
                                                                 } else {
-                                                                    replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
-                                                                    logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
+                                                                    replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada agora. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
+                                                                    logTextForPanel = `🤖 [Fora da Área Antigo - ${distanceKm.toFixed(1)}km]`;
                                                                     await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                                                 }
                                                             }
@@ -1656,7 +1637,6 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         const cartTotal = cartData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
                                                         const finalTotal = cartTotal + freteCalculado;
                                                         
-                                                        // Pula direto pro pagamento, com a taxa RECALCULADA ATUALIZADA!
                                                         await cartRef.set({ step: 'awaiting_payment', shippingFee: freteCalculado, deliveryAddress: addressText, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                                         
                                                         replyPayload = {
@@ -1683,6 +1663,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 const cartData = cartDoc.exists ? cartDoc.data() : null;
 
                                                 // LÓGICA DE INTERCEPTAÇÃO DE ENDEREÇO
+                                                // LÓGICA DE INTERCEPTAÇÃO DE ENDEREÇO
                                                 if (cartData && cartData.step === 'awaiting_address') {
                                                     const addressText = messageText;
                                                     let freteCalculado = 0;
@@ -1691,11 +1672,10 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
 
                                                     try {
                                                         const mapsKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-                                                        const storeLat = storeDynamicData.address?.lat || storeDynamicData.lat;
-                                                        const storeLng = storeDynamicData.address?.lng || storeDynamicData.lng;
+                                                        const storeLat = storeDynamicData.address?.lat || storeDynamicData.lat || -30.0684;
+                                                        const storeLng = storeDynamicData.address?.lng || storeDynamicData.lng || -51.1097;
 
                                                         if (mapsKey && storeLat && storeLng) {
-                                                            // 1. Converte o endereço digitado em coordenadas
                                                             const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ', Brasil')}&key=${mapsKey}`);
                                                             const geoData = await geoRes.json();
                                                             
@@ -1703,76 +1683,36 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const clientLat = geoData.results[0].geometry.location.lat;
                                                                 const clientLng = geoData.results[0].geometry.location.lng;
                                                                 
-                                                                // 2. Calcula Distância (Fórmula de Haversine)
                                                                 const R = 6371;
                                                                 const dLat = (clientLat - storeLat) * Math.PI / 180;
                                                                 const dLng = (clientLng - storeLng) * Math.PI / 180;
-                                                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                                                                          Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) *
-                                                                          Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                                                                const distanceKm = R * c;
+                                                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+                                                                const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
                                                                 
-                                                                // 3. Checa o valor nas Zonas de Entrega (Busca Ultra Profunda - Inclui Subcoleções)
-                                                                const settingsDocMap = await db.collection('settings').doc(storeId).get();
-                                                                const settingsDataMap = settingsDocMap.exists ? settingsDocMap.data() : {};
-                                                                
-                                                                let rawZones = [];
-                                                                
-                                                                const findZonesDeep = (obj) => {
-                                                                    if (!obj || typeof obj !== 'object') return null;
-                                                                    if (Array.isArray(obj) && obj.length > 0 && (obj[0].radius !== undefined || obj[0].km !== undefined || obj[0].raio !== undefined || obj[0].endKm !== undefined)) return obj;
-                                                                    for (const key of Object.keys(obj)) {
-                                                                        const val = obj[key];
-                                                                        if (val && typeof val === 'object') {
-                                                                            if (Array.isArray(val) && val.length > 0 && (val[0].radius !== undefined || val[0].km !== undefined || val[0].raio !== undefined || val[0].endKm !== undefined)) return val;
-                                                                            const innerVals = Object.values(val);
-                                                                            if (innerVals.length > 0 && typeof innerVals[0] === 'object' && (innerVals[0].radius !== undefined || innerVals[0].km !== undefined || innerVals[0].raio !== undefined || innerVals[0].endKm !== undefined)) return innerVals;
-                                                                        }
-                                                                    }
-                                                                    return null;
-                                                                };
+                                                                // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
+                                                                const setSnap = await db.collection('settings').doc(storeId).get();
+                                                                const setDat = setSnap.exists ? setSnap.data() : {};
 
-                                                                rawZones = findZonesDeep(storeDynamicData) || findZonesDeep(settingsDataMap) || [];
-                                                                
-                                                                // SE AINDA TIVER VAZIO, VAMOS CAÇAR NAS SUBCOLEÇÕES DO FIREBASE (Onde o Velo costuma esconder)
-                                                                if (rawZones.length === 0) {
-                                                                    const subCols = ['deliveryZones', 'zones', 'frete', 'taxas'];
-                                                                    for (const col of subCols) {
-                                                                        try {
-                                                                            const sub1 = await db.collection('stores').doc(storeId).collection(col).get();
-                                                                            if (!sub1.empty) { rawZones = sub1.docs.map(d => d.data()); break; }
-                                                                            const sub2 = await db.collection('settings').doc(storeId).collection(col).get();
-                                                                            if (!sub2.empty) { rawZones = sub2.docs.map(d => d.data()); break; }
-                                                                        } catch(e) {}
-                                                                    }
-                                                                }
+                                                                let rawZ = storeDynamicData.delivery_zones || storeDynamicData.deliveryZones || setDat.delivery_zones || setDat.deliveryZones || [];
+                                                                if (rawZ && typeof rawZ === 'object' && !Array.isArray(rawZ)) rawZ = Object.values(rawZ);
 
-                                                                // HIGIENIZADOR DE VÍRGULA ("8,50" -> 8.50 matemático para o código não crashar)
                                                                 const parseBR = (v) => Number(String(v || 0).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
-
-                                                                const zones = rawZones.map(z => ({
-                                                                    kmMax: parseBR(z.radius || z.km || z.distance || z.raio || z.maxDistance || z.endKm || z.ateKm),
-                                                                    valor: parseBR(z.price || z.fee || z.taxa || z.value || z.valor || z.cost || z.frete || z.preco)
-                                                                })).filter(z => z.kmMax > 0);
-
-                                                                zones.sort((a, b) => a.kmMax - b.kmMax);
                                                                 
-                                                                let matchedZone = null;
-                                                                for (const zone of zones) {
-                                                                    if (distanceKm <= zone.kmMax) {
-                                                                        matchedZone = zone;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                                
-                                                                if (matchedZone) {
-                                                                    freteCalculado = matchedZone.valor;
+                                                                const finalZones = rawZ.map(z => ({ 
+                                                                    km: parseBR(z.radius_km || z.radius || z.km || z.raio), 
+                                                                    val: parseBR(z.fee || z.price || z.taxa || z.valor) 
+                                                                })).filter(z => z.km > 0);
+
+                                                                finalZones.sort((a,b) => a.km - b.km);
+
+                                                                const match = finalZones.find(z => distanceKm <= z.km);
+                                                                if (match) { 
+                                                                    freteCalculado = match.val; 
                                                                     distanceMsg = `(${distanceKm.toFixed(1)}km)`;
-                                                                    zoneFound = true;
-                                                                } else if (zones.length === 0) {
-                                                                    freteCalculado = 0;
-                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Calculado na loja)`;
+                                                                    zoneFound = true; 
+                                                                } else if (finalZones.length === 0) {
+                                                                    freteCalculado = 0; 
+                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Tabela Vazia/Erro)`;
                                                                     zoneFound = true;
                                                                 } else {
                                                                     replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
@@ -1782,8 +1722,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                             }
                                                         }
                                                     } catch (err) {
-                                                        console.error("Erro no mapa:", err);
-                                                        // Se falhar o mapa silenciosamente, ele avança com frete R$ 0,00 ou taxa balcão para não travar a venda.
+                                                        console.error("Erro no mapa btn_same_address:", err);
                                                         zoneFound = true;
                                                     }
 
@@ -1791,13 +1730,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         const cartTotal = cartData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
                                                         const finalTotal = cartTotal + freteCalculado;
                                                         
-                                                        // Avança o carrinho para aguardando pagamento
-                                                        await cartRef.set({ 
-                                                            step: 'awaiting_payment', 
-                                                            shippingFee: freteCalculado, 
-                                                            deliveryAddress: addressText,
-                                                            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-                                                        }, { merge: true });
+                                                        await cartRef.set({ step: 'awaiting_payment', shippingFee: freteCalculado, deliveryAddress: addressText, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 
                                                         replyPayload = {
                                                             type: "interactive",
@@ -1815,7 +1748,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         };
                                                         logTextForPanel = `🤖 [Calculou Frete: R$ ${freteCalculado.toFixed(2)}]`;
                                                     }
-                                                } 
+                                                }
                                                 // SE NÃO ESTIVER ESPERANDO ENDEREÇO, SEGUE COM A BUSCA NORMAL DE PRODUTOS
                                                 else {
                                                     const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
