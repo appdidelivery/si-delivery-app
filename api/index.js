@@ -1504,7 +1504,9 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     
                                                     // HANDOFF: Pausa o bot automaticamente. 
                                                     // O lojista (Humano) assume a conversa a partir de agora para pegar o endereço ou validar comprovante!
-                                                    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                    if (!isPayPix) {
+    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+}
                                                     
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Acho que seu carrinho expirou${nomeOuVazio}. Vamos montar de novo?` } };
