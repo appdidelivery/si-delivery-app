@@ -1945,7 +1945,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 description: `Velo Totem #${orderId.slice(-5)}`,
                 payment: {
                     installments: 1,
-                    type: "credit_card" // ou deixar dinâmico para credit/debit
+                    type: "credit_card" // ou deixar dinâmico para credit/debit att
                 }
             };
 
