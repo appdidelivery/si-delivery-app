@@ -1101,12 +1101,23 @@ export default async function handler(req, res) {
                                         normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
                                     }
 
-                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA
+                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO)
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
                                     const sessionSnap = await sessionRef.get();
-                                    let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0 };
+                                    let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0, updatedAt: null };
                                     
-                                    if (sessionData.botPaused) continue; // SE O BOT TÁ PAUSADO, ELE ABORTA AQUI E NÃO MANDA MENU!
+                                    if (sessionData.botPaused) {
+                                        const lastUpdate = sessionData.updatedAt?.toDate ? sessionData.updatedAt.toDate() : new Date();
+                                        const minutesPaused = (Date.now() - lastUpdate.getTime()) / 60000;
+                                        
+                                        if (minutesPaused > 15) {
+                                            // Se o atendente esqueceu de reativar (ou o botão falhou), auto-reativa após 15 min!
+                                            await sessionRef.set({ botPaused: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                            sessionData.botPaused = false;
+                                        } else {
+                                            continue; // Continua pausado, ignora o cliente
+                                        }
+                                    }
 
                                     let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     
@@ -1167,7 +1178,7 @@ export default async function handler(req, res) {
                                             const isOrderWaTrigger = interactivePayload === 'btn_order_wa' || (!interactivePayload && ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw)));
                                             const isProductSelection = interactivePayload ? interactivePayload.startsWith('prod_') : false;
                                             const isCartCheckout = interactivePayload === 'btn_checkout_wa';
-                                            const isClearCart = interactivePayload === 'btn_clear_cart';
+                                            const isClearCart = interactivePayload === 'btn_clear_cart' || ['cancelar', 'menu', 'voltar'].includes(incomingTextLower);
                                             
                                             // --- NOVAS VARIÁVEIS DO CHECKOUT NATIVO ---
                                             const isPayPix = interactivePayload === 'btn_pay_pix';
@@ -1356,7 +1367,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     }
                                                     
                                                     await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                                                const cartTotal = items.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
                                                     
                                                     replyPayload = {
                                                         type: "interactive",
@@ -1383,7 +1395,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 
                                                 if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
                                                     const items = cartDoc.data().items;
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                                                const cartTotal = items.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
                                                     
                                                     // MONTA O RESUMO DO CARRINHO PARA O CLIENTE NÃO TER SURPRESAS
                                                     const resumoItens = items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
@@ -1454,7 +1467,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 
                                                 if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
                                                     const items = cartDoc.data().items;
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                                                const cartTotal = items.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
                                                     const shippingFee = cartDoc.data().shippingFee || 0;
                                                     const deliveryAddress = cartDoc.data().deliveryAddress || 'Endereço não informado';
                                                     const finalTotal = cartTotal + shippingFee;
