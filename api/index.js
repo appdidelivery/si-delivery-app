@@ -1339,7 +1339,6 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     const pData = prodSnap.data();
                                                     const price = pData.promotionalPrice > 0 ? pData.promotionalPrice : (pData.price || 0);
                                                     
-                                                    // Adiciona no Carrinho Temporário (Memória do Bot)
                                                     const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
                                                     const cartDoc = await cartRef.get();
                                                     let items = cartDoc.exists ? (cartDoc.data().items || []) : [];
@@ -1415,7 +1414,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     const newOrderRef = db.collection('orders').doc();
                                                     await newOrderRef.set({
                                                         storeId: storeId,
-                                                        customerName: customerName || 'Cliente WhatsApp', // 👈 CORRIGIDO AQUI (Sem o pushName)
+                                                        customerName: customerName || 'Cliente WhatsApp',
                                                         customerPhone: normalizedPhone,
                                                         items: items,
                                                         total: cartTotal,
@@ -1437,19 +1436,19 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         try {
                                                             // 1. TENTA GERAR VIA VELOPAY (EFÍ)
                                                             if (storeDynamicData.velopayStatus === 'active') {
-                                                                const veloRes = await fetch(`${req.headers.origin || `https://${req.headers.host}`}/api/velopay-pix`, {
+                                                                const protocol = req.headers.host.includes('localhost') ? 'http' : 'https';
+                                                                const veloRes = await fetch(`${protocol}://${req.headers.host}/api/velopay-pix`, {
                                                                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({ storeId, orderId: newOrderRef.id, totalAmount: cartTotal })
                                                                 });
                                                                 
                                                                 if (veloRes.ok) {
-                                                                    // Como a API do VeloPay não devolve o Copia e Cola direto, lemos do banco onde ela acabou de salvar
                                                                     const checkDoc = await db.collection('orders').doc(newOrderRef.id).get();
                                                                     const copiaECola = checkDoc.data()?.pixCopiaECola;
                                                                     if (copiaECola) {
                                                                         pixMsg += `Copie o código abaixo e pague no app do seu banco:\n\n${copiaECola}\n\n*A liberação do seu pedido é automática!* 🚀`;
-                                                                    } else { throw new Error("Copia e Cola não encontrado no VeloPay"); }
-                                                                } else { throw new Error("Falha na API VeloPay"); }
+                                                                    } else { throw new Error("Copia e Cola vazio"); }
+                                                                } else { throw new Error("Falha API VeloPay"); }
                                                             } 
                                                             // 2. TENTA GERAR VIA MERCADO PAGO TRANSPARENTE
                                                             else if (mpConfig?.accessToken) {
@@ -1462,7 +1461,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     },
                                                                     body: JSON.stringify({
                                                                         transaction_amount: Number(cartTotal),
-                                                                        description: `Pedido #${newOrderRef.id.slice(-5).toUpperCase()}`,
+                                                                        description: `Pedido #${newOrderRef.id.slice(-5).toUpperCase()} - Velo`,
                                                                         payment_method_id: "pix",
                                                                         payer: { email: "cliente@velozap.com.br", first_name: customerName || "Cliente" },
                                                                         external_reference: newOrderRef.id,
@@ -1473,40 +1472,38 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const mpData = await mpRes.json();
                                                                 if (mpRes.ok && mpData.point_of_interaction?.transaction_data?.qr_code) {
                                                                     const copiaEColaMP = mpData.point_of_interaction.transaction_data.qr_code;
-                                                                    // Salva no banco para controle interno
                                                                     await newOrderRef.update({
                                                                         paymentIntentId: String(mpData.id),
                                                                         mpPaymentStatus: mpData.status,
                                                                         pixCopiaECola: copiaEColaMP
                                                                     });
                                                                     pixMsg += `Copie o código abaixo e pague no app do seu banco:\n\n${copiaEColaMP}\n\n*A liberação do seu pedido é automática!* 🚀`;
-                                                                } else { throw new Error("Mercado Pago não retornou QR Code"); }
+                                                                } else { throw new Error("Mercado Pago falhou ao gerar QR Code"); }
                                                             } 
                                                             // 3. FALLBACK: CHAVE PIX MANUAL
                                                             else if (storeDynamicData.pixKey) {
                                                                 pixMsg += `Transfira para a nossa Chave PIX oficial:\n*${storeDynamicData.pixKey}*\n\nAssim que pagar, mande o comprovante aqui no chat! 🧾`;
                                                             } else {
-                                                                pixMsg += `Desculpe, as integrações de PIX estão inativas no momento. Nossa equipe entrará em contato para o pagamento.`;
+                                                                pixMsg += `Acesse o link para finalizar o pagamento:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
                                                             }
-                                                        } catch (pixError) {
-                                                            console.error("Erro ao gerar Pix Nativo no Webhook:", pixError);
-                                                            pixMsg += `Houve uma instabilidade ao gerar a chave automática. Nossa equipe já vai gerar um PIX manual para você!`;
+                                                        } catch (error) {
+                                                            console.error("Fallback ativado - Erro ao gerar Pix Nativo:", error);
+                                                            pixMsg += `Acesse o link seguro abaixo para gerar o seu PIX e concluir o pedido:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
                                                         }
                                                         
                                                         replyPayload = { type: "text", text: { body: pixMsg } };
                                                         logTextForPanel = `🤖 [Pedido Criado - Pix Enviado no Chat]`;
                                                     } else {
-                                                        // Se o pagamento for na entrega
                                                         const confirmMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} Registrado!*\n\n*Total:* R$ ${cartTotal.toFixed(2)}\n*Pagamento:* ${paymentMethod === 'cartao' ? 'Cartão na Entrega' : 'Dinheiro'}\n\n📍 *Por favor, informe agora o seu Endereço Completo* (Rua, Número, Bairro) para enviarmos para a cozinha! 🛵💨`;
                                                         replyPayload = { type: "text", text: { body: confirmMsg } };
                                                         logTextForPanel = `🤖 [Pedido Criado - Solicitou Endereço]`;
                                                     }
                                                     
-                                                    // HANDOFF: Pausa o bot automaticamente. 
-                                                    // O lojista (Humano) assume a conversa a partir de agora para pegar o endereço ou validar comprovante!
+                                                    // HANDOFF: Pausa o bot apenas para Cartão ou Dinheiro (para o humano pegar endereço).
+                                                    // Se for PIX, o robô continua vivo mandando a chave e o cliente pode consultar o status!
                                                     if (!isPayPix) {
-    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-}
+                                                        await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                    }
                                                     
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Acho que seu carrinho expirou${nomeOuVazio}. Vamos montar de novo?` } };
