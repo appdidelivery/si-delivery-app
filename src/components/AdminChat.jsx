@@ -1069,7 +1069,7 @@ export default function AdminChat() {
                                         )}
 
                                         {/* Texto / Legenda */}
-                                        {displayText && <span className="pr-12 whitespace-pre-wrap">{displayText}</span>}
+                                        {displayText && <span className="pr-12 whitespace-pre-wrap break-words break-all">{displayText}</span>}
                                         
                                         <div className={`text-[10px] text-gray-500 self-end ml-4 flex items-center gap-1 float-right ${(!displayText && displayMediaUrl) ? 'mt-1' : '-mt-1'}`}>
                                             {timeStr}
