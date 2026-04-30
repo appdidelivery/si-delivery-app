@@ -1558,21 +1558,45 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                                                                 const distanceKm = R * c;
                                                                 
-                                                                // 3. Checa o valor nas Zonas de Entrega (Lendo de stores ou settings)
+                                                                // 3. Checa o valor nas Zonas de Entrega (Busca Super Agressiva e Anti-Bug de Vírgula)
                                                                 const settingsDocMap = await db.collection('settings').doc(storeId).get();
                                                                 const settingsDataMap = settingsDocMap.exists ? settingsDocMap.data() : {};
                                                                 
-                                                                let rawZones = storeDynamicData.deliveryZones || settingsDataMap.deliveryZones || settingsDataMap.delivery || storeDynamicData.deliveryFees || [];
-                                                                
-                                                                // Previne erro caso o Firebase tenha salvo como Objeto ao invés de Array
-                                                                if (typeof rawZones === 'object' && !Array.isArray(rawZones)) {
-                                                                    rawZones = Object.values(rawZones);
+                                                                let rawZones = [];
+                                                                const possiveisLocais = [
+                                                                    storeDynamicData.deliveryZones,
+                                                                    storeDynamicData.deliveryFees,
+                                                                    storeDynamicData.delivery?.zones,
+                                                                    storeDynamicData.deliveryConfig?.zones,
+                                                                    settingsDataMap.deliveryZones,
+                                                                    settingsDataMap.delivery?.zones,
+                                                                    settingsDataMap.deliveryConfig?.zones
+                                                                ];
+
+                                                                // Varre todos os buracos possíveis no banco de dados até achar a tabela de entrega
+                                                                for (const local of possiveisLocais) {
+                                                                    if (Array.isArray(local) && local.length > 0) {
+                                                                        rawZones = local; break;
+                                                                    } else if (local && typeof local === 'object' && Array.isArray(local.zones) && local.zones.length > 0) {
+                                                                        rawZones = local.zones; break;
+                                                                    } else if (local && typeof local === 'object') {
+                                                                        const valores = Object.values(local);
+                                                                        if (valores.length > 0 && (valores[0].radius || valores[0].km || valores[0].raio)) {
+                                                                            rawZones = valores; break;
+                                                                        }
+                                                                    }
                                                                 }
                                                                 
-                                                                // Mapeia todas as possibilidades de nomes que você pode ter criado no painel
+                                                                // FUNÇÃO NINJA: Transforma "8,50" em 8.50 matemático (Evita o erro NaN)
+                                                                const parseNumberBR = (val) => {
+                                                                    if (typeof val === 'number') return val;
+                                                                    if (!val) return 0;
+                                                                    return Number(String(val).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+                                                                };
+
                                                                 const zones = rawZones.map(z => ({
-                                                                    kmMax: Number(z.radius || z.km || z.distance || z.raio || 0),
-                                                                    valor: Number(z.price || z.fee || z.taxa || z.value || z.valor || 0)
+                                                                    kmMax: parseNumberBR(z.radius || z.km || z.distance || z.raio || z.maxDistance),
+                                                                    valor: parseNumberBR(z.price || z.fee || z.taxa || z.value || z.valor || z.cost)
                                                                 })).filter(z => z.kmMax > 0);
 
                                                                 zones.sort((a, b) => a.kmMax - b.kmMax);
@@ -1590,12 +1614,10 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     distanceMsg = `(${distanceKm.toFixed(1)}km)`;
                                                                     zoneFound = true;
                                                                 } else if (zones.length === 0) {
-                                                                    // Se o bot não conseguiu ler o array do Firebase, ele zera o frete para NÃO travar a venda
                                                                     freteCalculado = 0;
-                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Calculado na loja)`;
+                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km - Taxa a combinar)`;
                                                                     zoneFound = true;
                                                                 } else {
-                                                                    // Realmente está fora do raio máximo cadastrado
                                                                     replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
                                                                     logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
                                                                     await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
