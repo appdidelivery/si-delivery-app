@@ -1433,6 +1433,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         const mpConfig = storeSettingsDoc.data()?.integrations?.mercadopago;
                                                         
                                                         let pixMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} gerado!*\n\nValor total: *R$ ${finalTotal.toFixed(2)}*\n\n`;
+                                                        let isolatedPixCode = null; // Guarda o código limpo
                                                         
                                                         try {
                                                             if (storeDynamicData.velopayStatus === 'active') {
@@ -1446,7 +1447,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     const checkDoc = await db.collection('orders').doc(newOrderRef.id).get();
                                                                     const copiaECola = checkDoc.data()?.pixCopiaECola;
                                                                     if (copiaECola) {
-                                                                        pixMsg += `Copie o código abaixo e pague no seu app do banco:\n\n${copiaECola}\n\n*A liberação é automática e a cozinha já começa a preparar!* 🚀`;
+                                                                        pixMsg += `Copie o código na mensagem abaixo e pague no seu app do banco. 👇\n\n*A liberação é automática e a cozinha já começa a preparar!* 🚀`;
+                                                                        isolatedPixCode = copiaECola;
                                                                     } else { throw new Error("Copia e Cola vazio"); }
                                                                 } else { throw new Error("Falha API VeloPay"); }
                                                             } 
@@ -1476,7 +1478,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                         mpPaymentStatus: mpData.status,
                                                                         pixCopiaECola: copiaEColaMP
                                                                     });
-                                                                    pixMsg += `Copie o código abaixo e pague no seu app do banco:\n\n${copiaEColaMP}\n\n*A liberação é automática e a cozinha já começa a preparar!* 🚀`;
+                                                                    pixMsg += `Copie o código na mensagem abaixo e pague no seu app do banco. 👇\n\n*A liberação é automática e a cozinha já começa a preparar!* 🚀`;
+                                                                    isolatedPixCode = copiaEColaMP;
                                                                 } else { throw new Error("MP sem QR Code"); }
                                                             } 
                                                             else if (storeDynamicData.pixKey) {
@@ -1488,7 +1491,20 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                             pixMsg += `Acesse o link seguro para gerar o seu PIX e concluir:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
                                                         }
                                                         
+                                                        // DISPARO DUPLO: Manda as instruções PRIMEIRO, e salva o código isolado pro disparo final
                                                         replyPayload = { type: "text", text: { body: pixMsg } };
+                                                        
+                                                        if (isolatedPixCode) {
+                                                            // Manda o texto base (instruções) "por fora" da estrutura principal
+                                                            await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                                method: 'POST', headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: message.from, type: "text", text: { body: pixMsg } })
+                                                            });
+                                                            
+                                                            // Substitui o payload principal APENAS pelo código PIX
+                                                            replyPayload = { type: "text", text: { body: isolatedPixCode } };
+                                                        }
+                                                        
                                                         logTextForPanel = `🤖 [Pedido Criado - Pix Enviado no Chat]`;
                                                     } else {
                                                         const confirmMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} Registrado!*\n\n📍 *Endereço:* ${deliveryAddress}\n💰 *Total:* R$ ${finalTotal.toFixed(2)}\n*Pagamento:* ${paymentMethod === 'cartao' ? 'Cartão na Entrega' : 'Dinheiro'}\n\nO seu pedido já está indo para a cozinha! 🛵💨`;
@@ -1542,8 +1558,16 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                                                                 const distanceKm = R * c;
                                                                 
-                                                                // 3. Checa o valor nas Zonas de Entrega (Blindado contra variações de nomenclatura no Banco)
-                                                                const rawZones = storeDynamicData.deliveryZones || storeDynamicData.deliveryFees || storeDynamicData.zones || storeDynamicData.shippingZones || [];
+                                                                // 3. Checa o valor nas Zonas de Entrega (Lendo de stores ou settings)
+                                                                const settingsDocMap = await db.collection('settings').doc(storeId).get();
+                                                                const settingsDataMap = settingsDocMap.exists ? settingsDocMap.data() : {};
+                                                                
+                                                                let rawZones = storeDynamicData.deliveryZones || settingsDataMap.deliveryZones || settingsDataMap.delivery || storeDynamicData.deliveryFees || [];
+                                                                
+                                                                // Previne erro caso o Firebase tenha salvo como Objeto ao invés de Array
+                                                                if (typeof rawZones === 'object' && !Array.isArray(rawZones)) {
+                                                                    rawZones = Object.values(rawZones);
+                                                                }
                                                                 
                                                                 // Mapeia todas as possibilidades de nomes que você pode ter criado no painel
                                                                 const zones = rawZones.map(z => ({

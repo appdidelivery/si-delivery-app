@@ -956,7 +956,7 @@ export default function AdminChat() {
                 {activeChat ? (
                     <div className="flex flex-1 overflow-hidden w-full h-full z-10 relative">
                         {/* COLUNA DO CHAT */}
-                        <div className="flex-1 flex flex-col relative bg-[#efeae2]">
+                        <div className="flex-1 min-w-0 flex flex-col relative bg-[#efeae2]">
                             {/* Header do Chat */}
                             <div className="h-16 px-4 bg-[#f0f2f5] border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
                                 <div 
