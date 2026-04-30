@@ -3475,19 +3475,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
                                                             
-                                                            {['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod) ? (
-                                                                (o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA') ? (
-                                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-green-200">✅ PAGO ONLINE</span>
-                                                                ) : (o.paymentStatus === 'failed' || o.paymentStatus === 'rejected') ? (
-                                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-red-200">❌ RECUSADO</span>
-                                                                ) : (
-                                                                    <span className="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">⏳ AGUARDANDO PAGTO</span>
-                                                                )
-                                                            ) : o.paymentStatus === 'paid' ? (
-                                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-green-200">✅ PAGO (LOCAL)</span>
-                                                            ) : (
-                                                                <span className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-slate-300">🏠 PAGAR NA ENTREGA/BALCÃO</span>
-                                                            )}
+                                                            {(() => {
+                                                                const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
+                                                                const isFailed = o.paymentStatus === 'failed' || o.paymentStatus === 'rejected';
+                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
+                                                                const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
+
+                                                                const handleForcePay = async (e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    if (window.confirm("Confirmar o recebimento manual deste pedido?")) {
+                                                                        try {
+                                                                            await updateDoc(doc(db, "orders", o.id), { paymentStatus: 'paid' });
+                                                                        } catch (err) {
+                                                                            alert("Erro ao confirmar pagamento.");
+                                                                        }
+                                                                    }
+                                                                };
+
+                                                                if (isPaid) {
+                                                                    return (
+                                                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-green-200 cursor-default select-none">
+                                                                            {isPDV ? '✅ PAGO' : '✅ PAGO ONLINE'}
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                if (isFailed) {
+                                                                    return (
+                                                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-red-200 cursor-default select-none">
+                                                                            ❌ RECUSADO
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                if (isOnlineMethod) {
+                                                                    return (
+                                                                        <button
+                                                                            onClick={handleForcePay}
+                                                                            title="Clique para dar baixa manual no pagamento"
+                                                                            className="bg-orange-500 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md hover:bg-orange-600 transition-all active:scale-95 cursor-pointer"
+                                                                        >
+                                                                            ⏳ AGUARDANDO PAGTO
+                                                                        </button>
+                                                                    );
+                                                                }
+
+                                                                return (
+                                                                    <button
+                                                                        onClick={handleForcePay}
+                                                                        title="Clique para dar baixa manual no pagamento"
+                                                                        className="bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-slate-300 hover:bg-slate-300 transition-all cursor-pointer"
+                                                                    >
+                                                                        🏠 PAGAR NA ENTREGA/BALCÃO
+                                                                    </button>
+                                                                );
+                                                            })()}
 
                                                             {o.status === 'pending' ? <span className="bg-red-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">Novo Pedido</span> :
                                                              o.status === 'preparing' ? <span className="bg-orange-400 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Preparando</span> :
@@ -3754,15 +3797,54 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>
                                                             )}
                                                             
-                                                            {['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod) && (
-                                                                (o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA') ? (
-                                                                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">✅ PAGO ONLINE</span>
-                                                                ) : (o.paymentStatus === 'failed' || o.paymentStatus === 'rejected') ? (
-                                                                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">❌ RECUSADO</span>
-                                                                ) : (
-                                                                    <span className="bg-orange-500 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse">⏳ AGUARDANDO PAGTO</span>
-                                                                )
-                                                            )}
+                                                            {(() => {
+                                                                const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
+                                                                const isFailed = o.paymentStatus === 'failed' || o.paymentStatus === 'rejected';
+                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
+                                                                const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
+
+                                                                const handleForcePay = async (e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    if (window.confirm("Confirmar o recebimento manual deste pedido?")) {
+                                                                        try {
+                                                                            await updateDoc(doc(db, "orders", o.id), { paymentStatus: 'paid' });
+                                                                        } catch (err) {
+                                                                            alert("Erro ao confirmar pagamento.");
+                                                                        }
+                                                                    }
+                                                                };
+
+                                                                if (isPaid) {
+                                                                    return (
+                                                                        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm cursor-default select-none">
+                                                                            {isPDV ? '✅ PAGO' : '✅ PAGO ONLINE'}
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                if (isFailed) {
+                                                                    return (
+                                                                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm cursor-default select-none">
+                                                                            ❌ RECUSADO
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                if (isOnlineMethod) {
+                                                                    return (
+                                                                        <button
+                                                                            onClick={handleForcePay}
+                                                                            title="Clique para dar baixa manual no pagamento"
+                                                                            className="bg-orange-500 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse hover:bg-orange-600 transition-all active:scale-95 cursor-pointer"
+                                                                        >
+                                                                            ⏳ AGUARDANDO PAGTO
+                                                                        </button>
+                                                                    );
+                                                                }
+
+                                                                return null;
+                                                            })()}
                                                         </div>
                                                         
                                                         <div className="text-[10px] font-bold text-slate-500 mb-4 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-lg">
