@@ -4322,15 +4322,36 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div>
                                             <h3 className="font-black text-xl text-slate-800 uppercase leading-none mb-1">{c.name}</h3>
                                             <p className="text-xs font-bold text-slate-400 tracking-widest">{c.phone}</p>
-                                            <button 
-                                                onClick={() => {
-                                                    setEditingVip(c);
-                                                    setIsVipModalOpen(true);
-                                                }}
-                                                className="mt-2 bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-100"
-                                            >
-                                                ⚙️ Gerenciar Acesso
-                                            </button>
+                                            <div className="flex gap-2 mt-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        setEditingVip(c);
+                                                        setIsVipModalOpen(true);
+                                                    }}
+                                                    className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-100"
+                                                >
+                                                    ⚙️ Gerenciar
+                                                </button>
+                                                {/* Botão de Excluir (Só aparece se o cliente foi salvo na Caderneta) */}
+                                                {c.dbId && (
+                                                    <button 
+                                                        onClick={async () => {
+                                                            if(window.confirm(`Tem certeza que deseja apagar o cadastro de ${c.name}? (O histórico de pedidos será mantido).`)) {
+                                                                try {
+                                                                    await deleteDoc(doc(db, "store_customers", c.dbId));
+                                                                    alert("Cliente removido com sucesso!");
+                                                                } catch(e) {
+                                                                    alert("Erro ao remover: " + e.message);
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
+                                                        title="Excluir Cliente"
+                                                    >
+                                                        <Trash2 size={14}/>
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="w-full md:w-auto md:min-w-[250px] text-right">
