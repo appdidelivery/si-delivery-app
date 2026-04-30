@@ -1989,7 +1989,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     }
 
     // ------------------------------------------------------------------------
-    // 12. TOTEM: WEBHOOK DE RETORNO (MERCADO PAGO POINT)
+    // 12. TOTEM: attWEBHOOK DE RETORNO (MERCADO PAGO POINT)
     // ------------------------------------------------------------------------
     else if (path === '/api/pos-webhook') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
