@@ -1382,24 +1382,13 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 const cartDoc = await cartRef.get();
                                                 
                                                 if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
-                                                    const items = cartDoc.data().items;
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    const cartTotal = cartDoc.data().items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
                                                     
-                                                    replyPayload = {
-                                                        type: "interactive",
-                                                        interactive: {
-                                                            type: "button",
-                                                            body: { text: `🛒 *Seu pedido deu R$ ${cartTotal.toFixed(2)}.*\n\nComo você prefere pagar?` },
-                                                            action: {
-                                                                buttons: [
-                                                                    { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
-                                                                    { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Cartão na Entrega" } },
-                                                                    { type: "reply", reply: { id: "btn_pay_cash", title: "💵 Dinheiro" } }
-                                                                ]
-                                                            }
-                                                        }
-                                                    };
-                                                    logTextForPanel = `🤖 [Iniciou Checkout - R$ ${cartTotal.toFixed(2)}]`;
+                                                    // 1. Muda o estado do carrinho para "Esperando Endereço"
+                                                    await cartRef.set({ step: 'awaiting_address', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                    
+                                                    replyPayload = { type: "text", text: { body: `🛒 *Subtotal: R$ ${cartTotal.toFixed(2)}*\n\n📍 Para calcularmos a taxa de entrega, por favor digite o seu *Endereço Completo* (Rua, Número, Bairro) ou o seu *CEP*:` } };
+                                                    logTextForPanel = `🤖 [Pediu Endereço para Frete]`;
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Seu carrinho está vazio${nomeOuVazio}! Adicione produtos pelo cardápio primeiro.` } };
                                                     logTextForPanel = `🤖 [Tentou Checkout com Carrinho Vazio]`;
@@ -1412,6 +1401,10 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
                                                     const items = cartDoc.data().items;
                                                     const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                    const shippingFee = cartDoc.data().shippingFee || 0;
+                                                    const deliveryAddress = cartDoc.data().deliveryAddress || 'Endereço não informado';
+                                                    const finalTotal = cartTotal + shippingFee;
+                                                    
                                                     const paymentMap = { 'btn_pay_pix': 'pix', 'btn_pay_card_delivery': 'cartao', 'btn_pay_cash': 'dinheiro' };
                                                     const paymentMethod = paymentMap[interactivePayload];
                                                     
@@ -1422,7 +1415,10 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         customerName: customerName || 'Cliente WhatsApp',
                                                         customerPhone: normalizedPhone,
                                                         items: items,
-                                                        total: cartTotal,
+                                                        subtotal: cartTotal,
+                                                        shippingFee: shippingFee,
+                                                        total: finalTotal,
+                                                        customerAddress: deliveryAddress, // Salva o endereço no pedido!
                                                         paymentMethod: paymentMethod,
                                                         status: 'pending',
                                                         paymentStatus: 'pending',
@@ -1436,26 +1432,24 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
                                                         const mpConfig = storeSettingsDoc.data()?.integrations?.mercadopago;
                                                         
-                                                        let pixMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} gerado!*\n\nValor total: *R$ ${cartTotal.toFixed(2)}*\n\n`;
+                                                        let pixMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} gerado!*\n\nValor total: *R$ ${finalTotal.toFixed(2)}*\n\n`;
                                                         
                                                         try {
-                                                            // 1. TENTA GERAR VIA VELOPAY (EFÍ)
                                                             if (storeDynamicData.velopayStatus === 'active') {
                                                                 const protocol = req.headers.host.includes('localhost') ? 'http' : 'https';
                                                                 const veloRes = await fetch(`${protocol}://${req.headers.host}/api/velopay-pix`, {
                                                                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ storeId, orderId: newOrderRef.id, totalAmount: cartTotal })
+                                                                    body: JSON.stringify({ storeId, orderId: newOrderRef.id, totalAmount: finalTotal })
                                                                 });
                                                                 
                                                                 if (veloRes.ok) {
                                                                     const checkDoc = await db.collection('orders').doc(newOrderRef.id).get();
                                                                     const copiaECola = checkDoc.data()?.pixCopiaECola;
                                                                     if (copiaECola) {
-                                                                        pixMsg += `Copie o código abaixo e pague no app do seu banco:\n\n${copiaECola}\n\n*A liberação do seu pedido é automática!* 🚀`;
+                                                                        pixMsg += `Copie o código abaixo e pague no seu app do banco:\n\n${copiaECola}\n\n*A liberação é automática e a cozinha já começa a preparar!* 🚀`;
                                                                     } else { throw new Error("Copia e Cola vazio"); }
                                                                 } else { throw new Error("Falha API VeloPay"); }
                                                             } 
-                                                            // 2. TENTA GERAR VIA MERCADO PAGO TRANSPARENTE
                                                             else if (mpConfig?.accessToken) {
                                                                 const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
                                                                     method: 'POST',
@@ -1465,8 +1459,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                         'X-Idempotency-Key': `pix_zap_${newOrderRef.id}`
                                                                     },
                                                                     body: JSON.stringify({
-                                                                        transaction_amount: Number(cartTotal),
-                                                                        description: `Pedido #${newOrderRef.id.slice(-5).toUpperCase()} - Velo`,
+                                                                        transaction_amount: Number(finalTotal),
+                                                                        description: `Pedido #${newOrderRef.id.slice(-5).toUpperCase()}`,
                                                                         payment_method_id: "pix",
                                                                         payer: { email: "cliente@velozap.com.br", first_name: customerName || "Cliente" },
                                                                         external_reference: newOrderRef.id,
@@ -1482,79 +1476,173 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                         mpPaymentStatus: mpData.status,
                                                                         pixCopiaECola: copiaEColaMP
                                                                     });
-                                                                    pixMsg += `Copie o código abaixo e pague no app do seu banco:\n\n${copiaEColaMP}\n\n*A liberação do seu pedido é automática!* 🚀`;
-                                                                } else { throw new Error("Mercado Pago falhou ao gerar QR Code"); }
+                                                                    pixMsg += `Copie o código abaixo e pague no seu app do banco:\n\n${copiaEColaMP}\n\n*A liberação é automática e a cozinha já começa a preparar!* 🚀`;
+                                                                } else { throw new Error("MP sem QR Code"); }
                                                             } 
-                                                            // 3. FALLBACK: CHAVE PIX MANUAL
                                                             else if (storeDynamicData.pixKey) {
-                                                                pixMsg += `Transfira para a nossa Chave PIX oficial:\n*${storeDynamicData.pixKey}*\n\nAssim que pagar, mande o comprovante aqui no chat! 🧾`;
+                                                                pixMsg += `Transfira para a nossa Chave PIX:\n*${storeDynamicData.pixKey}*\n\nAssim que pagar, mande o comprovante aqui no chat! 🧾`;
                                                             } else {
-                                                                pixMsg += `Acesse o link para finalizar o pagamento:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
+                                                                pixMsg += `Acesse o link para gerar o pagamento:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
                                                             }
                                                         } catch (error) {
-                                                            console.error("Fallback ativado - Erro ao gerar Pix Nativo:", error);
-                                                            pixMsg += `Acesse o link seguro abaixo para gerar o seu PIX e concluir o pedido:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
+                                                            pixMsg += `Acesse o link seguro para gerar o seu PIX e concluir:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
                                                         }
                                                         
                                                         replyPayload = { type: "text", text: { body: pixMsg } };
                                                         logTextForPanel = `🤖 [Pedido Criado - Pix Enviado no Chat]`;
                                                     } else {
-                                                        const confirmMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} Registrado!*\n\n*Total:* R$ ${cartTotal.toFixed(2)}\n*Pagamento:* ${paymentMethod === 'cartao' ? 'Cartão na Entrega' : 'Dinheiro'}\n\n📍 *Por favor, informe agora o seu Endereço Completo* (Rua, Número, Bairro) para enviarmos para a cozinha! 🛵💨`;
+                                                        const confirmMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} Registrado!*\n\n📍 *Endereço:* ${deliveryAddress}\n💰 *Total:* R$ ${finalTotal.toFixed(2)}\n*Pagamento:* ${paymentMethod === 'cartao' ? 'Cartão na Entrega' : 'Dinheiro'}\n\nO seu pedido já está indo para a cozinha! 🛵💨`;
                                                         replyPayload = { type: "text", text: { body: confirmMsg } };
-                                                        logTextForPanel = `🤖 [Pedido Criado - Solicitou Endereço]`;
+                                                        logTextForPanel = `🤖 [Pedido Criado - Endereço Recebido]`;
                                                     }
                                                     
-                                                    // HANDOFF: Pausa o bot apenas para Cartão ou Dinheiro (para o humano pegar endereço).
-                                                    // Se for PIX, o robô continua vivo mandando a chave e o cliente pode consultar o status!
+                                                    // Handoff apenas se for manual.
                                                     if (!isPayPix) {
                                                         await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                                     }
                                                     
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Acho que seu carrinho expirou${nomeOuVazio}. Vamos montar de novo?` } };
-                                                    logTextForPanel = `🤖 [Carrinho Expirado no Checkout]`;
+                                                    logTextForPanel = `🤖 [Carrinho Expirado]`;
                                                 }
                                             }
                                             else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
-                                                const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
-                                                
-                                                if (!searchSnap.empty) {
-                                                    const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso'];
-                                                    const searchWords = incomingTextLower.split(' ').filter(w => w.length > 2 && !wordsToIgnore.includes(w));
+                                                const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
+                                                const cartDoc = await cartRef.get();
+                                                const cartData = cartDoc.exists ? cartDoc.data() : null;
 
-                                                    const searchResults = searchSnap.docs.filter(doc => {
-                                                        const pData = doc.data();
-                                                        const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                        const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                        if (searchWords.length === 0) return false;
-                                                        return searchWords.some(word => pName.includes(word) || pCat.includes(word));
-                                                    }).slice(0, 10); 
-                                                    
-                                                    if (searchResults.length > 0) {
-                                                        const searchRows = searchResults.map(doc => {
-                                                            const p = doc.data();
-                                                            const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
-                                                            const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar'}`;
-                                                            return { id: `prod_${doc.id}`, title: (p.name || 'Produto').substring(0, 24), description: descFormatada.substring(0, 72) };
-                                                        });
+                                                // LÓGICA DE INTERCEPTAÇÃO DE ENDEREÇO
+                                                if (cartData && cartData.step === 'awaiting_address') {
+                                                    const addressText = messageText;
+                                                    let freteCalculado = 0;
+                                                    let distanceMsg = "";
+                                                    let zoneFound = false;
+
+                                                    try {
+                                                        const mapsKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+                                                        const storeLat = storeDynamicData.address?.lat || storeDynamicData.lat;
+                                                        const storeLng = storeDynamicData.address?.lng || storeDynamicData.lng;
+
+                                                        if (mapsKey && storeLat && storeLng) {
+                                                            // 1. Converte o endereço digitado em coordenadas
+                                                            const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText + ', Brasil')}&key=${mapsKey}`);
+                                                            const geoData = await geoRes.json();
+                                                            
+                                                            if (geoData.results && geoData.results.length > 0) {
+                                                                const clientLat = geoData.results[0].geometry.location.lat;
+                                                                const clientLng = geoData.results[0].geometry.location.lng;
+                                                                
+                                                                // 2. Calcula Distância (Fórmula de Haversine)
+                                                                const R = 6371;
+                                                                const dLat = (clientLat - storeLat) * Math.PI / 180;
+                                                                const dLng = (clientLng - storeLng) * Math.PI / 180;
+                                                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                                                          Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) *
+                                                                          Math.sin(dLng/2) * Math.sin(dLng/2);
+                                                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                                                                const distanceKm = R * c;
+                                                                
+                                                                // 3. Checa o valor nas Zonas de Entrega
+                                                                const zones = storeDynamicData.deliveryZones || [];
+                                                                zones.sort((a, b) => Number(a.radius) - Number(b.radius));
+                                                                
+                                                                let matchedZone = null;
+                                                                for (const zone of zones) {
+                                                                    if (distanceKm <= Number(zone.radius)) {
+                                                                        matchedZone = zone;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                
+                                                                if (matchedZone) {
+                                                                    freteCalculado = Number(matchedZone.price || 0);
+                                                                    distanceMsg = `(${distanceKm.toFixed(1)}km)`;
+                                                                    zoneFound = true;
+                                                                } else {
+                                                                    // Fora da Área
+                                                                    replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
+                                                                    logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
+                                                                    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                                }
+                                                            }
+                                                        }
+                                                    } catch (err) {
+                                                        console.error("Erro no mapa:", err);
+                                                        // Se falhar o mapa silenciosamente, ele avança com frete R$ 0,00 ou taxa balcão para não travar a venda.
+                                                        zoneFound = true;
+                                                    }
+
+                                                    if (!replyPayload && zoneFound) {
+                                                        const cartTotal = cartData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+                                                        const finalTotal = cartTotal + freteCalculado;
+                                                        
+                                                        // Avança o carrinho para aguardando pagamento
+                                                        await cartRef.set({ 
+                                                            step: 'awaiting_payment', 
+                                                            shippingFee: freteCalculado, 
+                                                            deliveryAddress: addressText,
+                                                            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+                                                        }, { merge: true });
+
                                                         replyPayload = {
                                                             type: "interactive",
                                                             interactive: {
-                                                                type: "list",
-                                                                header: { type: "text", text: "🔍 Resultado da Busca" },
-                                                                body: { text: `Encontrei ${searchResults.length} produto(s) para você${nomeOuVazio}! 👇` },
-                                                                footer: { text: "Toque abaixo para escolher" },
-                                                                action: { button: "Ver Resultados", sections: [{ title: "Produtos Encontrados", rows: searchRows }] }
+                                                                type: "button",
+                                                                body: { text: `📍 *Endereço anotado!*\n${addressText}\n\n🛵 Taxa de Entrega: R$ ${freteCalculado.toFixed(2)} ${distanceMsg}\n🛒 Subtotal: R$ ${cartTotal.toFixed(2)}\n💰 *Total Final: R$ ${finalTotal.toFixed(2)}*\n\nComo você prefere pagar?` },
+                                                                action: {
+                                                                    buttons: [
+                                                                        { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
+                                                                        { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Cartão na Entrega" } },
+                                                                        { type: "reply", reply: { id: "btn_pay_cash", title: "💵 Dinheiro" } }
+                                                                    ]
+                                                                }
                                                             }
                                                         };
-                                                        logTextForPanel = `🤖 [Busca WhatsApp: Encontrou ${searchResults.length} produtos]`;
-                                                    } else {
-                                                        replyPayload = { type: "text", text: { body: `Poxa${nomeOuVazio}, não consegui encontrar nenhum produto com esse nome no nosso estoque. 😕\n\nTente digitar apenas a palavra principal (ex: "Polar", "Bacon", "Coca").` } };
-                                                        logTextForPanel = `🤖 [Busca Falhou para: ${messageText}]`;
+                                                        logTextForPanel = `🤖 [Calculou Frete: R$ ${freteCalculado.toFixed(2)}]`;
                                                     }
-                                                } else {
-                                                    replyPayload = generateMainMenu();
-                                                    logTextForPanel = `🤖 [Menu Fallback Enviado]`;
+                                                } 
+                                                // SE NÃO ESTIVER ESPERANDO ENDEREÇO, SEGUE COM A BUSCA NORMAL DE PRODUTOS
+                                                else {
+                                                    const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
+                                                    
+                                                    if (!searchSnap.empty) {
+                                                        const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso'];
+                                                        const searchWords = incomingTextLower.split(' ').filter(w => w.length > 2 && !wordsToIgnore.includes(w));
+
+                                                        const searchResults = searchSnap.docs.filter(doc => {
+                                                            const pData = doc.data();
+                                                            const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                            const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                            if (searchWords.length === 0) return false;
+                                                            return searchWords.some(word => pName.includes(word) || pCat.includes(word));
+                                                        }).slice(0, 10); 
+                                                        
+                                                        if (searchResults.length > 0) {
+                                                            const searchRows = searchResults.map(doc => {
+                                                                const p = doc.data();
+                                                                const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
+                                                                const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar'}`;
+                                                                return { id: `prod_${doc.id}`, title: (p.name || 'Produto').substring(0, 24), description: descFormatada.substring(0, 72) };
+                                                            });
+                                                            replyPayload = {
+                                                                type: "interactive",
+                                                                interactive: {
+                                                                    type: "list",
+                                                                    header: { type: "text", text: "🔍 Resultado da Busca" },
+                                                                    body: { text: `Encontrei ${searchResults.length} produto(s) para você${nomeOuVazio}! 👇` },
+                                                                    footer: { text: "Toque abaixo para escolher" },
+                                                                    action: { button: "Ver Resultados", sections: [{ title: "Produtos Encontrados", rows: searchRows }] }
+                                                                }
+                                                            };
+                                                            logTextForPanel = `🤖 [Busca WhatsApp: Encontrou ${searchResults.length} produtos]`;
+                                                        } else {
+                                                            replyPayload = { type: "text", text: { body: `Poxa${nomeOuVazio}, não consegui encontrar nenhum produto com esse nome no nosso estoque. 😕\n\nTente digitar apenas a palavra principal (ex: "Polar", "Bacon", "Coca").` } };
+                                                            logTextForPanel = `🤖 [Busca Falhou para: ${messageText}]`;
+                                                        }
+                                                    } else {
+                                                        replyPayload = generateMainMenu();
+                                                        logTextForPanel = `🤖 [Menu Fallback Enviado]`;
+                                                    }
                                                 }
                                             } else {
                                                 replyPayload = generateMainMenu();
