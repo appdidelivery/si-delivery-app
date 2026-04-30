@@ -1068,6 +1068,23 @@ export default function AdminChat() {
                                             </div>
                                         )}
 
+                                        {/* Renderizador de Documentos (PDF, Word, etc) */}
+                                        {displayMediaType === 'document' && displayMediaUrl && (
+                                            <div 
+                                                className="mb-2 mt-1 p-3 rounded-xl cursor-pointer bg-white border border-slate-200 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-3 w-[220px]" 
+                                                onClick={() => window.open(displayMediaUrl, '_blank')}
+                                                title="Clique para abrir ou baixar o documento"
+                                            >
+                                                <div className="bg-blue-100 text-blue-600 p-2 rounded-full shrink-0">
+                                                    <Paperclip size={20} />
+                                                </div>
+                                                <div className="flex flex-col overflow-hidden">
+                                                    <span className="text-sm font-black text-slate-700 truncate">Documento Anexo</span>
+                                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Toque para abrir</span>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Texto / Legenda */}
                                         {displayText && <span className="pr-12 whitespace-pre-wrap break-words break-all">{displayText}</span>}
                                         
