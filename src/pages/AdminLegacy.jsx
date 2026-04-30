@@ -8762,36 +8762,30 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     const vipData = {
                                         name: vipForm.name,
                                         phone: vipForm.phone,
-                                        cpf: vipForm.cpf || "", // Se tiver CPF salva, senão string vazia
+                                        cpf: vipForm.cpf || "", 
                                         allowTab: vipForm.allowTab || false,
                                         tabLimit: Number(vipForm.tabLimit) || 0,
                                         tabDueDate: Number(vipForm.tabDueDate) || 10,
                                         storeId: storeId,
-                                        updatedAt: serverTimestamp() // Sempre marca quando foi alterado
+                                        updatedAt: new Date()
                                     };
 
                                     if (editingVipId) {
-                                        // Se for edição, usamos o update normal
+                                        // Se for edição, atualiza o existente
                                         await updateDoc(doc(db, "customers", editingVipId), vipData);
                                     } else {
-                                        // Se for novo, usamos setDoc com merge: true, usando o telefone (limpo) como ID
-                                        const cleanPhone = vipForm.phone.replace(/\D/g, '');
-                                        if(!cleanPhone) {
-                                            alert("Por favor, digite um telefone válido.");
-                                            return;
-                                        }
-                                        const customerRef = doc(db, "customers", cleanPhone);
-                                        await setDoc(customerRef, {
-                                            ...vipData,
-                                            createdAt: serverTimestamp() // Só marca a criação se for novo
-                                        }, { merge: true });
+                                        // Se for NOVO, cria no banco (Blindado com addDoc)
+                                        vipData.createdAt = new Date();
+                                        await addDoc(collection(db, "customers"), vipData);
                                     }
 
                                     setIsVipModalOpen(false);
                                     setVipForm({ name: '', phone: '', cpf: '', allowTab: false, tabLimit: '', tabDueDate: 10 });
                                     alert("Cliente salvo com sucesso!");
                                 } catch (error) {
-                                    alert("Erro ao salvar cliente: " + error.message);
+                                    // Se der erro agora, ele vai nos mostrar o VERDADEIRO motivo na tela
+                                    alert("ERRO NOVO: " + error.message);
+                                    console.error("Erro completo:", error);
                                 }
                             }} className="space-y-6">
 
