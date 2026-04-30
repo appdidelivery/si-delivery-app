@@ -1415,7 +1415,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     const newOrderRef = db.collection('orders').doc();
                                                     await newOrderRef.set({
                                                         storeId: storeId,
-                                                        customerName: customerName || 'Cliente WhatsApp', // 👈 CORRIGIDO AQUI (Sem o pushName)
+                                                        customerName: customerName || pushName || 'Cliente WhatsApp',
                                                         customerPhone: normalizedPhone,
                                                         items: items,
                                                         total: cartTotal,
@@ -1434,67 +1434,19 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         
                                                         let pixMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} gerado!*\n\nValor total: *R$ ${cartTotal.toFixed(2)}*\n\n`;
                                                         
-                                                        try {
-                                                            // 1. TENTA GERAR VIA VELOPAY (EFÍ)
-                                                            if (storeDynamicData.velopayStatus === 'active') {
-                                                                const veloRes = await fetch(`${req.headers.origin || `https://${req.headers.host}`}/api/velopay-pix`, {
-                                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ storeId, orderId: newOrderRef.id, totalAmount: cartTotal })
-                                                                });
-                                                                
-                                                                if (veloRes.ok) {
-                                                                    // Como a API do VeloPay não devolve o Copia e Cola direto, lemos do banco onde ela acabou de salvar
-                                                                    const checkDoc = await db.collection('orders').doc(newOrderRef.id).get();
-                                                                    const copiaECola = checkDoc.data()?.pixCopiaECola;
-                                                                    if (copiaECola) {
-                                                                        pixMsg += `Copie o código abaixo e pague no app do seu banco:\n\n${copiaECola}\n\n*A liberação do seu pedido é automática!* 🚀`;
-                                                                    } else { throw new Error("Copia e Cola não encontrado no VeloPay"); }
-                                                                } else { throw new Error("Falha na API VeloPay"); }
-                                                            } 
-                                                            // 2. TENTA GERAR VIA MERCADO PAGO TRANSPARENTE
-                                                            else if (mpConfig?.accessToken) {
-                                                                const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
-                                                                    method: 'POST',
-                                                                    headers: {
-                                                                        'Authorization': `Bearer ${mpConfig.accessToken}`,
-                                                                        'Content-Type': 'application/json',
-                                                                        'X-Idempotency-Key': `pix_zap_${newOrderRef.id}`
-                                                                    },
-                                                                    body: JSON.stringify({
-                                                                        transaction_amount: Number(cartTotal),
-                                                                        description: `Pedido #${newOrderRef.id.slice(-5).toUpperCase()}`,
-                                                                        payment_method_id: "pix",
-                                                                        payer: { email: "cliente@velozap.com.br", first_name: customerName || "Cliente" },
-                                                                        external_reference: newOrderRef.id,
-                                                                        notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
-                                                                    })
-                                                                });
-                                                                
-                                                                const mpData = await mpRes.json();
-                                                                if (mpRes.ok && mpData.point_of_interaction?.transaction_data?.qr_code) {
-                                                                    const copiaEColaMP = mpData.point_of_interaction.transaction_data.qr_code;
-                                                                    // Salva no banco para controle interno
-                                                                    await newOrderRef.update({
-                                                                        paymentIntentId: String(mpData.id),
-                                                                        mpPaymentStatus: mpData.status,
-                                                                        pixCopiaECola: copiaEColaMP
-                                                                    });
-                                                                    pixMsg += `Copie o código abaixo e pague no app do seu banco:\n\n${copiaEColaMP}\n\n*A liberação do seu pedido é automática!* 🚀`;
-                                                                } else { throw new Error("Mercado Pago não retornou QR Code"); }
-                                                            } 
-                                                            // 3. FALLBACK: CHAVE PIX MANUAL
-                                                            else if (storeDynamicData.pixKey) {
-                                                                pixMsg += `Transfira para a nossa Chave PIX oficial:\n*${storeDynamicData.pixKey}*\n\nAssim que pagar, mande o comprovante aqui no chat! 🧾`;
-                                                            } else {
-                                                                pixMsg += `Desculpe, as integrações de PIX estão inativas no momento. Nossa equipe entrará em contato para o pagamento.`;
-                                                            }
-                                                        } catch (pixError) {
-                                                            console.error("Erro ao gerar Pix Nativo no Webhook:", pixError);
-                                                            pixMsg += `Houve uma instabilidade ao gerar a chave automática. Nossa equipe já vai gerar um PIX manual para você!`;
+                                                        // Árvore de Decisão do PIX que você desenhou!
+                                                        if (storeDynamicData.velopayStatus === 'active') {
+                                                            pixMsg += `Para gerar o seu PIX Oficial da Loja com liberação automática, acesse o link seguro:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
+                                                        } else if (mpConfig?.accessToken) {
+                                                            pixMsg += `Para gerar o seu PIX do Mercado Pago com baixa automática, acesse o link:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
+                                                        } else if (storeDynamicData.pixKey) {
+                                                            pixMsg += `Transfira para a nossa Chave PIX oficial:\n*${storeDynamicData.pixKey}*\n\nAssim que pagar, mande o comprovante aqui no chat! 🧾`;
+                                                        } else {
+                                                            pixMsg += `Acesse o link para finalizar o pagamento:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
                                                         }
                                                         
                                                         replyPayload = { type: "text", text: { body: pixMsg } };
-                                                        logTextForPanel = `🤖 [Pedido Criado - Pix Enviado no Chat]`;
+                                                        logTextForPanel = `🤖 [Pedido Criado - Aguardando PIX]`;
                                                     } else {
                                                         // Se o pagamento for na entrega
                                                         const confirmMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} Registrado!*\n\n*Total:* R$ ${cartTotal.toFixed(2)}\n*Pagamento:* ${paymentMethod === 'cartao' ? 'Cartão na Entrega' : 'Dinheiro'}\n\n📍 *Por favor, informe agora o seu Endereço Completo* (Rua, Número, Bairro) para enviarmos para a cozinha! 🛵💨`;
@@ -1504,9 +1456,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     
                                                     // HANDOFF: Pausa o bot automaticamente. 
                                                     // O lojista (Humano) assume a conversa a partir de agora para pegar o endereço ou validar comprovante!
-                                                    if (!isPayPix) {
-    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-}
+                                                    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                                     
                                                 } else {
                                                     replyPayload = { type: "text", text: { body: `Acho que seu carrinho expirou${nomeOuVazio}. Vamos montar de novo?` } };
