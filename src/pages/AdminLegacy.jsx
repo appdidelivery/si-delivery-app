@@ -10764,12 +10764,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 try {
-                                    const payload = {
+                                   const payload = {
                                         storeId: storeId,
                                         name: editingVip.name,
                                         phone: editingVip.phone,
                                         fiadoEnabled: editingVip.fiadoEnabled,
                                         billingDay: Number(editingVip.billingDay),
+                                        creditLimit: Number(editingVip.creditLimit) || 0,
                                         updatedAt: serverTimestamp()
                                     };
                                     
