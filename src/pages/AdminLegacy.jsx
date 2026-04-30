@@ -1789,14 +1789,15 @@ const handleGenerateProductCopy = async () => {
 
     const updateStatusAndNotify = async (order, newStatus) => {
         // 1. Atualiza o status do pedido no banco de dados primeiro
-        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
-        
-        // --- NOVO: AUTO IMPRESSÃO ---
-        if (newStatus === 'completed' && storeStatus?.autoPrintCompleted) {
-            printLabel(order);
-        }
-        
-        // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
+        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+        
+        // --- NOVO: AUTO IMPRESSÃO DINÂMICA ---
+        const autoPrintTrigger = storeStatus?.autoPrintStatus || (storeStatus?.autoPrintCompleted ? 'completed' : 'none');
+        if (newStatus === autoPrintTrigger) {
+            printLabel(order);
+        }
+        
+        // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
         if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
             if (!order.cashbackAwarded) {
                 try {
@@ -7514,16 +7515,31 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </label>
 
                                             {/* NOVO: AUTOMAÇÃO DE IMPRESSÃO E VIAS */}
-                                            <div className="flex flex-col gap-2 mt-2">
-                                                <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.autoPrintCompleted ? 'bg-white border-blue-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
-                                                    <div>
-                                                        <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.autoPrintCompleted ? 'text-blue-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir "Concluído"</span>
-                                                        <p className="text-[9px] font-bold text-slate-400 mt-1">Imprime o ticket automaticamente ao marcar o pedido como ✅ Entregue.</p>
-                                                    </div>
-                                                    <input type="checkbox" checked={storeStatus.autoPrintCompleted || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintCompleted: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer" />
-                                                </label>
-                                                
-                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                <div className={`p-4 rounded-2xl border-2 transition-all ${(storeStatus.autoPrintStatus && storeStatus.autoPrintStatus !== 'none') || (storeStatus.autoPrintCompleted && !storeStatus.autoPrintStatus) ? 'bg-white border-blue-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
+                                                    <div className="flex flex-col gap-3">
+                                                        <div>
+                                                            <span className={`font-black uppercase tracking-tight text-xs ${(storeStatus.autoPrintStatus && storeStatus.autoPrintStatus !== 'none') || (storeStatus.autoPrintCompleted && !storeStatus.autoPrintStatus) ? 'text-blue-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir Pedido</span>
+                                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Imprime o ticket assim que o pedido atingir o status abaixo:</p>
+                                                        </div>
+                                                        <select 
+                                                            value={storeStatus.autoPrintStatus || (storeStatus.autoPrintCompleted ? 'completed' : 'none')} 
+                                                            onChange={(e) => {
+                                                                setStoreStatus(prev => ({...prev, autoPrintStatus: e.target.value}));
+                                                                updateDoc(doc(db, "stores", storeId), { autoPrintStatus: e.target.value }, { merge: true });
+                                                            }} 
+                                                            className="w-full p-3 bg-white rounded-xl font-bold text-xs text-slate-700 outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer"
+                                                        >
+                                                            <option value="none">🚫 Desativado</option>
+                                                            <option value="pending">⏳ Ao Receber (Novo Pedido)</option>
+                                                            <option value="preparing">👨‍🍳 Ao Marcar como Preparando</option>
+                                                            <option value="delivery">🏍️ Ao Despachar (Em Rota)</option>
+                                                            <option value="completed">✅ Ao Concluir (Entregue)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Formato de Impressão (Vias)</label>
                                                     <select 
                                                         value={storeStatus.printMode || 'both'} 
