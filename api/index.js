@@ -1153,13 +1153,13 @@ export default async function handler(req, res) {
                                             const isGreeting = greetings.some(g => incomingTextLower === g || incomingTextLower.startsWith(`${g} `));
 
                                             const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
-                                            const needsSupport = isMedia || interactivePayload === 'btn_support' || (!interactivePayload && supportKeywords.some(kw => incomingTextLower.includes(kw)));
+                                            const needsSupport = isMedia || interactivePayload === 'btn_support' || supportKeywords.some(kw => incomingTextLower.includes(kw));
 
-                                            const isFaqEndereco = interactivePayload === 'btn_info' || (!interactivePayload && ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw)));
-                                            const isFaqPagamento = interactivePayload === 'btn_payment' || (!interactivePayload && ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw)));
+                                            const isFaqEndereco = interactivePayload === 'btn_info' || ['onde', 'endereco', 'localiza', 'rua', 'situado', 'cidade', 'bairro fica', 'qual o local'].some(kw => incomingTextLower.includes(kw));
+                                            const isFaqPagamento = interactivePayload === 'btn_payment' || ['pagamento', 'cartao', 'pix', 'ticket', 'sodexo', 'vr', 'dinheiro', 'troco', 'maquininha'].some(kw => incomingTextLower.includes(kw));
 
                                             const isMenuTrigger = interactivePayload === 'btn_menu';
-                                            const isOrderWaTrigger = interactivePayload === 'btn_order_wa' || (!interactivePayload && ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw)));
+                                            const isOrderWaTrigger = interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLower.includes(kw));
                                             const isProductSelection = interactivePayload ? interactivePayload.startsWith('prod_') : false;
                                             const isCartCheckout = interactivePayload === 'btn_checkout_wa';
                                             const isClearCart = interactivePayload === 'btn_clear_cart';
@@ -1169,8 +1169,8 @@ export default async function handler(req, res) {
                                             const isPayCardDelivery = interactivePayload === 'btn_pay_card_delivery';
                                             const isPayCash = interactivePayload === 'btn_pay_cash';
 
-                                            const isStatusTrigger = interactivePayload === 'btn_status' || (!interactivePayload && ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw)));
-                                            const isRepeatTrigger = interactivePayload === 'btn_repeat' || (!interactivePayload && ['repetir', 'mesmo pedido', 'quero o mesmo'].some(kw => incomingTextLower.includes(kw)));
+                                            const isStatusTrigger = interactivePayload === 'btn_status' || ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw));
+                                            const isRepeatTrigger = interactivePayload === 'btn_repeat' || ['repetir', 'mesmo pedido', 'quero o mesmo'].some(kw => incomingTextLower.includes(kw));
 
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
                                             const storeName = storeDynamicData.name || 'nossa loja';
@@ -1329,138 +1329,6 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         }
                                                     };
                                                     logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp para ${firstName || 'Cliente'}]`;
-                                                }
-                                            }
-                                            else if (isProductSelection) {
-                                                const productId = interactivePayload.replace('prod_', '');
-                                                const prodSnap = await db.collection('products').doc(productId).get();
-                                                
-                                                if (prodSnap.exists) {
-                                                    const pData = prodSnap.data();
-                                                    const price = pData.promotionalPrice > 0 ? pData.promotionalPrice : (pData.price || 0);
-                                                    
-                                                    // Adiciona no Carrinho Temporário (Memória do Bot)
-                                                    const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
-                                                    const cartDoc = await cartRef.get();
-                                                    let items = cartDoc.exists ? (cartDoc.data().items || []) : [];
-                                                    
-                                                    const existingItem = items.find(i => i.id === productId);
-                                                    if (existingItem) {
-                                                        existingItem.quantity += 1;
-                                                    } else {
-                                                        items.push({ id: productId, name: pData.name, price: price, quantity: 1, imageUrl: pData.imageUrl || '' });
-                                                    }
-                                                    
-                                                    await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-                                                    
-                                                    replyPayload = {
-                                                        type: "interactive",
-                                                        interactive: {
-                                                            type: "button",
-                                                            body: { text: `✅ *${pData.name}* adicionado!\n\n🛒 *Subtotal do Carrinho:* R$ ${cartTotal.toFixed(2)}\n\nDeseja adicionar mais algo ou fechar o pedido?` },
-                                                            action: {
-                                                                buttons: [
-                                                                    { type: "reply", reply: { id: "btn_order_wa", title: "➕ Ver Mais Itens" } },
-                                                                    { type: "reply", reply: { id: "btn_checkout_wa", title: "✅ Fechar Pedido" } }
-                                                                ]
-                                                            }
-                                                        }
-                                                    };
-                                                    logTextForPanel = `🤖 [Adicionou ao Carrinho: ${pData.name}]`;
-                                                } else {
-                                                    replyPayload = { type: "text", text: { body: `Poxa${nomeOuVazio}, não encontrei esse produto. Pode ser que o estoque tenha acabado.` } };
-                                                    logTextForPanel = `🤖 [Falha ao adicionar: Produto não encontrado]`;
-                                                }
-                                            }
-                                            else if (isCartCheckout) {
-                                                const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
-                                                const cartDoc = await cartRef.get();
-                                                
-                                                if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
-                                                    const items = cartDoc.data().items;
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-                                                    
-                                                    replyPayload = {
-                                                        type: "interactive",
-                                                        interactive: {
-                                                            type: "button",
-                                                            body: { text: `🛒 *Seu pedido deu R$ ${cartTotal.toFixed(2)}.*\n\nComo você prefere pagar?` },
-                                                            action: {
-                                                                buttons: [
-                                                                    { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
-                                                                    { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Cartão na Entrega" } },
-                                                                    { type: "reply", reply: { id: "btn_pay_cash", title: "💵 Dinheiro" } }
-                                                                ]
-                                                            }
-                                                        }
-                                                    };
-                                                    logTextForPanel = `🤖 [Iniciou Checkout - R$ ${cartTotal.toFixed(2)}]`;
-                                                } else {
-                                                    replyPayload = { type: "text", text: { body: `Seu carrinho está vazio${nomeOuVazio}! Adicione produtos pelo cardápio primeiro.` } };
-                                                    logTextForPanel = `🤖 [Tentou Checkout com Carrinho Vazio]`;
-                                                }
-                                            }
-                                            else if (isPayPix || isPayCardDelivery || isPayCash) {
-                                                const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
-                                                const cartDoc = await cartRef.get();
-                                                
-                                                if (cartDoc.exists && cartDoc.data().items && cartDoc.data().items.length > 0) {
-                                                    const items = cartDoc.data().items;
-                                                    const cartTotal = items.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-                                                    const paymentMap = { 'btn_pay_pix': 'pix', 'btn_pay_card_delivery': 'cartao', 'btn_pay_cash': 'dinheiro' };
-                                                    const paymentMethod = paymentMap[interactivePayload];
-                                                    
-                                                    // Cria o pedido no Banco de Dados
-                                                    const newOrderRef = db.collection('orders').doc();
-                                                    await newOrderRef.set({
-                                                        storeId: storeId,
-                                                        customerName: customerName || pushName || 'Cliente WhatsApp',
-                                                        customerPhone: normalizedPhone,
-                                                        items: items,
-                                                        total: cartTotal,
-                                                        paymentMethod: paymentMethod,
-                                                        status: 'pending',
-                                                        paymentStatus: 'pending',
-                                                        source: 'whatsapp',
-                                                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                                                    });
-                                                    
-                                                    await cartRef.delete(); // Esvazia a memória do carrinho
-                                                    
-                                                    if (isPayPix) {
-                                                        const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
-                                                        const mpConfig = storeSettingsDoc.data()?.integrations?.mercadopago;
-                                                        
-                                                        let pixMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} gerado!*\n\nValor total: *R$ ${cartTotal.toFixed(2)}*\n\n`;
-                                                        
-                                                        // Árvore de Decisão do PIX que você desenhou!
-                                                        if (storeDynamicData.velopayStatus === 'active') {
-                                                            pixMsg += `Para gerar o seu PIX Oficial da Loja com liberação automática, acesse o link seguro:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
-                                                        } else if (mpConfig?.accessToken) {
-                                                            pixMsg += `Para gerar o seu PIX do Mercado Pago com baixa automática, acesse o link:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
-                                                        } else if (storeDynamicData.pixKey) {
-                                                            pixMsg += `Transfira para a nossa Chave PIX oficial:\n*${storeDynamicData.pixKey}*\n\nAssim que pagar, mande o comprovante aqui no chat! 🧾`;
-                                                        } else {
-                                                            pixMsg += `Acesse o link para finalizar o pagamento:\n👉 ${storeDomain}/checkout/${newOrderRef.id}`;
-                                                        }
-                                                        
-                                                        replyPayload = { type: "text", text: { body: pixMsg } };
-                                                        logTextForPanel = `🤖 [Pedido Criado - Aguardando PIX]`;
-                                                    } else {
-                                                        // Se o pagamento for na entrega
-                                                        const confirmMsg = `✅ *Pedido #${newOrderRef.id.slice(-5).toUpperCase()} Registrado!*\n\n*Total:* R$ ${cartTotal.toFixed(2)}\n*Pagamento:* ${paymentMethod === 'cartao' ? 'Cartão na Entrega' : 'Dinheiro'}\n\n📍 *Por favor, informe agora o seu Endereço Completo* (Rua, Número, Bairro) para enviarmos para a cozinha! 🛵💨`;
-                                                        replyPayload = { type: "text", text: { body: confirmMsg } };
-                                                        logTextForPanel = `🤖 [Pedido Criado - Solicitou Endereço]`;
-                                                    }
-                                                    
-                                                    // HANDOFF: Pausa o bot automaticamente. 
-                                                    // O lojista (Humano) assume a conversa a partir de agora para pegar o endereço ou validar comprovante!
-                                                    await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                                    
-                                                } else {
-                                                    replyPayload = { type: "text", text: { body: `Acho que seu carrinho expirou${nomeOuVazio}. Vamos montar de novo?` } };
-                                                    logTextForPanel = `🤖 [Carrinho Expirado no Checkout]`;
                                                 }
                                             }
                                             else if (incomingTextLower.length > 2 && !isProductSelection && !isCartCheckout && !isClearCart) {
