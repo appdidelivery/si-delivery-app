@@ -907,36 +907,39 @@ export default function AdminChat() {
                     {chatList.map((chat) => {
                         const lastMsg = chat.msgs[chat.msgs.length - 1];
                         const dateObj = lastMsg?.receivedAt?.toDate ? lastMsg.receivedAt.toDate() : new Date(lastMsg?.receivedAt?.seconds * 1000 || Date.now());
-                        const timeString = formatMessageTime(dateObj); // <--- ATUALIZADO AQUI
+                        const timeString = formatMessageTime(dateObj); 
+                        
+                        // NOVO: Detecta se é um pedido de transbordo não lido
+                        const handoffTriggerText = store?.settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
+                        const isHandoffAlert = chat.unreadCount > 0 && lastMsg?.text && String(lastMsg.text).toLowerCase().includes(handoffTriggerText.toLowerCase());
                         
                         return (
                             <div 
                                 key={chat.phone} 
                                 onClick={() => handleOpenChat(chat.phone)}
-                                className={`flex items-center gap-3 px-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${activeChat === chat.phone ? 'bg-[#f0f2f5]' : ''}`}
+                                className={`flex items-center gap-3 px-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${activeChat === chat.phone ? 'bg-[#f0f2f5]' : ''} ${isHandoffAlert ? 'bg-red-50 hover:bg-red-100' : ''}`}
                             >
-                                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 shrink-0">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isHandoffAlert ? 'bg-red-200 text-red-600 animate-pulse' : 'bg-gray-200 text-gray-400'}`}>
                                     <User size={28} />
                                 </div>
                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="flex justify-between items-center mb-1">
-                                        <span className="font-semibold text-gray-800 text-sm truncate">
+                                        <span className={`font-semibold text-sm truncate ${isHandoffAlert ? 'text-red-700' : 'text-gray-800'}`}>
                                             {getDisplayName(chat.phone)}
                                         </span>
-                                        <span className={`text-[11px] ${chat.unreadCount > 0 ? 'text-[#25d366] font-bold' : 'text-gray-400'}`}>
+                                        <span className={`text-[11px] ${isHandoffAlert ? 'text-red-600 font-black animate-pulse' : chat.unreadCount > 0 ? 'text-[#25d366] font-bold' : 'text-gray-400'}`}>
                                             {timeString}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-500 truncate pr-2">
+                                        <span className={`text-sm truncate pr-2 ${isHandoffAlert ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
                                             {lastMsg?.direction === 'outbound' ? '✓ ' : ''}
-                                            {/* Se tem texto, mostra o texto. Se não tem texto mas tem imagem/áudio, mostra o ícone correspondente */}
                                             {lastMsg?.text 
-                                                ? lastMsg.text.replace(/(https?:\/\/[^\s]+cloudinary\.com[^\s]*)/i, '📷 Imagem') 
+                                                ? (isHandoffAlert ? `🚨 ${lastMsg.text}` : lastMsg.text.replace(/(https?:\/\/[^\s]+cloudinary\.com[^\s]*)/i, '📷 Imagem'))
                                                 : (lastMsg?.mediaType === 'image' || lastMsg?.mediaUrl?.includes('cloudinary') ? '📷 Imagem' : lastMsg?.mediaType === 'audio' ? '🎤 Áudio' : '')}
                                         </span>
                                         {chat.unreadCount > 0 && (
-                                            <span className="bg-[#25d366] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                                            <span className={`${isHandoffAlert ? 'bg-red-500 animate-bounce' : 'bg-[#25d366]'} text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0`}>
                                                 {chat.unreadCount}
                                             </span>
                                         )}
@@ -1029,10 +1032,14 @@ export default function AdminChat() {
                                         displayText = displayText.replace(displayMediaUrl, '').replace('Imagem:', '').replace('📷', '').trim();
                                     }
                                 }
+                                
+                                // NOVO: Flag para destacar a bolha específica
+                                const handoffTriggerTextBubble = store?.settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
+                                const isThisHandoff = !isOutbound && displayText && String(displayText).toLowerCase().includes(handoffTriggerTextBubble.toLowerCase());
                                 // ---------------------------------------
 
                                 return (
-                                    <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
+                                    <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : isThisHandoff ? 'bg-red-50 text-red-900 border-2 border-red-500 self-start rounded-tl-none shadow-md animate-pulse' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
                                         
                                         {/* Ações da Mensagem (Aparecem no Hover) */}
                                         <div className={`absolute top-1 ${isOutbound ? '-left-20' : '-right-20'} opacity-0 group-hover:opacity-100 flex items-center gap-1 z-20 transition-all`}>
