@@ -2126,10 +2126,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             };
         });
 
-        // 4. Ordena por pontos se o clube estiver ativo, senão, por total gasto
+       // 4. Ordena por pontos se o clube estiver ativo, senão, por total gasto
         return customerList.sort((a, b) => loyaltyEnabled ? b.points - a.points : b.totalSpent - a.totalSpent);
         
-    }, [orders, loyaltyRedemptions, settings]);
+    }, [orders, loyaltyRedemptions, settings, storeCustomersDB]);
 
     // --- ALTERAÇÃO INICIADA: FUNÇÕES PARA MANIPULAR ITENS NO MODAL DE EDIÇÃO ---
     const handleAddProductToEditingOrder = (productToAdd) => {
