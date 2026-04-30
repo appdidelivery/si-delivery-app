@@ -1597,38 +1597,29 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                                                                 const distanceKm = R * c;
                                                                 
+                                                                // 3. Checa o valor nas Zonas de Entrega (Busca Ultra Profunda - Inclui Subcoleções)
                                                                 const settingsDocMap = await db.collection('settings').doc(storeId).get();
                                                                 const settingsDataMap = settingsDocMap.exists ? settingsDocMap.data() : {};
                                                                 
                                                                 let rawZones = [];
                                                                 const possiveisLocais = [
+                                                                    storeDynamicData.delivery_zones, // Prioridade para o formato CSI
                                                                     storeDynamicData.deliveryZones,
-                                                                    storeDynamicData.deliveryFees,
-                                                                    storeDynamicData.delivery?.zones,
-                                                                    storeDynamicData.deliveryConfig?.zones,
-                                                                    settingsDataMap.deliveryZones,
-                                                                    settingsDataMap.delivery?.zones,
-                                                                    settingsDataMap.deliveryConfig?.zones
+                                                                    settingsDataMap.delivery_zones,
+                                                                    settingsDataMap.deliveryZones
                                                                 ];
 
                                                                 for (const local of possiveisLocais) {
                                                                     if (Array.isArray(local) && local.length > 0) {
                                                                         rawZones = local; break;
-                                                                    } else if (local && typeof local === 'object' && Array.isArray(local.zones) && local.zones.length > 0) {
-                                                                        rawZones = local.zones; break;
-                                                                    } else if (local && typeof local === 'object') {
-                                                                        const valores = Object.values(local);
-                                                                        if (valores.length > 0 && (valores[0].radius || valores[0].km || valores[0].raio)) {
-                                                                            rawZones = valores; break;
-                                                                        }
                                                                     }
                                                                 }
-                                                                
+
                                                                 const parseBR = (v) => Number(String(v || 0).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
 
                                                                 const zones = rawZones.map(z => ({
-                                                                    kmMax: parseBR(z.radius || z.km || z.distance || z.raio || z.maxDistance),
-                                                                    valor: parseBR(z.price || z.fee || z.taxa || z.value || z.valor || z.cost)
+                                                                    kmMax: parseBR(z.radius_km || z.radius || z.km || z.raio), // radius_km do print
+                                                                    valor: parseBR(z.fee || z.price || z.valor) // fee do print
                                                                 })).filter(z => z.kmMax > 0);
 
                                                                 zones.sort((a, b) => a.kmMax - b.kmMax);
@@ -1650,8 +1641,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     distanceMsg = `(${distanceKm.toFixed(1)}km - Taxa a combinar)`;
                                                                     zoneFound = true;
                                                                 } else {
-                                                                    replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço antigo (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada agora. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
-                                                                    logTextForPanel = `🤖 [Fora da Área Antigo - ${distanceKm.toFixed(1)}km]`;
+                                                                    replyPayload = { type: "text", text: { body: `Poxa, parece que seu endereço (${distanceKm.toFixed(1)}km) fica fora da nossa área de entrega mapeada. 😔\n\nVou transferir você para um atendente humano para verificarmos o que podemos fazer!` } };
+                                                                    logTextForPanel = `🤖 [Fora da Área - ${distanceKm.toFixed(1)}km]`;
                                                                     await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                                                 }
                                                             }
