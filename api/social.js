@@ -37,6 +37,7 @@ export default async function handler(req, res) {
             "cowburguer.com.br": "cowburguer",
             "macanudorex.com.br": "macanudorex",
             "ngconveniencia.com.br": "ng",
+            "ng.velodelivery.com.br": "ng",
             "rincaofood.com.br": "rincaofood",
         };
         // Se não achar no diacionário,aa pega só o nome base antes do .com para não quebrar a busca no banco

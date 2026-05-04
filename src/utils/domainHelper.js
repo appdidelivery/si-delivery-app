@@ -44,6 +44,7 @@ export const getStoreIdFromHostname = () => {
           "cowburguer.com.br": "cowburguer",
           "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
+          "ng.velodelivery.com.br": "ng",
           "rincaofood.com.br": "rincaofood",
        };
 
