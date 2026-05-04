@@ -487,7 +487,8 @@ export default function Home() {
 
   const [customer, setCustomer] = useState({
     name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery',
-    city: '', state: '', cpf: '', birthDate: '', cardNumber: '', cardExpiration: '', cardCvv: ''
+    city: '', state: '', cpf: '', birthDate: '', cardNumber: '', cardExpiration: '', cardCvv: '',
+    recipientName: '', recipientPhone: '', giftMessage: '', isAnonymous: false, scheduledDate: '', scheduledTime: ''
   });
   const [useSavedAddress, setUseSavedAddress] = useState(false);
   const[showLastOrders, setShowLastOrders] = useState(false);
@@ -1701,17 +1702,24 @@ export default function Home() {
         subtotal: subtotal || 0, 
         shippingFee: (isWaiterMode || isPickup) ? 0 : (shippingFee || 0), 
         total: finalTotal || 0, 
-        status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
+        status: 'pending',
         createdAt: serverTimestamp(),
         storeId: storeId || "",
-        // Adicionando as TAGs para o Modo Garçom e Retirada:
-        tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
-        mesa: isWaiterMode ? tableNumber : null,
-        waiterName: isWaiterMode ? waiterName : null,
-        // Gamificação Info:
-        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
-        referredBy: localStorage.getItem('veloReferredBy') || null
-      };
+        tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
+        mesa: isWaiterMode ? tableNumber : null,
+        waiterName: isWaiterMode ? waiterName : null,
+        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+        referredBy: localStorage.getItem('veloReferredBy') || null,
+        ...(storeSettings?.storeNiche === 'floricultura' ? {
+            isGift: true,
+            recipientName: customer.recipientName || "",
+            recipientPhone: customer.recipientPhone || "",
+            giftMessage: customer.giftMessage || "",
+            isAnonymous: customer.isAnonymous || false,
+            scheduledDate: customer.scheduledDate || "",
+            scheduledTime: customer.scheduledTime || ""
+        } : {})
+      };
 
       if (appliedCoupon) {
         orderData.couponCode = appliedCoupon.code || "";
@@ -1804,7 +1812,13 @@ if (window.fbq) {
 
           const linkAcompanhamento = `https://${window.location.host}/track/${orderId}`;
           const freteTexto = isWaiterMode ? "" : `\n🚚 *Frete:* R$ ${(shippingFee || 0).toFixed(2)}`;
-          const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Cliente:* ${customer.name}\n📱 *Tel:* ${customer.phone || 'Não informado'}\n${enderecoMsg}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}${freteTexto}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
+          
+          let giftText = "";
+          if (storeSettings?.storeNiche === 'floricultura') {
+              giftText = `\n\n🎁 *DADOS DO PRESENTE/AGENDAMENTO:*\nPara: ${customer.recipientName || 'Não informado'}\nTel do Destinatário: ${customer.recipientPhone || 'Não informado'}\nData: ${customer.scheduledDate ? customer.scheduledDate.split('-').reverse().join('/') : 'Hoje'} às ${customer.scheduledTime || 'O mais rápido possível'}\nAnônimo: ${customer.isAnonymous ? 'SIM 🤫' : 'NÃO'}\nMensagem do Cartão: ${customer.giftMessage || 'Nenhuma'}`;
+          }
+
+          const message = `🔔 *NOVO PEDIDO #${orderId.slice(-5).toUpperCase()}*\n\n👤 *Comprador:* ${customer.name}\n📱 *Tel:* ${customer.phone || 'Não informado'}\n${enderecoMsg}${giftText}\n\n🛒 *RESUMO DO PEDIDO:*\n${itemsList}${freteTexto}\n${totalMsg}\n${obsMsg}\n\n🔗 *Acompanhar:* ${linkAcompanhamento}`;
 
           const targetPhone = storeSettings.whatsapp || "5551999999999";
           const whatsappUrl = `https://wa.me/${targetPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
@@ -2241,7 +2255,16 @@ if (window.fbq) {
                                       storeId: storeId || "",
                                       tipo: "delivery",
                                       usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
-                                      referredBy: localStorage.getItem('veloReferredBy') || null
+                                      referredBy: localStorage.getItem('veloReferredBy') || null,
+                                      ...(storeSettings?.storeNiche === 'floricultura' ? {
+                                          isGift: true,
+                                          recipientName: customer.recipientName || "",
+                                          recipientPhone: customer.recipientPhone || "",
+                                          giftMessage: customer.giftMessage || "",
+                                          isAnonymous: customer.isAnonymous || false,
+                                          scheduledDate: customer.scheduledDate || "",
+                                          scheduledTime: customer.scheduledTime || ""
+                                      } : {})
                                   };
 
                                   if (appliedCoupon) {
@@ -3225,7 +3248,84 @@ if (window.fbq) {
                                 </>
                             ) : (
                                 <>
-                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                                    
+                                                    {/* --- MÓDULO DE FLORICULTURA E PRESENTES --- */}
+                                                    {storeSettings?.storeNiche === 'floricultura' && (
+                                                        <div className="mb-4 p-5 bg-purple-50 border border-purple-200 rounded-3xl flex flex-col gap-4 shadow-sm animate-in fade-in zoom-in-95">
+                                                            <h3 className="text-lg font-black italic text-purple-800 flex items-center gap-2">
+                                                                🎁 Enviar como Presente
+                                                            </h3>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-2">Para quem?</label>
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={customer.recipientName || ''} 
+                                                                        onChange={(e) => handleCustomerChange('recipientName', e.target.value)} 
+                                                                        className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-purple-400 focus:outline-none font-bold text-sm text-slate-700" 
+                                                                        placeholder="Nome do destinatário" 
+                                                                    />
+                                                                </div>
+                                                                <div className="flex flex-col gap-1">
+                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-2">WhatsApp do destinatário</label>
+                                                                    <input 
+                                                                        type="tel" 
+                                                                        value={customer.recipientPhone || ''} 
+                                                                        onChange={(e) => handleCustomerChange('recipientPhone', e.target.value)} 
+                                                                        className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-purple-400 focus:outline-none font-bold text-sm text-slate-700" 
+                                                                        placeholder="(00) 00000-0000" 
+                                                                    />
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-2">Mensagem do Cartão Impresso</label>
+                                                                <textarea 
+                                                                    value={customer.giftMessage || ''} 
+                                                                    onChange={(e) => handleCustomerChange('giftMessage', e.target.value)} 
+                                                                    className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-purple-400 focus:outline-none font-bold text-sm text-slate-700 custom-scrollbar" 
+                                                                    rows="2" 
+                                                                    placeholder="Deixe sua declaração aqui..."
+                                                                ></textarea>
+                                                            </div>
+
+                                                            <label className="flex items-center gap-3 mt-1 bg-white p-4 rounded-2xl cursor-pointer shadow-inner">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={customer.isAnonymous || false} 
+                                                                    onChange={(e) => handleCustomerChange('isAnonymous', e.target.checked)} 
+                                                                    className="w-5 h-5 accent-purple-600 rounded cursor-pointer" 
+                                                                />
+                                                                <span className="text-xs font-bold text-slate-600">
+                                                                    <span className="text-purple-700 font-black">Enviar como Anônimo 🤫</span> <br/> 
+                                                                    (Ocultar meus dados de quem vai receber)
+                                                                </span>
+                                                            </label>
+
+                                                            <div className="border-t border-purple-200/50 mt-2 pt-4">
+                                                                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2 pl-2">
+                                                                    ⏰ Agendar Entrega
+                                                                </h4>
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <input 
+                                                                        type="date" 
+                                                                        value={customer.scheduledDate || ''} 
+                                                                        onChange={(e) => handleCustomerChange('scheduledDate', e.target.value)} 
+                                                                        className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-purple-400 focus:outline-none font-bold text-sm text-slate-700 text-center" 
+                                                                    />
+                                                                    <input 
+                                                                        type="time" 
+                                                                        value={customer.scheduledTime || ''} 
+                                                                        onChange={(e) => handleCustomerChange('scheduledTime', e.target.value)} 
+                                                                        className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-purple-400 focus:outline-none font-bold text-sm text-slate-700 text-center" 
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {/* ------------------------------------------- */}
                                     
                                     {/* CONTROLE INTELIGENTE DE BOTÕES DE ENTREGA/RETIRADA */}
                                     {((storeSettings?.deliveryEnabled !== false) || (storeSettings?.pickupEnabled !== false)) && (

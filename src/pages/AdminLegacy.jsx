@@ -3483,7 +3483,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             })()}
 
                                                             {o.status === 'pending' ? <span className="bg-red-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse shadow-md">Novo Pedido</span> :
-                                                             o.status === 'preparing' ? <span className="bg-orange-400 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Preparando</span> :
+                                                             o.status === 'preparing' ? <span className="bg-orange-400 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">{storeStatus?.storeNiche === 'floricultura' ? 'Montando Arranjo' : 'Preparando'}</span> :
                                                              o.status === 'delivery' ? <span className="bg-blue-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Saiu p/ Entrega</span> :
                                                              o.status === 'completed' ? <span className="bg-green-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Concluído</span> :
                                                              <span className="bg-slate-800 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">Cancelado</span>}
@@ -3697,8 +3697,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         ) : (
                             <div className="flex gap-4 overflow-x-auto pb-6 items-start custom-scrollbar min-h-[calc(100vh-250px)]">
                                 {[
-                                    { id: 'pending', title: '⏳ Novos (Pendentes)', color: 'bg-red-100 text-red-800 border-red-200', next: 'preparing', nextLabel: 'Aceitar (Cozinha)' },
-                                    { id: 'preparing', title: '👨‍🍳 Em Preparo', color: 'bg-orange-100 text-orange-800 border-orange-200', next: 'delivery', nextLabel: 'Despachar (Rota)' },
+                                    { id: 'pending', title: '⏳ Novos (Pendentes)', color: 'bg-red-100 text-red-800 border-red-200', next: 'preparing', nextLabel: storeStatus?.storeNiche === 'floricultura' ? 'Iniciar Montagem' : 'Aceitar (Cozinha)' },
+                                    { id: 'preparing', title: storeStatus?.storeNiche === 'floricultura' ? '🎀 Montando Arranjo' : '👨‍🍳 Em Preparo', color: 'bg-orange-100 text-orange-800 border-orange-200', next: 'delivery', nextLabel: 'Despachar (Rota)' },
                                     { id: 'delivery', title: '🏍️ Em Rota / Retirada', color: 'bg-blue-100 text-blue-800 border-blue-200', next: 'completed', nextLabel: 'Finalizar' }
                                 ].map(col => (
                                     <div key={col.id} className="w-[340px] flex-shrink-0 bg-slate-100/50 p-4 rounded-[2rem] border border-slate-200 h-full flex flex-col shadow-inner">
@@ -3818,6 +3818,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[10px] text-orange-700 bg-orange-50 p-2.5 rounded-xl font-bold mb-4 line-clamp-2 border border-orange-100">
                                                                 Obs: {o.observation}
                                                             </p>
+                                                        )}
+
+                                                        {o.recipientName && (
+                                                            <div className="bg-pink-50 p-3 rounded-xl border border-pink-200 mb-4 shadow-sm">
+                                                                <p className="text-[10px] font-black text-pink-800 uppercase tracking-widest flex items-center gap-1 mb-1">🎁 Presente para: {o.recipientName}</p>
+                                                                {o.recipientPhone && <p className="text-[10px] font-bold text-pink-600 mb-1">WhatsApp: {o.recipientPhone}</p>}
+                                                                {o.giftMessage && <p className="text-xs italic text-slate-700 bg-white p-2 rounded-lg mt-1 border border-pink-100">Cartão: "{o.giftMessage}"</p>}
+                                                                {o.isAnonymous && <span className="inline-block mt-2 bg-slate-800 text-white px-2 py-1 rounded text-[9px] uppercase font-bold tracking-widest shadow-sm">🤫 Remetente Anônimo</span>}
+                                                            </div>
                                                         )}
 
                                                         <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-auto">
@@ -7015,6 +7024,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             { id: 'sweet', label: 'Doceria/Açaí', color: '#9333ea' },
             { id: 'burger', label: 'Hamburgueria', color: '#ea580c' },
             { id: 'drinks', label: 'Adega', color: '#f59e0b' },
+            { id: 'floricultura', label: 'Floricultura', color: '#db2777' },
             { id: 'custom', label: 'Personalizado', color: storeStatus.customColor || '#475569' }
         ].map(nicho => (
             <button
@@ -8193,7 +8203,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 
-                                const isFood = isFoodCategory(form.category);
+                                const isFood = isFoodCategory(form.category) && storeStatus?.storeNiche !== 'floricultura';
                                 
                                 // PASSO 3: Parse dos novos campos antes de salvar, com proteção de UX
                                 const data = { 
@@ -8369,10 +8379,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <label className="text-xs font-bold text-slate-400 ml-2">Estoque Disponível</label>
                                         <input type="number" placeholder="Ex: 100" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
                                     </div>
-                                    <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px]">
-                                        <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
-                                        <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
-                                    </label>
+                                    {storeStatus?.storeNiche !== 'floricultura' && (
+                                        <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px]">
+                                            <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
+                                            <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
+                                        </label>
+                                    )}
                                 </div>
 
                                <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
@@ -8407,7 +8419,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Opcional. Se preenchido, o cliente será obrigado a escolher uma opção.</p>
                                 </div>
 
-                               {(!storeStatus?.storeNiche || ['burger', 'pizza', 'oriental', 'restaurant', 'sweet'].includes(storeStatus?.storeNiche)) && (
+                               {(!storeStatus?.storeNiche || ['burger', 'pizza', 'oriental', 'restaurant', 'sweet'].includes(storeStatus?.storeNiche)) && storeStatus?.storeNiche !== 'floricultura' && (
                                     <div className="pt-4 border-t border-slate-100 mt-4">
                                         <label className="text-xs font-black text-red-500 uppercase tracking-widest flex items-center gap-2 mb-1 ml-2">
                                             <MinusSquare size={14}/> O que pode ser removido? (Separado por vírgula)
@@ -8445,8 +8457,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
-                                    {/* CONDICIONAL: APENAS SE FOR COMIDA PREPARADA */}
-                                    {isFoodCategory(form.category) && (
+                                    {/* CONDICIONAL: APENAS SE FOR COMIDA PREPARADA E NÃO FOR FLORICULTURA */}
+                                                {isFoodCategory(form.category) && storeStatus?.storeNiche !== 'floricultura' && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                                 <div>
