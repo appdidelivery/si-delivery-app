@@ -72,19 +72,15 @@ export default async function handler(req, res) {
         const parts = subdomains.split('.');
         storeId = parts[parts.length - 1];
     } else if (cleanHost !== baseDomain && !cleanHost.endsWith(`.${baseDomain}`)) {
-        // Dicionário Híbrido Igual ao do Frontend
-        const domainMap = {
-            "convenienciasantaisabel.com.br": "csi",
-            "csi.com.br": "csi",
-            "cowburguer.com.br": "cowburguer",
-            "cowburguer.velodelivery.com.br": "cowburguer",
-            "macanudorex.com.br": "macanudorex",
-            "macanudorex.velodelivery.com.br": "macanudorex",
-            "ngconveniencia.com.br": "ng",
-            "ng.velodelivery.com.br": "ng",
-            "rincaofood.com.br": "rincaofood",
-            "rincaofood.velodelivery.com.br": "rincaofood",
-        };
+        // CÓDIGO NOVO (Copie e cole por cima)
+       const domainMap = {
+          "convenienciasantaisabel.com.br": "csi",
+          "csi.com.br": "csi",
+          "cowburguer.com.br": "cowburguer",
+          "macanudorex.com.br": "macanudorex",
+          "ngconveniencia.com.br": "ng",
+          "rincaofood.com.br": "rincaofood",
+       };
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
     // Isola o caminho exato ignorando os parâmetros após a interrogação (?)

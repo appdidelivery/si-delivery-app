@@ -31,16 +31,15 @@ export default async function handler(req, res) {
         storeId = parts[parts.length - 1];
     } else if (cleanHost !== baseDomain && !cleanHost.endsWith(`.${baseDomain}`)) {
         // Dicionário Híbrido Idêntico ao do Frontend
-        const domainMap = {
-            "convenienciasantaisabel.com.br": "csi",
-            "csi.com.br": "csi",
-            "cowburguer.com.br": "cowburguer",
-            "macanudorex.com.br": "macanudorex",
-            "ngconveniencia.com.br": "ng",
-            "ng.velodelivery.com.br": "ng",
-            "rincaofood.com.br": "rincaofood",
-            "rincao.velodelivery.com.br": "rincao",
-        };
+        // CÓDIGO NOVO (Copie e cole por cima)
+       const domainMap = {
+          "convenienciasantaisabel.com.br": "csi",
+          "csi.com.br": "csi",
+          "cowburguer.com.br": "cowburguer",
+          "macanudorex.com.br": "macanudorex",
+          "ngconveniencia.com.br": "ng",
+          "rincaofood.com.br": "rincaofood",
+       };
         // Se não achar no diacionário,aa pega só o nome base antes do .com para não quebrar a busca no banco
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }

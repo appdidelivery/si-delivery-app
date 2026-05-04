@@ -33,18 +33,15 @@ export default async function middleware(request) {
       storeId = parts[parts.length - 1];
   } else {
       // Dicionário Híbrido para Domínios Próprios
-      const domainMap = {
+      // CÓDIGO NOVO (Copie e cole por cima)
+       const domainMap = {
           "convenienciasantaisabel.com.br": "csi",
           "csi.com.br": "csi",
           "cowburguer.com.br": "cowburguer",
-          "cowburguer.velodelivery.com.br": "cowburguer",
           "macanudorex.com.br": "macanudorex",
-          "macanudorex.velodelivery.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
-          "ng.velodelivery.com.br": "ng",
           "rincaofood.com.br": "rincaofood",
-          "rincao.velodelivery.com.br": "rincao"
-      };
+       };
       storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
   }
 
