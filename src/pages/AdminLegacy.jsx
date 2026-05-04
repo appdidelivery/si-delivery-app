@@ -344,7 +344,8 @@ export default function Admin() {
         "csi.com.br": "csi",
         "cowburguer.com.br": "cowburguer",
         "macanudorex.com.br": "macanudorex",
-        "ngconveniencia.com.br": "ng"
+        "ngconveniencia.com.br": "ng",
+        "rincaofood.com.br": "rincao"
     };
 
     let currentSubdomain = null;
