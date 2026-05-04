@@ -8407,21 +8407,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Opcional. Se preenchido, o cliente será obrigado a escolher uma opção.</p>
                                 </div>
 
-                                <div className="pt-4 border-t border-slate-100 mt-4">
-                                    <label className="text-xs font-black text-red-500 uppercase tracking-widest flex items-center gap-2 mb-1 ml-2">
-                                        <MinusSquare size={14}/> O que pode ser removido? (Separado por vírgula)
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Ex: Alface, Tomate, Milho, Maionese" 
-                                        className="w-full p-6 bg-red-50 text-red-800 rounded-3xl outline-none font-bold border-none mt-1 focus:ring-2 ring-red-300 transition-all placeholder-red-300" 
-                                        value={form.removables || ''} 
-                                        onChange={e => setForm({ ...form, removables: e.target.value })} 
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Cria uma lista para o cliente marcar o que deseja TIRAR do lanche.</p>
-                                </div>
+                               {(!storeStatus?.storeNiche || ['burger', 'pizza', 'oriental', 'restaurant', 'sweet'].includes(storeStatus?.storeNiche)) && (
+                                    <div className="pt-4 border-t border-slate-100 mt-4">
+                                        <label className="text-xs font-black text-red-500 uppercase tracking-widest flex items-center gap-2 mb-1 ml-2">
+                                            <MinusSquare size={14}/> O que pode ser removido? (Separado por vírgula)
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: Alface, Tomate, Milho, Maionese" 
+                                            className="w-full p-6 bg-red-50 text-red-800 rounded-3xl outline-none font-bold border-none mt-1 focus:ring-2 ring-red-300 transition-all placeholder-red-300" 
+                                            value={form.removables || ''} 
+                                            onChange={e => setForm({ ...form, removables: e.target.value })} 
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Cria uma lista para o cliente marcar o que deseja TIRAR do pedido.</p>
+                                    </div>
+                                )}
 
-                               {/* --- INÍCIO: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
                                {/* --- INÍCIO: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
                                 <div className="space-y-4 pt-6 border-t border-slate-100">
                                     <label className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">

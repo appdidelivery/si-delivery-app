@@ -3618,7 +3618,12 @@ if (window.fbq) {
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alguma observação extra?</label>
                     <textarea 
                         rows="2" 
-                        placeholder="Ex: Maionese à parte..." 
+                        placeholder={
+                                            storeSettings?.storeNiche === 'floricultura' ? "Ex: Cuidado com a embalagem, deixar na portaria..." :
+                                            storeSettings?.storeNiche === 'default' || storeSettings?.storeNiche === 'drinks' ? "Ex: Enviar itens bem gelados, cuidado com produtos frágeis..." :
+                                            storeSettings?.storeNiche === 'farmacia' ? "Ex: Enviar nota fiscal, embalagem discreta..." :
+                                            "Ex: Maionese à parte, sem cebola..."
+                                        } 
                         className={`w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:ring-2 ring-${currentTheme.ringColor} transition-all`}
                         value={itemObservation}
                         onChange={(e) => setItemObservation(e.target.value)}
