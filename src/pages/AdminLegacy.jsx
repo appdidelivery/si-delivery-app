@@ -345,7 +345,7 @@ export default function Admin() {
         "cowburguer.com.br": "cowburguer",
         "macanudorex.com.br": "macanudorex",
         "ngconveniencia.com.br": "ng",
-        "rincaofood.com.br": "rincao"
+        "rincaofood.com.br": "rincaofood"
     };
 
     let currentSubdomain = null;
