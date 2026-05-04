@@ -23,6 +23,7 @@
     "firebase-admin": "^13.6.1",
     "framer-motion": "^11.0.0",
     "gn-api-sdk-node": "^3.0.4",
+    "googleapis": "^171.4.0",
     "lucide-react": "^0.355.0",
     "react-dom": "^18.3.1",
     "react-helmet-async": "^2.0.5",
