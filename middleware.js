@@ -43,7 +43,7 @@ export default async function middleware(request) {
           "ngconveniencia.com.br": "ng",
           "ng.velodelivery.com.br": "ng",
           "rincaofood.com.br": "rincaofood",
-          "rincaofood.velodelivery.com.br": "rincaofood"
+          "rincao.velodelivery.com.br": "rincao"
       };
       storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
   }
