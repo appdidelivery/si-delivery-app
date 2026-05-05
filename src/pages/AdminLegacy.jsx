@@ -8224,6 +8224,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     storeId: storeId
                                 };
                                 if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
+                                
+                                // --- NOVO: INDEXAÇÃO PROATIVA NO GOOGLE (ASSÍNCRONO E BLINDADO) ---
+                                try {
+                                    // Disparo em segundo plano (fire-and-forget) para não travar a UI do lojista
+                                    fetch('/api/google-index', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            storeId: storeId,
+                                            productId: editingId || 'novo',
+                                            action: 'update'
+                                        })
+                                    }).catch(err => console.warn("Aviso proativo ao Google silenciado:", err));
+                                } catch (seoError) {
+                                    console.warn("Falha isolada no módulo de SEO:", seoError);
+                                }
+                                // -------------------------------------------------------------------
+
                                 setIsModalOpen(false); setImageFile(null);
                             }} className="space-y-6">
                                 {/* --- INÍCIO: CAMPOS COM NUDGES DE SEO E EXEMPLO VISUAL --- */}
