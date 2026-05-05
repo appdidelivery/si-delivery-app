@@ -2338,14 +2338,61 @@ if (window.fbq) {
       return () => {
           isActive = false; // Se o cliente clicou em PIX, aborta e anula a trava!
           clearTimeout(renderTimer);
-          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
-      };
-  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
-  // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
+          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
+      };
+  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
+  // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
 
- return (
-  <div
-    className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
+  // --- NOVO: MOTOR JSON-LD (RICH SNIPPETS DE AVALIAÇÃO PARA O GOOGLE) ---
+  useEffect(() => {
+      // Validação de segurança: Só gera o código se for a página de um produto e ele tiver avaliações
+      if (!selectedProduct || !selectedProduct.reviewCount || selectedProduct.reviewCount === 0) return;
+
+      const schemaData = {
+          "@context": "https://schema.org/",
+          "@type": "Product",
+          "name": selectedProduct.name,
+          "image": selectedProduct.imageUrl || storeSettings?.storeLogoUrl || "https://sua-logo-padrao.com/logo.png",
+          "description": selectedProduct.description || `Compre ${selectedProduct.name} na nossa loja.`,
+          "sku": selectedProduct.gtin || selectedProduct.id,
+          "offers": {
+              "@type": "Offer",
+              "url": window.location.href,
+              "priceCurrency": "BRL",
+              "price": (Number(selectedProduct.promotionalPrice) > 0 ? Number(selectedProduct.promotionalPrice) : Number(selectedProduct.price)).toFixed(2),
+              "availability": (selectedProduct.stock === undefined || Number(selectedProduct.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+              "itemCondition": "https://schema.org/NewCondition"
+          },
+          "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": selectedProduct.ratingValue,
+              "reviewCount": selectedProduct.reviewCount,
+              "bestRating": "5",
+              "worstRating": "1"
+          }
+      };
+
+      const scriptId = `schema-product-${selectedProduct.id}`;
+      let script = document.getElementById(scriptId);
+
+      if (!script) {
+          script = document.createElement('script');
+          script.type = 'application/ld+json';
+          script.id = scriptId;
+          document.head.appendChild(script);
+      }
+      script.innerHTML = JSON.stringify(schemaData);
+
+      // Limpeza para não duplicar dados ao fechar o modal do produto
+      return () => {
+          if (script) document.head.removeChild(script);
+      };
+  }, [selectedProduct, storeSettings]);
+  // ----------------------------------------------------------------------
+
+ return (
+  <div
+    className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
     style={{
         ...(getDynamicFontFamily() ? { fontFamily: getDynamicFontFamily() } : {}),
         ...(storeSettings?.storeNiche === 'custom' && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {})
