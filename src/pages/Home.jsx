@@ -2195,7 +2195,7 @@ if (window.fbq) {
     }
   };
 
-  const currentTheme = themePresets[storeSettings?.storeNiche] || themePresets.default;
+  const currentTheme = storeSettings?.useCustomTheme ? themePresets.custom : (themePresets[storeSettings?.storeNiche] || themePresets.default);
 
  // --- INÍCIO: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS (CHECKOUT TRANSPARENTE) ---
   useEffect(() => {
@@ -2404,7 +2404,7 @@ if (window.fbq) {
     className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
     style={{
         ...(getDynamicFontFamily() ? { fontFamily: getDynamicFontFamily() } : {}),
-        ...(storeSettings?.storeNiche === 'custom' && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {})
+        ...(storeSettings?.useCustomTheme && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {})
     }}
   >
     {storeSettings?.storeNiche === 'custom' && storeSettings.customBackgroundUrl && (
