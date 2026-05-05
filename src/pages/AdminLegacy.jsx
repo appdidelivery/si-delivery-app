@@ -716,6 +716,7 @@ export default function Admin() {
     const [isVipModalOpen, setIsVipModalOpen] = useState(false);
     const [editingVip, setEditingVip] = useState(null);
     const [storeCustomersDB, setStoreCustomersDB] = useState([]);
+    const [fiadoPaymentAmount, setFiadoPaymentAmount] = useState('');
     const [activeReviewTab, setActiveReviewTab] = useState('missions');
     const [vipMissions, setVipMissions] = useState([]);
 
@@ -2110,9 +2111,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             acc[p].totalSpent += Number(o.total || 0);
             acc[p].orderCount += 1;
             
-            // NOVO: Soma apenas o que foi comprado na Caderneta e ainda não foi pago
+            // NOVO: Soma apenas o que foi comprado na Caderneta e ainda não foi pago (agora com abatimento parcial)
             if (o.paymentMethod === 'fiado' && o.paymentStatus !== 'paid') {
-                acc[p].fiadoDebt += Number(o.total || 0);
+                acc[p].fiadoDebt += (Number(o.total || 0) - Number(o.fiadoPaidAmount || 0));
             }
             
             return acc;
@@ -2472,6 +2473,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
     
+  // --- NOVO: LÓGICA DE PAGAMENTO DA CADERNETA (FIADO) ---
+    const handleRegisterFiadoPayment = async () => {
+        const amount = Number(fiadoPaymentAmount);
+        if (amount <= 0) return alert("Digite um valor válido para o pagamento.");
+        if (amount > (editingVip.fiadoDebt || 0)) return alert("O valor é maior que a dívida atual!");
+        
+        if (!window.confirm(`Registrar pagamento de R$ ${amount.toFixed(2)} na caderneta de ${editingVip.name}?`)) return;
+
+        try {
+            const unpaidOrders = orders
+                .filter(o => o.customerPhone === editingVip.phone && o.paymentMethod === 'fiado' && o.paymentStatus !== 'paid')
+                .sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+            let remainingToPay = amount;
+            const batchPromises = [];
+
+            for (const order of unpaidOrders) {
+                if (remainingToPay <= 0) break;
+                
+                const orderTotal = Number(order.total || 0);
+                const orderPaid = Number(order.fiadoPaidAmount || 0);
+                const orderDebt = orderTotal - orderPaid;
+
+                if (orderDebt > 0) {
+                    const payForThisOrder = Math.min(orderDebt, remainingToPay);
+                    const newPaidAmount = orderPaid + payForThisOrder;
+                    
+                    const updateData = { fiadoPaidAmount: newPaidAmount };
+                    if (newPaidAmount >= orderTotal) {
+                        updateData.paymentStatus = 'paid';
+                    }
+                    
+                    batchPromises.push(updateDoc(doc(db, "orders", order.id), updateData));
+                    remainingToPay -= payForThisOrder;
+                }
+            }
+            
+            batchPromises.push(addDoc(collection(db, "fiado_payments"), {
+                storeId: storeId,
+                customerPhone: editingVip.phone,
+                customerName: editingVip.name,
+                amount: amount,
+                createdAt: serverTimestamp(),
+                vendedor: auth.currentUser?.displayName || auth.currentUser?.email || 'Equipe'
+            }));
+
+            await Promise.all(batchPromises);
+            setFiadoPaymentAmount('');
+            alert("✅ Pagamento registrado com sucesso e abatido da dívida!");
+            setIsVipModalOpen(false); 
+        } catch (error) {
+            console.error("Erro ao registrar pagamento:", error);
+            alert("Erro ao registrar pagamento do fiado.");
+        }
+    };
+
   // --- NOVA LÓGICA DE UX PARA SEO / LOGÍSTICA ---
     const isFoodCategory = (categoryName) => {
         if (!categoryName) return true; 
@@ -4308,7 +4365,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             <button 
                                 onClick={() => {
-                                    setEditingVip({ name: '', phone: '', fiadoEnabled: false, billingDay: 10, creditLimit: 0, isNew: true });
+                                    setEditingVip({ name: '', phone: '', fiadoEnabled: false, billingDay: 10, closingDay: 5, creditLimit: 0, isNew: true });
                                     setIsVipModalOpen(true);
                                 }} 
                                 className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm uppercase tracking-widest whitespace-nowrap"
@@ -10886,6 +10943,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         phone: editingVip.phone,
                                         fiadoEnabled: editingVip.fiadoEnabled,
                                         billingDay: Number(editingVip.billingDay),
+                                        closingDay: Number(editingVip.closingDay) || 5,
                                         creditLimit: Number(editingVip.creditLimit) || 0,
                                         updatedAt: serverTimestamp()
                                     };
@@ -10920,30 +10978,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </label>
 
                                         {editingVip.fiadoEnabled && (
-                                            <div className="animate-in fade-in slide-in-from-top-2 grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Vencimento</label>
-                                                    <select 
-                                                        value={editingVip.billingDay} 
-                                                        onChange={(e) => setEditingVip({ ...editingVip, billingDay: Number(e.target.value) })}
-                                                        className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 cursor-pointer border border-orange-200"
-                                                    >
-                                                        <option value={5}>Dia 05</option>
-                                                        <option value={10}>Dia 10</option>
-                                                        <option value={15}>Dia 15</option>
-                                                        <option value={20}>Dia 20</option>
-                                                        <option value={25}>Dia 25</option>
-                                                    </select>
+                                            <div className="animate-in fade-in slide-in-from-top-2">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Fechamento</label>
+                                                        <select 
+                                                            value={editingVip.closingDay || 5} 
+                                                            onChange={(e) => setEditingVip({ ...editingVip, closingDay: Number(e.target.value) })}
+                                                            className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 cursor-pointer border border-orange-200"
+                                                        >
+                                                            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>Dia {String(i+1).padStart(2, '0')}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Vencimento</label>
+                                                        <select 
+                                                            value={editingVip.billingDay || 10} 
+                                                            onChange={(e) => setEditingVip({ ...editingVip, billingDay: Number(e.target.value) })}
+                                                            className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 cursor-pointer border border-orange-200"
+                                                        >
+                                                            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>Dia {String(i+1).padStart(2, '0')}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Limite Crédito (R$)</label>
+                                                        <input 
+                                                            type="number" step="0.01" placeholder="Ex: 300.00"
+                                                            value={editingVip.creditLimit || ''} 
+                                                            onChange={(e) => setEditingVip({ ...editingVip, creditLimit: Number(e.target.value) })}
+                                                            className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 border border-orange-200"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-orange-700 tracking-widest mb-2 block">Limite de Crédito (R$)</label>
-                                                    <input 
-                                                        type="number" step="0.01" placeholder="Ex: 300.00"
-                                                        value={editingVip.creditLimit || ''} 
-                                                        onChange={(e) => setEditingVip({ ...editingVip, creditLimit: Number(e.target.value) })}
-                                                        className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 border border-orange-200"
-                                                    />
-                                                </div>
+
+                                                {(editingVip.fiadoDebt > 0) && (
+                                                    <div className="bg-orange-100 p-4 rounded-2xl border border-orange-200 mt-4 mb-2">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <span className="text-[10px] font-black uppercase text-orange-800 tracking-widest">Dívida Atual</span>
+                                                            <span className="text-xl font-black text-red-600">R$ {Number(editingVip.fiadoDebt).toFixed(2)}</span>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <input 
+                                                                type="number" step="0.01" placeholder="Valor a Pagar (R$)"
+                                                                value={fiadoPaymentAmount}
+                                                                onChange={(e) => setFiadoPaymentAmount(e.target.value)}
+                                                                className="flex-1 p-3 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-orange-400 border border-orange-200"
+                                                            />
+                                                            <button 
+                                                                type="button"
+                                                                onClick={handleRegisterFiadoPayment}
+                                                                className="bg-green-500 text-white px-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all shadow-md active:scale-95"
+                                                            >
+                                                                Registrar Pagto
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
