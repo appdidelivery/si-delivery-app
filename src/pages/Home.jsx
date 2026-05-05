@@ -250,6 +250,56 @@ export default function Home() {
       }
       canonicalLink.setAttribute('href', canonicalUrl);
   }, [location.pathname]);
+
+  // --- NOVO: MOTOR JSON-LD (RICH SNIPPETS DE AVALIAÇÃO PARA O GOOGLE) ---
+  useEffect(() => {
+      // Validação de segurança: Só gera o código pro Google se for a página de um produto e ele tiver avaliações
+      if (!selectedProduct || !selectedProduct.reviewCount || selectedProduct.reviewCount === 0) return;
+
+      // Constrói o Schema Markup oficial exigido pelo Google (AggregateRating)
+      const schemaData = {
+          "@context": "https://schema.org/",
+          "@type": "Product",
+          "name": selectedProduct.name,
+          "image": selectedProduct.imageUrl || storeSettings?.storeLogoUrl || "https://sua-logo-padrao.com/logo.png",
+          "description": selectedProduct.description || `Compre ${selectedProduct.name} na nossa loja.`,
+          "sku": selectedProduct.gtin || selectedProduct.id,
+          "offers": {
+              "@type": "Offer",
+              "url": window.location.href,
+              "priceCurrency": "BRL",
+              "price": (Number(selectedProduct.promotionalPrice) > 0 ? Number(selectedProduct.promotionalPrice) : Number(selectedProduct.price)).toFixed(2),
+              "availability": (selectedProduct.stock === undefined || Number(selectedProduct.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+              "itemCondition": "https://schema.org/NewCondition"
+          },
+          "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": selectedProduct.ratingValue, // Ex: 5.0
+              "reviewCount": selectedProduct.reviewCount, // Ex: 32
+              "bestRating": "5",
+              "worstRating": "1"
+          }
+      };
+
+      // Injeta o script invisível na raiz do documento para o Googlebot ler
+      const scriptId = `schema-product-${selectedProduct.id}`;
+      let script = document.getElementById(scriptId);
+
+      if (!script) {
+          script = document.createElement('script');
+          script.type = 'application/ld+json';
+          script.id = scriptId;
+          document.head.appendChild(script);
+      }
+      script.innerHTML = JSON.stringify(schemaData);
+
+      // Limpeza (Blindagem) ao fechar o produto para não duplicar
+      return () => {
+          if (script) document.head.removeChild(script);
+      };
+  }, [selectedProduct, storeSettings]);
+  // ----------------------------------------------------------------------
+
   // --- CORREÇÃO: FECHA O MODAL SE O CLIENTE CLICAR NO BOTÃO "VOLTAR" DO CELULAR ---
   useEffect(() => {
       const handlePopState = () => {

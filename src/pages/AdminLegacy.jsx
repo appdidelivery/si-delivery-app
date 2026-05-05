@@ -1907,6 +1907,22 @@ const handleGenerateProductCopy = async () => {
                         reviewCount: newCount,
                         ratingValue: Number(newRating.toFixed(1)) // Arredonda para 1 casa decimal (Ex: 4.8)
                     });
+
+                    // --- NOVO: PING DE INDEXAÇÃO PROATIVA (AVALIAÇÕES) ---
+                    try {
+                        fetch('/api/google-index', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                storeId: mission.storeId,
+                                productId: targetProduct.id,
+                                action: 'update_review'
+                            })
+                        }).catch(err => console.warn("Aviso de review silenciado:", err));
+                    } catch (seoError) {
+                        console.warn("Falha no ping de SEO da avaliação:", seoError);
+                    }
+                    // -----------------------------------------------------
                 }
             }
 
