@@ -16,7 +16,8 @@ import {
     GiSodaCan, GiPizzaSlice, GiTacos, GiHotDog, GiMeat, 
     GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
     GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
-    GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry
+    GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry,
+    GiRose, GiFlowerPot
 } from 'react-icons/gi';
 import { 
     FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
@@ -24,7 +25,7 @@ import {
     FaBowlFood, FaCarrot, FaLeaf, FaAppleWhole, FaBasketShopping, 
     FaStore, FaCheese, FaPills, FaPrescriptionBottleMedical, 
     FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
-    FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar 
+    FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar, FaHeart
 } from 'react-icons/fa6';
 
 const Reviews = React.lazy(() => import('../components/Reviews'));
@@ -85,12 +86,19 @@ const renderCategoryIcon = (iconName, categoryName) => {
             case 'Snowflake': return <FaSnowflake size={18} />;
             case 'Fire': return <FaFireFlameSimple size={18} />;
             case 'Cigarette': return <GiCigarette size={18} />;
+            case 'Rose': return <GiRose size={18} />;
+            case 'FlowerPot': return <GiFlowerPot size={18} />;
+            case 'Gift': return <Gift size={18} />;
+            case 'Heart': return <FaHeart size={18} />;
             case 'List': return <List size={18} />;
             default: return <List size={18} />;
         }
     }
 
     const n = (categoryName || '').toLowerCase();
+    if (n.includes('flor') || n.includes('rosa') || n.includes('buquê') || n.includes('buque')) return <GiRose size={18}/>;
+    if (n.includes('arranjo') || n.includes('vaso') || n.includes('orquídea') || n.includes('orquidea')) return <GiFlowerPot size={18}/>;
+    if (n.includes('cesta') || n.includes('presente') || n.includes('romântico') || n.includes('pelúcia')) return <Gift size={18}/>;
     if (n.includes('fruta') || n.includes('melancia')) return <GiWatermelon size={18}/>;
     if (n.includes('salada') || n.includes('copo')) return <GiFruitBowl size={18}/>;
     if (n.includes('morango')) return <GiStrawberry size={18}/>;
@@ -2139,10 +2147,10 @@ if (window.fbq) {
       }
 
       return [
-          { id: 'all', name: 'Todos', icon: <Utensils size={18}/> },
+          { id: 'all', name: 'Todos', icon: storeSettings?.storeNiche === 'floricultura' ? <Gift size={18}/> : <Utensils size={18}/> },
           ...baseCats
       ];
-  }, [categories, favoriteCategory]);
+  }, [categories, favoriteCategory, storeSettings?.storeNiche]);
   // --- FIM: IA DE MENU DE ENGENHARIA ---
 
   const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds ||[]);
@@ -2169,7 +2177,8 @@ if (window.fbq) {
     natural: { primary: 'bg-green-600', text: 'text-green-600', border: 'border-green-600', shadow: 'shadow-green-100', hoverPrimary: 'hover:bg-green-700', lightBg: 'bg-green-50', hoverLightBg: 'hover:bg-green-100', accent: 'accent-green-600', darkText: 'text-green-900', gradientFrom: 'from-green-500', gradientTo: 'to-green-800', ringColor: 'green-500', headerBg: 'url(https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=1000&auto=format&fit=crop)' },
     sweet: { primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700', lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100', accent: 'accent-purple-600', darkText: 'text-purple-900', gradientFrom: 'from-purple-500', gradientTo: 'to-purple-800', ringColor: 'purple-500', headerBg: 'url(https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=1000&auto=format&fit=crop)' },
     drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-600', ringColor: 'amber-500', headerBg: 'url(https://images.unsplash.com/photo-1563223771-383790515286?q=80&w=1000&auto=format&fit=crop)' },
-    custom: { 
+    floricultura: { primary: 'bg-pink-600', text: 'text-pink-600', border: 'border-pink-600', shadow: 'shadow-pink-100', hoverPrimary: 'hover:bg-pink-700', lightBg: 'bg-pink-50', hoverLightBg: 'hover:bg-pink-100', accent: 'accent-pink-600', darkText: 'text-pink-900', gradientFrom: 'from-pink-500', gradientTo: 'to-pink-800', ringColor: 'pink-500', headerBg: 'url(https://images.unsplash.com/photo-1563241527-3004b7be0ffd?q=80&w=1000&auto=format&fit=crop)' },
+    custom: {
         primary: 'bg-[var(--custom-color)]', 
         text: 'text-[var(--custom-color)]', 
         border: 'border-[var(--custom-color)]', 

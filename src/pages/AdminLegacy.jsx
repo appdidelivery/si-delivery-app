@@ -26,7 +26,7 @@ import {
     GiCoffeeCup, GiIceCreamCone, GiNoodles, GiBeerBottle, GiMartini,
     GiCupcake, GiCroissant, GiSteak, GiChickenOven, GiBowlOfRice, 
     GiAvocado, GiCigarette, GiChocolateBar, GiWatermelon, GiFruitBowl, GiStrawberry,
-    GiSandwich, GiKebabSpit
+        GiSandwich, GiKebabSpit, GiRose, GiFlowerPot
 } from 'react-icons/gi';
 import { 
     FaBoxOpen, FaBoltLightning, FaBottleWater, FaFishFins, 
@@ -35,7 +35,7 @@ import {
     FaStore, FaCheese, FaPills, FaPrescriptionBottleMedical, 
     FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
     FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar,
-    FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot, FaBowlRice
+    FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot, FaBowlRice, FaHeart
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
@@ -133,7 +133,13 @@ const AVAILABLE_ICONS = [
   // Utilidades e Outros
   { id: 'Snowflake', label: 'Gelo', component: <FaSnowflake size={24} /> },
   { id: 'Fire', label: 'Gás / Carvão', component: <FaFireFlameSimple size={24} /> },
-  { id: 'Cigarette', label: 'Tabacaria / Vape', component: <GiCigarette size={24} /> }
+  { id: 'Cigarette', label: 'Tabacaria / Vape', component: <GiCigarette size={24} /> },
+  
+  // Floricultura e Presentes
+  { id: 'Rose', label: 'Flores / Rosas', component: <GiRose size={24} /> },
+  { id: 'FlowerPot', label: 'Arranjos / Vasos', component: <GiFlowerPot size={24} /> },
+  { id: 'Gift', label: 'Cestas / Presentes', component: <Gift size={24} /> },
+  { id: 'Heart', label: 'Romântico / Coração', component: <FaHeart size={24} /> }
 ];
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
