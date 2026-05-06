@@ -1713,14 +1713,21 @@ export default function Home() {
         status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
         createdAt: serverTimestamp(),
         storeId: storeId || "",
-        // Adicionando as TAGs para o Modo Garçom e Retirada:
-        tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
-        mesa: isWaiterMode ? tableNumber : null,
-        waiterName: isWaiterMode ? waiterName : null,
-        // Gamificação Info:
-        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
-        referredBy: localStorage.getItem('veloReferredBy') || null
-      };
+        // Adicionando as TAGs para o Modo Garçom e Retirada:
+        tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
+        mesa: isWaiterMode ? tableNumber : null,
+        waiterName: isWaiterMode ? waiterName : null,
+        // Gamificação Info:
+        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+        referredBy: localStorage.getItem('veloReferredBy') || null,
+        // --- DADOS DE FLORICULTURA / PRESENTE ---
+        recipientName: customer.recipientName || null,
+        recipientPhone: customer.recipientPhone || null,
+        giftMessage: customer.giftMessage || null,
+        isAnonymous: customer.isAnonymous || false,
+        scheduledDate: customer.scheduledDate || null,
+        scheduledTime: customer.scheduledTime || null
+      };
 
       if (appliedCoupon) {
         orderData.couponCode = appliedCoupon.code || "";
@@ -3290,6 +3297,75 @@ if (window.fbq) {
                                 <>
                                     <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     
+                                    {/* --- MÓDULO DE FLORICULTURA E PRESENTES --- */}
+                                    {storeSettings?.storeNiche === 'floricultura' && (
+                                        <div className="mb-5 p-5 bg-pink-50 border border-pink-200 rounded-3xl flex flex-col gap-4 shadow-sm animate-in fade-in zoom-in-95">
+                                            <h3 className="text-sm font-black italic text-pink-800 flex items-center gap-2 uppercase tracking-widest">
+                                                🎁 É para Presente?
+                                            </h3>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <input 
+                                                    type="text" 
+                                                    value={customer.recipientName || ''} 
+                                                    onChange={(e) => handleCustomerChange('recipientName', e.target.value)} 
+                                                    className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm text-slate-700" 
+                                                    placeholder="Nome de quem vai receber" 
+                                                />
+                                                <input 
+                                                    type="tel" 
+                                                    value={customer.recipientPhone || ''} 
+                                                    onChange={(e) => handleCustomerChange('recipientPhone', e.target.value)} 
+                                                    className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm text-slate-700" 
+                                                    placeholder="WhatsApp do Destinatário" 
+                                                />
+                                            </div>
+
+                                            <textarea 
+                                                value={customer.giftMessage || ''} 
+                                                onChange={(e) => handleCustomerChange('giftMessage', e.target.value)} 
+                                                className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm text-slate-700 resize-none custom-scrollbar" 
+                                                rows="2" 
+                                                placeholder="Mensagem do Cartãozinho (Opcional)"
+                                            ></textarea>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[10px] font-bold text-pink-700 uppercase tracking-widest pl-2">Data da Entrega</label>
+                                                    <input 
+                                                        type="date" 
+                                                        value={customer.scheduledDate || ''} 
+                                                        onChange={(e) => handleCustomerChange('scheduledDate', e.target.value)} 
+                                                        className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm text-slate-700 text-center" 
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[10px] font-bold text-pink-700 uppercase tracking-widest pl-2">Horário / Período</label>
+                                                    <input 
+                                                        type="time" 
+                                                        value={customer.scheduledTime || ''} 
+                                                        onChange={(e) => handleCustomerChange('scheduledTime', e.target.value)} 
+                                                        className="p-4 bg-white border-none rounded-2xl w-full shadow-inner focus:ring-2 focus:ring-pink-400 outline-none font-bold text-sm text-slate-700 text-center" 
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <label className="flex items-center gap-3 mt-1 bg-white p-4 rounded-2xl cursor-pointer shadow-inner border border-pink-100">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={customer.isAnonymous || false} 
+                                                    onChange={(e) => handleCustomerChange('isAnonymous', e.target.checked)} 
+                                                    className="w-5 h-5 accent-pink-600 rounded cursor-pointer flex-shrink-0" 
+                                                />
+                                                <span className="text-xs font-bold text-slate-600 leading-tight">
+                                                    <span className="text-pink-700 font-black uppercase">Enviar como Anônimo 🤫</span> <br/> 
+                                                    (Esconder meu nome na entrega)
+                                                </span>
+                                            </label>
+                                        </div>
+                                    )}
+                                    {/* ------------------------------------------- */}
+
                                     {/* CONTROLE INTELIGENTE DE BOTÕES DE ENTREGA/RETIRADA */}
                                     {((storeSettings?.deliveryEnabled !== false) || (storeSettings?.pickupEnabled !== false)) && (
                                         <div className="flex gap-2 mb-3 mt-2">
