@@ -627,41 +627,52 @@ export default function Home() {
   });
   const[showExitModal, setShowExitModal] = useState(false);
   const { showOffer: showSmartOffer, acceptOffer: acceptSmartOffer, closeOffer: closeSmartOffer } = useSmartRetention(marketingSettings, showCheckout, cart.length);
-// --- NOVO MOTOR: INJEÇÃO AUTOMÁTICA DE BRINDE (COMPRE E GANHE) ---
-  useEffect(() => {
-      if (!marketingSettings?.buyAndGetPromo?.active || !marketingSettings?.buyAndGetPromo?.rewardProductId) return;
+// --- NOVO MOTOR: INJEÇÃO AUTOMÁTICA DE BRINDE (COMPRE E GANHE - MULTI REGRAS) ---
+  useEffect(() => {
+      if (!marketingSettings?.buyAndGetPromo?.active || !marketingSettings?.buyAndGetPromo?.rules) return;
 
-      const promo = marketingSettings.buyAndGetPromo;
-      
-      // Checa se está no horário/dia da promoção
-      if (!isWithinRecurringSchedule(promo.recurringDay, promo.recurringStart, promo.recurringEnd)) return;
+      // 1. Pega os itens do carrinho que NÃO são brindes (compras reais do cliente)
+      const realCartItems = cart.filter(item => !item.isReward);
+      const earnedRewards = [];
 
-      const rewardProd = products.find(p => p.id === promo.rewardProductId);
-      if (!rewardProd) return;
+      // 2. Verifica quais regras de brinde o cliente ativou
+      marketingSettings.buyAndGetPromo.rules.forEach((rule, index) => {
+          if (!isWithinRecurringSchedule(rule.recurringDay, rule.recurringStart, rule.recurringEnd)) return;
+          if (!rule.rewardProductId) return;
 
-      const triggerIds = promo.triggerProductIds || [];
-      
-      // Verifica se o cliente tem ALGUM dos produtos gatilho no carrinho
-      const hasTriggerInCart = cart.some(item => triggerIds.includes(item.id) && !item.isReward);
-      const hasRewardInCart = cart.some(item => item.id === rewardProd.id && item.isReward);
+          const rewardProd = products.find(p => p.id === rule.rewardProductId);
+          if (!rewardProd) return;
 
-      // Se ele colocou o gatilho e ainda não ganhou o brinde, dá 1 brinde
-      if (hasTriggerInCart && !hasRewardInCart) {
-          const rewardItem = {
-              ...rewardProd,
-              cartItemId: `reward_${rewardProd.id}`,
-              quantity: 1,
-              price: 0, // Custa R$ 0,00
-              isReward: true, // Tag que marca como brinde
-              observation: "Brinde Especial 🎁"
-          };
-          setCart(prev => [...prev, rewardItem]);
-      } 
-      // Se ele tirou o gatilho do carrinho, remove o brinde automaticamente
-      else if (!hasTriggerInCart && hasRewardInCart) {
-          setCart(prev => prev.filter(item => !item.isReward));
-      }
-  }, [cart, marketingSettings?.buyAndGetPromo, products]);
+          const triggerIds = rule.triggerProductIds || [];
+          
+          // Se o cliente tem algum dos gatilhos no carrinho real, ele ganha este brinde específico
+          const hasTriggerInCart = realCartItems.some(item => triggerIds.includes(item.id));
+          
+          if (hasTriggerInCart) {
+              earnedRewards.push({
+                  ...rewardProd,
+                  cartItemId: `reward_${rule.id || index}_${rewardProd.id}`,
+                  quantity: 1,
+                  price: 0,
+                  isReward: true,
+                  observation: "Brinde Especial 🎁"
+              });
+          }
+      });
+
+      // 3. Pega os brindes que já estão no carrinho
+      const currentRewards = cart.filter(item => item.isReward);
+
+      // 4. Compara para ver se precisa atualizar o carrinho (evita loop infinito de renderização)
+      const earnedIds = earnedRewards.map(r => r.cartItemId).sort().join(',');
+      const currentIds = currentRewards.map(r => r.cartItemId).sort().join(',');
+
+      if (earnedIds !== currentIds) {
+          // Sobrescreve mantendo os itens reais + apenas os brindes válidos no momento
+          setCart([...realCartItems, ...earnedRewards]);
+      }
+
+  }, [cart, marketingSettings?.buyAndGetPromo, products]);
 
   // --- MOTOR DE PROVA SOCIAL (LIVE SALES) ---
   const [socialProof, setSocialProof] = useState({ visible: false, name: '', product: '' });
@@ -2584,44 +2595,48 @@ if (window.fbq) {
                     }
                 }
 
-                // 2. Compre e Ganhe (BOGO)
-                if (marketingSettings?.buyAndGetPromo?.active && marketingSettings?.buyAndGetPromo?.rewardProductId && isWithinRecurringSchedule(marketingSettings.buyAndGetPromo.recurringDay, marketingSettings.buyAndGetPromo.recurringStart, marketingSettings.buyAndGetPromo.recurringEnd)) {
-                    const rewardProd = products.find(p => p.id === marketingSettings.buyAndGetPromo.rewardProductId);
-                    if (rewardProd) {
-                        const triggerIds = marketingSettings.buyAndGetPromo.triggerProductIds || [];
-                        const triggerProducts = products.filter(p => triggerIds.includes(p.id));
-                        let triggerText = "os itens participantes";
-                        if (triggerProducts.length === 1) triggerText = triggerProducts[0].name;
-                        else if (triggerProducts.length === 2) triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
-                        else if (triggerProducts.length > 2) triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
+                // 2. Compre e Ganhe (BOGO - Multi Regras)
+                if (marketingSettings?.buyAndGetPromo?.active && marketingSettings?.buyAndGetPromo?.rules) {
+                    marketingSettings.buyAndGetPromo.rules.forEach((rule, idx) => {
+                        if (!rule.rewardProductId || !isWithinRecurringSchedule(rule.recurringDay, rule.recurringStart, rule.recurringEnd)) return;
+                        
+                        const rewardProd = products.find(p => p.id === rule.rewardProductId);
+                        if (!rewardProd) return;
 
-                        const customPromoText = marketingSettings.buyAndGetPromo.promoText;
+                        const triggerIds = rule.triggerProductIds || [];
+                        const triggerProducts = products.filter(p => triggerIds.includes(p.id));
+                        let triggerText = "os itens participantes";
+                        if (triggerProducts.length === 1) triggerText = triggerProducts[0].name;
+                        else if (triggerProducts.length === 2) triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
+                        else if (triggerProducts.length > 2) triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
 
-                        activePromos.push(
-                            <div key="bogo" className="pb-8 px-1 h-full">
-                                <div className="relative flex items-stretch rounded-2xl shadow-md bg-teal-600 text-white overflow-hidden text-left h-full border border-teal-400">
-                                    <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
-                                    <div className="w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
-                                        <Gift size={32} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
-                                        <span className="bg-yellow-400 text-teal-900 text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
-                                    </div>
-                                    <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
-                                    <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
-                                        <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
-                                            <Zap size={10} className="text-yellow-400"/> Oferta Especial
-                                        </p>
-                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
-                                            {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
-                                        </p>
-                                        <p className="text-[9px] font-bold text-teal-100 leading-snug">
-                                            Adicione <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra no carrinho.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    }
-                }
+                        const customPromoText = rule.promoText;
+
+                        activePromos.push(
+                            <div key={`bogo-${idx}`} className="pb-8 px-1 h-full">
+                                <div className="relative flex items-stretch rounded-2xl shadow-md bg-teal-600 text-white overflow-hidden text-left h-full border border-teal-400">
+                                    <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+                                    <div className="w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
+                                        <Gift size={32} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
+                                        <span className="bg-yellow-400 text-teal-900 text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
+                                    </div>
+                                    <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
+                                    <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                        <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
+                                            <Zap size={10} className="text-yellow-400"/> Oferta Especial
+                                        </p>
+                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
+                                            {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
+                                        </p>
+                                        <p className="text-[9px] font-bold text-teal-100 leading-snug">
+                                            Adicione <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra no carrinho.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    });
+                }
 
                 // 3. Smart Banners (Tarjas do Admin Estilo iFood)
                 if (marketingSettings?.promoActive && marketingSettings?.smartBanners) {
