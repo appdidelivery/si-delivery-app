@@ -709,8 +709,14 @@ export default function Admin() {
     const [showAllVips, setShowAllVips] = useState(false); // CORREÇÃO: Estado que controla o limite da lista VIP
     const [replyText, setReplyText] = useState({});
     // --- ESTADOS DA CONFIGURAÇÃO DA ROLETA ---
-    const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
-    const [rouletteSlices, setRouletteSlices] = useState([]);
+    const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
+    const [rouletteSlices, setRouletteSlices] = useState([]);
+    
+    // --- ESTADOS DE ACORDEÃO (MARKETING) ---
+    const [expandedSmartBanners, setExpandedSmartBanners] = useState([]);
+    const [expandedBogoRules, setExpandedBogoRules] = useState([]);
+    const [isEditingPromoBanners, setIsEditingPromoBanners] = useState(false);
+    const [isEditingFlashDeal, setIsEditingFlashDeal] = useState(false);
     
     // --- NOVO: ESTADOS DO VELOPAY ONBOARDING ---
     const [veloPayForm, setVeloPayForm] = useState({
@@ -5305,95 +5311,111 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     {/* --- MÚLTIPLAS TARJAS (SMART BANNERS) --- */}
                                     <div className="space-y-4 mb-6">
-                                        {(settings.smartBanners || []).map((banner, index) => (
-                                            <div key={index} className={`p-4 rounded-2xl border transition-all relative ${settings.promoActive ? 'bg-orange-600/50 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
-                                                <button onClick={async () => {
-                                                    const newBanners = [...(settings.smartBanners || [])];
-                                                    newBanners.splice(index, 1);
-                                                    await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                }} className={`absolute top-4 right-4 p-2 rounded-xl transition-all ${settings.promoActive ? 'bg-orange-500 text-white hover:bg-red-500' : 'bg-white text-slate-400 hover:text-red-500 hover:bg-red-50'}`}>
-                                                    <Trash2 size={16} />
-                                                </button>
-                                                
-                                                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
-                                                    ⏱️ Regras de Exibição (Tarja {index + 1})
-                                                </p>
-                                                {/* Recorrência */}
-                                                <div className="grid grid-cols-3 gap-2 mb-4 pb-4 border-b border-white/20">
-                                                    <div>
-                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Repete Quando?</label>
-                                                        <select value={banner.recurringDay || 'all'} onChange={async (e) => {
-                                                            const newBanners = [...(settings.smartBanners || [])];
-                                                            newBanners[index].recurringDay = e.target.value;
-                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}>
-                                                            <option value="all">Todos os Dias</option>
-                                                            <option value="1">Toda Segunda</option>
-                                                            <option value="2">Toda Terça</option>
-                                                            <option value="3">Toda Quarta</option>
-                                                            <option value="4">Toda Quinta</option>
-                                                            <option value="5">Toda Sexta</option>
-                                                            <option value="6">Todo Sábado</option>
-                                                            <option value="0">Todo Domingo</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Início</label>
-                                                        <input type="time" value={banner.recurringStart || ''} onChange={async (e) => {
-                                                            const newBanners = [...(settings.smartBanners || [])];
-                                                            newBanners[index].recurringStart = e.target.value;
-                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
-                                                    </div>
-                                                    <div>
-                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Fim</label>
-                                                        <input type="time" value={banner.recurringEnd || ''} onChange={async (e) => {
-                                                            const newBanners = [...(settings.smartBanners || [])];
-                                                            newBanners[index].recurringEnd = e.target.value;
-                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
-                                                    </div>
-                                                </div>
+                                        {(settings.smartBanners || []).map((banner, index) => {
+                                            const isExpanded = expandedSmartBanners.includes(index);
+                                            return (
+                                                <div key={index} className={`p-4 rounded-2xl border transition-all relative ${settings.promoActive ? 'bg-orange-600/50 border-orange-400' : 'bg-slate-50 border-slate-200'}`}>
+                                                    {!isExpanded ? (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className={`font-black uppercase text-xs flex items-center gap-2 ${settings.promoActive ? 'text-white' : 'text-slate-700'}`}><Tags size={14}/> Tarja {index + 1}: {banner.topBarText || 'Sem texto definido'}</span>
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => setExpandedSmartBanners([...expandedSmartBanners, index])} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm ${settings.promoActive ? 'bg-orange-500 text-white hover:bg-orange-400' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>Editar</button>
+                                                                <button onClick={async () => {
+                                                                    if(window.confirm("Apagar esta tarja?")) {
+                                                                        const newBanners = [...(settings.smartBanners || [])];
+                                                                        newBanners.splice(index, 1);
+                                                                        await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                    }
+                                                                }} className={`px-2 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm ${settings.promoActive ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white text-red-500 hover:bg-red-100 border border-slate-200'}`}><Trash2 size={14}/></button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="animate-in fade-in slide-in-from-top-2">
+                                                            <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                                                ⏱️ Regras de Exibição (Tarja {index + 1})
+                                                            </p>
+                                                            {/* Recorrência */}
+                                                            <div className="grid grid-cols-3 gap-2 mb-4 pb-4 border-b border-white/20">
+                                                                <div>
+                                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Repete Quando?</label>
+                                                                    <select value={banner.recurringDay || 'all'} onChange={async (e) => {
+                                                                        const newBanners = [...(settings.smartBanners || [])];
+                                                                        newBanners[index].recurringDay = e.target.value;
+                                                                        await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                    }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                                                                        <option value="all">Todos os Dias</option>
+                                                                        <option value="1">Toda Segunda</option>
+                                                                        <option value="2">Toda Terça</option>
+                                                                        <option value="3">Toda Quarta</option>
+                                                                        <option value="4">Toda Quinta</option>
+                                                                        <option value="5">Toda Sexta</option>
+                                                                        <option value="6">Todo Sábado</option>
+                                                                        <option value="0">Todo Domingo</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div>
+                                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Início</label>
+                                                                    <input type="time" value={banner.recurringStart || ''} onChange={async (e) => {
+                                                                        const newBanners = [...(settings.smartBanners || [])];
+                                                                        newBanners[index].recurringStart = e.target.value;
+                                                                        await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                    }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                                                </div>
+                                                                <div>
+                                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Hora Fim</label>
+                                                                    <input type="time" value={banner.recurringEnd || ''} onChange={async (e) => {
+                                                                        const newBanners = [...(settings.smartBanners || [])];
+                                                                        newBanners[index].recurringEnd = e.target.value;
+                                                                        await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                    }} className={`w-full p-3 rounded-xl font-bold outline-none text-xs ${settings.promoActive ? 'bg-orange-700 text-white border-none' : 'bg-white text-slate-700 border border-slate-200'}`} />
+                                                                </div>
+                                                            </div>
 
-                                                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 mt-4 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
-                                                    <Tags size={14}/> Dados da Tarja (Estilo iFood)
-                                                </p>
-                                                <div className="space-y-3">
-                                                    <div>
-                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Frase de Destaque</label>
-                                                        <input type="text" placeholder="Ex: TERÇA EM DOBRO! 2º Lanche com 50% OFF" value={banner.topBarText || ''} onChange={async (e) => {
-                                                            const newBanners = [...(settings.smartBanners || [])];
-                                                            newBanners[index].topBarText = e.target.value;
-                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`} />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div>
-                                                            <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Código do Cupom</label>
-                                                            <input type="text" placeholder="Ex: TERCA50" value={banner.topBarCoupon || ''} onChange={async (e) => {
-                                                                const newBanners = [...(settings.smartBanners || [])];
-                                                                newBanners[index].topBarCoupon = e.target.value.toUpperCase();
-                                                                await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                            }} className={`w-full p-3 rounded-xl font-black uppercase outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-yellow-300 border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`} />
+                                                            <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2 mt-4 ${settings.promoActive ? 'text-orange-100' : 'text-slate-400'}`}>
+                                                                <Tags size={14}/> Dados da Tarja (Estilo iFood)
+                                                            </p>
+                                                            <div className="space-y-3">
+                                                                <div>
+                                                                    <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Frase de Destaque</label>
+                                                                    <input type="text" placeholder="Ex: TERÇA EM DOBRO! 2º Lanche com 50% OFF" value={banner.topBarText || ''} onChange={async (e) => {
+                                                                        const newBanners = [...(settings.smartBanners || [])];
+                                                                        newBanners[index].topBarText = e.target.value;
+                                                                        await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                    }} className={`w-full p-3 rounded-xl font-bold outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`} />
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <div>
+                                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Código do Cupom</label>
+                                                                        <input type="text" placeholder="Ex: TERCA50" value={banner.topBarCoupon || ''} onChange={async (e) => {
+                                                                            const newBanners = [...(settings.smartBanners || [])];
+                                                                            newBanners[index].topBarCoupon = e.target.value.toUpperCase();
+                                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                        }} className={`w-full p-3 rounded-xl font-black uppercase outline-none text-sm ${settings.promoActive ? 'bg-orange-700 text-yellow-300 border-none focus:ring-2 ring-orange-300 placeholder-orange-400' : 'bg-white text-slate-700 border border-slate-200 focus:ring-2 ring-blue-500'}`} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Cor da Tarja</label>
+                                                                        <select value={banner.topBarColor || 'bg-red-600'} onChange={async (e) => {
+                                                                            const newBanners = [...(settings.smartBanners || [])];
+                                                                            newBanners[index].topBarColor = e.target.value;
+                                                                            await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                                        }} className={`w-full p-3 rounded-xl font-bold outline-none text-sm cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}>
+                                                                            <option value="bg-red-600">🔴 Vermelho</option>
+                                                                            <option value="bg-blue-600">🔵 Azul</option>
+                                                                            <option value="bg-green-600">🟢 Verde</option>
+                                                                            <option value="bg-purple-600">🟣 Roxo</option>
+                                                                            <option value="bg-slate-900">⚫ Preto</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => setExpandedSmartBanners(expandedSmartBanners.filter(i => i !== index))} className="w-full bg-green-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all flex items-center justify-center gap-2 mt-4 shadow-md active:scale-95">
+                                                                <Save size={16} /> Salvar e Ocultar Tarja
+                                                            </button>
                                                         </div>
-                                                        <div>
-                                                            <label className={`text-[9px] font-bold uppercase mb-1 block ${settings.promoActive ? 'text-orange-200' : 'text-slate-500'}`}>Cor da Tarja</label>
-                                                            <select value={banner.topBarColor || 'bg-red-600'} onChange={async (e) => {
-                                                                const newBanners = [...(settings.smartBanners || [])];
-                                                                newBanners[index].topBarColor = e.target.value;
-                                                                await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
-                                                            }} className={`w-full p-3 rounded-xl font-bold outline-none text-sm cursor-pointer ${settings.promoActive ? 'bg-orange-700 text-white border-none focus:ring-2 ring-orange-300' : 'bg-white text-slate-700 border border-slate-200'}`}>
-                                                                <option value="bg-red-600">🔴 Vermelho</option>
-                                                                <option value="bg-blue-600">🔵 Azul</option>
-                                                                <option value="bg-green-600">🟢 Verde</option>
-                                                                <option value="bg-purple-600">🟣 Roxo</option>
-                                                                <option value="bg-slate-900">⚫ Preto</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                         
                                         {(settings.smartBanners || []).length < 5 && (
                                             <button onClick={async () => {
@@ -5401,6 +5423,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     recurringDay: 'all', recurringStart: '', recurringEnd: '', topBarText: '', topBarCoupon: '', topBarColor: 'bg-red-600'
                                                 }];
                                                 await setDoc(doc(db, "settings", storeId), { smartBanners: newBanners }, { merge: true });
+                                                setExpandedSmartBanners([...expandedSmartBanners, newBanners.length - 1]); // Expande a nova automaticamente
                                             }} className={`w-full p-4 rounded-2xl border-2 border-dashed font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 ${settings.promoActive ? 'border-orange-300 text-orange-100 hover:bg-orange-600' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
                                                 <Plus size={16} /> Adicionar Nova Tarja ({5 - (settings.smartBanners || []).length} restantes)
                                             </button>
@@ -5423,50 +5446,67 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     )}
 
-                                    {/* UPLOAD DE BANNERS */}
+                                   {/* UPLOAD DE BANNERS */}
                                     <div className={`mt-8 pt-6 border-t ${settings.promoActive ? 'border-orange-400' : 'border-slate-100'} space-y-4`}>
-                                        <h3 className={`text-sm font-black uppercase ${settings.promoActive ? 'text-white' : 'text-slate-600'}`}>Gerenciar Banners</h3>
-                                        <div className="flex flex-col gap-4">
-                                            {/* Banners Inputs (Mantido a lógica original, ajustado layout) */}
-                                            {[
-                                                { file: promoBannerFile1, setFile: setPromoBannerFile1, url: settings.promoBannerUrls?.[0], id: 1, index: 0 },
-                                                { file: promoBannerFile2, setFile: setPromoBannerFile2, url: settings.promoBannerUrls?.[1], id: 2, index: 1 },
-                                                { file: promoBannerFile3, setFile: setPromoBannerFile3, url: settings.promoBannerUrls?.[2], id: 3, index: 2 }
-                                            ].map((b) => (
-                                                <div key={b.id} className="w-full relative">
-                                                    {(b.file || b.url) && (
-                                                        <div className="relative mb-2">
-                                                            <img src={b.file ? URL.createObjectURL(b.file) : b.url} className="w-full h-24 object-cover rounded-xl bg-slate-100"/>
-                                                            <button 
-                                                                type="button"
-                                                                onClick={async () => {
-                                                                    if (b.file) {
-                                                                        b.setFile(null); // Remove o preview local antes de salvar
-                                                                    } else if (b.url) {
-                                                                        if(window.confirm("Deseja apagar este banner definitivamente?")) {
-                                                                            const newUrls = [...(settings.promoBannerUrls || [])];
-                                                                            newUrls.splice(b.index, 1);
-                                                                            await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: newUrls }, { merge: true });
-                                                                        }
-                                                                    }
-                                                                }}
-                                                                className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 shadow-md transition-all active:scale-95"
-                                                                title="Remover Banner"
-                                                            >
-                                                                <Trash2 size={16}/>
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                    <input type="file" accept="image/*" onChange={(e) => b.setFile(e.target.files[0])} className="hidden" id={`promo-banner-upload-${b.id}`}/>
-                                                    <label htmlFor={`promo-banner-upload-${b.id}`} className={`w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm cursor-pointer border-2 border-dashed ${settings.promoActive ? 'bg-orange-600 border-orange-400 text-orange-50 hover:bg-orange-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'} transition-all`}>
-                                                        Upload Banner {b.id} <UploadCloud size={16}/>
-                                                    </label>
-                                                </div>
-                                            ))}
-                                            <button type="button" onClick={handlePromoBannerUpload} disabled={uploadingPromoBanner} className={`w-full p-4 mt-2 rounded-xl font-black shadow-lg transition-all ${settings.promoActive ? 'bg-white text-orange-600 hover:bg-orange-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                                                {uploadingPromoBanner ? 'Enviando...' : 'Salvar Banners'}
-                                            </button>
+                                        <div className="flex justify-between items-center">
+                                            <h3 className={`text-sm font-black uppercase ${settings.promoActive ? 'text-white' : 'text-slate-600'}`}>Gerenciar Banners</h3>
+                                            {!isEditingPromoBanners && (
+                                                <button onClick={() => setIsEditingPromoBanners(true)} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm ${settings.promoActive ? 'bg-orange-500 text-white hover:bg-orange-400' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>Editar Banners</button>
+                                            )}
                                         </div>
+                                        
+                                        {isEditingPromoBanners && (
+                                            <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
+                                                {[
+                                                    { file: promoBannerFile1, setFile: setPromoBannerFile1, url: settings.promoBannerUrls?.[0], id: 1, index: 0 },
+                                                    { file: promoBannerFile2, setFile: setPromoBannerFile2, url: settings.promoBannerUrls?.[1], id: 2, index: 1 },
+                                                    { file: promoBannerFile3, setFile: setPromoBannerFile3, url: settings.promoBannerUrls?.[2], id: 3, index: 2 }
+                                                ].map((b) => (
+                                                    <div key={b.id} className="w-full relative">
+                                                        {(b.file || b.url) && (
+                                                            <div className="relative mb-2">
+                                                                <img src={b.file ? URL.createObjectURL(b.file) : b.url} className="w-full h-24 object-cover rounded-xl bg-slate-100"/>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={async () => {
+                                                                        if (b.file) {
+                                                                            b.setFile(null); // Remove o preview local antes de salvar
+                                                                        } else if (b.url) {
+                                                                            if(window.confirm("Deseja apagar este banner definitivamente?")) {
+                                                                                const newUrls = [...(settings.promoBannerUrls || [])];
+                                                                                newUrls.splice(b.index, 1);
+                                                                                await updateDoc(doc(db, "settings", storeId), { promoBannerUrls: newUrls }, { merge: true });
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 shadow-md transition-all active:scale-95"
+                                                                    title="Remover Banner"
+                                                                >
+                                                                    <Trash2 size={16}/>
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        <input type="file" accept="image/*" onChange={(e) => b.setFile(e.target.files[0])} className="hidden" id={`promo-banner-upload-${b.id}`}/>
+                                                        <label htmlFor={`promo-banner-upload-${b.id}`} className={`w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm cursor-pointer border-2 border-dashed ${settings.promoActive ? 'bg-orange-600 border-orange-400 text-orange-50 hover:bg-orange-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'} transition-all`}>
+                                                            Upload Banner {b.id} <UploadCloud size={16}/>
+                                                        </label>
+                                                    </div>
+                                                ))}
+                                                <button 
+                                                    type="button" 
+                                                    onClick={async () => {
+                                                        if(promoBannerFile1 || promoBannerFile2 || promoBannerFile3) {
+                                                            await handlePromoBannerUpload();
+                                                        }
+                                                        setIsEditingPromoBanners(false);
+                                                    }} 
+                                                    disabled={uploadingPromoBanner} 
+                                                    className="w-full p-4 mt-2 rounded-xl font-black shadow-lg transition-all bg-green-500 text-white hover:bg-green-600 flex justify-center items-center gap-2 active:scale-95"
+                                                >
+                                                    <Save size={16} /> {uploadingPromoBanner ? 'Enviando...' : 'Salvar e Ocultar Banners'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -5560,145 +5600,169 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     {settings.buyAndGetPromo?.active && (
                                         <div className="pt-6 border-t border-teal-500/50 space-y-6 animate-in fade-in slide-in-from-top-4">
                                             
-                                            {(settings.buyAndGetPromo?.rules || []).map((rule, index) => (
-                                                <div key={rule.id || index} className="bg-teal-800/40 p-6 rounded-3xl border border-teal-500/50 relative">
-                                                    <button 
-                                                        onClick={async () => {
-                                                            if(window.confirm("Remover esta regra de Compre e Ganhe?")) {
-                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                newRules.splice(index, 1);
-                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                            }
-                                                        }} 
-                                                        className="absolute top-4 right-4 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all shadow-md"
-                                                        title="Remover Regra"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                    
-                                                    <h3 className="text-white font-black uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                        <Gift size={16} className="text-teal-300"/> Regra {index + 1}
-                                                    </h3>
-
-                                                    {/* Texto da Promo */}
-                                                    <div className="mb-4">
-                                                        <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção (Opcional)</label>
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="Ex: Compre 2 Baly e Ganhe 1 Vodka" 
-                                                            value={rule.promoText || ''} 
-                                                            onChange={async (e) => {
-                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                newRules[index].promoText = e.target.value;
-                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                            }} 
-                                                            className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
-                                                        />
-                                                    </div>
-
-                                                    {/* Agendamento */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
-                                                        <div>
-                                                            <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Repete Quando?</label>
-                                                            <select 
-                                                                value={rule.recurringDay || 'all'} 
-                                                                onChange={async (e) => {
-                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                    newRules[index].recurringDay = e.target.value;
-                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                                }} 
-                                                                className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400"
-                                                            >
-                                                                <option value="all">Todos os Dias</option>
-                                                                <option value="1">Toda Segunda</option>
-                                                                <option value="2">Toda Terça</option>
-                                                                <option value="3">Toda Quarta</option>
-                                                                <option value="4">Toda Quinta</option>
-                                                                <option value="5">Toda Sexta</option>
-                                                                <option value="6">Todo Sábado</option>
-                                                                <option value="0">Todo Domingo</option>
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Início</label>
-                                                            <input 
-                                                                type="time" 
-                                                                value={rule.recurringStart || ''} 
-                                                                onChange={async (e) => {
-                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                    newRules[index].recurringStart = e.target.value;
-                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                                }} 
-                                                                className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400" 
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Fim</label>
-                                                            <input 
-                                                                type="time" 
-                                                                value={rule.recurringEnd || ''} 
-                                                                onChange={async (e) => {
-                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                    newRules[index].recurringEnd = e.target.value;
-                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                                }} 
-                                                                className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400" 
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Gatilhos e Brindes */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        {/* Gatilhos */}
-                                                        <div className="bg-teal-900/40 p-4 rounded-2xl border border-teal-600/50">
-                                                            <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
-                                                                <ShoppingCart size={14}/> 1. Produtos Gatilho
-                                                            </p>
-                                                            <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
-                                                                {products.map(p => {
-                                                                    const isTrigger = (rule.triggerProductIds || []).includes(p.id);
-                                                                    return (
-                                                                        <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isTrigger ? 'bg-teal-600 border border-teal-400' : 'hover:bg-teal-700/50 border border-transparent'}`}>
-                                                                            <input 
-                                                                                type="checkbox" 
-                                                                                checked={isTrigger}
-                                                                                onChange={async (e) => {
-                                                                                    const currentTriggers = rule.triggerProductIds || [];
-                                                                                    const newTriggers = e.target.checked ? [...currentTriggers, p.id] : currentTriggers.filter(id => id !== p.id);
-                                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                                    newRules[index].triggerProductIds = newTriggers;
-                                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                                                }}
-                                                                                className="w-4 h-4 accent-teal-400 cursor-pointer"
-                                                                            />
-                                                                            <span className="text-xs font-bold text-white leading-tight">{p.name}</span>
-                                                                        </label>
-                                                                    )
-                                                                })}
+                                            {(settings.buyAndGetPromo?.rules || []).map((rule, index) => {
+                                                const isExpanded = expandedBogoRules.includes(index);
+                                                return (
+                                                    <div key={rule.id || index} className="bg-teal-800/40 p-4 lg:p-6 rounded-3xl border border-teal-500/50 relative mb-4">
+                                                        {!isExpanded ? (
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-black text-white uppercase text-xs flex items-center gap-2"><Gift size={14} className="text-teal-300"/> Regra {index + 1}: {rule.promoText || 'Sem título'}</span>
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={() => setExpandedBogoRules([...expandedBogoRules, index])} className="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-teal-500 shadow-md">Editar</button>
+                                                                    <button onClick={async () => {
+                                                                        if(window.confirm("Remover esta regra de Compre e Ganhe?")) {
+                                                                            const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                            newRules.splice(index, 1);
+                                                                            await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                        }
+                                                                    }} className="bg-red-500 text-white px-2 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-600 shadow-md"><Trash2 size={14}/></button>
+                                                                </div>
                                                             </div>
-                                                        </div>
+                                                        ) : (
+                                                            <div className="animate-in fade-in slide-in-from-top-2">
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        if(window.confirm("Remover esta regra de Compre e Ganhe?")) {
+                                                                            const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                            newRules.splice(index, 1);
+                                                                            await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                        }
+                                                                    }} 
+                                                                    className="absolute top-4 right-4 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all shadow-md"
+                                                                    title="Remover Regra"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                                
+                                                                <h3 className="text-white font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                                    <Gift size={16} className="text-teal-300"/> Regra {index + 1}
+                                                                </h3>
 
-                                                        {/* Brinde */}
-                                                        <div className="bg-teal-900/40 p-4 rounded-2xl border border-teal-600/50">
-                                                            <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
-                                                                <Gift size={14}/> 2. Produto Brinde
-                                                            </p>
-                                                            <select 
-                                                                value={rule.rewardProductId || ''} 
-                                                                onChange={async (e) => {
-                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                    newRules[index].rewardProductId = e.target.value;
-                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                                }} 
-                                                                className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer focus:ring-2 ring-teal-400"
-                                                            >
-                                                                <option value="">Selecione o Brinde...</option>
-                                                                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                            </select>
-                                                        </div>
+                                                                {/* Texto da Promo */}
+                                                                <div className="mb-4">
+                                                                    <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção (Opcional)</label>
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Ex: Compre 2 Baly e Ganhe 1 Vodka" 
+                                                                        value={rule.promoText || ''} 
+                                                                        onChange={async (e) => {
+                                                                            const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                            newRules[index].promoText = e.target.value;
+                                                                            await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                        }} 
+                                                                        className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
+                                                                    />
+                                                                </div>
+
+                                                                {/* Agendamento */}
+                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+                                                                    <div>
+                                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Repete Quando?</label>
+                                                                        <select 
+                                                                            value={rule.recurringDay || 'all'} 
+                                                                            onChange={async (e) => {
+                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                newRules[index].recurringDay = e.target.value;
+                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                            }} 
+                                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400"
+                                                                        >
+                                                                            <option value="all">Todos os Dias</option>
+                                                                            <option value="1">Toda Segunda</option>
+                                                                            <option value="2">Toda Terça</option>
+                                                                            <option value="3">Toda Quarta</option>
+                                                                            <option value="4">Toda Quinta</option>
+                                                                            <option value="5">Toda Sexta</option>
+                                                                            <option value="6">Todo Sábado</option>
+                                                                            <option value="0">Todo Domingo</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Início</label>
+                                                                        <input 
+                                                                            type="time" 
+                                                                            value={rule.recurringStart || ''} 
+                                                                            onChange={async (e) => {
+                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                newRules[index].recurringStart = e.target.value;
+                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                            }} 
+                                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400" 
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Fim</label>
+                                                                        <input 
+                                                                            type="time" 
+                                                                            value={rule.recurringEnd || ''} 
+                                                                            onChange={async (e) => {
+                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                newRules[index].recurringEnd = e.target.value;
+                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                            }} 
+                                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400" 
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Gatilhos e Brindes */}
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    {/* Gatilhos */}
+                                                                    <div className="bg-teal-900/40 p-4 rounded-2xl border border-teal-600/50">
+                                                                        <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
+                                                                            <ShoppingCart size={14}/> 1. Produtos Gatilho
+                                                                        </p>
+                                                                        <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
+                                                                            {products.map(p => {
+                                                                                const isTrigger = (rule.triggerProductIds || []).includes(p.id);
+                                                                                return (
+                                                                                    <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isTrigger ? 'bg-teal-600 border border-teal-400' : 'hover:bg-teal-700/50 border border-transparent'}`}>
+                                                                                        <input 
+                                                                                            type="checkbox" 
+                                                                                            checked={isTrigger}
+                                                                                            onChange={async (e) => {
+                                                                                                const currentTriggers = rule.triggerProductIds || [];
+                                                                                                const newTriggers = e.target.checked ? [...currentTriggers, p.id] : currentTriggers.filter(id => id !== p.id);
+                                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                                newRules[index].triggerProductIds = newTriggers;
+                                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                                            }}
+                                                                                            className="w-4 h-4 accent-teal-400 cursor-pointer"
+                                                                                        />
+                                                                                        <span className="text-xs font-bold text-white leading-tight">{p.name}</span>
+                                                                                    </label>
+                                                                                )
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Brinde */}
+                                                                    <div className="bg-teal-900/40 p-4 rounded-2xl border border-teal-600/50">
+                                                                        <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
+                                                                            <Gift size={14}/> 2. Produto Brinde
+                                                                        </p>
+                                                                        <select 
+                                                                            value={rule.rewardProductId || ''} 
+                                                                            onChange={async (e) => {
+                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                newRules[index].rewardProductId = e.target.value;
+                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                            }} 
+                                                                            className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer focus:ring-2 ring-teal-400"
+                                                                        >
+                                                                            <option value="">Selecione o Brinde...</option>
+                                                                            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <button onClick={() => setExpandedBogoRules(expandedBogoRules.filter(i => i !== index))} className="w-full bg-green-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all flex items-center justify-center gap-2 mt-4 shadow-md active:scale-95">
+                                                                    <Save size={16} /> Salvar e Ocultar Regra
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
 
                                             {(settings.buyAndGetPromo?.rules || []).length < 5 && (
                                                 <button 
@@ -5713,6 +5777,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             rewardProductId: '' 
                                                         }];
                                                         await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                        setExpandedBogoRules([...expandedBogoRules, newRules.length - 1]); // Abre a nova regra direto
                                                     }} 
                                                     className="w-full p-4 rounded-2xl border-2 border-dashed border-teal-300 text-teal-100 hover:bg-teal-600 font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2"
                                                 >
@@ -5970,54 +6035,72 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <p className="text-[10px] text-slate-400 font-bold mt-1">Gera um gatilho de escassez com ofertas agressivas no app.</p>
                                                     </div>
                                                 </div>
-                                                <input type="checkbox" className="w-5 h-5 accent-red-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.flashDeals?.active || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, active: e.target.checked } } }, { merge: true })} />
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="w-5 h-5 accent-red-500 cursor-pointer flex-shrink-0 mt-1" 
+                                                        checked={settings.gamification?.flashDeals?.active || false} 
+                                                        onChange={async (e) => {
+                                                            await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, active: e.target.checked } } }, { merge: true });
+                                                            if (e.target.checked) setIsEditingFlashDeal(true); // Abre automático ao ativar
+                                                        }} 
+                                                    />
+                                                    {settings.gamification?.flashDeals?.active && !isEditingFlashDeal && (
+                                                        <button onClick={() => setIsEditingFlashDeal(true)} className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm bg-red-500 text-white hover:bg-red-400">Editar</button>
+                                                    )}
+                                                </div>
                                             </div>
                                             
-                                            {settings.gamification?.flashDeals?.active && (
-                                                <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-4 animate-in fade-in">
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Hora de Baixa (Início)</label>
-                                                        <input 
-                                                            type="time" 
-                                                            value={settings.gamification?.flashDeals?.startTime || ''} 
-                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, startTime: e.target.value } } }, { merge: true })}
-                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm"
-                                                        />
+                                            {settings.gamification?.flashDeals?.active && isEditingFlashDeal && (
+                                                <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in slide-in-from-top-2">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Hora de Baixa (Início)</label>
+                                                            <input 
+                                                                type="time" 
+                                                                value={settings.gamification?.flashDeals?.startTime || ''} 
+                                                                onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, startTime: e.target.value } } }, { merge: true })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Hora de Volta (Fim)</label>
+                                                            <input 
+                                                                type="time" 
+                                                                value={settings.gamification?.flashDeals?.endTime || ''} 
+                                                                onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, endTime: e.target.value } } }, { merge: true })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Desconto (%)</label>
+                                                            <input 
+                                                                type="number" 
+                                                                placeholder="Ex: 30"
+                                                                value={settings.gamification?.flashDeals?.discountPercent || ''} 
+                                                                onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, discountPercent: Number(e.target.value) } } }, { merge: true })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-red-400 font-black outline-none focus:border-red-500 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Cupom Ativado</label>
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Ex: TURBO30"
+                                                                value={settings.gamification?.flashDeals?.couponCode || ''} 
+                                                                onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, couponCode: e.target.value.toUpperCase() } } }, { merge: true })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold uppercase outline-none focus:border-red-500 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <p className="text-[10px] text-red-400 font-bold bg-red-900/20 p-2 rounded-lg border border-red-900/50 text-center">
+                                                                Durante o período acima, a loja exibirá um banner vermelho interativo forçando o cliente a comprar antes que o cronômetro expire.
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Hora de Volta (Fim)</label>
-                                                        <input 
-                                                            type="time" 
-                                                            value={settings.gamification?.flashDeals?.endTime || ''} 
-                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, endTime: e.target.value } } }, { merge: true })}
-                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Desconto (%)</label>
-                                                        <input 
-                                                            type="number" 
-                                                            placeholder="Ex: 30"
-                                                            value={settings.gamification?.flashDeals?.discountPercent || ''} 
-                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, discountPercent: Number(e.target.value) } } }, { merge: true })}
-                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-red-400 font-black outline-none focus:border-red-500 text-sm"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Cupom Ativado</label>
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="Ex: TURBO30"
-                                                            value={settings.gamification?.flashDeals?.couponCode || ''} 
-                                                            onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, couponCode: e.target.value.toUpperCase() } } }, { merge: true })}
-                                                            className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold uppercase outline-none focus:border-red-500 text-sm"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-2">
-                                                        <p className="text-[10px] text-red-400 font-bold bg-red-900/20 p-2 rounded-lg border border-red-900/50 text-center">
-                                                            Durante o período acima, a loja exibirá um banner vermelho interativo forçando o cliente a comprar antes que o cronômetro expire.
-                                                        </p>
-                                                    </div>
+                                                    <button onClick={() => setIsEditingFlashDeal(false)} className="w-full mt-4 bg-green-500 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
+                                                        <Save size={16} /> Salvar e Ocultar
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
