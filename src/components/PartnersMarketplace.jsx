@@ -97,6 +97,17 @@ const mockPartners = [
     description: 'Confecção de dolmãs, aventais de lona/couro rústicos, bonés e camisetas personalizadas com a logo do seu delivery.',
     imageUrl: 'https://images.unsplash.com/photo-1596526131083-e8c633c948d2?auto=format&fit=crop&w=400&q=80',
     whatsapp: '5511999999990',
+  },
+  {
+    id: 11,
+    name: 'Embalagens Original',
+    category: 'Embalagens',
+    description: 'Loja virtual especializada em embalagens plásticas, de isopor e descartáveis para doces, bolos, salgados e assados.',
+    imageUrl: '/embalagensoriginal-logo.png',
+    whatsapp: '5511940097091',
+    website: 'https://www.embalagensoriginal.com.br/',
+    badge: 'Novo Parceiro',
+    discount: 'Desconto exclusivo Velo Delivery'
   }
 ];
 
