@@ -7376,6 +7376,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 onChange={(e) => updateDoc(doc(db, "stores", storeId), { seoCategory: e.target.value }, { merge: true })}
                                                 className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
                                             >
+                                                <option value="florist">Floricultura / Presentes</option>
                                                 <option value="burger">Hamburgueria / Fast Food</option>
                                                 <option value="pizza">Pizzaria / Massas</option>
                                                 <option value="sweet">Açaiteria / Doceria</option>
