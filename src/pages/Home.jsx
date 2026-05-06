@@ -2561,7 +2561,21 @@ if (window.fbq) {
                 const now = new Date();
                 const currentMins = now.getHours() * 60 + now.getMinutes();
 
-                // 1. Oferta Turbo (Antiga Hora Morta)
+                // Mapa de Cores Inteligente
+                const getPromoStyle = (bgClass, defaultClass) => {
+                    const map = {
+                        'bg-red-600': { bg: 'bg-red-600', border: 'border-red-400', textLight: 'text-red-200', textDark: 'text-red-100', darkBg: 'bg-red-800/40' },
+                        'bg-blue-600': { bg: 'bg-blue-600', border: 'border-blue-400', textLight: 'text-blue-200', textDark: 'text-blue-100', darkBg: 'bg-blue-800/40' },
+                        'bg-green-600': { bg: 'bg-green-600', border: 'border-green-400', textLight: 'text-green-200', textDark: 'text-green-100', darkBg: 'bg-green-800/40' },
+                        'bg-purple-600': { bg: 'bg-purple-600', border: 'border-purple-400', textLight: 'text-purple-200', textDark: 'text-purple-100', darkBg: 'bg-purple-800/40' },
+                        'bg-orange-600': { bg: 'bg-orange-600', border: 'border-orange-400', textLight: 'text-orange-200', textDark: 'text-orange-100', darkBg: 'bg-orange-800/40' },
+                        'bg-teal-600': { bg: 'bg-teal-600', border: 'border-teal-400', textLight: 'text-teal-200', textDark: 'text-teal-100', darkBg: 'bg-teal-800/40' },
+                        'bg-slate-900': { bg: 'bg-slate-900', border: 'border-slate-700', textLight: 'text-slate-300', textDark: 'text-slate-200', darkBg: 'bg-slate-800/80' }
+                    };
+                    return map[bgClass] || map[defaultClass] || map['bg-red-600'];
+                };
+
+                // 1. Oferta Turbo
                 if (marketingSettings?.gamification?.flashDeals?.active) {
                     const config = marketingSettings.gamification.flashDeals;
                     const [startH, startM] = (config.startTime || "00:00").split(':').map(Number);
@@ -2570,23 +2584,24 @@ if (window.fbq) {
                     const endMins = endH * 60 + endM;
 
                     if (currentMins >= startMins && currentMins <= endMins) {
+                        const style = getPromoStyle(config.bgColor, 'bg-red-600');
                         activePromos.push(
                             <div key="flash-deal" className="pb-8 px-1 h-full">
-                                <div className="relative flex items-stretch rounded-2xl shadow-md bg-red-600 text-white overflow-hidden text-left h-full border-2 border-red-400">
+                                <div className={`relative flex items-stretch rounded-2xl shadow-md ${style.bg} text-white overflow-hidden text-left h-full border-2 ${style.border}`}>
                                     <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '16px 16px' }}></div>
-                                    <div className="w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 bg-red-800/40">
+                                    <div className={`w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 ${style.darkBg}`}>
                                         <FaBoltLightning size={32} className="text-yellow-300 drop-shadow-md mb-1 animate-pulse" />
                                     </div>
-                                    <div className="relative w-0 border-l-[2px] border-dashed border-red-400/50 z-10"></div>
+                                    <div className={`relative w-0 border-l-[2px] border-dashed ${style.border} opacity-50 z-10`}></div>
                                     <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
-                                        <p className="font-black uppercase text-[9px] tracking-widest text-red-200 mb-1 flex items-center gap-1">
+                                        <p className={`font-black uppercase text-[9px] tracking-widest ${style.textLight} mb-1 flex items-center gap-1`}>
                                             <Clock size={10} className="text-white"/> Termina em breve!
                                         </p>
                                         <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
                                             OFERTA TURBO: {config.discountPercent}% OFF!
                                         </p>
-                                        <p className="text-[9px] font-bold text-red-100 leading-snug">
-                                            Use o cupom <strong className="text-yellow-300 tracking-wider text-[10px] bg-red-800/50 px-1 rounded">{config.couponCode}</strong> no checkout.
+                                        <p className={`text-[9px] font-bold ${style.textDark} leading-snug`}>
+                                            Use o cupom <strong className={`text-yellow-300 tracking-wider text-[10px] ${style.darkBg} px-1 rounded`}>{config.couponCode}</strong> no checkout.
                                         </p>
                                     </div>
                                 </div>
@@ -2596,49 +2611,50 @@ if (window.fbq) {
                 }
 
                 // 2. Compre e Ganhe (BOGO - Multi Regras)
-                if (marketingSettings?.buyAndGetPromo?.active && marketingSettings?.buyAndGetPromo?.rules) {
-                    marketingSettings.buyAndGetPromo.rules.forEach((rule, idx) => {
-                        if (!rule.rewardProductId || !isWithinRecurringSchedule(rule.recurringDay, rule.recurringStart, rule.recurringEnd)) return;
-                        
-                        const rewardProd = products.find(p => p.id === rule.rewardProductId);
-                        if (!rewardProd) return;
+                if (marketingSettings?.buyAndGetPromo?.active && marketingSettings?.buyAndGetPromo?.rules) {
+                    marketingSettings.buyAndGetPromo.rules.forEach((rule, idx) => {
+                        if (!rule.rewardProductId || !isWithinRecurringSchedule(rule.recurringDay, rule.recurringStart, rule.recurringEnd)) return;
+                        
+                        const rewardProd = products.find(p => p.id === rule.rewardProductId);
+                        if (!rewardProd) return;
 
-                        const triggerIds = rule.triggerProductIds || [];
-                        const triggerProducts = products.filter(p => triggerIds.includes(p.id));
-                        let triggerText = "os itens participantes";
-                        if (triggerProducts.length === 1) triggerText = triggerProducts[0].name;
-                        else if (triggerProducts.length === 2) triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
-                        else if (triggerProducts.length > 2) triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
+                        const triggerIds = rule.triggerProductIds || [];
+                        const triggerProducts = products.filter(p => triggerIds.includes(p.id));
+                        let triggerText = "os itens participantes";
+                        if (triggerProducts.length === 1) triggerText = triggerProducts[0].name;
+                        else if (triggerProducts.length === 2) triggerText = `${triggerProducts[0].name} ou ${triggerProducts[1].name}`;
+                        else if (triggerProducts.length > 2) triggerText = `${triggerProducts[0].name}, ${triggerProducts[1].name} ou mais opções`;
 
-                        const customPromoText = rule.promoText;
+                        const customPromoText = rule.promoText;
+                        const style = getPromoStyle(rule.bgColor, 'bg-teal-600');
 
-                        activePromos.push(
-                            <div key={`bogo-${idx}`} className="pb-8 px-1 h-full">
-                                <div className="relative flex items-stretch rounded-2xl shadow-md bg-teal-600 text-white overflow-hidden text-left h-full border border-teal-400">
-                                    <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
-                                    <div className="w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 bg-teal-800/40">
-                                        <Gift size={32} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
-                                        <span className="bg-yellow-400 text-teal-900 text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
-                                    </div>
-                                    <div className="relative w-0 border-l-[2px] border-dashed border-teal-400/50 z-10"></div>
-                                    <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
-                                        <p className="font-black uppercase text-[9px] tracking-widest text-teal-200 mb-1 flex items-center gap-1">
-                                            <Zap size={10} className="text-yellow-400"/> Oferta Especial
-                                        </p>
-                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
-                                            {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
-                                        </p>
-                                        <p className="text-[9px] font-bold text-teal-100 leading-snug">
-                                            Adicione <strong className="text-white bg-teal-800/50 px-1 rounded">{triggerText}</strong> e o brinde entra no carrinho.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    });
-                }
+                        activePromos.push(
+                            <div key={`bogo-${idx}`} className="pb-8 px-1 h-full">
+                                <div className={`relative flex items-stretch rounded-2xl shadow-md ${style.bg} text-white overflow-hidden text-left h-full border ${style.border}`}>
+                                    <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+                                    <div className={`w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 ${style.darkBg}`}>
+                                        <Gift size={32} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
+                                        <span className="bg-yellow-400 text-slate-900 text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
+                                    </div>
+                                    <div className={`relative w-0 border-l-[2px] border-dashed ${style.border} opacity-50 z-10`}></div>
+                                    <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
+                                        <p className={`font-black uppercase text-[9px] tracking-widest ${style.textLight} mb-1 flex items-center gap-1`}>
+                                            <Zap size={10} className="text-yellow-400"/> Oferta Especial
+                                        </p>
+                                        <p className="font-black uppercase text-sm leading-tight drop-shadow-md mb-1">
+                                            {customPromoText ? customPromoText : `GANHE 1x ${rewardProd.name}!`}
+                                        </p>
+                                        <p className={`text-[9px] font-bold ${style.textDark} leading-snug`}>
+                                            Adicione <strong className={`text-white ${style.darkBg} px-1 rounded`}>{triggerText}</strong> e o brinde entra no carrinho.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    });
+                }
 
-                // 3. Smart Banners (Tarjas do Admin Estilo iFood)
+                // 3. Smart Banners (Tarjas Livres)
                 if (marketingSettings?.promoActive && marketingSettings?.smartBanners) {
                     const activeSmartBanners = marketingSettings.smartBanners.filter(b => b.topBarText && isWithinRecurringSchedule(b.recurringDay, b.recurringStart, b.recurringEnd));
                     

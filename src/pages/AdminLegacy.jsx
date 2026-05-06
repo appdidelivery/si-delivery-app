@@ -5638,20 +5638,41 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     <Gift size={16} className="text-teal-300"/> Regra {index + 1}
                                                                 </h3>
 
-                                                                {/* Texto da Promo */}
-                                                                <div className="mb-4">
-                                                                    <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção (Opcional)</label>
-                                                                    <input 
-                                                                        type="text" 
-                                                                        placeholder="Ex: Compre 2 Baly e Ganhe 1 Vodka" 
-                                                                        value={rule.promoText || ''} 
-                                                                        onChange={async (e) => {
-                                                                            const newRules = [...(settings.buyAndGetPromo.rules || [])];
-                                                                            newRules[index].promoText = e.target.value;
-                                                                            await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
-                                                                        }} 
-                                                                        className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
-                                                                    />
+                                                                {/* Texto da Promo & Cor */}
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                                    <div>
+                                                                        <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção</label>
+                                                                        <input 
+                                                                            type="text" 
+                                                                            placeholder="Ex: Compre 2 e Ganhe 1" 
+                                                                            value={rule.promoText || ''} 
+                                                                            onChange={async (e) => {
+                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                newRules[index].promoText = e.target.value;
+                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                            }} 
+                                                                            className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Cor do Banner</label>
+                                                                        <select 
+                                                                            value={rule.bgColor || 'bg-teal-600'} 
+                                                                            onChange={async (e) => {
+                                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                newRules[index].bgColor = e.target.value;
+                                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                            }} 
+                                                                            className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400 cursor-pointer"
+                                                                        >
+                                                                            <option value="bg-teal-600">🟢 Verde (Padrão)</option>
+                                                                            <option value="bg-blue-600">🔵 Azul</option>
+                                                                            <option value="bg-red-600">🔴 Vermelho</option>
+                                                                            <option value="bg-purple-600">🟣 Roxo</option>
+                                                                            <option value="bg-orange-600">🟠 Laranja</option>
+                                                                            <option value="bg-slate-900">⚫ Preto Escuro</option>
+                                                                        </select>
+                                                                    </div>
                                                                 </div>
 
                                                                 {/* Agendamento */}
@@ -6025,7 +6046,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                         {/* --- FIM: SMART BUNDLING --- */}
 
-                                        {/* --- INÍCIO: FLASH DEALS (MODO TURBO) --- */}
+                                       {/* --- INÍCIO: FLASH DEALS (MODO TURBO) --- */}
                                         <div className="bg-slate-800/50 p-4 rounded-2xl border border-red-500/30 hover:border-red-400 transition-all">
                                             <div className="flex items-start justify-between">
                                                 <div className="flex items-start gap-3">
@@ -6093,13 +6114,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             />
                                                         </div>
                                                         <div className="col-span-2">
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Cor do Banner</label>
+                                                            <select 
+                                                                value={settings.gamification?.flashDeals?.bgColor || 'bg-red-600'} 
+                                                                onChange={(e) => setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, bgColor: e.target.value } } }, { merge: true })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-red-500 text-sm cursor-pointer"
+                                                            >
+                                                                <option value="bg-red-600">🔴 Vermelho (Padrão)</option>
+                                                                <option value="bg-orange-600">🟠 Laranja</option>
+                                                                <option value="bg-blue-600">🔵 Azul</option>
+                                                                <option value="bg-green-600">🟢 Verde</option>
+                                                                <option value="bg-purple-600">🟣 Roxo</option>
+                                                                <option value="bg-slate-900">⚫ Preto Escuro</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="col-span-2">
                                                             <p className="text-[10px] text-red-400 font-bold bg-red-900/20 p-2 rounded-lg border border-red-900/50 text-center">
-                                                                Durante o período acima, a loja exibirá um banner vermelho interativo forçando o cliente a comprar antes que o cronômetro expire.
+                                                                Durante o período acima, a loja exibirá o banner interativo forçando o cliente a comprar antes que o cronômetro expire.
                                                             </p>
                                                         </div>
                                                     </div>
                                                     <button onClick={() => setIsEditingFlashDeal(false)} className="w-full mt-4 bg-green-500 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
-                                                        <Save size={16} /> Salvar e Ocultar
+                                                        <Save size={16} /> Salvar e Ocultar Edição
                                                     </button>
                                                 </div>
                                             )}
