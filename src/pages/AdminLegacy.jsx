@@ -5537,144 +5537,192 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             {/* COLUNA DIREITA: FIDELIDADE E CUPONS GERAIS */}
                             <div className="space-y-6 lg:space-y-8">
                                 {/* --- NOVO: COMPRE E GANHE (BOGO) --- */}
-                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.buyAndGetPromo?.active ? 'bg-teal-600 text-white border-teal-400' : 'bg-white border-slate-100'}`}>
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                                        <div className="flex items-center gap-4">
-                                            <Gift size={48} className={settings.buyAndGetPromo?.active ? 'text-teal-300 animate-bounce' : 'text-slate-200'} />
-                                            <div>
-                                                <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.buyAndGetPromo?.active ? 'text-white' : 'text-slate-800'}`}>Compre & Ganhe</h2>
-                                                <p className={`text-xs font-bold mt-1 ${settings.buyAndGetPromo?.active ? 'text-teal-100' : 'text-slate-400'}`}>Brinde automático no carrinho.</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={async () => {
-                                                const current = settings.buyAndGetPromo || {};
-                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...current, active: !current.active } }, { merge: true });
-                                            }}
-                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.buyAndGetPromo?.active ? 'bg-white text-teal-600 hover:bg-teal-50' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
-                                        >
-                                            {settings.buyAndGetPromo?.active ? 'Desativar' : 'Ativar Promo'}
-                                        </button>
-                                    </div>
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.buyAndGetPromo?.active ? 'bg-teal-600 text-white border-teal-400' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <Gift size={48} className={settings.buyAndGetPromo?.active ? 'text-teal-300 animate-bounce' : 'text-slate-200'} />
+                                            <div>
+                                                <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.buyAndGetPromo?.active ? 'text-white' : 'text-slate-800'}`}>Compre & Ganhe</h2>
+                                                <p className={`text-xs font-bold mt-1 ${settings.buyAndGetPromo?.active ? 'text-teal-100' : 'text-slate-400'}`}>Brindes automáticos no carrinho.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                const current = settings.buyAndGetPromo || {};
+                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...current, active: !current.active } }, { merge: true });
+                                            }}
+                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.buyAndGetPromo?.active ? 'bg-white text-teal-600 hover:bg-teal-50' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+                                        >
+                                            {settings.buyAndGetPromo?.active ? 'Desativar' : 'Ativar Promoções'}
+                                        </button>
+                                    </div>
 
-                                    {settings.buyAndGetPromo?.active && (
-                                        <div className="pt-6 border-t border-teal-500/50 space-y-4 animate-in fade-in slide-in-from-top-4">
+                                    {settings.buyAndGetPromo?.active && (
+                                        <div className="pt-6 border-t border-teal-500/50 space-y-6 animate-in fade-in slide-in-from-top-4">
                                             
-                                            {/* NOVO: Texto Opcional da Promoção */}
-                                            <div className="bg-teal-900/30 p-4 rounded-2xl border border-teal-500/50">
-                                                <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção (Opcional)</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Ex: Compre 2 Baly e Ganhe 1 Vodka" 
-                                                    value={settings.buyAndGetPromo?.promoText || ''} 
-                                                    onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, promoText: e.target.value } }, { merge: true })} 
-                                                    className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-800 text-white border-none focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
-                                                />
-                                                <p className="text-[9px] text-teal-300 mt-2 font-medium">Se preenchido, este texto aparecerá em destaque na vitrine para o cliente saber da regra.</p>
-                                            </div>
-
-                                            {/* Regras de Horário e Dia (Agendamento) */}
-                                            <div className="bg-teal-800/40 p-4 rounded-2xl border border-teal-500/50">
-                                                <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-3 flex items-center gap-2">
-                                                    <Clock size={14}/> Regras de Exibição
-                                                </p>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div>
-                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Repete Quando?</label>
-                                                        <select 
-                                                            value={settings.buyAndGetPromo?.recurringDay || 'all'} 
-                                                            onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringDay: e.target.value } }, { merge: true })} 
-                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-700 text-white border-none focus:ring-2 ring-teal-400"
-                                                        >
-                                                            <option value="all">Todos os Dias</option>
-                                                            <option value="1">Toda Segunda</option>
-                                                            <option value="2">Toda Terça</option>
-                                                            <option value="3">Toda Quarta</option>
-                                                            <option value="4">Toda Quinta</option>
-                                                            <option value="5">Toda Sexta</option>
-                                                            <option value="6">Todo Sábado</option>
-                                                            <option value="0">Todo Domingo</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Início</label>
-                                                        <input 
-                                                            type="time" 
-                                                            value={settings.buyAndGetPromo?.recurringStart || ''} 
-                                                            onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringStart: e.target.value } }, { merge: true })} 
-                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-700 text-white border-none focus:ring-2 ring-teal-400" 
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Fim</label>
-                                                        <input 
-                                                            type="time" 
-                                                            value={settings.buyAndGetPromo?.recurringEnd || ''} 
-                                                            onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, recurringEnd: e.target.value } }, { merge: true })} 
-                                                            className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-700 text-white border-none focus:ring-2 ring-teal-400" 
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Configuração dos Produtos (Gatilho + Brinde) */}
-                                            <div className="bg-teal-700/50 p-4 rounded-2xl border border-teal-500 space-y-4">
-                                                
-                                                {/* 1. SELEÇÃO DE GATILHOS (O QUE ELE PRECISA COMPRAR) */}
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
-                                                        <ShoppingCart size={14}/> 1. O que o cliente precisa comprar? (Gatilhos)
-                                                    </p>
-                                                    <div className="bg-teal-800/50 p-3 rounded-xl max-h-32 overflow-y-auto custom-scrollbar space-y-1 border border-teal-600/50">
-                                                        {products.map(p => {
-                                                            const isTrigger = (settings.buyAndGetPromo?.triggerProductIds || []).includes(p.id);
-                                                            return (
-                                                                <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isTrigger ? 'bg-teal-600 border border-teal-400' : 'hover:bg-teal-700/50 border border-transparent'}`}>
-                                                                    <input 
-                                                                        type="checkbox" 
-                                                                        checked={isTrigger}
-                                                                        onChange={async (e) => {
-                                                                            const currentTriggers = settings.buyAndGetPromo?.triggerProductIds || [];
-                                                                            let newTriggers;
-                                                                            if (e.target.checked) {
-                                                                                newTriggers = [...currentTriggers, p.id];
-                                                                            } else {
-                                                                                newTriggers = currentTriggers.filter(id => id !== p.id);
-                                                                            }
-                                                                            await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, triggerProductIds: newTriggers } }, { merge: true });
-                                                                        }}
-                                                                        className="w-4 h-4 accent-teal-400 cursor-pointer"
-                                                                    />
-                                                                    <span className="text-xs font-bold text-white leading-tight">{p.name}</span>
-                                                                </label>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                    <p className="text-[9px] text-teal-300 mt-1 font-medium ml-1">Selecione 1 ou mais produtos. Qualquer um deles ativará o brinde.</p>
-                                                </div>
-
-                                                <div className="w-full h-px bg-teal-500/50 my-2"></div>
-
-                                                {/* 2. SELEÇÃO DO BRINDE (O QUE ELE VAI GANHAR) */}
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
-                                                        <Gift size={14}/> 2. O que ele vai ganhar? (Brinde)
-                                                    </p>
-                                                    <select 
-                                                        value={settings.buyAndGetPromo?.rewardProductId || ''} 
-                                                        onChange={async (e) => await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rewardProductId: e.target.value } }, { merge: true })} 
-                                                        className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer focus:ring-2 ring-teal-400"
+                                            {(settings.buyAndGetPromo?.rules || []).map((rule, index) => (
+                                                <div key={rule.id || index} className="bg-teal-800/40 p-6 rounded-3xl border border-teal-500/50 relative">
+                                                    <button 
+                                                        onClick={async () => {
+                                                            if(window.confirm("Remover esta regra de Compre e Ganhe?")) {
+                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                newRules.splice(index, 1);
+                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                            }
+                                                        }} 
+                                                        className="absolute top-4 right-4 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all shadow-md"
+                                                        title="Remover Regra"
                                                     >
-                                                        <option value="">Selecione o Brinde...</option>
-                                                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                    </select>
-                                                    <p className="text-[9px] text-teal-300 mt-2 font-medium">Este item será adicionado automaticamente ao carrinho por R$ 0,00 quando o cliente colocar um dos "Gatilhos" acima.</p>
-                                                </div>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                    
+                                                    <h3 className="text-white font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                        <Gift size={16} className="text-teal-300"/> Regra {index + 1}
+                                                    </h3>
 
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+                                                    {/* Texto da Promo */}
+                                                    <div className="mb-4">
+                                                        <label className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2"><Edit3 size={14}/> Texto da Promoção (Opcional)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ex: Compre 2 Baly e Ganhe 1 Vodka" 
+                                                            value={rule.promoText || ''} 
+                                                            onChange={async (e) => {
+                                                                const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                newRules[index].promoText = e.target.value;
+                                                                await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                            }} 
+                                                            className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400 placeholder-teal-600/50" 
+                                                        />
+                                                    </div>
+
+                                                    {/* Agendamento */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+                                                        <div>
+                                                            <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Repete Quando?</label>
+                                                            <select 
+                                                                value={rule.recurringDay || 'all'} 
+                                                                onChange={async (e) => {
+                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                    newRules[index].recurringDay = e.target.value;
+                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                }} 
+                                                                className="w-full p-3 rounded-xl font-bold outline-none text-xs cursor-pointer bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400"
+                                                            >
+                                                                <option value="all">Todos os Dias</option>
+                                                                <option value="1">Toda Segunda</option>
+                                                                <option value="2">Toda Terça</option>
+                                                                <option value="3">Toda Quarta</option>
+                                                                <option value="4">Toda Quinta</option>
+                                                                <option value="5">Toda Sexta</option>
+                                                                <option value="6">Todo Sábado</option>
+                                                                <option value="0">Todo Domingo</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Início</label>
+                                                            <input 
+                                                                type="time" 
+                                                                value={rule.recurringStart || ''} 
+                                                                onChange={async (e) => {
+                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                    newRules[index].recurringStart = e.target.value;
+                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                }} 
+                                                                className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400" 
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-bold uppercase mb-1 block text-teal-300">Hora Fim</label>
+                                                            <input 
+                                                                type="time" 
+                                                                value={rule.recurringEnd || ''} 
+                                                                onChange={async (e) => {
+                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                    newRules[index].recurringEnd = e.target.value;
+                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                }} 
+                                                                className="w-full p-3 rounded-xl font-bold outline-none text-xs bg-teal-900/50 text-white border border-teal-600 focus:ring-2 ring-teal-400" 
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Gatilhos e Brindes */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {/* Gatilhos */}
+                                                        <div className="bg-teal-900/40 p-4 rounded-2xl border border-teal-600/50">
+                                                            <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
+                                                                <ShoppingCart size={14}/> 1. Produtos Gatilho
+                                                            </p>
+                                                            <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
+                                                                {products.map(p => {
+                                                                    const isTrigger = (rule.triggerProductIds || []).includes(p.id);
+                                                                    return (
+                                                                        <label key={p.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${isTrigger ? 'bg-teal-600 border border-teal-400' : 'hover:bg-teal-700/50 border border-transparent'}`}>
+                                                                            <input 
+                                                                                type="checkbox" 
+                                                                                checked={isTrigger}
+                                                                                onChange={async (e) => {
+                                                                                    const currentTriggers = rule.triggerProductIds || [];
+                                                                                    const newTriggers = e.target.checked ? [...currentTriggers, p.id] : currentTriggers.filter(id => id !== p.id);
+                                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                                    newRules[index].triggerProductIds = newTriggers;
+                                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                                }}
+                                                                                className="w-4 h-4 accent-teal-400 cursor-pointer"
+                                                                            />
+                                                                            <span className="text-xs font-bold text-white leading-tight">{p.name}</span>
+                                                                        </label>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Brinde */}
+                                                        <div className="bg-teal-900/40 p-4 rounded-2xl border border-teal-600/50">
+                                                            <p className="text-[10px] font-black uppercase text-teal-200 tracking-widest mb-2 flex items-center gap-2">
+                                                                <Gift size={14}/> 2. Produto Brinde
+                                                            </p>
+                                                            <select 
+                                                                value={rule.rewardProductId || ''} 
+                                                                onChange={async (e) => {
+                                                                    const newRules = [...(settings.buyAndGetPromo.rules || [])];
+                                                                    newRules[index].rewardProductId = e.target.value;
+                                                                    await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                                }} 
+                                                                className="w-full p-3 rounded-xl font-bold outline-none text-sm bg-white text-teal-900 cursor-pointer focus:ring-2 ring-teal-400"
+                                                            >
+                                                                <option value="">Selecione o Brinde...</option>
+                                                                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            {(settings.buyAndGetPromo?.rules || []).length < 5 && (
+                                                <button 
+                                                    onClick={async () => {
+                                                        const newRules = [...(settings.buyAndGetPromo.rules || []), { 
+                                                            id: Date.now().toString(), 
+                                                            promoText: '', 
+                                                            recurringDay: 'all', 
+                                                            recurringStart: '', 
+                                                            recurringEnd: '', 
+                                                            triggerProductIds: [], 
+                                                            rewardProductId: '' 
+                                                        }];
+                                                        await setDoc(doc(db, "settings", storeId), { buyAndGetPromo: { ...settings.buyAndGetPromo, rules: newRules } }, { merge: true });
+                                                    }} 
+                                                    className="w-full p-4 rounded-2xl border-2 border-dashed border-teal-300 text-teal-100 hover:bg-teal-600 font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Plus size={16} /> Adicionar Nova Regra ({(settings.buyAndGetPromo?.rules || []).length}/5)
+                                                </button>
+                                            )}
+
+                                        </div>
+                                    )}
+                                </div>
                                 {/* --- 3. CLUBE DE FIDELIDADE --- */}
                                 <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.loyaltyActive ? 'bg-purple-600 text-white border-purple-400' : 'bg-white border-slate-100'}`}>
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">

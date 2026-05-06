@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, MessageCircle, Package, Camera, TrendingUp, Handshake, Ticket, Printer, Calculator, Truck, Lightbulb, Shield, Wrench, Tag } from 'lucide-react';
+import { Search, MessageCircle, Package, Camera, TrendingUp, Handshake, Ticket, Printer, Calculator, Truck, Lightbulb, Shield, Wrench, Tag, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- MOCK DATA ESTÁTICO (Parceiros do Ecossistema Food Service) ---
@@ -108,6 +108,26 @@ const mockPartners = [
     website: 'https://www.embalagensoriginal.com.br/',
     badge: 'Novo Parceiro',
     discount: 'Desconto exclusivo Velo Delivery'
+  },
+  {
+    id: 12,
+    name: 'Casal Gastrô São José',
+    category: 'Influenciadores',
+    description: 'Foco em reviews de hambúrgueres e noites no Kobrasol/Forquilhas. Audiência altamente engajada para delivery noturno.',
+    imageUrl: 'https://images.unsplash.com/photo-1511556820780-d912e42b4980?auto=format&fit=crop&w=400&q=80',
+    whatsapp: '5548999999999',
+    badge: 'Tier Ouro',
+    discount: 'Permuta + 10% Venda'
+  },
+  {
+    id: 13,
+    name: 'Resenha Viamão',
+    category: 'Influenciadores',
+    description: 'Humor, futebol e resenha local. Linguagem coloquial ideal para conveniências, bebidas e esquenta de festas na Santa Isabel.',
+    imageUrl: 'https://images.unsplash.com/photo-1516062423079-7ca13cdc7f5a?auto=format&fit=crop&w=400&q=80',
+    whatsapp: '5551999999999',
+    badge: 'Tier Prata',
+    discount: 'Permuta Fixa'
   }
 ];
 
@@ -123,6 +143,7 @@ const categories = [
   { id: 'Jurídico', icon: <Shield size={16} /> },
   { id: 'Manutenção', icon: <Wrench size={16} /> },
   { id: 'Uniformes', icon: <Tag size={16} /> },
+  { id: 'Influenciadores', icon: <Megaphone size={16} /> },
 ];
 
 export default function PartnersMarketplace() {
