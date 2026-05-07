@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake,
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -706,8 +706,9 @@ export default function Admin() {
     const [showPixModal, setShowPixModal] = useState(false);
     const [loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
     const [reviewsList, setReviewsList] = useState([]);
-    const [showAllVips, setShowAllVips] = useState(false); // CORREÇÃO: Estado que controla o limite da lista VIP
-    const [replyText, setReplyText] = useState({});
+    const [showAllVips, setShowAllVips] = useState(false); // CORREÇÃO: Estado que controla o limite da lista VIP
+    const [replyText, setReplyText] = useState({});
+    const [influencersList, setInfluencersList] = useState([]); // NOVO: Guarda os parceiros de influência
     // --- ESTADOS DA CONFIGURAÇÃO DA ROLETA ---
     const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
     const [rouletteSlices, setRouletteSlices] = useState([]);
@@ -1290,11 +1291,16 @@ export default function Admin() {
         });
 
         // --- NOVO: BUSCAR CLIENTES (CADERNETA/FIADO) ---
-        const unsubStoreCustomers = onSnapshot(query(collection(db, "store_customers"), where("storeId", "==", storeId)), (s) => {
-            setStoreCustomersDB(s.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+        const unsubStoreCustomers = onSnapshot(query(collection(db, "store_customers"), where("storeId", "==", storeId)), (s) => {
+            setStoreCustomersDB(s.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
 
-        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc")), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        // --- NOVO: BUSCAR INFLUENCIADORES ---
+        const unsubInfluencers = onSnapshot(query(collection(db, "partners"), where("storeId", "==", storeId), where("category", "==", "Influenciadores")), (s) => {
+            setInfluencersList(s.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+
+        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc")), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
@@ -1399,10 +1405,11 @@ export default function Admin() {
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
             if (unsubFleet) unsubFleet();
-            if (unsubAnalyticsHistory) unsubAnalyticsHistory(); // <-- LIMPEZA DO LISTENER DE IA
-            if (unsubStoreCustomers) unsubStoreCustomers(); // <-- LIMPEZA DA CADERNETA
-        };
-    },[storeId]);
+            if (unsubAnalyticsHistory) unsubAnalyticsHistory(); // <-- LIMPEZA DO LISTENER DE IA
+            if (unsubStoreCustomers) unsubStoreCustomers(); // <-- LIMPEZA DA CADERNETA
+            if (typeof unsubInfluencers === 'function') unsubInfluencers(); // <-- LIMPEZA DOS INFLUENCIADORES
+        };
+    },[storeId]);
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
     useEffect(() => {
         const cleanFakeCarts = async () => {
@@ -4432,9 +4439,44 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         })()}
 
                         <div className="grid gap-4 max-w-4xl mx-auto">
-                            <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2 mt-4 mb-2">
-                                🏆 Ranking de Clientes (Geral)
-                            </h2>
+                            {/* --- NOVO: RANKING DE INFLUENCIADORES --- */}
+                            {settings?.influencersActive && influencersList.length > 0 && (() => {
+                                const influencerStats = influencersList.map(inf => {
+                                    const infOrders = orders.filter(o => o.affiliateId === inf.id && o.status !== 'canceled');
+                                    const totalSales = infOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
+                                    return { ...inf, salesCount: infOrders.length, totalSales };
+                                }).filter(inf => inf.salesCount > 0).sort((a, b) => b.totalSales - a.totalSales);
+
+                                if (influencerStats.length === 0) return null;
+
+                                return (
+                                    <div className="mb-8 pt-6 border-t border-slate-200">
+                                        <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2 mt-4 mb-4">
+                                            <Megaphone size={24} className="text-indigo-600"/> Top Influenciadores
+                                        </h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {influencerStats.slice(0, 4).map((inf, i) => (
+                                                <div key={inf.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-all relative overflow-hidden">
+                                                    {i === 0 && <div className="absolute top-0 right-0 bg-yellow-400 text-white text-[9px] font-black uppercase px-2 py-1 rounded-bl-lg shadow-sm">1º Lugar</div>}
+                                                    <img src={inf.imageUrl || "https://cdn-icons-png.flaticon.com/512/8405/8405626.png"} alt={inf.name} className="w-14 h-14 rounded-2xl object-cover bg-slate-50 border border-slate-200" />
+                                                    <div className="flex-1">
+                                                        <h3 className="font-black text-slate-800 uppercase tracking-tighter leading-tight text-sm truncate">{inf.name}</h3>
+                                                        <p className="text-[10px] font-bold text-slate-400">{inf.salesCount} vendas geradas</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Receita</p>
+                                                        <p className="text-lg font-black text-green-600 italic leading-none">R$ {inf.totalSales.toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2 mt-4 mb-2">
+                                🏆 Ranking de Clientes (Geral)
+                            </h2>
                             {customers.slice(0, showAllVips ? undefined : 5).map((c, i) => {
                                 const progressPercentage = Math.min(100, (c.points / (c.loyaltyGoal || 1)) * 100);
                                 const hasReachedGoal = c.points >= c.loyaltyGoal;
@@ -5569,6 +5611,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.socialProofActive ? 'bg-white text-emerald-600 hover:bg-emerald-50' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                                         >
                                             {settings.socialProofActive ? 'Desativar' : 'Ativar Módulo'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* --- 4. HUB DE INFLUENCIADORES --- */}
+                                <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all ${settings.influencersActive ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-white border-slate-100'}`}>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-white/20 p-3 rounded-full">
+                                                <Megaphone size={32} className={settings.influencersActive ? 'text-white animate-bounce' : 'text-slate-300'} /> 
+                                            </div>
+                                            <div>
+                                                <h2 className={`text-2xl lg:text-4xl font-black italic uppercase tracking-tighter leading-none ${settings.influencersActive ? 'text-white' : 'text-slate-800'}`}>Hub Parceiros</h2>
+                                                <p className={`text-xs font-bold mt-1 ${settings.influencersActive ? 'text-indigo-100' : 'text-slate-400'}`}>Ranking de vendas e permissões.</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={async () => { const newState = !settings.influencersActive; await setDoc(doc(db, "settings", storeId), { influencersActive: newState }, { merge: true }); }} 
+                                            className={`px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all w-full md:w-auto ${settings.influencersActive ? 'bg-white text-indigo-600 hover:bg-indigo-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                                        >
+                                            {settings.influencersActive ? 'Desativar Hub' : 'Ativar Hub'}
                                         </button>
                                     </div>
                                 </div>

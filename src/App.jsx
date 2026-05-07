@@ -13,6 +13,7 @@ import Tracking from './pages/Tracking';
 import Login from './pages/Login';
 import AdminSaaS from './pages/AdminSaaS';
 import DriverPanel from './pages/DriverPanel';
+import InfluencerDashboard from './components/InfluencerDashboard'; // Ou './pages/InfluencerDashboard' dependendo de onde você salvou
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
@@ -140,6 +141,7 @@ function App() {
             <Route path="/politicas" element={<Policies />} />
             <Route path="/login" element={<Login />} />
             <Route path="/driver/:storeId/:orderId" element={<DriverPanel />} />
+            <Route path="/parceiro/:partnerId" element={<InfluencerDashboard />} />
             <Route
               path="/admin"
               element={

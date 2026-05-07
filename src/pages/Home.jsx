@@ -747,13 +747,22 @@ export default function Home() {
   const [userTier, setUserTier] = useState({ name: 'Visitante', next: 'Bronze', missing: 0, progress: 0, color: 'text-slate-400' });
   const [userBadges, setUserBadges] = useState([]);
 
-  // CAPTURA DO LINK DE INDICAÇÃO NO LOAD INICIAL
-  useEffect(() => {
-      const refParam = new URLSearchParams(window.location.search).get('ref');
-      if (refParam) {
-          localStorage.setItem('veloReferredBy', refParam);
-      }
-  }, []);
+  // CAPTURA DO LINK DE INDICAÇÃO E INFLUENCIADORES NO LOAD INICIAL
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      
+      // Captura de Referral (Indique e Ganhe)
+      const refParam = params.get('ref');
+      if (refParam) {
+          localStorage.setItem('veloReferredBy', refParam);
+      }
+
+      // Motor de Rastreio de Influenciadores
+      const affiliateId = params.get('affiliate_id');
+      if (affiliateId) {
+          localStorage.setItem('veloAffiliateId', affiliateId);
+      }
+  }, []);
 
   // --- LEITURA REAL DA CARTEIRA (WALLET) NO BANCO DE DADOS ---
   useEffect(() => {
@@ -1729,9 +1738,10 @@ export default function Home() {
         mesa: isWaiterMode ? tableNumber : null,
         waiterName: isWaiterMode ? waiterName : null,
         // Gamificação Info:
-        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
-        referredBy: localStorage.getItem('veloReferredBy') || null,
-        // --- DADOS DE FLORICULTURA / PRESENTE ---
+        usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+        referredBy: localStorage.getItem('veloReferredBy') || null,
+        affiliateId: localStorage.getItem('veloAffiliateId') || null, // MOTOR DE RASTREIO INFLUENCERS
+        // --- DADOS DE FLORICULTURA / PRESENTE ---
         recipientName: customer.recipientName || null,
         recipientPhone: customer.recipientPhone || null,
         giftMessage: customer.giftMessage || null,
@@ -2273,10 +2283,11 @@ if (window.fbq) {
                                       status: 'aguardando_pagamento', 
                                       createdAt: serverTimestamp(),
                                       storeId: storeId || "",
-                                      tipo: "delivery",
-                                      usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
-                                      referredBy: localStorage.getItem('veloReferredBy') || null
-                                  };
+                                      tipo: "delivery",
+                                      usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+                                      referredBy: localStorage.getItem('veloReferredBy') || null,
+                                      affiliateId: localStorage.getItem('veloAffiliateId') || null // MOTOR DE RASTREIO INFLUENCERS
+                                  };
 
                                   if (appliedCoupon) {
                                       orderData.couponCode = appliedCoupon.code || "";
