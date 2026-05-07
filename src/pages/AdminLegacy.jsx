@@ -401,11 +401,25 @@ export default function Admin() {
          );
     }
   // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
-    const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
-    // A variável isOverdue desceu para evitar o erro de tela branca!
-    // ----------------------------------------------
-    // --- ESTADOS GERAIS ---
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
+    // A variável isOverdue desceu para evitar o erro de tela branca!
+    // ----------------------------------------------
+
+    // Loja (Settings) - MOVIDO PARA O TOPO PARA EVITAR TELA BRANCA
+    const [storeStatus, setStoreStatus] = useState({
+        isOpen: true, 
+        name: 'Carregando...',
+        message: '', 
+        storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
+        storeBannerUrl: '/fachada.jpg',
+        schedule: {}, 
+        slogan: '', 
+        whatsapp: '', 
+        cnpj: '', 
+    });
+
+    // --- ESTADOS GERAIS ---
+    const [activeTab, setActiveTab] = useState('dashboard');
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
     const [orderSearchTerm, setOrderSearchTerm] = useState(''); // Estado para busca de pedidos
     const [ordersPerPage, setOrdersPerPage] = useState(25); // NOVO: Limite de pedidos por página
@@ -882,12 +896,21 @@ export default function Admin() {
                 // Pega a fatura mais urgente
                 const faturaAtual = faturasPendentes.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b); 
                 
-                if (faturaAtual.amount) {
-                    // Converte a string "R$ 150,50" gerada pelo CRON de volta para número 150.50
-                    finalTotal = typeof faturaAtual.amount === 'number' 
-                        ? faturaAtual.amount 
-                        : Number(String(faturaAtual.amount).replace('R$ ', '').replace('.', '').replace(',', '.'));
-                }
+                if (faturaAtual.amount !== undefined) {
+                    // 🚨 BLINDAGEM MÁXIMA DE PARSE DE MOEDA
+                    if (typeof faturaAtual.amount === 'number') {
+                        finalTotal = faturaAtual.amount;
+                    } else {
+                        // Limpa "R$", espaços, e converte formato "1.340,50" para "1340.50"
+                        let limpo = String(faturaAtual.amount).replace(/[R$\s]/g, '');
+                        if (limpo.includes(',') && limpo.includes('.')) {
+                            limpo = limpo.replace(/\./g, '').replace(',', '.');
+                        } else if (limpo.includes(',')) {
+                            limpo = limpo.replace(',', '.');
+                        }
+                        finalTotal = Number(limpo) || 49.90;
+                    }
+                }
                 if (faturaAtual.breakdown) {
                     finalBasePlan = faturaAtual.breakdown.basePlan || 49.90;
                     finalExtraCost = faturaAtual.breakdown.extraOrdersCost || 0;
@@ -922,8 +945,90 @@ export default function Admin() {
 
             setVelopayBalance(Math.max(0, totalPixRecebido - totalSacado));
         }
-    }, [orders, products, generalBanners, withdrawalsList]);
-    // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
+    }, [orders, products, generalBanners, withdrawalsList, storeStatus]); // 🚨 CORREÇÃO MESTRA: 'storeStatus' adicionado aqui. Agora a tela atualiza na hora que a fatura chega do Firebase!
+
+    // --- NOVO MOTOR: SOBRESCRITA FORÇADA DA FATURA ERRADA (SAAS) ---
+    useEffect(() => {
+        // 1. Só roda se todos os pedidos (1900+) estiverem carregados
+        if (!storeId || !storeStatus || orders.length < 50) return;
+        if (storeStatus.billingStatus === 'gratis_vitalicio' || storeStatus.billingStatus === 'isento') return;
+
+        let diaVencimento = storeStatus.billingDay || 10;
+        if (storeStatus.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
+            const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
+            if (faturaReferencia.dueDate) {
+                const dataRef = new Date(faturaReferencia.dueDate);
+                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
+            }
+        }
+
+        const now = new Date();
+        let pastCycleStart, pastCycleEnd, pastDueDate;
+
+        if (now.getDate() > diaVencimento) {
+            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+            pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
+            pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+        } else {
+            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
+            pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
+            pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+        }
+
+        const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+        const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
+
+        // 2. Conta rigorosamente os pedidos do ciclo (30/03 a 30/04)
+        const pastOrdersCount = orders.filter(o => {
+            if (o.status === 'canceled' || o.status === 'cancelado') return false;
+            if (!o.createdAt) return false;
+            let d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt?.seconds * 1000 || o.createdAt);
+            if (isNaN(d)) return false;
+            return d >= pastCycleStart && d <= pastCycleEnd;
+        }).length;
+
+        const franchiseLimit = 100;
+        const extraOrders = Math.max(0, pastOrdersCount - franchiseLimit);
+        const extraCost = extraOrders * 0.25;
+        const totalAmount = 49.90 + extraCost;
+
+        const history = [...(storeStatus.faturasHistorico || [])];
+        const faturaIndex = history.findIndex(f => f.month.toUpperCase() === pastMonthName);
+        let needsUpdate = false;
+
+        // Se não achar fatura, CRIA com o valor bruto real
+        if (faturaIndex === -1 && pastDueDate < now) {
+            history.push({
+                id: `auto_${pastDueDate.getTime()}`,
+                month: pastMonthName,
+                amount: totalAmount,
+                status: 'PENDENTE',
+                dueDate: pastDueDate.toISOString(),
+                isAuto: true,
+                breakdown: { basePlan: 49.90, extraOrdersCost: extraCost, discount: 0 }
+            });
+            needsUpdate = true;
+        } else if (faturaIndex !== -1) {
+            // A MARRETA: Se a fatura pendente estiver com o valor travado em R$ 49.90, nós FORÇAMOS a correção no Firebase.
+            const fatura = history[faturaIndex];
+            const isValorIncorreto = Number(fatura.amount) === 49.9 || fatura.amount === "R$ 49,90";
+
+            if (fatura.status === 'PENDENTE' && isValorIncorreto && totalAmount > 50) {
+                history[faturaIndex] = {
+                    ...fatura,
+                    amount: totalAmount,
+                    breakdown: { basePlan: 49.90, extraOrdersCost: extraCost, discount: 0 }
+                };
+                needsUpdate = true;
+            }
+        }
+
+        if (needsUpdate) {
+            updateDoc(doc(db, "stores", storeId), { faturasHistorico: history }).catch(e => console.error(e));
+        }
+    }, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, orders]); // Trocado orders.length por orders para forçar renderização
+
+    // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
     const[isModalOpen, setIsModalOpen] = useState(false);
     const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
@@ -1054,19 +1159,6 @@ export default function Admin() {
     const [imageFile, setImageFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState('');
-
-    // Loja (Settings)
-    const [storeStatus, setStoreStatus] = useState({
-        isOpen: true, 
-        name: 'Carregando...',
-        message: '', // Mensagem de aviso
-        storeLogoUrl: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png', 
-        storeBannerUrl: '/fachada.jpg', // Este URL será mantido, mas o banner em si não será mais exibido no Admin
-        schedule: {}, // Agenda Semanal
-        slogan: '', // Adicionado para consistência
-        whatsapp: '', // Adicionado para consistência
-        cnpj: '', // CNPJ da Loja
-    });
 
     // 🚨 TRAVA DO PAINEL: Verifica o histórico real de faturas para ver se há inadimplência
     const hasOverdueInvoice = (storeStatus?.faturasHistorico || []).some(fatura => {
@@ -2578,6 +2670,71 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 return 0;
         }
     };
+
+    // --- NOVO MOTOR: FECHAMENTO AUTOMÁTICO DE FATURA (SAAS) ---
+    useEffect(() => {
+        if (!storeId || !storeStatus || orders.length === 0) return;
+        if (storeStatus.billingStatus === 'gratis_vitalicio' || storeStatus.billingStatus === 'isento') return;
+
+        let diaVencimento = storeStatus.billingDay || 10;
+        if (storeStatus.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
+            const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
+            if (faturaReferencia.dueDate) {
+                const dataRef = new Date(faturaReferencia.dueDate);
+                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
+            }
+        }
+
+        const now = new Date();
+        let pastCycleStart, pastCycleEnd, pastDueDate;
+
+        if (now.getDate() > diaVencimento) {
+            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+            pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
+            pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+        } else {
+            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
+            pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
+            pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+        }
+
+        const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+        const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
+
+        const history = storeStatus.faturasHistorico || [];
+        const faturaExists = history.some(f => f.month.toUpperCase() === pastMonthName);
+
+        if (!faturaExists && pastDueDate < now) {
+            const pastOrdersCount = orders.filter(o => {
+                if (o.status === 'canceled' || o.status === 'cancelado') return false;
+                if (!o.createdAt) return false;
+                let d;
+                if (typeof o.createdAt.toDate === 'function') d = o.createdAt.toDate();
+                else if (o.createdAt.seconds) d = new Date(o.createdAt.seconds * 1000);
+                else d = new Date(o.createdAt);
+                if (isNaN(d)) return false;
+                return d >= pastCycleStart && d <= pastCycleEnd;
+            }).length;
+
+            const franchiseLimit = 100;
+            const extraOrders = Math.max(0, pastOrdersCount - franchiseLimit);
+            const extraCost = extraOrders * 0.25;
+            const totalAmount = 49.90 + extraCost;
+
+            const newFatura = {
+                id: `auto_${pastDueDate.getTime()}`,
+                month: pastMonthName,
+                amount: totalAmount,
+                status: 'PENDENTE',
+                dueDate: pastDueDate.toISOString(),
+                isAuto: true,
+                breakdown: { basePlan: 49.90, extraOrdersCost: extraCost, discount: 0 }
+            };
+
+            const newHistory = [...history, newFatura];
+            updateDoc(doc(db, "stores", storeId), { faturasHistorico: newHistory }).catch(e => console.error(e));
+        }
+    }, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, orders.length]);
 
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -7054,98 +7211,66 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
 
                         {/* Histórico de Faturas (Gerado Dinamicamente) */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                            <h3 className="text-xl font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><FileText size={20}/> Histórico de Faturas</h3>
-                            <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
-                                {(() => {
-                                    let history = [...(storeStatus?.faturasHistorico || [])];
-                                    
-                                    if (storeStatus?.createdAt) {
-                                        const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
-                                        if (!isNaN(dataCriacao)) {
-                                            let diaVencimento = storeStatus?.billingDay || 9;
-                                            if (history.length > 0 && history[history.length - 1].dueDate) {
-                                                const dataRef = new Date(history[history.length - 1].dueDate);
-                                                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
-                                            }
-                                            
-                                            const hoje = new Date();
-                                            let iteradorMes = new Date(dataCriacao.getFullYear(), dataCriacao.getMonth() + 1, 1);
-                                            
-                                            while (iteradorMes < hoje && (iteradorMes.getMonth() !== hoje.getMonth() || iteradorMes.getFullYear() !== hoje.getFullYear())) {
-                                                const nomeMesAno = iteradorMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                                                const dataVencimentoReal = new Date(iteradorMes.getFullYear(), iteradorMes.getMonth(), Math.min(diaVencimento, 28)); 
-                                                const jaExiste = history.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
-                                                
-                                                if (!jaExiste) {
-                                                    const isCortesia = storeStatus?.billingStatus === 'gratis_vitalicio';
-                                                    history.push({
-                                                        id: `auto_${iteradorMes.getTime()}`,
-                                                        month: nomeMesAno,
-                                                        amount: isCortesia ? 'R$ 0,00' : 'R$ 49,90',
-                                                        status: isCortesia ? 'ISENTO' : 'PAGO',
-                                                        dueDate: dataVencimentoReal,
-                                                        isAuto: true,
-                                                        breakdown: { basePlan: 49.90, extraOrdersCost: 0, discount: isCortesia ? 49.90 : 0 }
-                                                    });
-                                                }
-                                                iteradorMes.setMonth(iteradorMes.getMonth() + 1);
-                                            }
-                                        }
-                                    }
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                            <h3 className="text-xl font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><FileText size={20}/> Histórico de Faturas</h3>
+                            <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+                                {(() => {
+                                    let history = [...(storeStatus?.faturasHistorico || [])];
+                                    
+                                    history.sort((a, b) => {
+                                        const dateA = a.dueDate ? new Date(a.dueDate) : (a.createdAt ? new Date(a.createdAt) : new Date(0));
+                                        const dateB = b.dueDate ? new Date(b.dueDate) : (b.createdAt ? new Date(b.createdAt) : new Date(0));
+                                        return dateB - dateA;
+                                    });
 
-                                    history.sort((a, b) => {
-                                        const dateA = a.dueDate || (a.createdAt ? new Date(a.createdAt) : new Date(0));
-                                        const dateB = b.dueDate || (b.createdAt ? new Date(b.createdAt) : new Date(0));
-                                        return dateB - dateA;
-                                    });
+                                    if (history.length === 0) {
+                                        return (
+                                            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center">
+                                                <p className="font-bold text-slate-500">Nenhum histórico de fatura.</p>
+                                                <p className="text-xs text-slate-400 mt-1">As faturas dos ciclos já fechados aparecerão aqui.</p>
+                                            </div>
+                                        );
+                                    }
 
-                                    if (history.length === 0) {
-                                        return (
-                                            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-center">
-                                                <p className="font-bold text-slate-500">Nenhum histórico de fatura.</p>
-                                                <p className="text-xs text-slate-400 mt-1">As faturas dos meses anteriores aparecerão aqui.</p>
-                                            </div>
-                                        );
-                                    }
-
-                                    return history.map(fat => {
-                                        let displayDate = 'Sem data';
-                                        try {
-                                            if (fat.dueDate) displayDate = new Date(fat.dueDate).toLocaleDateString('pt-BR');
-                                            else if (fat.createdAt) displayDate = new Date(fat.createdAt).toLocaleDateString('pt-BR');
-                                        } catch(e) {}
+                                    return history.map(fat => {
+                                        let displayDate = 'Sem data';
+                                        try {
+                                            if (fat.dueDate) displayDate = new Date(fat.dueDate).toLocaleDateString('pt-BR');
+                                            else if (fat.createdAt) displayDate = new Date(fat.createdAt).toLocaleDateString('pt-BR');
+                                        } catch(e) {}
                                         
-                                        return (
-                                            <div key={fat.id} onClick={() => setSelectedInvoice(fat)} className="cursor-pointer flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-400 hover:shadow-md transition-all group">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`p-3 rounded-xl transition-colors ${fat.status === 'PAGO' ? 'bg-green-100 text-green-600 group-hover:bg-green-200' : fat.status === 'ISENTO' ? 'bg-purple-100 text-purple-600 group-hover:bg-purple-200' : 'bg-amber-100 text-amber-600 group-hover:bg-amber-200'}`}>
-                                                        <FileText size={20}/>
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-slate-700 uppercase group-hover:text-blue-600 transition-colors">{fat.month}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                                            Vencimento: <span className="text-slate-600">{displayDate}</span>
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right flex items-center gap-4">
-                                                    <div>
-                                                        <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                                                            {fat.status === 'ISENTO' && (fat.amount === 'R$ 0,00' || fat.amount === 'R$ 0.00') ? 'R$ 49,90' : fat.amount}
-                                                        </p>
-                                                        <p className={`text-[10px] font-black uppercase tracking-widest ${fat.status === 'PAGO' ? 'text-green-600' : fat.status === 'ISENTO' ? 'text-purple-600' : 'text-amber-500'}`}>
-                                                            {fat.status}
-                                                        </p>
-                                                    </div>
-                                                    <ExternalLink size={16} className="text-slate-300 group-hover:text-blue-500" />
-                                                </div>
-                                            </div>
-                                        );
-                                    });
-                                })()}
-                            </div>
-                        </div>
+                                        const valorFormatado = typeof fat.amount === 'number' ? `R$ ${fat.amount.toFixed(2)}` : fat.amount;
+                                        
+                                        return (
+                                            <div key={fat.id} onClick={() => setSelectedInvoice(fat)} className="cursor-pointer flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-400 hover:shadow-md transition-all group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`p-3 rounded-xl transition-colors ${fat.status === 'PAGO' ? 'bg-green-100 text-green-600 group-hover:bg-green-200' : fat.status === 'ISENTO' ? 'bg-purple-100 text-purple-600 group-hover:bg-purple-200' : 'bg-amber-100 text-amber-600 group-hover:bg-amber-200'}`}>
+                                                        <FileText size={20}/>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-700 uppercase group-hover:text-blue-600 transition-colors">{fat.month}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                            Vencimento: <span className="text-slate-600">{displayDate}</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right flex items-center gap-4">
+                                                    <div>
+                                                        <p className={`font-black text-lg ${fat.status === 'ISENTO' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                                            {fat.status === 'ISENTO' ? 'R$ 49,90' : valorFormatado}
+                                                        </p>
+                                                        <p className={`text-[10px] font-black uppercase tracking-widest ${fat.status === 'PAGO' ? 'text-green-600' : fat.status === 'ISENTO' ? 'text-purple-600' : 'text-amber-500'}`}>
+                                                            {fat.status}
+                                                        </p>
+                                                    </div>
+                                                    <ExternalLink size={16} className="text-slate-300 group-hover:text-blue-500" />
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </div>
                     </div>
                 )}
                 {activeTab === 'store_settings' && (
