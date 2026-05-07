@@ -109,7 +109,7 @@ const mockPartners = [
     whatsapp: '5511940097091',
     website: 'https://www.embalagensoriginal.com.br/',
     badge: 'Novo Parceiro',
-    discount: '10% off prmeira compra, use o cupom: VELO10 - Desconto exclusivo Velo Delivery'
+    discount: '10% off prmeira compra, use o cupom: VELO10 Desconto exclusivo Velo Delivery'
   },
   {
     id: 12,
