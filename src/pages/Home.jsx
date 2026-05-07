@@ -3700,29 +3700,28 @@ if (window.fbq) {
                     infiniteLoop={false} 
                     swipeable={true} 
                     emulateTouch={true}
-                    showIndicators={selectedProduct.videoUrl ? true : false}
+                    showIndicators={!!selectedProduct.videoUrl}
                     className="h-full"
                 >
-                    {/* SLIDE 1: O VÍDEO (Se existir) */}
-                    {selectedProduct.videoUrl && (
-                        <div className="w-full h-64">
-                            <VeloProductVideo 
-                                videoUrl={selectedProduct.videoUrl} 
-                                thumbnailUrl={selectedProduct.imageUrl} 
-                                altText={selectedProduct.name} 
+                    {[
+                        selectedProduct.videoUrl ? (
+                            <div key="video-slide" className="w-full h-64">
+                                <VeloProductVideo 
+                                    videoUrl={selectedProduct.videoUrl} 
+                                    thumbnailUrl={selectedProduct.imageUrl} 
+                                    altText={selectedProduct.name} 
+                                />
+                            </div>
+                        ) : null,
+                        <div key="image-slide" className="w-full h-64">
+                            <img 
+                                src={selectedProduct.imageUrl} 
+                                alt={selectedProduct.name} 
+                                loading="eager"
+                                className="w-full h-full object-cover" 
                             />
                         </div>
-                    )}
-
-                    {/* SLIDE 2 (ou único): A IMAGEM ESTÁTICA */}
-                    <div className="w-full h-64">
-                        <img 
-                            src={selectedProduct.imageUrl} 
-                            alt={selectedProduct.name} 
-                            loading="eager"
-                            className="w-full h-full object-cover" 
-                        />
-                    </div>
+                    ].filter(Boolean)}
                 </Carousel>
 
                 {/* TAGS SOBREPOSTAS (Mantidas para não quebrar o layout) */}
