@@ -2966,7 +2966,15 @@ if (window.fbq) {
                                                     </div>
                                                 </div>
                                                 <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
-                                                    <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    {p.videoUrl ? (
+                                                        <VeloProductVideo 
+                                                            videoUrl={p.videoUrl} 
+                                                            thumbnailUrl={optimizeCloudinary(p.imageUrl, 200)} 
+                                                            altText={p.name} 
+                                                        />
+                                                    ) : (
+                                                        <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    )}
                                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <span className="absolute top-0 left-0 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-br-xl shadow-sm z-10">OFERTA 🔥</span>}
                                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl z-10">-{p.discountPercentage}%</span>}
                                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-[10px] uppercase tracking-widest backdrop-blur-sm">Esgotado</div>}
