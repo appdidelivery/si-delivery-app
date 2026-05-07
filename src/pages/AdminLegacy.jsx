@@ -1632,9 +1632,7 @@ const handleGenerateProductCopy = async () => {
         }
     };
 
-    const handleProductImageUpload = async () => {
-        if (!imageFile) return alert("Selecione uma imagem primeiro!");
-        // FUNÇÃO NOVA: UPLOAD DE VÍDEO DIRETO
+    // FUNÇÃO NOVA: UPLOAD DE VÍDEO DIRETO (AGORA NO ESCOPO CORRETO)
     const handleProductVideoUpload = async (file) => {
         if (!file) return;
         setUploadingVideo(true);
@@ -1642,14 +1640,18 @@ const handleGenerateProductCopy = async () => {
             // Reutiliza sua lógica de Cloudinary (que já aceita vídeo via /auto/upload)
             const url = await uploadImageToCloudinary(file);
             setForm(prev => ({ ...prev, videoUrl: url }));
-            alert("Vídeo enviado com sucesso!");
+            alert("✅ Vídeo enviado com sucesso!");
         } catch (error) {
             console.error(error);
-            alert("Erro ao subir vídeo. Tente um arquivo menor (até 10MB).");
+            alert("❌ Erro ao subir vídeo. Tente um arquivo menor (até 10MB).");
         } finally {
             setUploadingVideo(false);
         }
     };
+
+    const handleProductImageUpload = async () => {
+        if (!imageFile) return alert("Selecione uma imagem primeiro!");
+        
         // NOVO: Validação de formato
         const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
         if (!validTypes.includes(imageFile.type)) {
@@ -9198,17 +9200,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     ))}
                                 </div>
                                 {/* --- FIM: CRIADOR DE COMPLEMENTOS --- */}
-                                <div className="space-y-3 pt-6 border-t border-slate-100">
-                                    <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
-                                    <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-all">
-                                        <div className="flex items-center gap-3">
-                                            {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} 
-                                            <UploadCloud size={20} />
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 font-medium">PNG ou JPG (Evite .webp ou .svg)</p>
-                                    </label>
+                                <div className="space-y-4 pt-6 border-t border-slate-100">
                                     
-                                    {/* BLOCO DE DICA E UPLOADS */}
+                                    {/* BLOCO DE DICA E UPLOADS (IMAGEM) */}
                                     <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex gap-3">
                                         <div className="bg-emerald-500 text-white p-2 rounded-xl h-fit">
                                             <ImageIcon size={18} />
@@ -9222,33 +9216,70 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* UPLOAD DE IMAGEM */}
-                                    <div className="space-y-3 pt-4">
+                                    <div className="space-y-3">
                                         <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
-                                        <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 transition-all">
-                                            {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                        <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-medium">PNG ou JPG (Evite .webp ou .svg)</p>
                                         </label>
-                                        {imageFile && (<button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload Foto'}</button>)}
+                                        {imageFile && (
+                                            <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>
+                                                {uploading ? 'Enviando...' : 'Confirmar Upload Foto'}
+                                            </button>
+                                        )}
                                     </div>
 
-                                    {/* UPLOAD DE VÍDEO (BOTÃO DIRETO) */}
-                                    <div className="pt-4 border-t border-slate-100">
+                                    {/* --- CÓDIGO NOVO: UPLOAD DE VÍDEO 100% BLINDADO --- */}
+                                    <div className="pt-4 mt-2 border-t border-slate-100">
                                         <label className="text-xs font-black text-blue-600 uppercase tracking-widest ml-2 flex items-center gap-2 mb-3">
                                             🎥 Vídeo do Produto (Estilo Reels)
                                         </label>
                                         
-                                        {form.videoUrl && (
-                                            <div className="relative rounded-2xl overflow-hidden border-2 border-blue-100 aspect-square w-32 mx-auto bg-slate-900 mb-3">
-                                                <video src={form.videoUrl} muted className="w-full h-full object-cover opacity-60" />
-                                                <button type="button" onClick={() => setForm({ ...form, videoUrl: '' })} className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 text-white font-black text-[10px] uppercase hover:bg-red-600/80 transition-all">
-                                                    <Trash2 size={16} /> <br/>Remover
-                                                </button>
-                                            </div>
-                                        )}
+                                        <div className="space-y-3">
+                                            {form.videoUrl && (
+                                                <div className="relative rounded-2xl overflow-hidden border-2 border-blue-100 aspect-square w-32 mx-auto bg-slate-900">
+                                                    <video src={form.videoUrl} muted autoPlay loop playsInline className="w-full h-full object-cover opacity-60" />
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => setForm({ ...form, videoUrl: '' })}
+                                                        className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 text-white font-black text-[10px] uppercase hover:bg-red-600/80 transition-all"
+                                                    >
+                                                        <Trash2 size={16} className="mb-1" /> Remover
+                                                    </button>
+                                                </div>
+                                            )}
 
-                                        <input type="file" accept="video/*" onChange={(e) => handleProductVideoUpload(e.target.files[0])} className="hidden" id="product-video-upload" />
-                                        <label htmlFor="product-video-upload" className={`w-full p-6 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold cursor-pointer border-2 border-dashed transition-all ${uploadingVideo ? 'bg-blue-50 border-blue-400 text-blue-400' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'}`}>
-                                            {uploadingVideo ? <><Loader2 className="animate-spin" size={24} /> Enviando Vídeo...</> : <><UploadCloud size={24} /> {form.videoUrl ? 'Trocar Vídeo' : 'Subir Vídeo (MP4)'}</>}
-                                        </label>
+                                            <div className="flex gap-2">
+                                                {/* Usando label nativa para garantir o clique no input file */}
+                                                <label className={`w-full p-4 rounded-2xl flex items-center justify-center gap-2 font-bold cursor-pointer transition-all border-2 ${uploadingVideo ? 'bg-blue-50 border-blue-400 text-blue-400 pointer-events-none' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 shadow-sm'}`}>
+                                                    <input 
+                                                        type="file" 
+                                                        accept="video/mp4,video/mov,video/webm" 
+                                                        onChange={(e) => handleProductVideoUpload(e.target.files[0])} 
+                                                        className="hidden" 
+                                                    />
+                                                    {uploadingVideo ? (
+                                                        <><Loader2 className="animate-spin" size={20} /> <span className="text-xs uppercase font-black">Enviando...</span></>
+                                                    ) : (
+                                                        <><UploadCloud size={20} /> <span className="text-xs uppercase font-black">{form.videoUrl ? 'Trocar Arquivo' : 'Subir Vídeo'}</span></>
+                                                    )}
+                                                </label>
+                                            </div>
+
+                                            {/* ROTA DE FUGA: CAMPO DE URL */}
+                                            <input 
+                                                type="url" 
+                                                placeholder="Ou cole o link direto do Cloudinary (https://...)" 
+                                                className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold text-xs border border-slate-200 focus:ring-2 ring-blue-500 transition-all text-slate-600" 
+                                                value={form.videoUrl || ''} 
+                                                onChange={e => setForm({ ...form, videoUrl: e.target.value })} 
+                                            />
+                                            <p className="text-[9px] text-slate-400 font-bold text-center px-4">
+                                                Dica: Use vídeos MP4 verticais curtos. Evite arquivos muito pesados.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div> {/* FECHA O space-y-6 do modal */}
 

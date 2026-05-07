@@ -3657,27 +3657,53 @@ if (window.fbq) {
                   </button>
               </div>
 
-              {/* CÓDIGO NOVO: VÍDEO NO MODAL DE DETALHES */}
+              {/* CARROSSEL HÍBRIDO: VÍDEO (PRIORIDADE) + IMAGEM */}
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
-                {selectedProduct.videoUrl ? (
-                    <VeloProductVideo 
-                        videoUrl={selectedProduct.videoUrl} 
-                        thumbnailUrl={selectedProduct.imageUrl} 
-                        altText={selectedProduct.name} 
-                    />
-                ) : (
-                    <img src={selectedProduct.imageUrl} alt={selectedProduct.name} width="400" height="400" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                )}
-                {/* Mantém os botões e badges originais aqui abaixo */}
-                {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
-                  <span className="absolute bottom-4 left-4 bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg z-10">
-                    -{selectedProduct.discountPercentage}% OFF
-                  </span>
-                )}
+                <Carousel 
+                    showArrows={false} 
+                    showStatus={false} 
+                    showThumbs={false} 
+                    infiniteLoop={false} 
+                    swipeable={true} 
+                    emulateTouch={true}
+                    showIndicators={selectedProduct.videoUrl ? true : false}
+                    className="h-full"
+                >
+                    {/* SLIDE 1: O VÍDEO (Se existir) */}
+                    {selectedProduct.videoUrl && (
+                        <div className="w-full h-64">
+                            <VeloProductVideo 
+                                videoUrl={selectedProduct.videoUrl} 
+                                thumbnailUrl={selectedProduct.imageUrl} 
+                                altText={selectedProduct.name} 
+                            />
+                        </div>
+                    )}
+
+                    {/* SLIDE 2 (ou único): A IMAGEM ESTÁTICA */}
+                    <div className="w-full h-64">
+                        <img 
+                            src={selectedProduct.imageUrl} 
+                            alt={selectedProduct.name} 
+                            loading="eager"
+                            className="w-full h-full object-cover" 
+                        />
+                    </div>
+                </Carousel>
+
+                {/* TAGS SOBREPOSTAS (Mantidas para não quebrar o layout) */}
+                <div className="absolute bottom-4 left-4 z-20 pointer-events-none">
+                    {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
+                        <span className="bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg">
+                            -{selectedProduct.discountPercentage}% OFF
+                        </span>
+                    )}
+                </div>
+                
                 {selectedProduct.isChilled && (
-                  <span className="absolute bottom-4 right-4 bg-cyan-100 text-cyan-800 text-xs font-black px-3 py-1 rounded-xl shadow-lg border border-cyan-200 z-10">
-                    ❄️ Entregue Gelada
-                  </span>
+                    <span className="absolute bottom-4 right-4 bg-cyan-100 text-cyan-800 text-xs font-black px-3 py-1 rounded-xl shadow-lg border border-cyan-200 z-20 pointer-events-none">
+                        ❄️ Gelada
+                    </span>
                 )}
               </div>
 
