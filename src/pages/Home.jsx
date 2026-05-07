@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
-import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare } from 'lucide-react';import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
 import VeloProductVideo from '../components/VeloProductVideo';
 import { Carousel } from 'react-responsive-carousel';
@@ -3117,6 +3116,24 @@ if (window.fbq) {
                       })()}
                   </div>
               </details>
+
+              {/* PERGUNTAS DINÂMICAS DO LOJISTA (ADITIVO) */}
+              {storeSettings?.faq && storeSettings.faq.length > 0 && storeSettings.faq.map((item, index) => (
+                  <details key={index} className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden animate-in fade-in slide-in-from-top-2">
+                      <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
+                          <div className="flex items-center gap-3">
+                              <MessageSquare size={18} className="text-blue-500" />
+                              <span>{item.question}</span>
+                          </div>
+                          <span className="transition duration-300 group-open:rotate-180 text-slate-400">
+                              <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                          </span>
+                      </summary>
+                      <div className="p-5 pt-0 text-sm text-slate-500 font-medium border-t border-slate-50 mt-1 leading-relaxed">
+                          {item.answer}
+                      </div>
+                  </details>
+              ))}
           </div>
       </section>
       {/* --- FIM: FAQ DINÂMICO --- */}

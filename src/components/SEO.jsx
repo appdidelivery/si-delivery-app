@@ -112,6 +112,27 @@ export default function SEO({ title, description, image, productData }) {
                     // CORREÇÃO 4: TELEFONE DE SEGURANÇA
                     const safeTelephone = fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "+5500000000000";
 
+                    // --- LEITURA DO FAQ PARA O GOOGLEBOT (ADITIVO E BLINDADO) ---
+                    // 1. Perguntas Padrão do Sistema (Sempre indexadas para garantir o Rich Snippet)
+                    const defaultFaq = [
+                        { question: 'Qual o horário de funcionamento?', answer: `Para saber nossos turnos exatos de atendimento de hoje, verifique o status "Aberto/Fechado" e a seção de horários diretamente no nosso cardápio digital.` },
+                        { question: 'Quais são as formas de pagamento aceitas?', answer: 'Para sua comodidade, aceitamos pagamento online e seguro (Cartão e PIX) ou pagamento na entrega/retirada (Cartão, Dinheiro e Vale Refeição aplicável). Consulte as opções no checkout.' },
+                        { question: 'Vocês entregam no meu endereço?', answer: 'Atendemos uma vasta região. Basta adicionar os produtos ao carrinho e inserir seu CEP ou endereço para o sistema calcular a viabilidade e a taxa de frete automaticamente.' }
+                    ];
+
+                    // 2. Perguntas Personalizadas do Lojista
+                    let fetchedFaq = [];
+                    if (fields.faq && fields.faq.arrayValue && fields.faq.arrayValue.values) {
+                        fetchedFaq = fields.faq.arrayValue.values.map(v => ({
+                            question: v.mapValue?.fields?.question?.stringValue || '',
+                            answer: v.mapValue?.fields?.answer?.stringValue || ''
+                        })).filter(item => item.question && item.answer);
+                    }
+                    
+                    // 3. Mescla as Padrões com as Personalizadas
+                    const customFaq = store?.faq || fetchedFaq;
+                    const finalFaq = [...defaultFaq, ...customFaq];
+
                     // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
                     const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
                     
@@ -288,6 +309,23 @@ export default function SEO({ title, description, image, productData }) {
 
                     let structuredData;
 
+                    // --- CONSTRUÇÃO DO NÓ DE FAQ (ADITIVO) ---
+                    let faqSchemaNode = null;
+                    if (finalFaq && finalFaq.length > 0) {
+                        faqSchemaNode = {
+                            "@type": "FAQPage",
+                            "@id": `${safeBaseUrl}#faq`,
+                            "mainEntity": finalFaq.map(item => ({
+                                "@type": "Question",
+                                "name": item.question,
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": item.answer
+                                }
+                            }))
+                        };
+                    }
+
                     // B) ESTRUTURA COMPLETA DE PRODUTO (RESTAURADA 100% ORIGINAL)
                     if (productData) {
                         const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
@@ -385,14 +423,18 @@ export default function SEO({ title, description, image, productData }) {
                                         "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]
                                     },
                                     "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModeDirectDownload"
-                                }
+                                },
+                                ...(faqSchemaNode ? [faqSchemaNode] : [])
                             ]
                         };
                     } else {
-                        // C) PÁGINA INICIAL DA LOJA
+                        // C) PÁGINA INICIAL DA LOJA (AGORA USANDO GRAPH PARA SUPORTAR MÚLTIPLAS ENTIDADES)
                         structuredData = {
                             "@context": "https://schema.org",
-                            ...baseStoreSchema
+                            "@graph": [
+                                baseStoreSchema,
+                                ...(faqSchemaNode ? [faqSchemaNode] : [])
+                            ]
                         };
                     }
 

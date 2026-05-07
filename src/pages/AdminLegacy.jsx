@@ -1789,6 +1789,58 @@ const handleGenerateProductCopy = async () => {
         setStoreStatus(prev => ({ ...prev, delivery_zones: currentZones }));
     };
 
+    // --- GERENCIAMENTO DE FAQ DINÂMICO (ADITIVO) ---
+    const handleAddFaq = () => {
+        const currentFaq = storeStatus.faq || [];
+        const newFaq = { question: '', answer: '' };
+        setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, newFaq] }));
+    };
+
+    const handleUpdateFaq = (index, field, value) => {
+        const currentFaq = [...(storeStatus.faq || [])];
+        currentFaq[index] = { ...currentFaq[index], [field]: value };
+        setStoreStatus(prev => ({ ...prev, faq: currentFaq }));
+    };
+
+    const [isGeneratingFaq, setIsGeneratingFaq] = useState(false);
+
+    const handleGenerateFaqIA = async () => {
+        setIsGeneratingFaq(true);
+        try {
+            // Tenta bater na API de IA (Padrão Velo)
+            const response = await fetch('/api/generate-faq-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    storeName: storeStatus.name,
+                    storeNiche: storeStatus.storeNiche,
+                    categories: categories.map(c => c.name)
+                })
+            });
+            const data = await response.json();
+            
+            if (response.ok && data.success && data.faqList) {
+                const currentFaq = storeStatus.faq || [];
+                setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, ...data.faqList] }));
+                alert("✨ Perguntas geradas com sucesso! Revise e clique em 'Salvar Lista de FAQ'.");
+            } else {
+                throw new Error("API Indisponível");
+            }
+        } catch (error) {
+            // Fallback Inteligente: Se a rota de API não existir, injeta perguntas padrão ricas baseadas no estado local
+            const nomeCategoria = categories[0]?.name || 'nossos destaques';
+            const fallbackFaq = [
+                { question: `Quais são os itens mais vendidos na ${storeStatus.name}?`, answer: `Nossos clientes adoram pedir as opções da categoria de ${nomeCategoria}. Verifique a seção de Mais Vendidos no nosso cardápio!` },
+                { question: `Como funciona o programa de fidelidade VIP?`, answer: `É muito simples! A cada pedido concluído, você acumula pontos na sua carteira digital que podem ser trocados por brindes e descontos exclusivos.` }
+            ];
+            const currentFaq = storeStatus.faq || [];
+            setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, ...fallbackFaq] }));
+            alert("✨ Perguntas sugeridas adicionadas! Revise e salve.");
+        } finally {
+            setIsGeneratingFaq(false);
+        }
+    };
+
     const handleSaveDeliveryZones = async () => {
         try {
             // Ordena do menor raio para o maior (Fundamental para a lógica do frontend)
@@ -7592,9 +7644,110 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </p>
                 </div>
             </motion.div>
-        )}
-    </AnimatePresence>
-</div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* --- GERENCIADOR DE FAQ E SEO (ADITIVO) --- */}
+                    <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mt-6">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4 border-b border-slate-100 pb-6">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2">
+                                    💬 FAQ e SEO (Perguntas)
+                                </h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 max-w-xl">
+                                    Adicione perguntas personalizadas. Elas se juntarão às perguntas padrão de Horário, Pagamento e Entrega para ajudar o Google a trazer mais clientes orgânicos para sua loja.
+                                </p>
+                            </div>
+                            <div className="flex gap-2 w-full lg:w-auto">
+                                <button 
+                                    type="button"
+                                    onClick={handleGenerateFaqIA}
+                                    disabled={isGeneratingFaq}
+                                    className="flex-1 lg:flex-none bg-purple-100 text-purple-700 hover:bg-purple-200 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isGeneratingFaq ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                    Gerar com IA
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={handleAddFaq} 
+                                    className="flex-1 lg:flex-none bg-blue-600 text-white px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all shadow-blue-200"
+                                >
+                                    + Nova Pergunta
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mb-6">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-800 flex items-center gap-2 mb-1">
+                                <ShieldCheck size={14} /> Padrões Protegidos
+                            </p>
+                            <p className="text-xs text-blue-600 font-medium leading-relaxed">
+                                As perguntas sobre <b>Horário de Funcionamento</b>, <b>Formas de Pagamento</b> e <b>Área de Entrega</b> já são geradas automaticamente pelo sistema. Preencha abaixo apenas dúvidas específicas (Ex: Se vende no atacado, se tem espaço Kids, etc).
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            {(!storeStatus.faq || storeStatus.faq.length === 0) ? (
+                                <div className="text-center p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
+                                    <p className="text-slate-500 font-bold text-sm">Nenhuma pergunta cadastrada. Clique no botão acima para começar.</p>
+                                </div>
+                            ) : (
+                                storeStatus.faq.map((item, index) => (
+                                    <div key={index} className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative group transition-all hover:border-blue-300">
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleRemoveFaq(index)} 
+                                            className="absolute top-4 right-4 p-2 bg-red-100 text-red-500 hover:text-red-700 hover:bg-red-200 rounded-xl transition-all"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                        
+                                        <div className="space-y-4 pr-10">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Pergunta do Cliente</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ex: Vocês entregam em feriados?" 
+                                                    value={item.question} 
+                                                    onChange={e => handleUpdateFaq(index, 'question', e.target.value)} 
+                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-blue-500 border border-slate-100 shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Sua Resposta</label>
+                                                <textarea 
+                                                    rows="2"
+                                                    placeholder="Ex: Sim, funcionamos normalmente em todos os feriados..." 
+                                                    value={item.answer} 
+                                                    onChange={e => handleUpdateFaq(index, 'answer', e.target.value)} 
+                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-blue-500 border border-slate-100 shadow-sm resize-y"
+                                                ></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+
+                            {storeStatus.faq && storeStatus.faq.length > 0 && (
+                                <button 
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await updateDoc(doc(db, "stores", storeId), { faq: storeStatus.faq }, { merge: true });
+                                            alert("✅ FAQ salva com sucesso!");
+                                        } catch (e) {
+                                            alert("Erro ao salvar FAQ.");
+                                        }
+                                    }}
+                                    className="w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-sm tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95"
+                                >
+                                    <Save size={18} className="inline mr-2" /> Salvar Lista de FAQ
+                                </button>
+                            )}
+                        </div>
+                    </div>
 {/* --- NOVO: CONFIGURAÇÕES DE CHECKOUT E ESTOQUE (CLIENTE) --- */}
 <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
     <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">🛒 Experiência de Compra (App Cliente)</h2>
