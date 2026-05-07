@@ -2873,7 +2873,8 @@ if (window.fbq) {
                                     ) : (
                                         <img 
                                             src={optimizeCloudinary(p.imageUrl, 300)} 
-                                            alt={p.name} 
+                                            alt={`${p.name} - ${p.category} na ${storeSettings.name}`} 
+                                            title={`${p.name} disponível para entrega na ${storeSettings.name}`}
                                             width="150" 
                                             height="150" 
                                             loading={index < 4 ? "eager" : "lazy"} 
@@ -3136,7 +3137,22 @@ if (window.fbq) {
               ))}
           </div>
       </section>
+      
       {/* --- FIM: FAQ DINÂMICO --- */}
+      {/* --- SEÇÃO QUEM SOMOS (ADITIVO PARA GEO/AEO) --- */}
+      {storeSettings?.aboutText && (
+          <section className="px-6 py-12 max-w-2xl mx-auto border-t border-slate-100 mt-10">
+              <div className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-50 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+                      <Store size={120} />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic uppercase mb-4">Nossa História</h2>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed whitespace-pre-wrap">
+                      {storeSettings.aboutText}
+                  </p>
+              </div>
+          </section>
+      )}
 
       <section className="px-6 pb-10 max-w-2xl mx-auto">
           <Suspense fallback={<div className="h-20 flex items-center justify-center text-slate-400 font-bold text-xs uppercase tracking-widest">Carregando avaliações...</div>}>

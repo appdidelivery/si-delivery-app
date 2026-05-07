@@ -15,7 +15,7 @@ export default function SEO({ title, description, image, productData }) {
     // 3. Decide quem manda
     const siteName = store?.name || defaultName;
     const finalTitle = title ? `${title}` : `${siteName} - App`;
-    const finalDesc = description || store?.description || defaultDesc;
+    const finalDesc = description || store?.aboutText || store?.slogan || store?.description || defaultDesc;
     
     const finalImage = image || store?.storeLogoUrl || store?.logoUrl || defaultImage;
     
@@ -47,13 +47,18 @@ export default function SEO({ title, description, image, productData }) {
                     const fetchedName = fields.name?.stringValue || siteName;
                     const fetchedImage = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || finalImage;
                     const fetchedDesc = fields.slogan?.stringValue || fields.message?.stringValue || finalDesc;
+                    const fetchedAbout = fields.aboutText?.stringValue || "";
+                    const fetchedAuthLinks = fields.authorityLinks?.stringValue || "";
                     const fetchedWhatsapp = fields.whatsapp?.stringValue || "";
                     const fetchedInstagram = fields.instagramUrl?.stringValue || "";
                     const fetchedFacebook = fields.facebookUrl?.stringValue || "";
                     const fetchedPriceRange = fields.priceRange?.stringValue || "$$";
                     
-                    // Monta a lista de redes sociais para o Google associar
-                    const socialProfiles = [fetchedInstagram, fetchedFacebook].filter(link => link !== "");
+                    // Monta a lista de redes sociais e links de autoridade para o Google associar (SameAs)
+                    const authLinksArray = fetchedAuthLinks ? fetchedAuthLinks.split(',').map(l => l.trim()).filter(l => l.startsWith('http')) : [];
+                    const socialProfiles = [fetchedInstagram, fetchedFacebook, ...authLinksArray].filter(link => link !== "");
+                    
+                    // Removida a linha duplicada de fetchedAbout aqui
                     
                     const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                     const ratingCount = fields.rating_count?.integerValue || 0;
@@ -263,7 +268,7 @@ export default function SEO({ title, description, image, productData }) {
                         "@type": googleBusinessType,
                         "name": fetchedName,
                         "image": absoluteFetchedImage,
-                        "description": fetchedDesc,
+                        "description": fetchedAbout || fetchedDesc,
                         "url": `https://${hostname}`,
                         "telephone": safeTelephone,
                         "priceRange": fetchedPriceRange, // Agora dinâmico!

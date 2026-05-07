@@ -1789,7 +1789,7 @@ const handleGenerateProductCopy = async () => {
         setStoreStatus(prev => ({ ...prev, delivery_zones: currentZones }));
     };
 
-    // --- GERENCIAMENTO DE FAQ DINÂMICO (ADITIVO) ---
+   // --- GERENCIAMENTO DE FAQ DINÂMICO ---
     const handleAddFaq = () => {
         const currentFaq = storeStatus.faq || [];
         const newFaq = { question: '', answer: '' };
@@ -1801,7 +1801,14 @@ const handleGenerateProductCopy = async () => {
         currentFaq[index] = { ...currentFaq[index], [field]: value };
         setStoreStatus(prev => ({ ...prev, faq: currentFaq }));
     };
-// --- MOTOR DE IA DO FAQ ---
+
+    const handleRemoveFaq = (index) => {
+        const currentFaq = [...(storeStatus.faq || [])];
+        currentFaq.splice(index, 1);
+        setStoreStatus(prev => ({ ...prev, faq: currentFaq }));
+    };
+
+    // --- MOTOR DE IA DO FAQ ---
     const [isGeneratingFaq, setIsGeneratingFaq] = useState(false);
 
     const handleGenerateFaqIA = async () => {
@@ -7841,6 +7848,54 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             )}
                         </div>
                     </div>
+                    {/* --- NOVO: TREINAMENTO DE IA E AUTORIDADE (SOBRE E REDES) --- */}
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mt-6">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2 mb-2">
+                                🤖 Treinamento de IA e Autoridade
+                            </h2>
+                            <p className="text-xs font-bold text-slate-400 mb-6">
+                                Conte a história da loja e adicione links de diretórios para o Google e o ChatGPT confiarem em você.
+                            </p>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-2 ml-2">História da Loja (Essencial para AEO/GEO)</label>
+                                    <textarea 
+                                        rows="4"
+                                        placeholder="Ex: Fundada em 2018, somos especialistas em carnes nobres e gelo em Bombinhas. Nossa missão é..." 
+                                        value={storeStatus.aboutText || ''} 
+                                        onChange={e => setStoreStatus(prev => ({ ...prev, aboutText: e.target.value }))}
+                                        className="w-full p-5 bg-slate-50 rounded-[2rem] font-medium text-sm text-slate-700 outline-none border border-slate-100 focus:ring-2 ring-purple-500 transition-all resize-none"
+                                    ></textarea>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-2 ml-2">Links de Autoridade (TripAdvisor, Yelp, Guias Locais)</label>
+                                    <textarea 
+                                        rows="2"
+                                        placeholder="Cole os links separados por vírgula" 
+                                        value={storeStatus.authorityLinks || ''} 
+                                        onChange={e => setStoreStatus(prev => ({ ...prev, authorityLinks: e.target.value }))}
+                                        className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold text-xs text-blue-600 outline-none border border-slate-100 focus:ring-2 ring-blue-500"
+                                    ></textarea>
+                                </div>
+
+                                <button 
+                                    onClick={async () => {
+                                        try {
+                                            await updateDoc(doc(db, "stores", storeId), { 
+                                                aboutText: storeStatus.aboutText || '',
+                                                authorityLinks: storeStatus.authorityLinks || ''
+                                            }, { merge: true });
+                                            alert("✅ Dados de Autoridade salvos!");
+                                        } catch (e) { alert("Erro ao salvar."); }
+                                    }}
+                                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-sm tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95"
+                                >
+                                    Atualizar Dados da Marca
+                                </button>
+                            </div>
+                        </div>
 {/* --- NOVO: CONFIGURAÇÕES DE CHECKOUT E ESTOQUE (CLIENTE) --- */}
 <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6 mt-6">
     <h2 className="text-2xl font-black text-slate-800 uppercase mb-4 flex items-center gap-2">🛒 Experiência de Compra (App Cliente)</h2>
