@@ -5,6 +5,7 @@ import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, w
 import { ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SEO from '../components/SEO';
+import VeloProductVideo from '../components/VeloProductVideo';
 import { Carousel } from 'react-responsive-carousel';
 import useSmartRetention from '../hooks/useSmartRetention';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
@@ -2864,16 +2865,24 @@ if (window.fbq) {
                         return (
                             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    <img 
-                                        src={optimizeCloudinary(p.imageUrl, 300)} 
-                                        alt={p.name} 
-                                        width="150" 
-                                        height="150" 
-                                        loading={index < 4 ? "eager" : "lazy"} 
-                                        fetchpriority={index < 4 ? "high" : "auto"} 
-                                        decoding={index < 4 ? "sync" : "async"} 
-                                        className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
-                                    />
+                                    {p.videoUrl ? (
+                                        <VeloProductVideo 
+                                            videoUrl={p.videoUrl} 
+                                            thumbnailUrl={optimizeCloudinary(p.imageUrl, 300)} 
+                                            altText={p.name} 
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={optimizeCloudinary(p.imageUrl, 300)} 
+                                            alt={p.name} 
+                                            width="150" 
+                                            height="150" 
+                                            loading={index < 4 ? "eager" : "lazy"} 
+                                            fetchpriority={index < 4 ? "high" : "auto"} 
+                                            decoding={index < 4 ? "sync" : "async"} 
+                                            className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                        />
+                                    )}
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                     {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                     {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -3648,8 +3657,18 @@ if (window.fbq) {
                   </button>
               </div>
 
+              {/* CÓDIGO NOVO: VÍDEO NO MODAL DE DETALHES */}
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
-                <img src={selectedProduct.imageUrl} alt={selectedProduct.name} width="400" height="400" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                {selectedProduct.videoUrl ? (
+                    <VeloProductVideo 
+                        videoUrl={selectedProduct.videoUrl} 
+                        thumbnailUrl={selectedProduct.imageUrl} 
+                        altText={selectedProduct.name} 
+                    />
+                ) : (
+                    <img src={selectedProduct.imageUrl} alt={selectedProduct.name} width="400" height="400" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                )}
+                {/* Mantém os botões e badges originais aqui abaixo */}
                 {selectedProduct.hasDiscount && selectedProduct.discountPercentage && (
                   <span className="absolute bottom-4 left-4 bg-red-500 text-white text-xs font-black px-3 py-1 rounded-xl shadow-lg z-10">
                     -{selectedProduct.discountPercentage}% OFF

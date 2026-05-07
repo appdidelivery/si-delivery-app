@@ -1158,6 +1158,7 @@ export default function Admin() {
     // Uploads
     const [imageFile, setImageFile] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [uploadingVideo, setUploadingVideo] = useState(false);
     const [uploadError, setUploadError] = useState('');
 
     // 🚨 TRAVA DO PAINEL: Verifica o histórico real de faturas para ver se há inadimplência
@@ -1633,7 +1634,22 @@ const handleGenerateProductCopy = async () => {
 
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
-        
+        // FUNÇÃO NOVA: UPLOAD DE VÍDEO DIRETO
+    const handleProductVideoUpload = async (file) => {
+        if (!file) return;
+        setUploadingVideo(true);
+        try {
+            // Reutiliza sua lógica de Cloudinary (que já aceita vídeo via /auto/upload)
+            const url = await uploadImageToCloudinary(file);
+            setForm(prev => ({ ...prev, videoUrl: url }));
+            alert("Vídeo enviado com sucesso!");
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao subir vídeo. Tente um arquivo menor (até 10MB).");
+        } finally {
+            setUploadingVideo(false);
+        }
+    };
         // NOVO: Validação de formato
         const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
         if (!validTypes.includes(imageFile.type)) {
@@ -9192,7 +9208,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <p className="text-[10px] text-slate-400 font-medium">PNG ou JPG (Evite .webp ou .svg)</p>
                                     </label>
                                     
-                                    {/* DICA DE FOTO PARA SEO E CONVERSÃO */}
+                                    {/* BLOCO DE DICA E UPLOADS */}
                                     <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex gap-3">
                                         <div className="bg-emerald-500 text-white p-2 rounded-xl h-fit">
                                             <ImageIcon size={18} />
@@ -9200,29 +9216,52 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div>
                                             <p className="text-[11px] text-emerald-800 font-black uppercase tracking-wider mb-1">Dica de Especialista:</p>
                                             <p className="text-[11px] text-emerald-700 leading-tight">
-                                                <b>Fotos originais (tiradas na loja)</b> valem mais que fotos da internet. 
-                                                O Google prioriza imagens reais! <br/>
-                                                <span className="italic opacity-80 text-[10px]">Dica: Renomeie o arquivo para <b>{form.name ? form.name.toLowerCase().replace(/\s+/g, '-') : 'nome-do-produto'}.jpg</b> antes de subir.</span>
+                                                <b>Fotos originais</b> valem mais que fotos da internet. O Google prioriza imagens reais!
                                             </p>
                                         </div>
                                     </div>
 
-                                    {imageFile && (<button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload'}</button>)}
-                                </div>
+                                    {/* UPLOAD DE IMAGEM */}
+                                    <div className="space-y-3 pt-4">
+                                        <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
+                                        <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 transition-all">
+                                            {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                        </label>
+                                        {imageFile && (<button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>{uploading ? 'Enviando...' : 'Confirmar Upload Foto'}</button>)}
+                                    </div>
+
+                                    {/* UPLOAD DE VÍDEO (BOTÃO DIRETO) */}
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <label className="text-xs font-black text-blue-600 uppercase tracking-widest ml-2 flex items-center gap-2 mb-3">
+                                            🎥 Vídeo do Produto (Estilo Reels)
+                                        </label>
+                                        
+                                        {form.videoUrl && (
+                                            <div className="relative rounded-2xl overflow-hidden border-2 border-blue-100 aspect-square w-32 mx-auto bg-slate-900 mb-3">
+                                                <video src={form.videoUrl} muted className="w-full h-full object-cover opacity-60" />
+                                                <button type="button" onClick={() => setForm({ ...form, videoUrl: '' })} className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 text-white font-black text-[10px] uppercase hover:bg-red-600/80 transition-all">
+                                                    <Trash2 size={16} /> <br/>Remover
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <input type="file" accept="video/*" onChange={(e) => handleProductVideoUpload(e.target.files[0])} className="hidden" id="product-video-upload" />
+                                        <label htmlFor="product-video-upload" className={`w-full p-6 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold cursor-pointer border-2 border-dashed transition-all ${uploadingVideo ? 'bg-blue-50 border-blue-400 text-blue-400' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'}`}>
+                                            {uploadingVideo ? <><Loader2 className="animate-spin" size={24} /> Enviando Vídeo...</> : <><UploadCloud size={24} /> {form.videoUrl ? 'Trocar Vídeo' : 'Subir Vídeo (MP4)'}</>}
+                                        </label>
+                                    </div>
+                                </div> {/* FECHA O space-y-6 do modal */}
+
                                 <label className={`flex items-center justify-between p-6 rounded-3xl border-2 mb-4 cursor-pointer transition-all ${form.isActive ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200 opacity-70'}`}>
-    <div className="flex flex-col">
-        <span className={`font-black uppercase text-sm ${form.isActive ? 'text-green-700' : 'text-slate-500'}`}>
-            {form.isActive ? '✅ Produto Visível na Loja' : '🚫 Produto Oculto (Pausado)'}
-        </span>
-        <span className="text-xs font-bold text-slate-400 mt-1">Quando oculto, o item não aparece para o cliente comprar.</span>
-    </div>
-    <input 
-        type="checkbox" 
-        checked={form.isActive} 
-        onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-        className="w-8 h-8 accent-green-600 cursor-pointer"
-    />
-</label>
+                                    <div className="flex flex-col">
+                                        <span className={`font-black uppercase text-sm ${form.isActive ? 'text-green-700' : 'text-slate-500'}`}>
+                                            {form.isActive ? '✅ Produto Visível na Loja' : '🚫 Produto Oculto (Pausado)'}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-400 mt-1">Quando oculto, o item não aparece para o cliente.</span>
+                                    </div>
+                                    <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="w-8 h-8 accent-green-600 cursor-pointer" />
+                                </label>
+                                
                                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
                            </form>
                         </motion.div>
