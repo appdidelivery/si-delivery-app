@@ -104,12 +104,12 @@ const mockPartners = [
     id: 11,
     name: 'Embalagens Original',
     category: 'Embalagens',
-    description: 'Loja virtual especializada em embalagens plásticas, de isopor e descartáveis para doces, bolos, salgados e assados.',
+    description: 'Loja virtual especializada em embalagens plásticas, de isopor e descartáveis para doces, bolos, salgados e assados. A QUALIDADE FAZ A DIFERENÇA.',
     imageUrl: '/embalagensoriginal-logo.png',
     whatsapp: '5511940097091',
     website: 'https://www.embalagensoriginal.com.br/',
     badge: 'Novo Parceiro',
-    discount: 'Desconto exclusivo Velo Delivery'
+    discount: '10% off prmeira compra, use o cupom: VELO10 - Desconto exclusivo Velo Delivery'
   },
   {
     id: 12,
