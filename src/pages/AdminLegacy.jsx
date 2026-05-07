@@ -1801,13 +1801,12 @@ const handleGenerateProductCopy = async () => {
         currentFaq[index] = { ...currentFaq[index], [field]: value };
         setStoreStatus(prev => ({ ...prev, faq: currentFaq }));
     };
-
+// --- MOTOR DE IA DO FAQ ---
     const [isGeneratingFaq, setIsGeneratingFaq] = useState(false);
 
     const handleGenerateFaqIA = async () => {
         setIsGeneratingFaq(true);
         try {
-            // Tenta bater na API de IA (Padrão Velo)
             const response = await fetch('/api/generate-faq-copy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1821,25 +1820,108 @@ const handleGenerateProductCopy = async () => {
             
             if (response.ok && data.success && data.faqList) {
                 const currentFaq = storeStatus.faq || [];
-                setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, ...data.faqList] }));
+                // Filtra as perguntas da API para evitar cópias exatas do que já está na tela
+                const newUniqueFaqs = data.faqList.filter(apiFaq => 
+                    !currentFaq.some(existing => existing.question.trim().toLowerCase() === apiFaq.question.trim().toLowerCase())
+                );
+                
+                if(newUniqueFaqs.length === 0) {
+                    setIsGeneratingFaq(false);
+                    return alert("Não há novas perguntas a sugerir no momento.");
+                }
+                
+                setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, ...newUniqueFaqs] }));
                 alert("✨ Perguntas geradas com sucesso! Revise e clique em 'Salvar Lista de FAQ'.");
             } else {
                 throw new Error("API Indisponível");
             }
         } catch (error) {
-            // Fallback Inteligente: Se a rota de API não existir, injeta perguntas padrão ricas baseadas no estado local
+            // Fallback Inteligente Anti-Duplicação
             const nomeCategoria = categories[0]?.name || 'nossos destaques';
-            const fallbackFaq = [
-                { question: `Quais são os itens mais vendidos na ${storeStatus.name}?`, answer: `Nossos clientes adoram pedir as opções da categoria de ${nomeCategoria}. Verifique a seção de Mais Vendidos no nosso cardápio!` },
-                { question: `Como funciona o programa de fidelidade VIP?`, answer: `É muito simples! A cada pedido concluído, você acumula pontos na sua carteira digital que podem ser trocados por brindes e descontos exclusivos.` }
-            ];
             const currentFaq = storeStatus.faq || [];
-            setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, ...fallbackFaq] }));
-            alert("✨ Perguntas sugeridas adicionadas! Revise e salve.");
+            
+            // Banco de Ideias da IA local
+            const allFallbacks = [
+                { question: `Quais são os itens mais vendidos na ${storeStatus.name}?`, answer: `Nossos clientes adoram pedir as opções da categoria de ${nomeCategoria}. Verifique a seção de Mais Vendidos no nosso cardápio!` },
+                { question: `Como funciona o programa de fidelidade VIP?`, answer: `É muito simples! A cada pedido concluído, você acumula pontos na sua carteira digital que podem ser trocados por descontos em novos pedidos.` },
+                { question: `Como posso acompanhar a entrega do meu pedido?`, answer: `Assim que finalizar a compra, você receberá um link de rastreio no seu WhatsApp e poderá acompanhar o status em tempo real.` },
+                { question: `Vocês trabalham com reservas para eventos ou grandes pedidos?`, answer: `Sim! Para grandes volumes, por favor, chame nossa equipe no WhatsApp com antecedência para prepararmos o seu pedido da melhor forma.` },
+                { question: `Posso alterar ou cancelar um pedido após concluído?`, answer: `Caso precise alterar algo, entre em contato imediatamente pelo nosso WhatsApp informando o número do pedido. Se o pedido já estiver a caminho (em rota), o cancelamento não será possível.` }
+            ];
+
+            // Retira do Banco de Ideias o que o lojista já tem adicionado
+            const availableFallbacks = allFallbacks.filter(fb => 
+                !currentFaq.some(existing => existing.question.trim().toLowerCase() === fb.question.trim().toLowerCase())
+            );
+
+            if (availableFallbacks.length === 0) {
+                alert("A IA já sugeriu todas as perguntas possíveis. Tente criar opções manuais.");
+                setIsGeneratingFaq(false);
+                return;
+            }
+
+            // Sorteia até 2 perguntas do bolo restante
+            const shuffled = availableFallbacks.sort(() => 0.5 - Math.random());
+            const newFaqs = shuffled.slice(0, 2);
+
+            setStoreStatus(prev => ({ ...prev, faq: [...currentFaq, ...newFaqs] }));
+            alert("✨ Novas perguntas sugeridas adicionadas ao final da lista! Abra-as, revise e salve.");
         } finally {
             setIsGeneratingFaq(false);
         }
     };
+
+    {(!storeStatus.faq || storeStatus.faq.length === 0) ? (
+                                <div className="text-center p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
+                                    <p className="text-slate-500 font-bold text-sm">Nenhuma pergunta cadastrada. Clique no botão acima para começar.</p>
+                                </div>
+                            ) : (
+                                storeStatus.faq.map((item, index) => (
+                                    <details key={index} open={!item.question} className="group bg-slate-50 rounded-[1.5rem] border border-slate-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden relative transition-all hover:border-blue-300 shadow-sm">
+                                        <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer pr-16 bg-white">
+                                            <div className="flex items-center gap-3 truncate">
+                                                <MessageSquare size={16} className="text-blue-500 flex-shrink-0" />
+                                                <span className="truncate text-sm font-black">{item.question || "Nova Pergunta (Clique para editar)"}</span>
+                                            </div>
+                                            <span className="transition duration-300 group-open:rotate-180 text-slate-400 flex-shrink-0">
+                                                <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                                            </span>
+                                        </summary>
+                                        
+                                        <button 
+                                            type="button"
+                                            onClick={(e) => { e.preventDefault(); handleRemoveFaq(index); }} 
+                                            className="absolute top-3.5 right-12 p-1.5 bg-red-50 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all z-10"
+                                            title="Remover Pergunta"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+
+                                        <div className="p-5 border-t border-slate-100 space-y-4 bg-slate-50">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Pergunta do Cliente</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ex: Vocês entregam em feriados?" 
+                                                    value={item.question} 
+                                                    onChange={e => handleUpdateFaq(index, 'question', e.target.value)} 
+                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-blue-500 border border-slate-100 shadow-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Sua Resposta</label>
+                                                <textarea 
+                                                    rows="2"
+                                                    placeholder="Ex: Sim, funcionamos normalmente em todos os feriados..." 
+                                                    value={item.answer} 
+                                                    onChange={e => handleUpdateFaq(index, 'answer', e.target.value)} 
+                                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm text-slate-700 outline-none focus:ring-2 ring-blue-500 border border-slate-100 shadow-sm resize-y"
+                                                ></textarea>
+                                            </div>
+                                        </div>
+                                    </details>
+                                ))
+                            )}
 
     const handleSaveDeliveryZones = async () => {
         try {
@@ -7695,16 +7777,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             ) : (
                                 storeStatus.faq.map((item, index) => (
-                                    <div key={index} className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative group transition-all hover:border-blue-300">
+                                    <details key={index} open={!item.question ? true : undefined} className="group bg-slate-50 rounded-[1.5rem] border border-slate-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden relative transition-all hover:border-blue-300 shadow-sm mb-4">
+                                        <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer pr-16 bg-white">
+                                            <div className="flex items-center gap-3 truncate">
+                                                <MessageSquare size={16} className="text-blue-500 flex-shrink-0" />
+                                                <span className="truncate text-sm font-black">{item.question || "Nova Pergunta (Clique para editar)"}</span>
+                                            </div>
+                                            <span className="transition duration-300 group-open:rotate-180 text-slate-400 flex-shrink-0">
+                                                <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                                            </span>
+                                        </summary>
+                                        
                                         <button 
                                             type="button"
-                                            onClick={() => handleRemoveFaq(index)} 
-                                            className="absolute top-4 right-4 p-2 bg-red-100 text-red-500 hover:text-red-700 hover:bg-red-200 rounded-xl transition-all"
+                                            onClick={(e) => { e.preventDefault(); handleRemoveFaq(index); }} 
+                                            className="absolute top-3.5 right-4 p-1.5 bg-red-50 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all z-10"
+                                            title="Remover Pergunta"
                                         >
                                             <Trash2 size={16} />
                                         </button>
-                                        
-                                        <div className="space-y-4 pr-10">
+
+                                        <div className="p-5 border-t border-slate-100 space-y-4 bg-slate-50">
                                             <div>
                                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Pergunta do Cliente</label>
                                                 <input 
@@ -7726,7 +7819,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 ></textarea>
                                             </div>
                                         </div>
-                                    </div>
+                                    </details>
                                 ))
                             )}
 
