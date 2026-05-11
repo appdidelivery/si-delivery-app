@@ -3159,28 +3159,29 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- MODO BYPASS (Ignora erro de cota se o ID for manual) ---
+            // --- MODO BYPASS COM EXTRATOR INTELIGENTE ---
             let parentName = '';
             const locationIdTrim = locationId.trim();
 
-            if (locationIdTrim.includes('accounts/') && locationIdTrim.includes('/locations/')) {
-                // Se você colou o caminho completo, ele usa direto e não gasta cota
-                parentName = locationIdTrim;
+            // Sugador Regex: Pega rigorosamente apenas o padrão "accounts/123/locations/456", ignorando links ou lixo em volta
+            const regexMatch = locationIdTrim.match(/accounts\/\d+\/locations\/\d+/);
+
+            if (regexMatch) {
+                parentName = regexMatch[0];
             } else {
-                // Tenta buscar automaticamente (vai cair no erro 429 se a cota for zero)
                 const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
                     headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
                 });
 
                 if (accountsRes.status === 429) {
                     return res.status(400).json({ 
-                        error: 'Cota do Google Excedida. Vá em Integrações e no campo "ID do Local" cole o caminho completo: accounts/SEU_ID_CONTA/locations/ID_DA_LOJA' 
+                        error: 'Cota do Google Excedida. Cole o caminho exato no painel.' 
                     });
                 }
 
                 const accountsData = await accountsRes.json();
                 if (accountsRes.ok && accountsData.accounts?.length > 0) {
-                    const cleanLoc = locationIdTrim.split('/').pop();
+                    const cleanLoc = locationIdTrim.replace(/\D/g, ''); // Força pegar apenas números caso venha sujo
                     parentName = `${accountsData.accounts[0].name}/locations/${cleanLoc}`;
                 } else {
                     return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada.' });
