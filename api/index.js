@@ -3159,26 +3159,27 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- MODO DINÂMICO (Busca o Account ID na API v4 Clássica - Única com cota liberada) ---
+            // --- MODO DINÂMICO OFICIAL (Account Management API v1) ---
             let cleanLocation = locationId.trim().split('/').pop(); 
             
-            const accountsRes = await fetch('https://mybusiness.googleapis.com/v4/accounts', {
+            // 1. Busca a conta empresarial usando a API oficial moderna
+            const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
                 headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
             });
             
-            const accountsText = await accountsRes.text();
+            const responseText = await accountsRes.text();
             let accountsData = {};
             
             try {
-                accountsData = JSON.parse(accountsText);
+                accountsData = JSON.parse(responseText);
             } catch (e) {
-                console.error("Erro crítico API Accounts (Recebeu HTML):", accountsText);
-                return res.status(400).json({ error: 'Falha na comunicação. Verifique se ativou a API v4 no Google Cloud.' });
+                console.error("Erro crítico API Accounts (Recebeu HTML):", responseText);
+                return res.status(400).json({ error: 'O Google não retornou os dados corretamente. O Token pode estar inválido.' });
             }
             
             if (!accountsRes.ok || !accountsData.accounts || accountsData.accounts.length === 0) {
                 console.error("Erro de permissão/cota no Google:", accountsData);
-                return res.status(400).json({ error: 'Erro de Cota ou Permissão. O Google bloqueou o acesso às contas deste usuário.' });
+                return res.status(400).json({ error: 'Erro de Cota. O projeto atual não tem limite liberado pelo Google para postar ofertas.' });
             }
 
             const accountName = accountsData.accounts[0].name; 
