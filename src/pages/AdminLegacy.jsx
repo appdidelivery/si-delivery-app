@@ -10523,10 +10523,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 {integrationForm.accessToken ? (
                                                     <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-blue-100">
                                                         <span className="text-xs font-black text-green-600 flex items-center gap-1"><CheckCircle size={14}/> Conectado</span>
-                                                        <button type="button" onClick={async () => {
-                                                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                                                            window.location.href = isLocal ? `/api/google-auth?storeId=${storeId}` : `/api/google-auth?storeId=${storeId}`;
-                                                        }} className="text-[10px] text-blue-600 font-bold uppercase tracking-widest hover:underline">Reconectar</button>
+                                                        <div className="flex gap-3">
+                                                            <button type="button" onClick={async () => {
+                                                                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                                                window.location.href = isLocal ? `/api/google-auth?storeId=${storeId}` : `/api/google-auth?storeId=${storeId}`;
+                                                            }} className="text-[10px] text-blue-600 font-bold uppercase tracking-widest hover:underline">Reconectar</button>
+                                                            
+                                                            <button type="button" onClick={async () => {
+                                                                if(window.confirm("Deseja desconectar o Google Meu Negócio?")) {
+                                                                    await updateDoc(doc(db, "settings", storeId), {
+                                                                        "integrations.google_my_business": null
+                                                                    });
+                                                                    setIntegrationForm({});
+                                                                    alert("Desconectado com sucesso!");
+                                                                }
+                                                            }} className="text-[10px] text-red-500 font-bold uppercase tracking-widest hover:underline">Desconectar</button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <button 

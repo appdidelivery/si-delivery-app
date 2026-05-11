@@ -3198,9 +3198,13 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 media: [{ mediaFormat: 'PHOTO', sourceUrl: imageUrl }]
             };
 
-            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
+            // URL Ajustada para o formato exato da API de Postagens aprovada
+            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName.replace(/\/$/, '')}/localPosts`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}`, 'Content-Type': 'application/json' },
+                headers: { 
+                    'Authorization': `Bearer ${gmbConfig.accessToken}`, 
+                    'Content-Type': 'application/json' 
+                },
                 body: JSON.stringify(googlePayload)
             });
 
