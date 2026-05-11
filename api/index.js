@@ -3197,7 +3197,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 media: [{ mediaFormat: 'PHOTO', sourceUrl: imageUrl }]
             };
 
-            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
+            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4.9/${parentName}/localPosts`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify(googlePayload)
@@ -3336,7 +3336,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             // 3. Monta a Rota Específica da Avaliação
             // A documentação do Google exige que seja um PUT no endpoint /v1/{name}/reply
-            const googleEndpoint = `https://mybusiness.googleapis.com/v4/${googleReviewName}/reply`;
+            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4.9/${parentName}/reviews`, {
 
             // 4. Dispara para o Google
             const googleRes = await fetch(googleEndpoint, {
