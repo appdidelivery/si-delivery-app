@@ -3159,23 +3159,37 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- MODO DINÂMICO (Busca o Account ID real na API antes de atirar) ---
-            let cleanLocation = locationId.trim().split('/').pop(); // Extrai apenas os números finais
+            // --- MODO DINÂMICO (Busca a URL completa do local na API de Informações) ---
+            let cleanLocation = locationId.trim().split('/').pop();
             
-            // 1. Busca a conta empresarial usando a API v4 Clássica (Que não tem o bloqueio de cota zero)
-            const accountsRes = await fetch('https://mybusiness.googleapis.com/v4/accounts', {
+            // 1. Busca os locais na Business Information API (que tem cota liberada)
+            const locationsRes = await fetch('https://mybusinessbusinessinformation.googleapis.com/v1/accounts/-/locations?readMask=name', {
                 headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
             });
-            const accountsData = await accountsRes.json();
             
-            if (!accountsRes.ok || !accountsData.accounts || accountsData.accounts.length === 0) {
-                console.error("Erro ao buscar Account ID:", accountsData);
-                return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada para este login do Google.' });
+            // 🛡️ BLINDAGEM: Lê como texto primeiro para nunca mais dar Crash se o Google devolver HTML
+            const locationsText = await locationsRes.text();
+            let locationsData = {};
+            try {
+                locationsData = JSON.parse(locationsText);
+            } catch (parseError) {
+                console.error("❌ O Google não devolveu um JSON:", locationsText);
+                return res.status(400).json({ error: 'Erro de comunicação com os servidores do Google.' });
+            }
+            
+            if (!locationsRes.ok || !locationsData.locations || locationsData.locations.length === 0) {
+                console.error("Erro ao buscar Locais:", locationsData);
+                return res.status(400).json({ error: 'A conta conectada não tem acesso a nenhum local no Google Meu Negócio.' });
             }
 
-            // 2. Monta o link perfeito exigido pela API v4 (ex: accounts/123/locations/456)
-            const accountName = accountsData.accounts[0].name; 
-            let parentName = `${accountName}/locations/${cleanLocation}`;
+            // 2. Encontra o local exato e pega a rota completa (ex: accounts/123/locations/456)
+            const targetLocation = locationsData.locations.find(loc => loc.name.includes(cleanLocation));
+            
+            if (!targetLocation) {
+                return res.status(400).json({ error: `Você não tem permissão de administrador no Local ID: ${cleanLocation}` });
+            }
+
+            let parentName = targetLocation.name; // A API devolve o caminho pronto e perfeito!
 
             // LIMPA EMOJIS COMPLEXOS QUE TRAVAM O GOOGLE
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
