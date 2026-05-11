@@ -1912,7 +1912,7 @@ if (window.fbq) {
                   return;
 
             } catch (err) {
-                  await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
+                  try { await deleteDoc(newOrderRef); } catch(e) {} // 👻 MATA O PEDIDO FANTASMA
                   alert(`Erro VeloPay: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2008,7 +2008,7 @@ if (window.fbq) {
                   return;
 
               } catch (err) {
-                  await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
+                  try { await deleteDoc(newOrderRef); } catch(e) {} // 👻 MATA O PEDIDO FANTASMA
                   alert(`Erro no Cartão: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2058,7 +2058,7 @@ if (window.fbq) {
                   return;
 
               } catch (err) {
-                  await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
+                  try { await deleteDoc(newOrderRef); } catch(e) {} // 👻 MATA O PEDIDO FANTASMA
                   alert(`Erro ao gerar PIX: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2341,13 +2341,13 @@ if (window.fbq) {
                                       window.location.href = `/track/${orderId}?payment=success`;
                                   } else {
                                       // Falha no pagamento
-                                      if (newOrderRef) await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
+                                      if (newOrderRef) { try { await deleteDoc(newOrderRef); } catch(err){} } // 👻 MATA O PEDIDO FANTASMA
                                       alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + (result.error || result.status_detail));
                                       setIsFinalizing(false);
                                       submitLock.current = false;
                                   }
                               } catch (e) {
-                                  if (newOrderRef) await deleteDoc(newOrderRef); // 👻 MATA O PEDIDO FANTASMA
+                                  if (newOrderRef) { try { await deleteDoc(newOrderRef); } catch(err){} } // 👻 MATA O PEDIDO FANTASMA
                                   alert("Erro de conexão ao processar. Tente novamente.");
                                   setIsFinalizing(false);
                                   submitLock.current = false;
