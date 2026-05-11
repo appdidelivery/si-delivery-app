@@ -1260,10 +1260,14 @@ export default function Admin() {
             if (!initialOrders) {
                 s.docChanges().forEach(async (change) => {
                     if (change.type === "added") {
-                        new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
+                        const newOrderData = { id: change.doc.id, ...change.doc.data() };
+                        
+                        // 🔇 BLINDAGEM SONORA: Só toca o alarme se NÃO for um pedido manual do PDV/Balcão
+                        if (newOrderData.source !== 'manual' && newOrderData.source !== 'manual_pdv') {
+                            new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
+                        }
                         
                         // 🖨️ GATILHO: AUTO IMPRESSÃO "AO RECEBER"
-                        const newOrderData = { id: change.doc.id, ...change.doc.data() };
                         const stSnap = await getDoc(doc(db, "stores", storeId));
                         if (stSnap.exists()) {
                             const autoPrintTrigger = stSnap.data().autoPrintStatus || 'none';
@@ -8798,16 +8802,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                             <button 
                                                 onClick={() => {
-                                                    // BLINDAGEM OAUTH: Se for o Google, ignora o Modal manual e faz o fluxo automático
-                                                    if (app.id === 'google_my_business' && !isConnected) {
-                                                        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                                                        const authUrl = isLocal 
-                                                            ? `http://localhost:3000/api/google-auth?storeId=${storeId}` 
-                                                            : `https://app.velodelivery.com.br/api/google-auth?storeId=${storeId}`;
-                                                        window.location.href = authUrl;
-                                                        return;
-                                                    }
-                                                    
                                                     setSelectedIntegration(app);
                                                     setIntegrationForm(savedData); // Carrega os dados existentes pro input
                                                     setIsIntegrationModalOpen(true);
