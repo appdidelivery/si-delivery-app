@@ -1256,11 +1256,21 @@ export default function Admin() {
 
         // Pedidos
         let initialOrders = true;
-        const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), (s) => {
+        const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), async (s) => {
             if (!initialOrders) {
-                s.docChanges().forEach((change) => {
+                s.docChanges().forEach(async (change) => {
                     if (change.type === "added") {
                         new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
+                        
+                        // 🖨️ GATILHO: AUTO IMPRESSÃO "AO RECEBER"
+                        const newOrderData = { id: change.doc.id, ...change.doc.data() };
+                        const stSnap = await getDoc(doc(db, "stores", storeId));
+                        if (stSnap.exists()) {
+                            const autoPrintTrigger = stSnap.data().autoPrintStatus || 'none';
+                            if (autoPrintTrigger === 'pending' && newOrderData.status === 'pending') {
+                                printLabel(newOrderData);
+                            }
+                        }
                     }
                 });
             }
@@ -2014,8 +2024,13 @@ const handleGenerateProductCopy = async () => {
         }
     };
 
-    const printLabel = (o) => {
+    const printLabel = async (o) => {
         const w = window.open('', '_blank');
+        
+        // 🖨️ BLINDAGEM DE CACHE: Busca os dados reais da loja na hora para evitar nome em branco
+        const stSnap = await getDoc(doc(db, "stores", o.storeId || storeId));
+        const currentStoreStatus = stSnap.exists() ? stSnap.data() : storeStatus;
+
         const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)} un)</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
@@ -2026,7 +2041,7 @@ const handleGenerateProductCopy = async () => {
             <div style="width: 280px; padding: 10px; font-family: sans-serif; border-bottom: ${temCorte ? '2px dashed #000' : 'none'}; padding-bottom: 20px; margin-bottom: 40px;">
                 <center>
                     <small>-- ${titulo} --</small>
-                    <h2>${storeStatus.name || 'DELIVERY'}</h2>
+                    <h2>${currentStoreStatus.name || 'DELIVERY'}</h2>
                     <small>${dataPedido}</small>
                 </center>
                 <hr>
@@ -2050,7 +2065,7 @@ const handleGenerateProductCopy = async () => {
             </div>
         `;
         
-        const printMode = storeStatus.printMode || 'both';
+        const printMode = currentStoreStatus.printMode || 'both';
         const htmlContent = printMode === 'kitchen' 
             ? gerarVia('VIA DA LOJA (COZINHA)', false) 
             : `${gerarVia('VIA DA LOJA', true)}${gerarVia('VIA DO ENTREGADOR', false)}`;
