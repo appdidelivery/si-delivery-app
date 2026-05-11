@@ -1545,6 +1545,11 @@ export default function Home() {
           return[...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit }];
       }
     });
+
+    // 4. QUARTO: GATILHO DA EXPERIÊNCIA DE COMPRA (Direto pro Carrinho)
+    if (storeSettings?.addToCartBehavior === 'redirect') {
+        setShowCheckout(true);
+    }
   };
 
   const updateQuantity = (productId, amount) => {
