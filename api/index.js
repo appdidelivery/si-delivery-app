@@ -3159,9 +3159,23 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- MODO WILD CARD (Ignora lista de contas e atira direto) ---
-            let cleanLocation = locationId.trim().replace('locations/', '');
-            let parentName = `accounts/-/locations/${cleanLocation}`;
+            // --- MODO DINÂMICO (Busca o Account ID real na API antes de atirar) ---
+            let cleanLocation = locationId.trim().split('/').pop(); // Extrai apenas os números finais
+            
+            // 1. Busca a conta empresarial vinculada ao lojista
+            const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+                headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
+            });
+            const accountsData = await accountsRes.json();
+            
+            if (!accountsRes.ok || !accountsData.accounts || accountsData.accounts.length === 0) {
+                console.error("Erro ao buscar Account ID:", accountsData);
+                return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada para este login do Google.' });
+            }
+
+            // 2. Monta o link perfeito exigido pela API v4 (ex: accounts/123/locations/456)
+            const accountName = accountsData.accounts[0].name; 
+            let parentName = `${accountName}/locations/${cleanLocation}`;
 
             // LIMPA EMOJIS COMPLEXOS QUE TRAVAM O GOOGLE
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
