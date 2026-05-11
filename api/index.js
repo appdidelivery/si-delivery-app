@@ -3336,7 +3336,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             // 3. Monta a Rota Específica da Avaliação
             // A documentação do Google exige que seja um PUT no endpoint /v1/{name}/reply
-            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4.9/${parentName}/reviews`, {
+            const googleEndpoint = `https://mybusiness.googleapis.com/v4.9/${googleReviewName}/reply`;
 
             // 4. Dispara para o Google
             const googleRes = await fetch(googleEndpoint, {
