@@ -3162,8 +3162,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
             // --- MODO DINÂMICO (Busca o Account ID real na API antes de atirar) ---
             let cleanLocation = locationId.trim().split('/').pop(); // Extrai apenas os números finais
             
-            // 1. Busca a conta empresarial vinculada ao lojista
-            const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+            // 1. Busca a conta empresarial usando a API v4 Clássica (Que não tem o bloqueio de cota zero)
+            const accountsRes = await fetch('https://mybusiness.googleapis.com/v4/accounts', {
                 headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
             });
             const accountsData = await accountsRes.json();
