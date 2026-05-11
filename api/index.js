@@ -3159,7 +3159,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- MODO DINÂMICO OFICIAL (Account Management API v1) ---
+            // --- MODO DINÂMICO (Account Management API v1) ---
             let cleanLocation = locationId.trim().split('/').pop(); 
             
             // 1. Busca a conta empresarial usando a API oficial moderna
@@ -3167,21 +3167,14 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
             });
             
-            const responseText = await accountsRes.text();
-            let accountsData = {};
-            
-            try {
-                accountsData = JSON.parse(responseText);
-            } catch (e) {
-                console.error("Erro crítico API Accounts (Recebeu HTML):", responseText);
-                return res.status(400).json({ error: 'O Google não retornou os dados corretamente. O Token pode estar inválido.' });
-            }
+            const accountsData = await accountsRes.json();
             
             if (!accountsRes.ok || !accountsData.accounts || accountsData.accounts.length === 0) {
-                console.error("Erro de permissão/cota no Google:", accountsData);
-                return res.status(400).json({ error: 'Erro de Cota. O projeto atual não tem limite liberado pelo Google para postar ofertas.' });
+                console.error("Erro ao buscar Account ID:", accountsData);
+                return res.status(400).json({ error: 'Nenhuma empresa encontrada! Você fez o login com o e-mail que é DONO dessa loja no Google Maps?' });
             }
 
+            // 2. Monta o link perfeito exigido pela API v4 (ex: accounts/123/locations/456)
             const accountName = accountsData.accounts[0].name; 
             let parentName = `${accountName}/locations/${cleanLocation}`;
 
