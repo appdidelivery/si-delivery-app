@@ -10538,14 +10538,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     integrations: { google_my_business: { locationId: integrationForm.locationId } }
                                                                 }, { merge: true });
                                                             }
-                                                            // Dispara o fluxo OAuth do backend
-                                                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                                                            window.location.href = isLocal ? `/api/google-auth?storeId=${storeId}` : `/api/google-auth?storeId=${storeId}`;
-                                                        }}
-                                                        className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95"
-                                                    >
-                                                        Fazer Login com o Google
-                                                    </button>
+                                                            // Dispara o fluxo OAuth do backend centralizado
+                                                                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                                                            const authUrl = isLocal 
+                                                                                ? `http://localhost:3000/api/google-auth?storeId=${storeId}` 
+                                                                                : `https://app.velodelivery.com.br/api/google-auth?storeId=${storeId}`;
+                                                                            window.location.href = authUrl;
+                                                                        }}
+                                                                        className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95"
+                                                                    >
+                                                                        Fazer Login com o Google
+                                                                    </button>
                                                 )}
                                                 <p className="text-[10px] text-blue-600/70 font-bold leading-tight">Obrigatório. O Google gerará seu Token automaticamente após o login.</p>
                                             </div>
