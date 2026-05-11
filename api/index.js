@@ -3412,7 +3412,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     let parentName = `accounts/-/locations/${cleanLocation}`;
 
                     // 3. Busca Avaliações
-                    const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/reviews`, {
+                    const googleRes = await fetch(`https://mybusiness.googleapis.com/v4.9/${parentName}/reviews`, {
                         headers: { 'Authorization': `Bearer ${activeToken}` }
                     });
 
