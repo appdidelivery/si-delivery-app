@@ -3159,24 +3159,33 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
             }
 
-            // --- MODO DINÂMICO (Account Management API v1) ---
-            let cleanLocation = locationId.trim().split('/').pop(); 
-            
-            // 1. Busca a conta empresarial usando a API oficial moderna
-            const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-                headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
-            });
-            
-            const accountsData = await accountsRes.json();
-            
-            if (!accountsRes.ok || !accountsData.accounts || accountsData.accounts.length === 0) {
-                console.error("Erro ao buscar Account ID:", accountsData);
-                return res.status(400).json({ error: 'Nenhuma empresa encontrada! Você fez o login com o e-mail que é DONO dessa loja no Google Maps?' });
-            }
+            // --- MODO BYPASS (Ignora erro de cota se o ID for manual) ---
+            let parentName = '';
+            const locationIdTrim = locationId.trim();
 
-            // 2. Monta o link perfeito exigido pela API v4 (ex: accounts/123/locations/456)
-            const accountName = accountsData.accounts[0].name; 
-            let parentName = `${accountName}/locations/${cleanLocation}`;
+            if (locationIdTrim.includes('accounts/') && locationIdTrim.includes('/locations/')) {
+                // Se você colou o caminho completo, ele usa direto e não gasta cota
+                parentName = locationIdTrim;
+            } else {
+                // Tenta buscar automaticamente (vai cair no erro 429 se a cota for zero)
+                const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+                    headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
+                });
+
+                if (accountsRes.status === 429) {
+                    return res.status(400).json({ 
+                        error: 'Cota do Google Excedida. Vá em Integrações e no campo "ID do Local" cole o caminho completo: accounts/SEU_ID_CONTA/locations/ID_DA_LOJA' 
+                    });
+                }
+
+                const accountsData = await accountsRes.json();
+                if (accountsRes.ok && accountsData.accounts?.length > 0) {
+                    const cleanLoc = locationIdTrim.split('/').pop();
+                    parentName = `${accountsData.accounts[0].name}/locations/${cleanLoc}`;
+                } else {
+                    return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada.' });
+                }
+            }
 
             // LIMPA EMOJIS COMPLEXOS QUE TRAVAM O GOOGLE
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
