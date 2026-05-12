@@ -440,7 +440,8 @@ export default function Home() {
       };
       addToCart(itemToAdd, 1);
       setSelectedProduct(null); 
-      window.history.pushState(null, '', '/');
+      window.history.pushState(null, '', '/'); // Limpa a URL silenciosamente sem perder o carrinho
+      setShowCheckout(true); // Abre o Checkout imediatamente!
   };
 
   const [products, setProducts] = useState([]);
@@ -2137,19 +2138,19 @@ if (window.fbq) {
 
   useEffect(() => {
       if (productSlug && products.length > 0 && !selectedProduct) {
-          // BLINDAGEM: Se a URL real já não tem mais '/p/', aborta o loop!
+          // BLINDAGEM MESTRA: Se o cliente clicou no X ou em Adicionar, a URL já foi limpa. Aborta o loop!
           if (!window.location.pathname.includes('/p/')) return;
 
           const productFromUrl = products.find(p => generateSlug(p.name) === productSlug);
           if (productFromUrl) {
-              setSelectedProduct(productFromUrl); // CORREÇÃO: Abre o modal!
+              setSelectedProduct(productFromUrl); // Abre o modal
               setSelectedOptions({});
               setItemObservation('');
           } else {
-              navigate('/', { replace: true });
+              window.history.pushState(null, '', '/');
           }
       }
-  },[selectedProduct?.id, productSlug, products, navigate]);
+  }, [selectedProduct?.id, productSlug, products]);
 
   // --- INÍCIO: IA DE MENU DE ENGENHARIA (Personalização de Vitrine) ---
   const favoriteCategory = React.useMemo(() => {
@@ -3688,13 +3689,13 @@ if (window.fbq) {
             >
               <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
                   <button 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handleShare();
-                    }}
+                    onClick={() => {
+                        setSelectedProduct(null);
+                        window.history.pushState(null, '', '/');
+                    }} 
                     className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
                   >
-                    <Share size={20} />
+                    <X size={20} />
                   </button>
                   <button 
                     onClick={() => {
