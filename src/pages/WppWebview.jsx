@@ -445,16 +445,31 @@ export default function WppWebview() {
                 <div className="mb-6">
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Pagamento</label>
                     <div className="grid grid-cols-1 gap-2">
-                        {[
-                            { id: 'velopay_pix', label: '💠 PIX na Hora', show: store?.velopayStatus === 'active' && pmConfig.pix !== false },
-                            { id: 'mercadopago_link', label: '💳 Cartão/Pix Online', show: store?.integrations?.mercadopago?.accessToken && pmConfig.online !== false },
-                            { id: 'cardDelivery', label: '💳 Maquininha na Entrega', show: deliveryMethod === 'delivery' && pmConfig.cardDelivery !== false },
-                            { id: 'dinheiro', label: '💵 Dinheiro', show: pmConfig.cashDelivery !== false }
-                        ].filter(m => m.show).map(pm => (
-                            <button key={pm.id} onClick={() => setCustomer({...customer, payment: pm.id})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === pm.id ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === pm.id ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>
-                                {pm.label}
-                            </button>
-                        ))}
+                        {(() => {
+                            const pmConf = store?.acceptedPayments || {};
+                            let methods = [
+                                { id: 'velopay_pix', label: '💠 PIX na Hora', show: store?.velopayStatus === 'active' && pmConf.pix !== false },
+                                { id: 'mercadopago_link', label: '💳 Cartão/Pix Online', show: store?.integrations?.mercadopago?.accessToken && pmConf.online !== false },
+                                { id: 'cardDelivery', label: '💳 Maquininha na Entrega', show: deliveryMethod === 'delivery' && pmConf.cardDelivery !== false },
+                                { id: 'dinheiro', label: '💵 Dinheiro', show: pmConf.cashDelivery !== false },
+                                { id: 'cardPickup', label: '💳 Cartão na Retirada', show: deliveryMethod === 'pickup' && pmConf.cardPickup !== false },
+                                { id: 'dinheiro', label: '💵 Dinheiro na Retirada', show: deliveryMethod === 'pickup' && pmConf.cashPickup !== false }
+                            ].filter(m => m.show);
+
+                            // Trava de Segurança Mestre: Se o lojista bugar tudo, exibe o padrão
+                            if (methods.length === 0) {
+                                methods = [
+                                    { id: 'cardDelivery', label: '💳 Cartão (Maquininha)' },
+                                    { id: 'dinheiro', label: '💵 Dinheiro' }
+                                ];
+                            }
+
+                            return methods.map(pm => (
+                                <button key={pm.id} onClick={() => setCustomer({...customer, payment: pm.id})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === pm.id ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === pm.id ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>
+                                    {pm.label}
+                                </button>
+                            ));
+                        })()}
                     </div>
                     {customer.payment === 'dinheiro' && <input type="text" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} placeholder="Troco para quanto?" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none mt-3" />}
                 </div>

@@ -1242,41 +1242,44 @@ if (isCashDelivery) acceptedList.push('💵 Dinheiro em Espécie');
 const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consulte as opções de pagamento no fechamento do seu pedido.';
 
                                             const generateMainMenu = () => {
-                                                let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
-                                                if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
-                                                const safeStoreName = (storeName && storeName.trim() !== '') ? storeName : 'Nossa Loja';
-                                                
-                                                const menuRows = [];
-                                                // 🚨 SÓ ADICIONA A OPÇÃO DE PEDIR NO WHATSAPP SE A LOJA TIVER PAGAMENTO ONLINE
-                                                if (hasOnlinePayments) {
-                                                    menuRows.push({ id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos" });
-                                                }
-                                                // Adiciona as opções padrão
-                                                menuRows.push(
-                                                    { id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" },
-                                                    { id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" },
-                                                    { id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" },
-                                                    { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
-                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" }
-                                                );
+    let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
+    if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
+    const safeStoreName = (storeName && storeName.trim() !== '') ? storeName : 'Nossa Loja';
+    
+    const menuRows = [];
+    
+    // Sempre mostra as opções de pedir
+    menuRows.push({ id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos no Zap" });
+    menuRows.push({ id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" });
 
-                                                return {
-                                                    type: "interactive",
-                                                    interactive: {
-                                                       type: "list",
-                                                        header: { type: "text", text: "Menu" },
-                                                        body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
-                                                        footer: { text: "Toque no botão para abrir as opções 👇" },
-                                                        action: {
-                                                            button: "Abrir Menu",
-                                                            sections: [{
-                                                                title: safeStoreName.substring(0, 24), 
-                                                                rows: menuRows
-                                                            }]
-                                                        }
-                                                    }
-                                                };
-                                            };
+    // Inteligência Velo: Oculta botões desnecessários para clientes novos
+    if (lastOrder) {
+        menuRows.push({ id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" });
+        // Exibe status apenas se houver pedido em andamento
+        if (['pending', 'preparing', 'dispatch'].includes(lastOrder.status)) {
+            menuRows.push({ id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" });
+        }
+    }
+
+    menuRows.push(
+        { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
+        { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" }
+    );
+
+    return {
+        type: "interactive",
+        interactive: {
+            type: "list",
+            header: { type: "text", text: "Menu" },
+            body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
+            footer: { text: "Toque no botão para abrir as opções 👇" },
+            action: {
+                button: "Abrir Menu",
+                sections: [{ title: safeStoreName.substring(0, 24), rows: menuRows }]
+            }
+        }
+    };
+};
 
                                             // Helper para tratar o nome do cliente de forma amigável
                                             const firstName = customerName ? customerName.split(' ')[0] : '';
@@ -1338,31 +1341,14 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else if (isOrderWaTrigger) {
-                                                const productsSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).limit(10).get();
-                                                if (productsSnap.empty) {
-                                                    const emptyMsg = `Poxa${nomeOuVazio}, no momento não temos produtos cadastrados para venda direta por aqui. 😔\n\nPor favor, acesse nosso site:\n👉 ${storeDomain}`;
-                                                    replyPayload = { type: "text", text: { body: emptyMsg } };
-                                                    logTextForPanel = `🤖 [Catálogo Vazio para ${firstName || 'Cliente'}]`;
-                                                } else {
-                                                    const productRows = productsSnap.docs.map(doc => {
-                                                        const p = doc.data();
-                                                        const price = p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0);
-                                                        const descFormatada = `R$ ${Number(price).toFixed(2)} - ${p.description ? p.description.substring(0, 40) : 'Adicionar'}`;
-                                                        return { id: `prod_${doc.id}`, title: (p.name || 'Produto').substring(0, 24), description: descFormatada.substring(0, 72) };
-                                                    });
-                                                    replyPayload = {
-                                                        type: "interactive",
-                                                        interactive: {
-                                                            type: "list",
-                                                            header: { type: "text", text: "🛍️ Cardápio Rápido" },
-                                                            body: { text: `${firstName ? `Certo, *${firstName}*! ` : ''}Selecione o produto abaixo.\n\n*Não achou o que queria?*\nÉ só digitar o nome do produto (ex: 'Coca-cola', 'Burger') que eu busco para você!` },
-                                                            footer: { text: "Toque abaixo para ver os destaques" },
-                                                            action: { button: "Ver Destaques", sections: [{ title: "Mais Vendidos", rows: productRows }] }
-                                                        }
-                                                    };
-                                                    logTextForPanel = `🤖 [Enviou Catálogo Nativo WhatsApp para ${firstName || 'Cliente'}]`;
-                                                }
-                                            }
+    // 🔗 GERA O LINK MÁGICO DO SEU WEBVIEW
+    // Envia o cliente para a tela nativa passando a loja e o telefone dele autenticado
+    const webviewUrl = `${storeDomain}/wpp/${storeId}?u=${normalizedPhone}`;
+    const msgLink = `Que ótimo${nomeOuAmigo}! 🤩\n\nPara sua maior comodidade, toque no link abaixo para abrir o nosso cardápio e fazer seu pedido na hora:\n\n👉 ${webviewUrl}`;
+    
+    replyPayload = { type: "text", text: { body: msgLink } };
+    logTextForPanel = `🤖 [Enviou Link do Webview para ${firstName || 'Cliente'}]`;
+}
                                             else if (isProductSelection) {
                                                 const productId = interactivePayload.replace('prod_', '');
                                                 const prodSnap = await db.collection('products').doc(productId).get();
