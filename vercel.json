@@ -87,6 +87,10 @@
       "destination": "/api/sitemap"
     },
     {
+      "source": "/api/velopay/(.*)",
+      "destination": "/api/velopay/$1"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
