@@ -208,10 +208,21 @@ export default function WppWebview() {
       try {
           const orderRef = doc(collection(db, "orders"));
           const oData = {
-              customerName: customer.name, customerAddress: addr, customerPhone: customer.phone,
-              paymentMethod: customer.payment, paymentStatus: 'pending', customerChangeFor: customer.changeFor || "",
-              items: cart, subtotal: cartSub, shippingFee: deliveryMethod === 'pickup' ? 0 : deliveryFee, total: cartTotal,
-              status: 'pending', createdAt: serverTimestamp(), storeId: slug, tipo: deliveryMethod === 'pickup' ? "retirada" : "delivery", source: 'whatsapp_webview'
+              customerName: customer.name, 
+              customerAddress: addr, 
+              customerPhone: customer.phone,
+              paymentMethod: customer.payment, 
+              paymentStatus: 'pending', 
+              customerChangeFor: customer.changeFor || "",
+              items: cart, 
+              subtotal: cartSub, 
+              shippingFee: deliveryMethod === 'pickup' ? 0 : deliveryFee, 
+              total: cartTotal,
+              status: 'pending', 
+              createdAt: serverTimestamp(), 
+              storeId: slug, 
+              tipo: deliveryMethod === 'pickup' ? "retirada" : "delivery", 
+              source: 'whatsapp_bot' // <--- ALTERADO AQUI PARA RECONHECIMENTO NO PAINEL
           };
 
           // Baixa de Estoque Ficha Técnica
