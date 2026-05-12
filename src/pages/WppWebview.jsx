@@ -235,18 +235,47 @@ export default function WppWebview() {
               return window.location.href = `/track/${orderRef.id}?payment=pix_pending`;
           }
 
-          // Mercado Pago Link
+          // Fluxo de Pagamento Online (Mercado Pago Transparente ou Link)
           if (customer.payment === 'mercadopago_link') {
-              const res = await fetch('/api/create-mp-checkout', {
-                  method: 'POST', headers: {'Content-Type':'application/json'},
-                  body: JSON.stringify({ items: cart, storeId: slug, orderId: orderRef.id, customerEmail: 'cliente@app.com', shippingFee: deliveryMethod === 'pickup' ? 0 : deliveryFee, successUrl: `https://${window.location.host}/track/${orderRef.id}?payment=success`, cancelUrl: `https://${window.location.host}/track/${orderRef.id}?payment=cancel` })
-              });
-              const data = await res.json();
-              if (data.url) {
-                  await setDoc(orderRef, oData);
-                  setCart([]); localStorage.removeItem(`veloCart_${slug}`);
-                  return window.location.href = data.url;
-              } else throw new Error(data.error);
+              try {
+                  // Tenta gerar o PIX Transparente primeiro para não tirar o cliente do app
+                  const res = await fetch('/api/processar-pagamento-transparente-velo', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          storeId: slug,
+                          orderId: orderRef.id,
+                          transaction_amount: cartTotal,
+                          payment_method_id: 'pix',
+                          payer: { email: 'cliente@velodelivery.com.br', first_name: customer.name }
+                      })
+                  });
+
+                  const data = await res.json();
+
+                  if (res.ok && data.success) {
+                      // Sucesso no PIX Transparente! Salva o pedido e vai para o rastreio com o código na tela
+                      await setDoc(orderRef, oData);
+                      setCart([]); 
+                      localStorage.removeItem(`veloCart_${slug}`);
+                      return window.location.href = `/track/${orderRef.id}?payment=pix_generated`;
+                  } else {
+                      // Fallback: Se o transparente falhar (falta CPF, etc), usa o link externo como última opção
+                      const fallbackRes = await fetch('/api/create-mp-checkout', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ items: cart, storeId: slug, orderId: orderRef.id, customerEmail: 'cliente@app.com', shippingFee: deliveryMethod === 'pickup' ? 0 : deliveryFee })
+                      });
+                      const fallbackData = await fallbackRes.json();
+                      if (fallbackData.url) {
+                          await setDoc(orderRef, oData);
+                          setCart([]); 
+                          localStorage.removeItem(`veloCart_${slug}`);
+                          return window.location.href = fallbackData.url;
+                      } else throw new Error(fallbackData.error);
+                  }
+              } catch (e) {
+                  throw new Error("Erro ao processar pagamento online. Tente outra forma.");
+              }
           }
       } catch (e) { alert(`Erro: ${e.message}`); submitLock.current = false; setIsSubmitting(false); }
   };
