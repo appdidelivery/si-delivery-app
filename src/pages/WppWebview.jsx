@@ -1,8 +1,11 @@
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { db } from '../services/firebase'; 
-import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ShoppingCart, X, Plus, Minus, Search, ExternalLink } from 'lucide-react';
+import { Carousel } from 'react-responsive-carousel';
+import "react-responsive-carousel/lib/styles/carousel.min.css";
 
 export default function WppWebview() {
   const { slug } = useParams();
@@ -13,7 +16,10 @@ export default function WppWebview() {
   const [store, setStore] = useState(null);
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+      const saved = localStorage.getItem(`veloCart_${slug}`);
+      return saved ? JSON.parse(saved) : [];
+  });
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
   // Filtros
@@ -24,6 +30,7 @@ export default function WppWebview() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [itemObservation, setItemObservation] = useState('');
   const [itemRemoved, setItemRemoved] = useState([]);
+  const [selectedOptions, setSelectedOptions] = useState({}); // NOVO: Guarda os adicionais/complementos
 
   // Dados do Cliente e Logística
   const [customerName, setCustomerName] = useState('');
@@ -35,7 +42,9 @@ export default function WppWebview() {
   const [loadingFreight, setLoadingFreight] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [discount, setDiscount] = useState(0);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   // Lógica de Categorias e Busca
   const categories = ['Todas', ...new Set(menu.map(p => p.category).filter(Boolean))];
@@ -49,6 +58,11 @@ export default function WppWebview() {
   useEffect(() => {
     if (slug) fetchStoreData();
   }, [slug]);
+
+  // Salva o Carrinho no LocalStorage
+  useEffect(() => {
+      localStorage.setItem(`veloCart_${slug}`, JSON.stringify(cart));
+  }, [cart, slug]);
 
   const fetchStoreData = async () => {
     try {
@@ -69,10 +83,21 @@ export default function WppWebview() {
     }
   };
 
-  // Carrinho Inteligente (Gera uma assinatura única se tiver observações diferentes)
-  const addToCart = (product, obs = '', removed = []) => {
-    const priceToUse = product.promotionalPrice > 0 ? product.promotionalPrice : product.price;
-    const signature = `${product.id}-${obs.trim().toLowerCase()}-${removed.sort().join(',')}`;
+  // Carrinho Inteligente (Gera uma assinatura única se tiver observações ou complementos diferentes)
+  const addToCart = (product, obs = '', removed = [], options = {}) => {
+    const basePrice = product.promotionalPrice > 0 ? product.promotionalPrice : product.price;
+    
+    // Calcula o valor dos adicionais
+    let optionsPrice = 0;
+    Object.values(options).forEach(optArray => {
+        optArray.forEach(opt => {
+            optionsPrice += Number(opt.price || 0);
+        });
+    });
+
+    const priceToUse = basePrice + optionsPrice;
+    
+    const signature = `${product.id}-${obs.trim().toLowerCase()}-${removed.sort().join(',')}-${JSON.stringify(options)}`;
     
     setCart((prevCart) => {
       const existingItem = prevCart.find(item => item.signature === signature);
@@ -81,9 +106,25 @@ export default function WppWebview() {
           item.signature === signature ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prevCart, { ...product, price: priceToUse, signature, quantity: 1, observation: obs, removedItems: removed }];
+      return [...prevCart, { ...product, price: priceToUse, signature, quantity: 1, observation: obs, removedItems: removed, selectedOptions: options }];
     });
   };
+
+  const updateQuantity = (signature, amount) => {
+    setCart(prevCart => {
+        return prevCart.map(item => {
+            if (item.signature === signature) {
+                const newQuantity = item.quantity + amount;
+                if (newQuantity <= 0) return null;
+                return { ...item, quantity: newQuantity };
+            }
+            return item;
+        }).filter(item => item !== null);
+    });
+  };
+
+  const removeFromCart = (signature) => setCart(p => p.filter(i => i.signature !== signature));
+
 
   // Calcula o Frete via API da Vercel + Google Maps
   const calculateRealFreight = async (address) => {
@@ -118,12 +159,75 @@ export default function WppWebview() {
     // Simulação de cupom básico. Para produção, você conectará com sua coleção `coupons` do Firebase.
     if (couponCode.toUpperCase() === 'VELO10') {
       setDiscount(10);
+      setAppliedCoupon({ code: 'VELO10', value: 10 });
       alert('Cupom aplicado: R$ 10,00 de desconto!');
     } else {
       alert('Cupom inválido ou expirado.');
       setDiscount(0);
+      setAppliedCoupon(null);
     }
   };
+
+  // Toggle de Complementos
+  const handleOptionToggle = (group, option) => {
+    setSelectedOptions(prev => {
+        const currentGroupSelections = prev[group.id] || [];
+        const isSelected = currentGroupSelections.some(o => o.name === option.name);
+
+        if (isSelected) {
+            // Remove se já estava selecionado
+            return { ...prev, [group.id]: currentGroupSelections.filter(o => o.name !== option.name) };
+        } else {
+            // Adiciona se respeita as regras de Max Selections
+            if (group.maxSelections === 1) {
+                return { ...prev, [group.id]: [option] }; 
+            } else if (currentGroupSelections.length < group.maxSelections) {
+                return { ...prev, [group.id]: [...currentGroupSelections, option] }; 
+            } else {
+                return prev; 
+            }
+        }
+    });
+  };
+
+  const calculateModalTotal = () => {
+    if (!selectedProduct) return 0;
+    let total = Number(selectedProduct.promotionalPrice) > 0 ? Number(selectedProduct.promotionalPrice) : Number(selectedProduct.price);
+    Object.values(selectedOptions).forEach(optionArray => {
+        optionArray.forEach(opt => { total += Number(opt.price || 0); });
+    });
+    return total;
+  };
+
+  // Carrinho Abandonado Otimizado
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+        if (!store || cart.length === 0) return;
+        
+        let cartId = customerPhone || localStorage.getItem('veloVisitorId');
+        if (!cartId) {
+            cartId = Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('veloVisitorId', cartId);
+        }
+
+        try {
+            await setDoc(doc(db, "abandoned_carts", `cart_${slug}_${cartId}`), {
+                storeId: slug,
+                customerName: customerName || "Visitante",
+                customerPhone: customerPhone || "",
+                items: cart,
+                subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
+                lastUpdated: serverTimestamp(),
+                status: 'abandoned'
+            }, { merge: true });
+        } catch (e) {
+            console.error("Erro ao salvar carrinho abandonado:", e);
+        }
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [cart, customerName, customerPhone, slug, store]);
+
 
   // Matemática Financeira Blindada
   const cartSubtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -166,9 +270,7 @@ export default function WppWebview() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-[#1E293B] border-none rounded-2xl py-3 px-11 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
           />
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-4 top-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <Search className="absolute left-4 top-3.5 text-slate-400" size={20} />
         </div>
       </header>
 
@@ -200,6 +302,7 @@ export default function WppWebview() {
                 setSelectedProduct(product);
                 setItemObservation('');
                 setItemRemoved([]);
+                setSelectedOptions({});
               }}
               className="bg-[#1E293B] rounded-[32px] p-3 border border-slate-700/50 flex flex-col h-full shadow-sm relative overflow-hidden cursor-pointer"
             >
@@ -212,9 +315,7 @@ export default function WppWebview() {
                 <button 
                   className="absolute -bottom-2 -right-1 bg-[#F97316] text-white p-2.5 rounded-2xl shadow-xl z-20 border-4 border-[#1E293B] flex items-center justify-center pointer-events-none"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
+                  <Plus size={20} />
                 </button>
               </div>
               <div className="px-1 flex flex-col flex-1">
@@ -230,7 +331,7 @@ export default function WppWebview() {
         </div>
       </main>
 
-      {/* MODAL DE DETALHES DO PRODUTO (Ingredientes, Observações) */}
+      {/* MODAL DE DETALHES DO PRODUTO (Ingredientes, Observações e Complementos) */}
       <AnimatePresence>
         {selectedProduct && (
           <motion.div 
@@ -239,7 +340,7 @@ export default function WppWebview() {
           >
             <div className="absolute top-4 right-4 z-[90]">
                 <button onClick={() => setSelectedProduct(null)} className="p-3 bg-black/50 text-white rounded-full backdrop-blur-md">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+                    <X size={20} />
                 </button>
             </div>
             
@@ -260,6 +361,41 @@ export default function WppWebview() {
                   
                   <div className="bg-white p-5 rounded-[2rem] shadow-xl space-y-6">
                       
+                      {/* COMPLEMENTOS / ADICIONAIS */}
+                      {selectedProduct.complements && selectedProduct.complements.length > 0 && (
+                          <div className="space-y-4">
+                              {selectedProduct.complements.map((group, idx) => (
+                                  <div key={idx} className="border border-slate-200 rounded-2xl overflow-hidden">
+                                      <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
+                                          <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest">{group.name}</h4>
+                                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${group.isRequired ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                              {group.isRequired ? 'Obrigatório' : 'Opcional'} • Máx: {group.maxSelections}
+                                          </span>
+                                      </div>
+                                      <div className="p-2 space-y-1">
+                                          {group.options.map((opt, oIdx) => {
+                                              const isSelected = (selectedOptions[group.id] || []).some(o => o.name === opt.name);
+                                              return (
+                                                  <label key={oIdx} className={`flex justify-between items-center p-3 rounded-xl border transition-all cursor-pointer ${isSelected ? 'border-blue-400 bg-blue-50/50' : 'border-transparent hover:bg-slate-50'}`}>
+                                                      <div className="flex items-center gap-3">
+                                                          <input 
+                                                              type={group.maxSelections === 1 ? 'radio' : 'checkbox'} 
+                                                              checked={isSelected}
+                                                              onChange={() => handleOptionToggle(group, opt)}
+                                                              className="w-4 h-4 accent-blue-600"
+                                                          />
+                                                          <span className={`text-sm font-bold ${isSelected ? 'text-blue-900' : 'text-slate-700'}`}>{opt.name}</span>
+                                                      </div>
+                                                      {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? 'text-blue-600' : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
+                                                  </label>
+                                              );
+                                          })}
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+
                       {/* O QUE PODE SER REMOVIDO? (Puxado do Painel Admin) */}
                       {selectedProduct.removables && selectedProduct.removables.length > 0 && (
                           <div>
@@ -276,7 +412,7 @@ export default function WppWebview() {
                                                 else setItemRemoved(itemRemoved.filter(i => i !== item));
                                             }}
                                           />
-                                          <span className="font-bold text-sm text-slate-700 group-hover:text-slate-900 transition-colors">Remover {item.toLowerCase()}</span>
+                                          <span className={`font-bold text-sm transition-colors ${itemRemoved.includes(item) ? 'text-slate-400 line-through' : 'text-slate-700 group-hover:text-slate-900'}`}>Remover {item.toLowerCase()}</span>
                                       </label>
                                   ))}
                               </div>
@@ -302,17 +438,26 @@ export default function WppWebview() {
                   <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total do Item</p>
                       <p className="text-2xl font-black italic text-[#F97316] leading-none">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedProduct.promotionalPrice > 0 ? selectedProduct.promotionalPrice : selectedProduct.price)}
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculateModalTotal())}
                       </p>
                   </div>
                   <button 
                       onClick={() => {
-                          addToCart(selectedProduct, itemObservation, itemRemoved);
+                          // Trava: Verifica se grupos obrigatórios foram preenchidos
+                          if (selectedProduct.complements) {
+                              for (const group of selectedProduct.complements) {
+                                  if (group.isRequired && (!selectedOptions[group.id] || selectedOptions[group.id].length === 0)) {
+                                      alert(`Por favor, selecione uma opção obrigatória em: ${group.name}`);
+                                      return;
+                                  }
+                              }
+                          }
+                          addToCart(selectedProduct, itemObservation, itemRemoved, selectedOptions);
                           setSelectedProduct(null);
                       }}
                       className="bg-[#FBC02D] hover:bg-[#F9A825] text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-yellow-500/30 transition-all active:scale-95 flex items-center gap-2"
                   >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                      <ShoppingCart size={20} />
                       Adicionar
                   </button>
               </div>
@@ -366,31 +511,56 @@ export default function WppWebview() {
                 <div className="bg-[#1E293B] p-5 rounded-[2rem] mb-6 border border-slate-700/50">
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">Resumo da Sacola</h3>
                     <div className="space-y-4">
-                      {cart.map((item, i) => (
-                        <div key={i} className="flex flex-col border-b border-slate-800/50 pb-3 last:border-0 last:pb-0">
-                            <div className="flex justify-between items-start text-sm">
-                                <span className="text-slate-300 font-bold max-w-[70%] leading-tight">
-                                    <span className="text-[#F97316] font-black mr-2">{item.quantity}x</span> 
-                                    {item.name}
-                                </span>
-                                <span className="font-black text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.quantity)}</span>
+                      {cart.map((item, i) => {
+                          const optionsArr = item.selectedOptions ? Object.values(item.selectedOptions).flat() : [];
+                          return (
+                            <div key={i} className="flex flex-col border-b border-slate-800/50 pb-3 last:border-0 last:pb-0">
+                                <div className="flex justify-between items-start text-sm">
+                                    <span className="text-slate-300 font-bold max-w-[70%] leading-tight">
+                                        <span className="text-[#F97316] font-black mr-2">{item.quantity}x</span> 
+                                        {item.name}
+                                    </span>
+                                    <span className="font-black text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.quantity)}</span>
+                                </div>
+                                
+                                {/* Renderiza Complementos/Adicionais do Carrinho */}
+                                {optionsArr.length > 0 && (
+                                    <div className="mt-1 ml-6 space-y-0.5">
+                                        {optionsArr.map((opt, oIdx) => (
+                                            <p key={oIdx} className="text-[10px] text-slate-400 font-medium">
+                                                + {opt.name} {opt.price > 0 && `(+ R$ ${Number(opt.price).toFixed(2)})`}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Renderiza Remoções */}
+                                {item.removedItems && item.removedItems.length > 0 && (
+                                    <p className="text-[10px] text-red-400 font-bold mt-1 ml-6">
+                                        <span className="bg-red-500/20 px-1 rounded mr-1">S/</span>
+                                        {item.removedItems.join(', ')}
+                                    </p>
+                                )}
+
+                                {/* Renderiza Observações Livres */}
+                                {item.observation && (
+                                    <p className="text-[10px] text-orange-300 font-bold mt-1 ml-6 italic bg-orange-900/30 p-1.5 rounded-lg border border-orange-500/20">
+                                        Obs: {item.observation}
+                                    </p>
+                                )}
+
+                                {/* Controles de Quantidade no Carrinho */}
+                                <div className="flex items-center gap-3 mt-3 ml-6">
+                                    <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+                                        <button onClick={() => updateQuantity(item.signature, -1)} className="p-1 text-slate-400 hover:text-white"><Minus size={14}/></button>
+                                        <span className="text-xs font-black text-white w-6 text-center">{item.quantity}</span>
+                                        <button onClick={() => updateQuantity(item.signature, 1)} className="p-1 text-slate-400 hover:text-white"><Plus size={14}/></button>
+                                    </div>
+                                    <button onClick={() => removeFromCart(item.signature)} className="text-[10px] font-bold text-red-400 hover:text-red-300 underline">Remover</button>
+                                </div>
                             </div>
-                            
-                            {/* Renderiza Remoções */}
-                            {item.removedItems && item.removedItems.length > 0 && (
-                                <p className="text-[10px] text-red-400 font-bold mt-1 ml-6">
-                                    <span className="bg-red-500/20 px-1 rounded mr-1">S/</span>
-                                    {item.removedItems.join(', ')}
-                                </p>
-                            )}
-                            {/* Renderiza Observações Livres */}
-                            {item.observation && (
-                                <p className="text-[10px] text-orange-300 font-bold mt-1 ml-6 italic bg-orange-900/30 p-1.5 rounded-lg border border-orange-500/20">
-                                    Obs: {item.observation}
-                                </p>
-                            )}
-                        </div>
-                      ))}
+                          );
+                      })}
                     </div>
                 </div>
 
@@ -481,7 +651,7 @@ export default function WppWebview() {
                 </div>
               </div>
 
-              {/* BOTÃO FINAL DE PAGAMENTO (BLINDADO) */}
+              {/* BOTÃO FINAL DE PAGAMENTO */}
               <div className="p-4 bg-[#0F172A] border-t border-slate-800 shrink-0">
                   <button 
                     onClick={async () => {
@@ -489,32 +659,50 @@ export default function WppWebview() {
                         alert('Por favor, preencha seu nome e endereço.');
                         return;
                       }
+                      
+                      // Verifica trava de pedido mínimo
+                      if (store?.minOrderValue > 0 && cartSubtotal < store.minOrderValue) {
+                          return alert(`⚠️ O valor mínimo para pedidos é R$ ${store.minOrderValue.toFixed(2)}. Adicione mais itens.`);
+                      }
 
+                      if (submitLock.current) return;
+                      submitLock.current = true;
                       setIsSubmitting(true);
+                      
                       try {
-                        // 1. SALVA O PEDIDO NO FIREBASE (Status: Pendente)
+                        let finalCartName = customerName;
+                        let finalAddress = deliveryMethod === 'pickup' ? 'Retirada no Balcão' : customerAddress;
+                          
                         const orderData = {
                           storeId: slug,
                           customerPhone: customerPhone || 'Não informado',
-                          customerName,
-                          customerAddress: deliveryMethod === 'pickup' ? 'Retirada na Loja' : customerAddress,
+                          customerName: finalCartName,
+                          customerAddress: finalAddress,
                           deliveryMethod,
                           items: cart,
                           subtotal: cartSubtotal,
                           shippingFee: deliveryFee,
                           discountAmount: discount,
                           total: cartTotal,
-                          couponCode: discount > 0 ? couponCode : null,
+                          couponCode: appliedCoupon ? appliedCoupon.code : null,
                           status: 'pending',
                           paymentStatus: 'pending',
-                          paymentMethod: 'velopay_online',
+                          paymentMethod: 'velopay_online', // Pode mudar dependendo de como você gerencia o checkout na Vercel
                           createdAt: serverTimestamp(),
                           source: 'whatsapp_webview'
                         };
                         
+                        // 1. Salva no banco primeiro
                         const orderRef = await addDoc(collection(db, 'orders'), orderData);
+                        
+                        // Limpa o carrinho de abandonados se houver
+                        try {
+                            const vId = localStorage.getItem('veloVisitorId');
+                            if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${slug}_${vId}`));
+                            if(customerPhone) await deleteDoc(doc(db, "abandoned_carts", `cart_${slug}_${customerPhone.replace(/\D/g, '')}`)); 
+                        } catch(e){}
 
-                        // 2. CHAMA O VELOPAY PARA PROCESSAR CARTÃO/PIX PASSANDO O ID DO PEDIDO
+                        // 2. Chama a Vercel para gerar o Pix/Cartão
                         const response = await fetch('/api/velopay/create-mp-preference', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -522,7 +710,7 @@ export default function WppWebview() {
                             cart, 
                             storeId: slug, 
                             orderId: orderRef.id,
-                            customerName,
+                            customerName: finalCartName,
                             customerPhone, 
                             subtotal: cartSubtotal,
                             deliveryFee: deliveryFee,
@@ -533,22 +721,28 @@ export default function WppWebview() {
                         const data = await response.json();
                         
                         if (data.init_point) {
+                          // Limpa carrinho local antes de ir pro MP
+                          setCart([]); 
+                          localStorage.removeItem(`veloCart_${slug}`); 
+                          
                           window.location.href = data.init_point;
                         } else {
                           console.error("Erro MP:", data);
-                          alert('Erro ao gerar pagamento: ' + (data.error || 'Desconhecido. Verifique se o painel Mercado Pago está ativado.'));
+                          alert('Erro ao gerar pagamento: ' + (data.error || 'Desconhecido.'));
+                          submitLock.current = false;
+                          setIsSubmitting(false);
                         }
                       } catch (e) { 
                         console.error('Erro Crítico no Checkout:', e);
                         alert('Ocorreu um erro de comunicação. Tente novamente.'); 
-                      } finally {
+                        submitLock.current = false;
                         setIsSubmitting(false);
                       }
                     }}
                     disabled={isSubmitting || loadingFreight}
                     className="w-full bg-[#3BAFDA] text-white py-5 rounded-[24px] font-black text-lg uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Gerando Pagamento Seguro...' : 'Confirmar Pagamento'}
+                    {isSubmitting ? 'Gerando Pagamento...' : 'Confirmar Pagamento'}
                   </button>
               </div>
             </motion.div>
