@@ -5,97 +5,6 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function WppWebview() {
-  // Substituindo useRouter do Next pelo React Router Dom (Padrão Vite)
-  const { slug } = useParams();
-  const [searchParams] = useSearchParams();
-  const customerPhone = searchParams.get('u');
-
-  const [store, setStore] = useState(null);
-  const [menu, setMenu] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState([]);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('Todas'); 
-  const [searchTerm, setSearchTerm] = useState(''); // <-- NOVO: Estado da pesquisa
-
-  const categories = ['Todas', ...new Set(menu.map(p => p.category).filter(Boolean))];
-
-  // Motor de busca combinado: Categoria + Nome do Produto
-  const filteredMenu = menu.filter(p => {
-    const matchesCategory = selectedCategory === 'Todas' || p.category === selectedCategory;
-    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  // Extrai categorias dinâmicas dos seus produtos do Firebase
-  const categories = ['Todas', ...new Set(menu.map(p => p.category).filter(Boolean))];
-
-  // Filtra os produtos para a exibição na grade
-  const filteredMenu = selectedCategory === 'Todas' 
-    ? menu 
-    : menu.filter(p => p.category === selectedCategory);
-
-  useEffect(() => {
-    if (slug) {
-      fetchStoreData();
-    }
-    if (customerPhone) {
-      console.log("Cliente identificado via WhatsApp:", customerPhone);
-    }
-  }, [slug, customerPhone]);
-
-  const fetchStoreData = async () => {
-    try {
-      const storeRef = doc(db, "stores", slug);
-      const storeSnap = await getDoc(storeRef);
-      
-      if (storeSnap.exists()) {
-        setStore({ id: storeSnap.id, ...storeSnap.data() });
-        
-        // Removemos o filtro de 'active' temporariamente para forçar a exibição
-        const q = query(collection(db, "products"), where("storeId", "==", storeSnap.id));
-        const querySnapshot = await getDocs(q);
-        
-        const fetchedProducts = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log("Produtos encontrados para esta loja:", fetchedProducts.length);
-        console.log("Dados do primeiro produto:", fetchedProducts[0]);
-        
-        // Se a sua base usa um campo diferente para ativo, podemos filtrar no map depois:
-        // const activeProducts = fetchedProducts.filter(p => p.active !== false);
-        setMenu(fetchedProducts);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar cardápio:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addToCart = (product) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find(item => item.id === product.id);
-      if (existingItem) {
-        return prevCart.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prevCart, { ...product, quantity: 1 }];
-    });
-  };
-
-  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-  const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0);
-
-  if (loading) return <div className="h-screen flex items-center justify-center bg-white text-gray-500 text-sm">Carregando cardápio...</div>;
-  if (!store) return <div className="h-screen flex items-center justify-center bg-white text-gray-500 text-sm">Loja não encontrada.</div>;
-
-  import { useParams, useSearchParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { db } from '../services/firebase'; 
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'framer-motion';
-
-export default function WppWebview() {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const customerPhone = searchParams.get('u');
@@ -108,7 +17,7 @@ export default function WppWebview() {
   const [selectedCategory, setSelectedCategory] = useState('Todas'); 
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Lógica de categorias e busca
+  // Lógica de categorias e motor de busca
   const categories = ['Todas', ...new Set(menu.map(p => p.category).filter(Boolean))];
 
   const filteredMenu = menu.filter(p => {
@@ -153,14 +62,14 @@ export default function WppWebview() {
   const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0);
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-500 text-sm italic">Carregando cardápio...</div>;
-  if (!store) return <div className="h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-500 text-sm italic">Loja não encontrada.</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-400 text-sm italic">Carregando Velo Delivery...</div>;
+  if (!store) return <div className="h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-400 text-sm italic">Loja não encontrada.</div>;
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 font-sans transition-colors duration-300">
+      {/* HEADER COM LOGO E PESQUISA */}
       <header className="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-100 dark:border-slate-800 p-4 pb-2">
         <div className="flex items-center gap-3 mb-4">
-          {/* Ajustado para o campo storeLogoUrl encontrado no seu Firebase */}
           {store?.storeLogoUrl || store?.logo || store?.logoUrl ? (
             <img 
               src={store.storeLogoUrl || store.logo || store.logoUrl} 
@@ -195,6 +104,7 @@ export default function WppWebview() {
         </div>
       </header>
 
+      {/* NAVEGAÇÃO DE CATEGORIAS */}
       <nav className="sticky top-[138px] z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-50 dark:border-slate-800 overflow-x-auto flex gap-2 p-4 pt-2 no-scrollbar">
         {categories.map((cat) => (
           <button
@@ -211,6 +121,7 @@ export default function WppWebview() {
         ))}
       </nav>
 
+      {/* GRADE DE PRODUTOS */}
       <main className="p-4 pb-40">
         <div className="grid grid-cols-2 gap-3">
           {filteredMenu.map((product) => (
@@ -226,8 +137,12 @@ export default function WppWebview() {
                   className="w-full h-full rounded-[24px] object-cover shadow-inner bg-slate-200 dark:bg-slate-700"
                 />
                 <button 
-                  onClick={() => addToCart(product)}
-                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all z-20 border-4 border-white dark:border-slate-800"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    addToCart(product);
+                  }}
+                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all z-20 border-4 border-white dark:border-slate-800 flex items-center justify-center"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -247,6 +162,7 @@ export default function WppWebview() {
         </div>
       </main>
 
+      {/* BOTÃO FLUTUANTE DA SACOLA */}
       <AnimatePresence>
         {cartItemCount > 0 && !isCheckoutOpen && (
           <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-10 left-4 right-4 z-50">
@@ -261,6 +177,7 @@ export default function WppWebview() {
         )}
       </AnimatePresence>
 
+      {/* MODAL DE CHECKOUT (BOTTOM SHEET) */}
       <AnimatePresence>
         {isCheckoutOpen && (
           <>
