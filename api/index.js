@@ -1249,44 +1249,43 @@ if (isCashDelivery) acceptedList.push('💵 Dinheiro em Espécie');
 const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consulte as opções de pagamento no fechamento do seu pedido.';
 
                                             const generateMainMenu = () => {
-    let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
-    if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
-    const safeStoreName = (storeName && storeName.trim() !== '') ? storeName : 'Nossa Loja';
-    
-    const menuRows = [];
-    
-    // Sempre mostra as opções de pedir
-    menuRows.push({ id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Ver lista de produtos no Zap" });
-    menuRows.push({ id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" });
+                                                let greetingText = waSettings.botGreeting || "Olá! 👋 Que bom ter você por aqui.";
+                                                if (customerName) greetingText = `Olá, *${customerName}*! Bem-vindo(a) de volta à *${storeName}* 👋`;
+                                                const safeStoreName = (storeName && storeName.trim() !== '') ? storeName : 'Nossa Loja';
+                                                
+                                                const menuRows = [];
+                                                
+                                                // Sempre mostra as opções principais
+                                                menuRows.push({ id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Abrir cardápio no Zap" });
+                                                menuRows.push({ id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" });
 
-    // Inteligência Velo: Oculta botões desnecessários para clientes novos
-    if (lastOrder) {
-        menuRows.push({ id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" });
-        // Exibe status apenas se houver pedido em andamento
-        if (['pending', 'preparing', 'dispatch'].includes(lastOrder.status)) {
-            menuRows.push({ id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" });
-        }
-    }
+                                                // Inteligência Velo: Oculta botões desnecessários para clientes novos
+                                                if (lastOrder) {
+                                                    menuRows.push({ id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" });
+                                                    if (['pending', 'preparing', 'dispatch'].includes(lastOrder.status)) {
+                                                        menuRows.push({ id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" });
+                                                    }
+                                                }
 
-    menuRows.push(
-        { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
-        { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" }
-    );
+                                                menuRows.push(
+                                                    { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
+                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" }
+                                                );
 
-    return {
-        type: "interactive",
-        interactive: {
-            type: "list",
-            header: { type: "text", text: "Menu" },
-            body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
-            footer: { text: "Toque no botão para abrir as opções 👇" },
-            action: {
-                button: "Abrir Menu",
-                sections: [{ title: safeStoreName.substring(0, 24), rows: menuRows }]
-            }
-        }
-    };
-};
+                                                return {
+                                                    type: "interactive",
+                                                    interactive: {
+                                                        type: "list",
+                                                        header: { type: "text", text: "Menu" },
+                                                        body: { text: `${greetingText}\n\nSelecione uma das opções abaixo:` },
+                                                        footer: { text: "Toque no botão para abrir 👇" },
+                                                        action: {
+                                                            button: "Abrir Menu",
+                                                            sections: [{ title: safeStoreName.substring(0, 24), rows: menuRows }]
+                                                        }
+                                                    }
+                                                };
+                                            };
 
                                             // Helper para tratar o nome do cliente de forma amigável
                                             const firstName = customerName ? customerName.split(' ')[0] : '';
@@ -1348,25 +1347,25 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else if (isOrderWaTrigger) {
-                                                        const webviewUrl = `${storeDomain}/wpp/${storeId}?u=${normalizedPhone}`;
-                                                        
-                                                        replyPayload = {
-                                                            type: "interactive",
-                                                            interactive: {
-                                                                type: "cta_url",
-                                                                header: { type: "text", text: "🛍️ Cardápio Online" },
-                                                                body: { text: `Que ótimo${nomeOuAmigo}! 🤩\n\nToque no botão abaixo para abrir nosso cardápio e fazer seu pedido na hora:` },
-                                                                action: {
-                                                                    name: "cta_url",
-                                                                    parameters: {
-                                                                        display_text: "Abrir Cardápio",
-                                                                        url: webviewUrl
-                                                                    }
-                                                                }
-                                                            }
-                                                    };
-                                                    logTextForPanel = `🤖 [Enviou Link do Webview para ${firstName || 'Cliente'}]`;
-                                                }
+                                                const webviewUrl = `${storeDomain}/wpp/${storeId}?u=${normalizedPhone}`;
+                                                
+                                                replyPayload = {
+                                                    type: "interactive",
+                                                    interactive: {
+                                                        type: "cta_url",
+                                                        header: { type: "text", text: "🛍️ Cardápio Online" },
+                                                        body: { text: `Que ótimo${nomeOuAmigo}! 🤩\n\nToque no botão abaixo para abrir nosso cardápio e fazer seu pedido na hora:` },
+                                                        action: {
+                                                            name: "cta_url",
+                                                            parameters: {
+                                                                display_text: "Abrir Cardápio",
+                                                                url: webviewUrl
+                                                            }
+                                                        }
+                                                    }
+                                                };
+                                                logTextForPanel = `🤖 [Enviou Botão CTA Webview para ${firstName || 'Cliente'}]`;
+                                            }
                                             else if (isProductSelection) {
                                                 const productId = interactivePayload.replace('prod_', '');
                                                 const prodSnap = await db.collection('products').doc(productId).get();
