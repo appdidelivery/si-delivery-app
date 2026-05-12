@@ -440,7 +440,7 @@ export default function Home() {
       };
       addToCart(itemToAdd, 1);
       setSelectedProduct(null); 
-      navigate('/', { replace: true });
+      window.history.pushState(null, '', '/');
   };
 
   const [products, setProducts] = useState([]);
@@ -2137,6 +2137,9 @@ if (window.fbq) {
 
   useEffect(() => {
       if (productSlug && products.length > 0 && !selectedProduct) {
+          // BLINDAGEM: Se a URL real já não tem mais '/p/', aborta o loop!
+          if (!window.location.pathname.includes('/p/')) return;
+
           const productFromUrl = products.find(p => generateSlug(p.name) === productSlug);
           if (productFromUrl) {
               setSelectedProduct(productFromUrl); // CORREÇÃO: Abre o modal!
@@ -3672,7 +3675,7 @@ if (window.fbq) {
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
             onClick={() => {
                 setSelectedProduct(null);
-                navigate('/', { replace: true });
+                window.history.pushState(null, '', '/');
             }}
           >
             <motion.div
@@ -3696,7 +3699,7 @@ if (window.fbq) {
                   <button 
                     onClick={() => {
                         setSelectedProduct(null);
-                        navigate('/', { replace: true });
+                        window.history.pushState(null, '', '/');
                     }} 
                     className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
                   >
