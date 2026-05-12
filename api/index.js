@@ -3478,27 +3478,50 @@ Retorne APENAS um JSON com 3 chaves curtas:
         try {
             const activeToken = await getGoogleAuthToken();
 
-            // 1. Pede pro Google listar todos os convites que enviaram para este robô
-            const invitesRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts/-/invitations', {
+            // 1. Descobrir qual é o ID "Pessoal" Oficial do Robô dentro do Google
+            const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
                 headers: { 'Authorization': `Bearer ${activeToken}` }
             });
-            const invitesData = await invitesRes.json();
+            const accountsData = await accountsRes.json();
 
-            if (!invitesData.invitations || invitesData.invitations.length === 0) {
-                return res.status(200).json({ message: "Nenhum convite pendente encontrado para o robô." });
+            if (!accountsData.accounts || accountsData.accounts.length === 0) {
+                return res.status(200).json({ 
+                    error: "O robô ainda não tem um 'Perfil' no Google. Verifique se a My Business Account Management API está ativada no seu GCP." 
+                });
             }
 
             const accepted = [];
-            // 2. O robô "clica" em aceitar para cada convite da lista
-            for (const invite of invitesData.invitations) {
-                const acceptRes = await fetch(`https://mybusinessaccountmanagement.googleapis.com/v1/${invite.name}:accept`, {
-                    method: 'POST',
+            let allInvitesChecked = 0;
+
+            // 2. Olhar a caixa de entrada usando o ID EXATO do robô
+            for (const account of accountsData.accounts) {
+                const invitesRes = await fetch(`https://mybusinessaccountmanagement.googleapis.com/v1/${account.name}/invitations`, {
                     headers: { 'Authorization': `Bearer ${activeToken}` }
                 });
-                
-                if (acceptRes.ok) {
-                    accepted.push(invite.name);
+                const invitesData = await invitesRes.json();
+
+                if (invitesData.invitations && invitesData.invitations.length > 0) {
+                    for (const invite of invitesData.invitations) {
+                        allInvitesChecked++;
+                        // 3. Aceitar o convite!
+                        const acceptRes = await fetch(`https://mybusinessaccountmanagement.googleapis.com/v1/${invite.name}:accept`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${activeToken}` }
+                        });
+                        
+                        if (acceptRes.ok) {
+                            accepted.push(invite.name);
+                        }
+                    }
                 }
+            }
+
+            if (accepted.length === 0) {
+                 return res.status(200).json({ 
+                     message: "Nenhum convite pendente encontrado nas contas do robô.", 
+                     debug_accounts_found: accountsData.accounts.length,
+                     debug_invites_found: allInvitesChecked
+                 });
             }
 
             return res.status(200).json({ 
