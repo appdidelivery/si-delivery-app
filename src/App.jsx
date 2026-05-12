@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import AdminSaaS from './pages/AdminSaaS';
 import DriverPanel from './pages/DriverPanel';
 import InfluencerDashboard from './components/InfluencerDashboard'; // Ou './pages/InfluencerDashboard' dependendo de onde você salvou
+import WppWebview from './pages/WppWebview'; // <-- NOVO: Importação da Webview Slim
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
@@ -137,6 +138,7 @@ function App() {
             <Route path="/" element={<AppRouter />} />
             <Route path="/driver-login" element={<div className="p-10 text-center mt-20 font-bold text-slate-500">Faça login com seu link de Motoboy enviado pelo lojista 🛵...</div>} />
             <Route path="/p/:productSlug" element={<Home />} />
+            <Route path="/wpp/:slug" element={<WppWebview />} /> {/* <-- NOVO: Rota da Webview Slim */}
             <Route path="/track/:orderId" element={<Tracking />} />
             <Route path="/politicas" element={<Policies />} />
             <Route path="/login" element={<Login />} />
