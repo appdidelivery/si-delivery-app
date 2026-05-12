@@ -1348,14 +1348,25 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 logTextForPanel = `🤖 [Link Cardápio] ${menuMsg}`;
                                             } 
                                             else if (isOrderWaTrigger) {
-    // 🔗 GERA O LINK MÁGICO DO SEU WEBVIEW
-    // Envia o cliente para a tela nativa passando a loja e o telefone dele autenticado
-    const webviewUrl = `${storeDomain}/wpp/${storeId}?u=${normalizedPhone}`;
-    const msgLink = `Que ótimo${nomeOuAmigo}! 🤩\n\nPara sua maior comodidade, toque no link abaixo para abrir o nosso cardápio e fazer seu pedido na hora:\n\n👉 ${webviewUrl}`;
-    
-    replyPayload = { type: "text", text: { body: msgLink } };
-    logTextForPanel = `🤖 [Enviou Link do Webview para ${firstName || 'Cliente'}]`;
-}
+                                                        const webviewUrl = `${storeDomain}/wpp/${storeId}?u=${normalizedPhone}`;
+                                                        
+                                                        replyPayload = {
+                                                            type: "interactive",
+                                                            interactive: {
+                                                                type: "cta_url",
+                                                                header: { type: "text", text: "🛍️ Cardápio Online" },
+                                                                body: { text: `Que ótimo${nomeOuAmigo}! 🤩\n\nToque no botão abaixo para abrir nosso cardápio e fazer seu pedido na hora:` },
+                                                                action: {
+                                                                    name: "cta_url",
+                                                                    parameters: {
+                                                                        display_text: "Abrir Cardápio",
+                                                                        url: webviewUrl
+                                                                    }
+                                                                }
+                                                            }
+                                                    };
+                                                    logTextForPanel = `🤖 [Enviou Link do Webview para ${firstName || 'Cliente'}]`;
+                                                }
                                             else if (isProductSelection) {
                                                 const productId = interactivePayload.replace('prod_', '');
                                                 const prodSnap = await db.collection('products').doc(productId).get();
