@@ -3471,6 +3471,48 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
+    // ------------------------------------------------------------------------
+    // 28. ROTA TEMPORÁRIA: FAZER O ROBÔ ACEITAR CONVITES DO GOOGLE
+    // ------------------------------------------------------------------------
+    else if (path === '/api/accept-bot-invites') {
+        try {
+            const activeToken = await getGoogleAuthToken();
+
+            // 1. Pede pro Google listar todos os convites que enviaram para este robô
+            const invitesRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts/-/invitations', {
+                headers: { 'Authorization': `Bearer ${activeToken}` }
+            });
+            const invitesData = await invitesRes.json();
+
+            if (!invitesData.invitations || invitesData.invitations.length === 0) {
+                return res.status(200).json({ message: "Nenhum convite pendente encontrado para o robô." });
+            }
+
+            const accepted = [];
+            // 2. O robô "clica" em aceitar para cada convite da lista
+            for (const invite of invitesData.invitations) {
+                const acceptRes = await fetch(`https://mybusinessaccountmanagement.googleapis.com/v1/${invite.name}:accept`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${activeToken}` }
+                });
+                
+                if (acceptRes.ok) {
+                    accepted.push(invite.name);
+                }
+            }
+
+            return res.status(200).json({ 
+                success: true, 
+                message: "O robô aceitou os convites com sucesso!",
+                accepted_invites: accepted 
+            });
+
+        } catch (error) {
+            console.error('Erro ao aceitar convites:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================
