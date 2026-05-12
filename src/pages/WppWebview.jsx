@@ -59,7 +59,12 @@ export default function WppWebview() {
     });
   };
 
-  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const cartSubtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  
+  // Puxa a taxa de entrega cadastrada no painel do Firebase (padrão 0 se não existir)
+  const deliveryFee = store?.deliveryFee || 0; 
+  const cartTotal = cartSubtotal + deliveryFee;
+  
   const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0);
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-400 text-sm italic">Carregando Velo Delivery...</div>;
@@ -198,6 +203,48 @@ export default function WppWebview() {
                     </div>
                   ))}
                 </div>
+                {/* RESUMO FINANCEIRO (Subtotal + Taxas) */}
+                <div className="border-t border-gray-50 dark:border-slate-800 pt-4 mb-6 space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-200">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 dark:text-slate-400">Taxa de Entrega</span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-200">
+                      {deliveryFee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deliveryFee) : 'Grátis'}
+                    </span>
+                  </div>
+                </div>
+
+               {/* RESUMO FINANCEIRO (Subtotal + Taxas) */}
+                <div className="border-t border-gray-50 dark:border-slate-800 pt-4 mb-6 space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-200">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 dark:text-slate-400">Taxa de Entrega</span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-200">
+                      {deliveryFee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deliveryFee) : 'Grátis'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* RESUMO FINANCEIRO (Subtotal + Taxas) */}
+                <div className="border-t border-gray-50 dark:border-slate-800 pt-4 mb-6 space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-200">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 dark:text-slate-400">Taxa de Entrega</span>
+                    <span className="font-semibold text-gray-800 dark:text-slate-200">
+                      {deliveryFee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deliveryFee) : 'Grátis'}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="flex justify-between items-center mb-8 bg-gray-50 dark:bg-slate-800 p-4 rounded-2xl">
                   <span className="text-xs font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest">Total</span>
                   <span className="text-2xl font-black text-orange-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartTotal)}</span>
@@ -205,14 +252,38 @@ export default function WppWebview() {
                 <button 
                   onClick={async () => {
                     try {
+                      // Trava de segurança: Verifica se a conta do lojista está integrada no banco
+                      if (!store?.mpAccessToken && !store?.stripeConnectId) {
+                        alert('Aviso: Esta loja não possui a conta VeloPay configurada no painel.');
+                        return;
+                      }
+
                       const response = await fetch('/api/velopay/create-mp-preference', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cart, storeId: slug, customerPhone, total: cartTotal })
+                        body: JSON.stringify({ 
+                          cart, 
+                          storeId: slug, 
+                          customerPhone, 
+                          subtotal: cartSubtotal,
+                          deliveryFee: deliveryFee,
+                          total: cartTotal 
+                        })
                       });
+                      
                       const data = await response.json();
-                      if (data.init_point) window.location.href = data.init_point;
-                    } catch (e) { alert('Erro na conexão com Mercado Pago'); }
+                      
+                      if (data.init_point) {
+                        window.location.href = data.init_point;
+                      } else {
+                        // Exibe o erro exato vindo da sua API para facilitar o diagnóstico
+                        console.error('Erro detalhado da API:', data);
+                        alert(`Falha no VeloPay: ${data.error || 'Verifique o log do console.'}`);
+                      }
+                    } catch (e) { 
+                      console.error('Erro crítico de requisição:', e);
+                      alert('Erro na comunicação com o servidor da Vercel.'); 
+                    }
                   }}
                   className="w-full bg-[#009EE3] text-white p-5 rounded-[24px] font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 mb-6"
                 >
