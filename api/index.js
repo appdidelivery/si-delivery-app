@@ -2,8 +2,24 @@ import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
+import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 // Ajuste o caminho se a pasta lib for diferente!
 import { sendWhatsAppNotification } from '../lib/evolution.js';
+
+// Helper global para gerar o token dinâmico da Service Account
+async function getGoogleAuthToken() {
+    if (!process.env.GCP_SERVICE_ACCOUNT) {
+        throw new Error("Chave GCP_SERVICE_ACCOUNT não encontrada nas variáveis de ambiente.");
+    }
+    const credentials = JSON.parse(process.env.GCP_SERVICE_ACCOUNT);
+    const auth = new GoogleAuth({
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/business.manage']
+    });
+    const client = await auth.getClient();
+    const token = await client.getAccessToken();
+    return token.token;
+}
 
 // ============================================================================
 // CONFIGURAÇÃO GLOBAL (NECESSÁRIA PARA O STRIPE WEBHOOK FUNCIONAR)
@@ -3139,7 +3155,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
-    /// ------------------------------------------------------------------------
+   /// ------------------------------------------------------------------------
     // 23. GOOGLE MEU NEGÓCIO: POSTAR OFERTA / ATUALIZAÇÃO
     // ------------------------------------------------------------------------
     else if (path === '/api/post-google-update') {
@@ -3152,11 +3168,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
             }
 
-            const settingsDoc = await db.collection('settings').doc(storeId).get();
-            const gmbConfig = settingsDoc.exists ? settingsDoc.data().integrations?.google_my_business : null;
-
-            if (!gmbConfig || !gmbConfig.accessToken) {
-                return res.status(400).json({ error: 'Token do Google Meu Negócio não configurado.' });
+            // GERA O TOKEN DIRETO DA MÁQUINA (IGNORA O OAUTH DO LOJISTA)
+            let activeToken;
+            try {
+                activeToken = await getGoogleAuthToken();
+            } catch (err) {
+                return res.status(500).json({ error: 'Erro ao gerar token da Conta de Serviço do Google Cloud.' });
             }
 
             // --- MODO BYPASS COM EXTRATOR INTELIGENTE ---
@@ -3170,7 +3187,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 parentName = regexMatch[0];
             } else {
                 const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-                    headers: { 'Authorization': `Bearer ${gmbConfig.accessToken}` }
+                    headers: { 'Authorization': `Bearer ${activeToken}` }
                 });
 
                 if (accountsRes.status === 429) {
@@ -3184,7 +3201,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     const cleanLoc = locationIdTrim.replace(/\D/g, ''); // Força pegar apenas números caso venha sujo
                     parentName = `${accountsData.accounts[0].name}/locations/${cleanLoc}`;
                 } else {
-                    return res.status(400).json({ error: 'Nenhuma conta empresarial encontrada.' });
+                    return res.status(400).json({ error: 'A Conta de Serviço da Velo não foi adicionada como administradora desta loja no Google.' });
                 }
             }
 
@@ -3202,7 +3219,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName.replace(/\/$/, '')}/localPosts`, {
                 method: 'POST',
                 headers: { 
-                    'Authorization': `Bearer ${gmbConfig.accessToken}`, 
+                    'Authorization': `Bearer ${activeToken}`, 
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify(googlePayload)
@@ -3216,12 +3233,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 googleData = JSON.parse(responseText);
             } catch (parseError) {
                 console.error("❌ O Google retornou HTML:", responseText);
-                return res.status(400).json({ error: 'O ID da loja (Location ID) está incorreto ou você não tem permissão para postar nela.' });
+                return res.status(400).json({ error: 'O ID da loja (Location ID) está incorreto ou a Service Account não tem permissão.' });
             }
 
             if (!googleRes.ok) {
                 let errorMsg = googleData.error?.message || 'Falha ao processar postagem.';
-                if (errorMsg.includes('Unauthenticated')) errorMsg = 'Token expirou. Reconecte na aba Integrações.';
+                if (errorMsg.includes('Unauthenticated')) errorMsg = 'Token da máquina expirou ou foi negado.';
                 else if (errorMsg.includes('Invalid Image')) errorMsg = 'A imagem foi rejeitada pelo Google.';
                 return res.status(400).json({ error: errorMsg });
             }
@@ -3331,12 +3348,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Esta avaliação não possui o ID oficial do Google (googleReviewName) atrelado.' });
             }
 
-            // 2. Busca o Token Seguro do Lojista
-            const settingsDoc = await db.collection('settings').doc(storeId).get();
-            const gmbConfig = settingsDoc.exists ? settingsDoc.data().integrations?.google_my_business : null;
-
-            if (!gmbConfig || !gmbConfig.accessToken) {
-                return res.status(401).json({ error: 'Conta do Google não conectada. Vá em Integrações e faça login novamente.' });
+            // 2. Geração do Token da Máquina
+            let activeToken;
+            try {
+                activeToken = await getGoogleAuthToken();
+            } catch (err) {
+                return res.status(500).json({ error: 'Falha ao autenticar com a infraestrutura do Google.' });
             }
 
             // 3. Monta a Rota Específica da Avaliação
@@ -3347,7 +3364,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const googleRes = await fetch(googleEndpoint, {
                 method: 'PUT', // PUT é o padrão para reply do GMB API
                 headers: {
-                    'Authorization': `Bearer ${gmbConfig.accessToken}`,
+                    'Authorization': `Bearer ${activeToken}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -3363,7 +3380,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 let errorMsg = googleData.error?.message || 'Falha ao enviar resposta para o Google.';
                 
                 if (errorMsg.includes('Unauthenticated') || errorMsg.includes('missing required authentication')) {
-                    errorMsg = 'Sua sessão do Google expirou. Por favor, reconecte na aba de Integrações.';
+                    errorMsg = 'Acesso negado. Verifique as permissões da Service Account no perfil da loja.';
                 } else if (errorMsg.includes('NotFound')) {
                     errorMsg = 'Avaliação não encontrada no Google Maps. Pode ter sido apagada pelo cliente.';
                 }
@@ -3385,7 +3402,17 @@ Retorne APENAS um JSON com 3 chaves curtas:
     // ------------------------------------------------------------------------
     else if (path === '/api/sync-google-reviews') {
         try {
-            console.log("🔄 Iniciando Sincronização Global de Avaliações Google...");
+            console.log("🔄 Iniciando Sincronização Global de Avaliações Google via Service Account...");
+            
+            // Puxa o token uma única vez para usar no loop inteiro
+            let activeToken;
+            try {
+                activeToken = await getGoogleAuthToken();
+            } catch (err) {
+                console.error("Falha ao gerar token central:", err.message);
+                return res.status(500).json({ error: "Falha na geração de token GCP." });
+            }
+
             const settingsSnap = await db.collection('settings').get();
             let totalSync = 0;
 
@@ -3393,30 +3420,15 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 const storeId = storeDoc.id;
                 const config = storeDoc.data().integrations?.google_my_business;
 
-                if (!config || !config.locationId || !config.refreshToken) return;
+                // Não checamos mais o refreshToken, apenas o ID do local no Google
+                if (!config || !config.locationId) return;
 
                 try {
-                    // 1. Renovação Automática do Token
-                    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            client_id: process.env.GOOGLE_CLIENT_ID,
-                            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-                            refresh_token: config.refreshToken,
-                            grant_type: 'refresh_token'
-                        })
-                    });
-
-                    const tokenData = await tokenRes.json();
-                    if (!tokenRes.ok) throw new Error("Falha ao renovar token");
-                    const activeToken = tokenData.access_token;
-
-                    // 2. MODO WILD CARD (Puxa direto sem listar contas)
+                    // MODO WILD CARD (Puxa direto sem listar contas)
                     let cleanLocation = config.locationId.trim().replace('locations/', '');
                     let parentName = `accounts/-/locations/${cleanLocation}`;
 
-                    // 3. Busca Avaliações
+                    // Busca Avaliações
                     const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/reviews`, {
                         headers: { 'Authorization': `Bearer ${activeToken}` }
                     });
