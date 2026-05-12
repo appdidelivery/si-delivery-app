@@ -1122,11 +1122,7 @@ export default async function handler(req, res) {
                                                     const sessionSnap = await sessionRef.get();
                                                     let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0, updatedAt: null };
 
-                                                    // 🚨 MÁGICA DE DESPERTAR: Se o cliente enviar o texto de Pedido, acorda o Bot de imediato!
-                                                    const incomingTextLowerForPause = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
-                                                    const isVitalClick = interactivePayload === 'btn_menu' || interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLowerForPause.includes(kw));
-
-                                                    // VERIFICA SE DEVE FORÇAR O DESPERTAR DO BOT (Clique no menu)
+                                                    // VERIFICA SE DEVE FORÇAR O DESPERTAR DO BOT (Clique no menu ou palavras-chave)
                                                     const incomingTextLowerForPause = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                                     const isVitalClick = interactivePayload === 'btn_menu' || interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLowerForPause.includes(kw));
 
