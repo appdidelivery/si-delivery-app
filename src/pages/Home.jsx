@@ -440,7 +440,7 @@ export default function Home() {
       };
       addToCart(itemToAdd, 1);
       setSelectedProduct(null); 
-      window.history.pushState(null, '', '/');
+      navigate('/', { replace: true });
   };
 
   const [products, setProducts] = useState([]);
@@ -3672,10 +3672,10 @@ if (window.fbq) {
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
             onClick={() => {
                 setSelectedProduct(null);
-                window.history.pushState(null, '', '/');
+                navigate('/', { replace: true });
             }}
           >
-            <motion.div 
+            <motion.div
               initial={{ y: "100%" }} 
               animate={{ y: 0 }} 
               exit={{ y: "100%" }} 
@@ -3696,7 +3696,7 @@ if (window.fbq) {
                   <button 
                     onClick={() => {
                         setSelectedProduct(null);
-                        window.history.pushState(null, '', '/');
+                        navigate('/', { replace: true });
                     }} 
                     className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
                   >
