@@ -122,15 +122,10 @@ export default function WppWebview() {
       </nav>
 
      <main className="p-4 pb-40">
+        {/* GRADE DE PRODUTOS PROFISSIONAL - SEM DUPLICAÇÃO */}
         <div className="grid grid-cols-2 gap-3">
           {filteredMenu.map((product) => (
             <motion.div 
-              key={product.id}
-              whileTap={{ scale: 0.97 }}
-              className="bg-gray-50 dark:bg-slate-800/40 rounded-[32px] p-3 border border-gray-100 dark:border-slate-800 flex flex-col h-full"
-            >
-              <div className="relative mb-3">
-                <motion.div 
               key={product.id}
               whileTap={{ scale: 0.95 }}
               className="bg-gray-50 dark:bg-slate-800/60 rounded-[32px] p-3 border border-gray-100 dark:border-slate-800 flex flex-col h-full shadow-sm"
@@ -142,8 +137,11 @@ export default function WppWebview() {
                   className="w-full h-full rounded-[24px] object-cover shadow-inner bg-slate-200 dark:bg-slate-700"
                 />
                 <button 
-                  onClick={() => addToCart(product)}
-                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addToCart(product);
+                  }}
+                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all z-10 border-4 border-white dark:border-slate-800"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -151,7 +149,7 @@ export default function WppWebview() {
                 </button>
               </div>
               <div className="px-1 flex flex-col flex-1">
-                <h3 className="font-bold text-gray-800 dark:text-slate-100 text-xs leading-tight line-clamp-2 mb-1 uppercase tracking-tight italic">
+                <h3 className="font-bold text-gray-800 dark:text-slate-100 text-[11px] leading-tight line-clamp-2 mb-1 uppercase tracking-tight italic">
                   {product.name}
                 </h3>
                 <span className="text-orange-600 dark:text-orange-400 font-black text-sm mt-auto">
@@ -159,43 +157,72 @@ export default function WppWebview() {
                 </span>
               </div>
             </motion.div>
-                <button 
-                  onClick={() => addToCart(product)}
-                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-              <h3 className="font-bold text-gray-800 dark:text-slate-100 text-[13px] leading-tight line-clamp-2 px-1 flex-1">{product.name}</h3>
-              <span className="text-orange-600 dark:text-orange-400 font-black text-sm mt-2 px-1">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
-              </span>
-            </motion.div>
           ))}
         </div>
       </main>
 
       <AnimatePresence>
-        {cartItemCount > 0 && (
-          <motion.div 
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-4 right-4 z-40"
-          >
-            <button 
-              onClick={() => setIsCheckoutOpen(true)}
-              className="w-full bg-orange-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center font-bold hover:bg-orange-700"
+        {isCheckoutOpen && (
+          <>
+            {/* Overlay de fundo */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCheckoutOpen(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+            
+            {/* Painel Deslizante */}
+            <motion.div 
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-[70] bg-white dark:bg-slate-900 rounded-t-[40px] max-h-[92vh] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="flex items-center gap-2">
-                <span className="bg-orange-700 px-3 py-1 rounded-lg text-xs">{cartItemCount}</span>
-                <span>Ver Pedido</span>
+              <div className="w-12 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full mx-auto my-3" />
+              <div className="p-6 overflow-y-auto">
+                <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-6 tracking-tight">Finalizar Pedido</h2>
+                
+                {/* FORMA DE ENTREGA DINÂMICA */}
+                <div className="mb-8">
+                  <label className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4 block">Como quer receber?</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="p-4 rounded-2xl border-2 border-orange-600 bg-orange-50 dark:bg-orange-900/10 text-orange-600 font-bold text-sm">Entrega</button>
+                    <button className="p-4 rounded-2xl border-2 border-gray-100 dark:border-slate-800 text-gray-400 dark:text-slate-500 font-bold text-sm">Retirada</button>
+                  </div>
+                </div>
+
+                {/* LISTAGEM DE ITENS */}
+                <div className="space-y-4 mb-8">
+                  {cart.map((item, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 dark:text-slate-400 font-medium"><b className="text-orange-600">{item.quantity}x</b> {item.name}</span>
+                      <span className="font-bold text-gray-900 dark:text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t dark:border-slate-800 pt-6 mb-8">
+                  <div className="flex justify-between items-center mb-6">
+                    <span className="text-lg font-bold text-gray-900 dark:text-white">Total</span>
+                    <span className="text-2xl font-black text-orange-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartTotal)}</span>
+                  </div>
+
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/velopay/create-mp-preference', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ cart, storeId: slug, customerPhone, total: cartTotal })
+                        });
+                        const data = await response.json();
+                        if (data.init_point) window.location.href = data.init_point;
+                        else alert('Erro Mercado Pago: ' + data.error);
+                      } catch (e) { alert('Erro na conexão'); }
+                    }}
+                    className="w-full bg-[#009EE3] text-white p-5 rounded-[24px] font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+                  >
+                    Pagar com Mercado Pago
+                  </button>
+                </div>
               </div>
-              <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartTotal)}</span>
-            </button>
-          </motion.div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
