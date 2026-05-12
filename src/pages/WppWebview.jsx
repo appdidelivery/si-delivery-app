@@ -32,9 +32,18 @@ export default function WppWebview() {
       
       if (storeSnap.exists()) {
         setStore({ id: storeSnap.id, ...storeSnap.data() });
-        const q = query(collection(db, "products"), where("storeId", "==", storeSnap.id), where("active", "==", true));
+        
+        // Removemos o filtro de 'active' temporariamente para forçar a exibição
+        const q = query(collection(db, "products"), where("storeId", "==", storeSnap.id));
         const querySnapshot = await getDocs(q);
-        setMenu(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        const fetchedProducts = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log("Produtos encontrados para esta loja:", fetchedProducts.length);
+        console.log("Dados do primeiro produto:", fetchedProducts[0]);
+        
+        // Se a sua base usa um campo diferente para ativo, podemos filtrar no map depois:
+        // const activeProducts = fetchedProducts.filter(p => p.active !== false);
+        setMenu(fetchedProducts);
       }
     } catch (error) {
       console.error("Erro ao carregar cardápio:", error);
