@@ -1114,26 +1114,30 @@ export default async function handler(req, res) {
                                     
                                     // CURA DO 9º DÍGITO: Garante que o Webhook e o Painel falem a mesma língua
                                     if (normalizedPhone.length === 10) {
-                                        normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
-                                    }
+                                                        normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
+                                                    }
 
-                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO)
-                                    const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
-                                    const sessionSnap = await sessionRef.get();
-                                    let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0, updatedAt: null };
-                                    
-                                    if (sessionData.botPaused) {
-                                        const lastUpdate = sessionData.updatedAt?.toDate ? sessionData.updatedAt.toDate() : new Date();
-                                        const minutesPaused = (Date.now() - lastUpdate.getTime()) / 60000;
-                                        
-                                        if (minutesPaused > 15) {
-                                            // Se o atendente esqueceu de reativar (ou o botão falhou), auto-reativa após 15 min!
-                                            await sessionRef.set({ botPaused: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                            sessionData.botPaused = false;
-                                        } else {
-                                            continue; // Continua pausado, ignora o cliente
-                                        }
-                                    }
+                                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO E FORÇA DE DESPERTAR)
+                                                    const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
+                                                    const sessionSnap = await sessionRef.get();
+                                                    let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0, updatedAt: null };
+
+                                                    // 🚨 MÁGICA DE DESPERTAR: Se o cliente enviar o texto de Pedido, acorda o Bot de imediato!
+                                                    const incomingTextLowerForPause = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+                                                    const isVitalClick = interactivePayload === 'btn_menu' || interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLowerForPause.includes(kw));
+
+                                                    if (sessionData.botPaused) {
+                                                        const lastUpdate = sessionData.updatedAt?.toDate ? sessionData.updatedAt.toDate() : new Date();
+                                                        const minutesPaused = (Date.now() - lastUpdate.getTime()) / 60000;
+                                                        
+                                                        if (minutesPaused > 15 || isVitalClick) {
+                                                            // Acorda o Robô e responde a requisição!
+                                                            await sessionRef.set({ botPaused: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                            sessionData.botPaused = false;
+                                                        } else {
+                                                            continue; // Continua pausado, ignora o cliente
+                                                        }
+                                                    }
 
                                     let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     

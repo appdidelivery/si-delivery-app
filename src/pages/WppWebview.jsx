@@ -442,36 +442,15 @@ export default function WppWebview() {
                   )}
                 </div>
 
+                {/* FORMA DE PAGAMENTO BLINDADA */}
                 <div className="mb-6">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Pagamento</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Pagamento na Entrega/Retirada</label>
                     <div className="grid grid-cols-1 gap-2">
-                        {(() => {
-                            const pmConf = store?.acceptedPayments || {};
-                            let methods = [
-                                { id: 'velopay_pix', label: '💠 PIX na Hora', show: store?.velopayStatus === 'active' && pmConf.pix !== false },
-                                { id: 'mercadopago_link', label: '💳 Cartão/Pix Online', show: store?.integrations?.mercadopago?.accessToken && pmConf.online !== false },
-                                { id: 'cardDelivery', label: '💳 Maquininha na Entrega', show: deliveryMethod === 'delivery' && pmConf.cardDelivery !== false },
-                                { id: 'dinheiro', label: '💵 Dinheiro', show: pmConf.cashDelivery !== false },
-                                { id: 'cardPickup', label: '💳 Cartão na Retirada', show: deliveryMethod === 'pickup' && pmConf.cardPickup !== false },
-                                { id: 'dinheiro', label: '💵 Dinheiro na Retirada', show: deliveryMethod === 'pickup' && pmConf.cashPickup !== false }
-                            ].filter(m => m.show);
-
-                            // Trava de Segurança Mestre: Se o lojista bugar tudo, exibe o padrão
-                            if (methods.length === 0) {
-                                methods = [
-                                    { id: 'cardDelivery', label: '💳 Cartão (Maquininha)' },
-                                    { id: 'dinheiro', label: '💵 Dinheiro' }
-                                ];
-                            }
-
-                            return methods.map(pm => (
-                                <button key={pm.id} onClick={() => setCustomer({...customer, payment: pm.id})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === pm.id ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === pm.id ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>
-                                    {pm.label}
-                                </button>
-                            ));
-                        })()}
+                        <button onClick={() => setCustomer({...customer, payment: 'velopay_pix', changeFor: ''})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === 'velopay_pix' ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === 'velopay_pix' ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>💠 PIX na Hora</button>
+                        <button onClick={() => setCustomer({...customer, payment: 'cardDelivery', changeFor: ''})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === 'cardDelivery' ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === 'cardDelivery' ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>💳 Maquininha (Cartão)</button>
+                        <button onClick={() => setCustomer({...customer, payment: 'dinheiro'})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === 'dinheiro' ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === 'dinheiro' ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>💵 Dinheiro</button>
                     </div>
-                    {customer.payment === 'dinheiro' && <input type="text" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} placeholder="Troco para quanto?" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none mt-3" />}
+                    {customer.payment === 'dinheiro' && <input type="text" value={customer.changeFor || ''} onChange={e => setCustomer({...customer, changeFor: e.target.value})} placeholder="Troco para quanto? (Deixe em branco se não precisar)" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold text-white outline-none mt-3 shadow-inner" />}
                 </div>
 
                 <div className="bg-[#1E293B] rounded-[2rem] p-5 border border-slate-700">
