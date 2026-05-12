@@ -36,7 +36,8 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,jpg,jpeg}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,jpg,jpeg}'],
+        maximumFileSizeToCacheInBytes: 5000000 // Aumenta o limite para 5MB, resolvendo o erro da Vercel
       }
     })
   ],
