@@ -160,9 +160,10 @@ export default function WppWebview() {
     <div className="min-h-screen bg-white dark:bg-slate-900 font-sans transition-colors duration-300">
       <header className="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-100 dark:border-slate-800 p-4 pb-2">
         <div className="flex items-center gap-3 mb-4">
-          {store?.logo || store?.logoUrl || store?.image ? (
+          {/* Ajustado para o campo storeLogoUrl encontrado no seu Firebase */}
+          {store?.storeLogoUrl || store?.logo || store?.logoUrl ? (
             <img 
-              src={store.logo || store.logoUrl || store.image} 
+              src={store.storeLogoUrl || store.logo || store.logoUrl} 
               alt={store.name} 
               className="w-12 h-12 rounded-2xl shadow-sm object-cover border border-gray-100 dark:border-slate-700 bg-white" 
             />
