@@ -15,6 +15,15 @@ export default function WppWebview() {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('Todas'); 
+
+  // Extrai categorias dinâmicas dos seus produtos do Firebase
+  const categories = ['Todas', ...new Set(menu.map(p => p.category).filter(Boolean))];
+
+  // Filtra os produtos para a exibição na grade
+  const filteredMenu = selectedCategory === 'Todas' 
+    ? menu 
+    : menu.filter(p => p.category === selectedCategory);
 
   useEffect(() => {
     if (slug) {
@@ -72,41 +81,66 @@ export default function WppWebview() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans selection:bg-orange-100">
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-100 p-4 flex items-center gap-3">
-        {store?.logo && <img src={store.logo} alt={store.name} className="w-10 h-10 rounded-full object-cover" />}
-        <div>
-          <h1 className="font-bold text-gray-900 leading-none">{store?.name}</h1>
-          <span className="text-[10px] text-green-600 font-medium uppercase tracking-wider">Aberto agora</span>
+      <header className="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-100 dark:border-slate-800 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {store?.logo ? (
+            <img src={store.logo} alt={store.name} className="w-12 h-12 rounded-2xl shadow-sm object-cover border border-gray-100 dark:border-slate-700" />
+          ) : (
+            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center text-orange-600 font-bold">V</div>
+          )}
+          <div>
+            <h1 className="font-black text-gray-900 dark:text-white leading-none tracking-tight">{store?.name || "Velo Delivery"}</h1>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-widest">Aberto agora</span>
+            </div>
+          </div>
         </div>
       </header>
 
-      <main className="p-4 pb-32">
-        <div className="grid grid-cols-1 gap-4">
-          {menu.map((product) => (
+      <nav className="sticky top-[81px] z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-50 dark:border-slate-800 overflow-x-auto flex gap-2 p-4 pt-2 no-scrollbar">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={`whitespace-nowrap px-5 py-2.5 rounded-full text-[13px] font-bold transition-all ${
+              selectedCategory === cat
+                ? "bg-orange-600 text-white shadow-lg shadow-orange-200 dark:shadow-none"
+                : "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </nav>
+
+     <main className="p-4 pb-40">
+        <div className="grid grid-cols-2 gap-3">
+          {filteredMenu.map((product) => (
             <motion.div 
               key={product.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 items-center"
+              whileTap={{ scale: 0.97 }}
+              className="bg-gray-50 dark:bg-slate-800/40 rounded-[32px] p-3 border border-gray-100 dark:border-slate-800 flex flex-col h-full"
             >
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-800 text-sm">{product.name}</h3>
-                <p className="text-xs text-gray-500 line-clamp-2 mt-1">{product.description}</p>
-                <span className="text-orange-600 font-bold text-sm block mt-2">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
-                </span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                {product.image && (
-                  <img src={product.image} alt={product.name} className="w-16 h-16 rounded-xl object-cover" />
-                )}
+              <div className="relative mb-3">
+                <img 
+                  src={product.image || 'https://via.placeholder.com/150'} 
+                  alt={product.name} 
+                  className="w-full aspect-square rounded-[24px] object-cover shadow-sm bg-white"
+                />
                 <button 
                   onClick={() => addToCart(product)}
-                  className="bg-orange-100 text-orange-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-orange-200"
+                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all"
                 >
-                  Adicionar
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
+              <h3 className="font-bold text-gray-800 dark:text-slate-100 text-[13px] leading-tight line-clamp-2 px-1 flex-1">{product.name}</h3>
+              <span className="text-orange-600 dark:text-orange-400 font-black text-sm mt-2 px-1">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+              </span>
             </motion.div>
           ))}
         </div>
