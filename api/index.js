@@ -1126,18 +1126,21 @@ export default async function handler(req, res) {
                                                     const incomingTextLowerForPause = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
                                                     const isVitalClick = interactivePayload === 'btn_menu' || interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLowerForPause.includes(kw));
 
-                                                    if (sessionData.botPaused) {
-                                                        const lastUpdate = sessionData.updatedAt?.toDate ? sessionData.updatedAt.toDate() : new Date();
-                                                        const minutesPaused = (Date.now() - lastUpdate.getTime()) / 60000;
-                                                        
-                                                        if (minutesPaused > 15 || isVitalClick) {
-                                                            // Acorda o Robô e responde a requisição!
-                                                            await sessionRef.set({ botPaused: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                                            sessionData.botPaused = false;
-                                                        } else {
-                                                            continue; // Continua pausado, ignora o cliente
-                                                        }
-                                                    }
+                                                    // VERIFICA SE DEVE FORÇAR O DESPERTAR DO BOT (Clique no menu)
+                                                    const incomingTextLowerForPause = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+                                                    const isVitalClick = interactivePayload === 'btn_menu' || interactivePayload === 'btn_order_wa' || ['cardapio', 'pedir', 'pedido', 'fome', 'burger', 'lanche', 'comprar', 'fazer'].some(kw => incomingTextLowerForPause.includes(kw));
+
+                                                    if (sessionData.botPaused) {
+                                                        const lastUpdate = sessionData.updatedAt?.toDate ? sessionData.updatedAt.toDate() : new Date();
+                                                        const minutesPaused = (Date.now() - lastUpdate.getTime()) / 60000;
+                                                        
+                                                        if (minutesPaused > 15 || isVitalClick) {
+                                                            await sessionRef.set({ botPaused: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                            sessionData.botPaused = false;
+                                                        } else {
+                                                            continue; // Continua pausado, ignora o cliente
+                                                        }
+                                                    }
 
                                     let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     

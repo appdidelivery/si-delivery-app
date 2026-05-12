@@ -442,13 +442,53 @@ export default function WppWebview() {
                   )}
                 </div>
 
-                {/* FORMA DE PAGAMENTO BLINDADA */}
                 <div className="mb-6">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Pagamento na Entrega/Retirada</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Como deseja pagar?</label>
                     <div className="grid grid-cols-1 gap-2">
-                        <button onClick={() => setCustomer({...customer, payment: 'velopay_pix', changeFor: ''})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === 'velopay_pix' ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === 'velopay_pix' ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>💠 PIX na Hora</button>
-                        <button onClick={() => setCustomer({...customer, payment: 'cardDelivery', changeFor: ''})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === 'cardDelivery' ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === 'cardDelivery' ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>💳 Maquininha (Cartão)</button>
-                        <button onClick={() => setCustomer({...customer, payment: 'dinheiro'})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === 'dinheiro' ? 'text-white' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === 'dinheiro' ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>💵 Dinheiro</button>
+                        {(() => {
+                            const pmConf = store?.acceptedPayments || {};
+                            const isPickup = deliveryMethod === 'pickup';
+                            const hasVeloPix = store?.velopayStatus === 'active';
+                            const hasMP = store?.integrations?.mercadopago?.accessToken;
+
+                            let methods = [];
+
+                            if (pmConf.online !== false || pmConf.pix !== false) {
+                                if (pmConf.pix !== false) {
+                                    methods.push({ id: hasVeloPix ? 'velopay_pix' : 'mercadopago_link', label: '⚡ PIX Automático' });
+                                }
+                                if (pmConf.online !== false && hasMP) {
+                                    if (!methods.some(m => m.id === 'mercadopago_link')) {
+                                        methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito (Online)' });
+                                    } else {
+                                        methods.find(m => m.id === 'mercadopago_link').label = '💳 Cartão / Pix (Online)';
+                                    }
+                                }
+                            }
+
+                            if (!isPickup) {
+                                if (pmConf.cardDelivery !== false) methods.push({ id: 'cardDelivery', label: '📠 Maquininha na Entrega' });
+                                if (pmConf.cashDelivery !== false) methods.push({ id: 'dinheiro', label: '💵 Dinheiro na Entrega' });
+                                if (pmConf.voucherDelivery === true) methods.push({ id: 'voucherDelivery', label: '🎟️ Vale Refeição na Entrega' });
+                            } else {
+                                if (pmConf.cardPickup !== false) methods.push({ id: 'cardPickup', label: '📠 Maquininha na Retirada' });
+                                if (pmConf.cashPickup !== false) methods.push({ id: 'dinheiro', label: '💵 Dinheiro na Retirada' });
+                                if (pmConf.voucherPickup === true) methods.push({ id: 'voucherPickup', label: '🎟️ Vale Refeição na Retirada' });
+                            }
+
+                            if (methods.length === 0) {
+                                methods = [
+                                    { id: 'cardDelivery', label: '💳 Cartão (Maquininha)' },
+                                    { id: 'dinheiro', label: '💵 Dinheiro' }
+                                ];
+                            }
+
+                            return methods.map((pm, idx) => (
+                                <button key={`${pm.id}_${idx}`} onClick={() => setCustomer({...customer, payment: pm.id, changeFor: ''})} className={`p-4 rounded-xl border text-sm font-bold text-left transition-all ${customer.payment === pm.id ? 'text-white shadow-md' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`} style={customer.payment === pm.id ? { borderColor: themeColor, backgroundColor: `${themeColor}20` } : {}}>
+                                    {pm.label}
+                                </button>
+                            ));
+                        })()}
                     </div>
                     {customer.payment === 'dinheiro' && <input type="text" value={customer.changeFor || ''} onChange={e => setCustomer({...customer, changeFor: e.target.value})} placeholder="Troco para quanto? (Deixe em branco se não precisar)" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold text-white outline-none mt-3 shadow-inner" />}
                 </div>
