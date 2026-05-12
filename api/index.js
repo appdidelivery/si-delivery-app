@@ -1317,14 +1317,39 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                             }
                                             else if (isRepeatTrigger) {
                                                 if (lastOrder && lastOrder.items && lastOrder.items.length > 0) {
+                                                    const cartRef = db.collection('whatsapp_carts').doc(`${storeId}_${normalizedPhone}`);
+                                                    
+                                                    // Transfere os itens e o endereço do último pedido para a sessão atual do carrinho
+                                                    await cartRef.set({
+                                                        items: lastOrder.items,
+                                                        deliveryAddress: lastOrder.customerAddress || '',
+                                                        shippingFee: lastOrder.shippingFee || 0,
+                                                        step: 'awaiting_payment', // Pula direto para a fase de pagamento
+                                                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                    }, { merge: true });
+
                                                     const orderItemsStr = lastOrder.items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
-                                                    const repeatMsg = `🍔 *Seu Último Pedido${nomeOuVazio}:*\n\n${orderItemsStr}\n\n*Total:* R$ ${Number(lastOrder.total).toFixed(2)}\n\nBateu aquela fome de novo? 🤤\nPara repetir esse pedido agora mesmo, é só clicar no link do nosso cardápio e adicionar os itens:\n👉 ${storeDomain}`;
-                                                    replyPayload = { type: "text", text: { body: repeatMsg } };
-                                                    logTextForPanel = `🤖 [Repetir Pedido] ${repeatMsg}`;
+                                                    const cartTotal = Number(lastOrder.total);
+
+                                                    replyPayload = {
+                                                        type: "interactive",
+                                                        interactive: {
+                                                            type: "button",
+                                                            header: { type: "text", text: "🔄 Repetir Pedido" },
+                                                            body: { text: `Tudo pronto${nomeOuVazio}! Vou repetir seu último pedido:\n\n${orderItemsStr}\n\n📍 *Entrega:* ${lastOrder.customerAddress}\n💰 *Total:* R$ ${cartTotal.toFixed(2)}\n\nConfirmamos a mesma forma de pagamento?` },
+                                                            action: {
+                                                                buttons: [
+                                                                    { type: "reply", reply: { id: "btn_pay_pix", title: "💠 Pagar com PIX" } },
+                                                                    { type: "reply", reply: { id: "btn_pay_card_delivery", title: "💳 Maquininha" } },
+                                                                    { type: "reply", reply: { id: "btn_clear_cart", title: "❌ Cancelar" } }
+                                                                ]
+                                                            }
+                                                        }
+                                                    };
+                                                    logTextForPanel = `🤖 [Botão Repetir Pedido Configurado para ${firstName || 'Cliente'}]`;
                                                 } else {
-                                                    const repeatMsg = `Hmm${nomeOuVazio}, não consegui encontrar nenhum pedido recente no seu histórico. 🧐\n\nQue tal dar uma olhadinha no nosso cardápio e escolher algo gostoso agora?\n👉 ${storeDomain}`;
+                                                    const repeatMsg = `Poxa${nomeOuVazio}, não achei seu histórico. Vamos escolher algo novo? 😋\n\n👉 ${storeDomain}`;
                                                     replyPayload = { type: "text", text: { body: repeatMsg } };
-                                                    logTextForPanel = `🤖 [Repetir Pedido Não Encontrado para ${firstName || 'Cliente'}]`;
                                                 }
                                             }
                                             else if (isFaqEndereco) {
