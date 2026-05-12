@@ -1,7 +1,7 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { db } from '../services/firebase'; 
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function WppWebview() {
@@ -17,6 +17,12 @@ export default function WppWebview() {
   const [selectedCategory, setSelectedCategory] = useState('Todas'); 
   const [searchTerm, setSearchTerm] = useState('');
 
+  // NOVOS ESTADOS: Cliente, Cupom e Desconto
+  const [customerName, setCustomerName] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [discount, setDiscount] = useState(0);
+
   // Lógica de categorias e motor de busca
   const categories = ['Todas', ...new Set(menu.map(p => p.category).filter(Boolean))];
 
@@ -25,6 +31,23 @@ export default function WppWebview() {
     const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  // Função simulada de validação de cupom
+  const handleApplyCoupon = () => {
+    if (couponCode.toUpperCase() === 'VELO10') {
+      setDiscount(10);
+      alert('Cupom aplicado: R$ 10,00 de desconto!');
+    } else {
+      alert('Cupom inválido ou expirado.');
+      setDiscount(0);
+    }
+  };
+
+  const cartSubtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const deliveryFee = store?.deliveryFee || 0; 
+  // O total agora respeita o desconto, não deixando ficar negativo
+  const cartTotal = Math.max(0, cartSubtotal + deliveryFee - discount);
+  const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0);
 
   useEffect(() => {
     if (slug) fetchStoreData();
@@ -183,6 +206,7 @@ export default function WppWebview() {
       </AnimatePresence>
 
       {/* MODAL DE CHECKOUT (BOTTOM SHEET) */}
+      {/* MODAL DE CHECKOUT PROFISSIONAL */}
       <AnimatePresence>
         {isCheckoutOpen && (
           <>
@@ -190,21 +214,77 @@ export default function WppWebview() {
             <motion.div 
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z-[70] bg-white dark:bg-slate-900 rounded-t-[40px] max-h-[92vh] overflow-hidden flex flex-col"
+              className="fixed bottom-0 left-0 right-0 z-[70] bg-white dark:bg-slate-900 rounded-t-[40px] max-h-[92vh] overflow-hidden flex flex-col shadow-2xl"
             >
               <div className="w-12 h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full mx-auto my-3" />
-              <div className="p-6 overflow-y-auto">
-                <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-6 tracking-tight text-center uppercase italic">Finalizar Pedido</h2>
+              <div className="p-6 overflow-y-auto no-scrollbar">
+                
+                {/* BANNER GAMIFICAÇÃO: CLUBE VIP / CASHBACK */}
+                <div className="bg-gradient-to-r from-orange-500 to-yellow-500 rounded-2xl p-4 mb-6 flex items-center gap-3 shadow-lg shadow-orange-500/20">
+                  <div className="bg-white/20 p-2 rounded-full text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-black text-sm uppercase tracking-wider">Clube VIP Velo</h4>
+                    <p className="text-white/90 text-xs">Este pedido gera Cashback para a próxima compra!</p>
+                  </div>
+                </div>
+
+                <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-6 tracking-tight">Dados da Entrega</h2>
+                
+                {/* FORMULÁRIO DO CLIENTE */}
                 <div className="space-y-4 mb-8">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Seu Nome</label>
+                    <input 
+                      type="text" 
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Ex: João Silva" 
+                      className="w-full bg-gray-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 dark:focus:border-orange-500 rounded-xl p-3 text-sm text-gray-900 dark:text-white outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Endereço Completo</label>
+                    <textarea 
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="Rua, Número, Bairro, Complemento" 
+                      rows="2"
+                      className="w-full bg-gray-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 dark:focus:border-orange-500 rounded-xl p-3 text-sm text-gray-900 dark:text-white outline-none transition-all resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* LISTAGEM DE ITENS E CUPOM */}
+                <h2 className="text-lg font-black text-gray-900 dark:text-white mb-4 tracking-tight">Resumo do Pedido</h2>
+                <div className="space-y-3 mb-6 bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
                   {cart.map((item, i) => (
-                    <div key={i} className="flex justify-between items-center text-sm border-b border-gray-50 dark:border-slate-800 pb-3">
-                      <span className="text-gray-600 dark:text-slate-400 font-bold uppercase text-[10px]"><b className="text-orange-600 mr-1">{item.quantity}x</b> {item.name}</span>
+                    <div key={i} className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-slate-700/50 pb-2 last:border-0 last:pb-0">
+                      <span className="text-gray-600 dark:text-slate-300 font-medium"><b className="text-orange-600 mr-1">{item.quantity}x</b> {item.name}</span>
                       <span className="font-bold text-gray-900 dark:text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.quantity)}</span>
                     </div>
                   ))}
                 </div>
-                {/* RESUMO FINANCEIRO (Subtotal + Taxas) */}
-                <div className="border-t border-gray-50 dark:border-slate-800 pt-4 mb-6 space-y-3">
+
+                {/* CUPOM DE DESCONTO */}
+                <div className="flex gap-2 mb-8">
+                  <input 
+                    type="text" 
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    placeholder="Tem um cupom?" 
+                    className="flex-1 bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl p-3 text-sm text-gray-900 dark:text-white outline-none uppercase font-bold"
+                  />
+                  <button onClick={handleApplyCoupon} className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-5 rounded-xl font-bold text-sm hover:bg-orange-600 dark:hover:bg-orange-500 transition-colors">
+                    Aplicar
+                  </button>
+                </div>
+
+                {/* CÁLCULOS FINAIS */}
+                <div className="border-t border-gray-100 dark:border-slate-800 pt-4 mb-6 space-y-2">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
                     <span className="font-semibold text-gray-800 dark:text-slate-200">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartSubtotal)}</span>
@@ -215,79 +295,76 @@ export default function WppWebview() {
                       {deliveryFee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deliveryFee) : 'Grátis'}
                     </span>
                   </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400 font-bold">
+                      <span>Desconto Aplicado</span>
+                      <span>- {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(discount)}</span>
+                    </div>
+                  )}
                 </div>
 
-               {/* RESUMO FINANCEIRO (Subtotal + Taxas) */}
-                <div className="border-t border-gray-50 dark:border-slate-800 pt-4 mb-6 space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
-                    <span className="font-semibold text-gray-800 dark:text-slate-200">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartSubtotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 dark:text-slate-400">Taxa de Entrega</span>
-                    <span className="font-semibold text-gray-800 dark:text-slate-200">
-                      {deliveryFee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deliveryFee) : 'Grátis'}
-                    </span>
-                  </div>
+                <div className="flex justify-between items-center mb-8 bg-orange-50 dark:bg-orange-900/10 p-4 rounded-2xl border border-orange-100 dark:border-orange-900/30">
+                  <span className="text-xs font-black text-orange-800 dark:text-orange-500 uppercase tracking-widest">Total a Pagar</span>
+                  <span className="text-3xl font-black text-orange-600 dark:text-orange-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartTotal)}</span>
                 </div>
 
-                {/* RESUMO FINANCEIRO (Subtotal + Taxas) */}
-                <div className="border-t border-gray-50 dark:border-slate-800 pt-4 mb-6 space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
-                    <span className="font-semibold text-gray-800 dark:text-slate-200">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartSubtotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 dark:text-slate-400">Taxa de Entrega</span>
-                    <span className="font-semibold text-gray-800 dark:text-slate-200">
-                      {deliveryFee > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deliveryFee) : 'Grátis'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center mb-8 bg-gray-50 dark:bg-slate-800 p-4 rounded-2xl">
-                  <span className="text-xs font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest">Total</span>
-                  <span className="text-2xl font-black text-orange-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cartTotal)}</span>
-                </div>
+                {/* BOTÃO DE PAGAMENTO + SALVAR NO FIREBASE */}
                 <button 
                   onClick={async () => {
-                    try {
-                      // Trava de segurança: Verifica se a conta do lojista está integrada no banco
-                      if (!store?.mpAccessToken && !store?.stripeConnectId) {
-                        alert('Aviso: Esta loja não possui a conta VeloPay configurada no painel.');
-                        return;
-                      }
+                    if (!customerName || !customerAddress) {
+                      alert('Por favor, preencha seu nome e endereço para entrega.');
+                      return;
+                    }
 
+                    try {
+                      // 1. SALVA O PEDIDO NO FIREBASE (Status: Pendente)
+                      const orderData = {
+                        storeId: slug,
+                        customerPhone: customerPhone || 'Não informado',
+                        customerName,
+                        customerAddress,
+                        items: cart,
+                        subtotal: cartSubtotal,
+                        deliveryFee,
+                        discount,
+                        total: cartTotal,
+                        couponUsed: discount > 0 ? couponCode : null,
+                        status: 'pending_payment',
+                        createdAt: serverTimestamp(),
+                        source: 'whatsapp_webview'
+                      };
+                      
+                      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+                      console.log('Pedido salvo com sucesso! ID:', orderRef.id);
+
+                      // 2. CHAMA O VELOPAY PASSANDO O ID DO PEDIDO
                       const response = await fetch('/api/velopay/create-mp-preference', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                           cart, 
                           storeId: slug, 
+                          orderId: orderRef.id, // O webhook do MP vai usar esse ID
+                          customerName,
                           customerPhone, 
-                          subtotal: cartSubtotal,
-                          deliveryFee: deliveryFee,
                           total: cartTotal 
                         })
                       });
                       
                       const data = await response.json();
-                      
                       if (data.init_point) {
                         window.location.href = data.init_point;
                       } else {
-                        // Exibe o erro exato vindo da sua API para facilitar o diagnóstico
-                        console.error('Erro detalhado da API:', data);
-                        alert(`Falha no VeloPay: ${data.error || 'Verifique o log do console.'}`);
+                        alert('Erro ao gerar pagamento: ' + (data.error || 'Desconhecido'));
                       }
                     } catch (e) { 
-                      console.error('Erro crítico de requisição:', e);
-                      alert('Erro na comunicação com o servidor da Vercel.'); 
+                      console.error('Erro na transação:', e);
+                      alert('Ocorreu um erro ao processar seu pedido. Tente novamente.'); 
                     }
                   }}
-                  className="w-full bg-[#009EE3] text-white p-5 rounded-[24px] font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 mb-6"
+                  className="w-full bg-[#009EE3] text-white p-5 rounded-[24px] font-black text-lg shadow-xl shadow-[#009EE3]/30 active:scale-95 transition-all flex items-center justify-center gap-3 mb-6"
                 >
-                  Confirmar Pagamento
+                  Continuar para Pagamento
                 </button>
               </div>
             </motion.div>
