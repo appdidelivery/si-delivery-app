@@ -83,10 +83,17 @@ export default function WppWebview() {
     <div className="min-h-screen bg-gray-50 font-sans selection:bg-orange-100">
       <header className="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-100 dark:border-slate-800 p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {store?.logo ? (
-            <img src={store.logo} alt={store.name} className="w-12 h-12 rounded-2xl shadow-sm object-cover border border-gray-100 dark:border-slate-700" />
+          {/* Tenta carregar 'logo' ou 'logoUrl' do Firebase */}
+          {store?.logo || store?.logoUrl ? (
+            <img 
+              src={store?.logo || store?.logoUrl} 
+              alt={store.name} 
+              className="w-12 h-12 rounded-2xl shadow-sm object-cover border border-gray-100 dark:border-slate-700 bg-white" 
+            />
           ) : (
-            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center text-orange-600 font-bold">V</div>
+            <div className="w-12 h-12 bg-orange-600 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg">
+              {store?.name?.charAt(0) || "V"}
+            </div>
           )}
           <div>
             <h1 className="font-black text-gray-900 dark:text-white leading-none tracking-tight">{store?.name || "Velo Delivery"}</h1>
@@ -123,11 +130,35 @@ export default function WppWebview() {
               className="bg-gray-50 dark:bg-slate-800/40 rounded-[32px] p-3 border border-gray-100 dark:border-slate-800 flex flex-col h-full"
             >
               <div className="relative mb-3">
+                <motion.div 
+              key={product.id}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gray-50 dark:bg-slate-800/60 rounded-[32px] p-3 border border-gray-100 dark:border-slate-800 flex flex-col h-full shadow-sm"
+            >
+              <div className="relative mb-3 aspect-square w-full">
                 <img 
-                  src={product.image || 'https://via.placeholder.com/150'} 
+                  src={product.image || product.imageUrl || product.img || 'https://via.placeholder.com/300?text=Sem+Foto'} 
                   alt={product.name} 
-                  className="w-full aspect-square rounded-[24px] object-cover shadow-sm bg-white"
+                  className="w-full h-full rounded-[24px] object-cover shadow-inner bg-slate-200 dark:bg-slate-700"
                 />
+                <button 
+                  onClick={() => addToCart(product)}
+                  className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all z-10"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div className="px-1 flex flex-col flex-1">
+                <h3 className="font-bold text-gray-800 dark:text-slate-100 text-xs leading-tight line-clamp-2 mb-1 uppercase tracking-tight italic">
+                  {product.name}
+                </h3>
+                <span className="text-orange-600 dark:text-orange-400 font-black text-sm mt-auto">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+                </span>
+              </div>
+            </motion.div>
                 <button 
                   onClick={() => addToCart(product)}
                   className="absolute -bottom-2 -right-1 bg-orange-600 text-white p-2.5 rounded-2xl shadow-xl hover:bg-orange-700 active:scale-90 transition-all"
