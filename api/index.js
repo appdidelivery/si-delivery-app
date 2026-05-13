@@ -3151,26 +3151,66 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     }
 
    // ------------------------------------------------------------------------
+    // 21.5 GERADOR DE COPY DE PRODUTOS (NOME E DESCRIÇÃO VIA IA)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/generate-product-copy') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
+            if (!termoRaw) return res.status(400).json({ error: 'O termo do produto é obrigatório.' });
+
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente." });
+
+            const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+                })
+            });
+
+            const aiData = await response.json();
+            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawJsonText) throw new Error("A IA não retornou texto.");
+            
+            const parsedResult = JSON.parse(rawJsonText);
+            return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
+        } catch (error) {
+            console.error("Erro na IA de Produtos:", error);
+            return res.status(200).json({ success: false, error: `Falha na IA: ${error.message}` });
+        }
+    }
+    // ------------------------------------------------------------------------
     // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeName, storeNiche, productName, productDesc, productPrice } = req.body;
-            
+            const { storeName, storeNiche, productName, productDesc, productPrice, productId } = req.body;
             if (!productName) return res.status(400).json({ error: 'Nome do produto é obrigatório.' });
+
+            // 🚨 CÁLCULO DINÂMICO DO LINK EXATO DO PRODUTO
+            const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
+            const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
+            const exactProductLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) {
                 return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
             }
 
-            // Prompt encurtado para a IA processar em milissegundos
             const prompt = `Crie textos de vendas curtos para Delivery.
 Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
+O link direto de compra é: ${exactProductLink}
+
 Retorne APENAS um JSON com 3 chaves curtas:
-"whatsapp": (1 frase magnética com emojis e preço),
+"whatsapp": (1 frase magnética com emojis e preço. No final, adicione OBRIGATORIAMENTE o link direto: ${exactProductLink}),
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
@@ -3241,11 +3281,16 @@ Retorne APENAS um JSON com 3 chaves curtas:
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeId, locationId, summary, imageUrl, productUrl } = req.body;
+            const { storeId, locationId, summary, imageUrl, productUrl, productId } = req.body;
 
             if (!storeId || !locationId || !summary || !imageUrl) {
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
             }
+
+            // 🚨 CÁLCULO DINÂMICO DA URL (Garante o domínio real que fez a requisição para o Google)
+            const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
+            const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
+            const exactLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
 
             // Tenta pegar o token do lojista ou do robô de forma inteligente
             let activeToken;
@@ -3277,8 +3322,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 }
             }
 
-            // Validação de URLs para evitar "Invalid Argument"
-            const safeProductUrl = productUrl.startsWith('http') ? productUrl : `https://${productUrl}`;
+            // Validação de URLs e Injeção do Link Exato do Produto
+            const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
             const safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
             // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)

@@ -1579,36 +1579,39 @@ export default function Admin() {
         return data.secure_url;
     };
 const handleGenerateProductCopy = async () => {
-    if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
-    setIsGeneratingCopy(true);
-    
-    try {
-        const functions = getFunctions(getApp(), 'southamerica-east1');
-        const gerarCopy = httpsCallable(functions, 'gerarCopyProduto'); 
-        
-        // BLINDAGEM: Garante que o Firebase nunca receba valores "undefined"
-        const result = await gerarCopy({ 
-            termoRaw: termoIA, 
-            lojaNome: storeStatus.name || 'Loja Delivery',
-            lojaNicho: storeStatus.storeNiche || 'Geral',
-            lojaLocalizacao: storeStatus.address || 'Brasil'
-        });
-        
-        setForm(prev => ({
-            ...prev,
-            name: result.data?.nome || prev.name,
-            description: result.data?.descricao || prev.description
-        }));
-        
-        setTermoIA(''); 
-    } catch (error) {
-        console.error("Erro Crítico na IA:", error);
-        // EXIBE O ERRO EXATO NA TELA (Isso nos dirá se o problema é faturamento, Firebase off ou CORS)
-        alert(`Erro ao otimizar produto: ${error.message || 'Falha na comunicação'}. Pressione F12 e veja o Console para detalhes.`);
-    } finally {
-        setIsGeneratingCopy(false);
-    }
-};
+        if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
+        setIsGeneratingCopy(true);
+        
+        try {
+            const res = await fetch('/api/generate-product-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    termoRaw: termoIA, 
+                    lojaNome: storeStatus.name,
+                    lojaNicho: storeStatus.storeNiche,
+                    lojaLocalizacao: storeStatus.address
+                })
+            });
+
+            const result = await res.json();
+            
+            if (res.ok && result.success) {
+                setForm(prev => ({
+                    ...prev,
+                    name: result.nome || prev.name,
+                    description: result.descricao || prev.description
+                }));
+                setTermoIA(''); 
+            } else {
+                alert(`Erro na IA: ${result.error || 'Tente novamente.'}`);
+            }
+        } catch (error) {
+            alert("Erro de conexão com o servidor. Verifique a internet e tente novamente.");
+        } finally {
+            setIsGeneratingCopy(false);
+        }
+    };
     const handleGeneratePromoCopy = async (product) => {
         setIsPromoCopyModalOpen(true);
         setPromoCopyProduct(product);
@@ -1624,7 +1627,8 @@ const handleGenerateProductCopy = async () => {
                     storeNiche: storeStatus.storeNiche,
                     productName: product.name,
                     productDesc: product.description || '',
-                    productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price
+                    productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price,
+                    productId: product.id // 🚨 Envia o ID para o servidor injetar o link na Copy!
                 })
             });
 
@@ -11254,9 +11258,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     locationId: settings.integrations.google_my_business.locationId,
                                                                     summary: promoCopyResult.instagram, 
                                                                     imageUrl: promoCopyProduct.imageUrl,
-                                                                    // 🚨 AGORA O SISTEMA PEGA O DOMÍNIO DINÂMICO AUTOMATICAMENTE (Seja subdomínio ou customizado)
-                                                                    productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
-                                                                    topicType: promoCopyResult.gmbType || 'STANDARD'
+                                                                        productId: promoCopyProduct.id, // 🚨 Deixa o Backend calcular o link seguro
+                                                                        topicType: promoCopyResult.gmbType || 'STANDARD'
                                                                 })
                                                         });
                                                         
