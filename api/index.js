@@ -2394,22 +2394,39 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
            // SE FOR PIX: Extrai o QR Code e salva no Firebase para a tela de Tracking exibir
             if (payment_method_id === 'pix') {
-                // TRAVA DE SEGURANÇA: Se o Mercado Pago não devolver o código, aborta!
                 if (!data.point_of_interaction?.transaction_data?.qr_code) {
-                    console.error("❌ MP não retornou o QR Code do PIX. Detalhes:", data);
-                    return res.status(400).json({ 
-                        error: "O Mercado Pago não conseguiu gerar a chave PIX.", 
-                        details: data.status_detail || "Sua conta do Mercado Pago pode estar exigindo CPF obrigatório para transações PIX." 
-                    });
+                    return res.status(400).json({ error: "O Mercado Pago não conseguiu gerar a chave PIX." });
                 }
+
+                const pixCodigo = data.point_of_interaction.transaction_data.qr_code;
 
                 await db.collection('orders').doc(orderId).set({
                     paymentIntentId: String(data.id),
                     mpPaymentStatus: data.status,
-                    velopayStatus: 'waiting_payment', // CORREÇÃO: Força o gatilho visual da tela de Rastreio
-                    pixCopiaECola: data.point_of_interaction.transaction_data.qr_code,
+                    velopayStatus: 'waiting_payment', 
+                    pixCopiaECola: pixCodigo,
                     pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
                 }, { merge: true });
+
+                // 🚀 ENVIA O CÓDIGO PIX DIRETO NO ZAP DO CLIENTE
+                const waConfig = settingsDoc.data()?.integrations?.whatsapp;
+                if (payer.phone && waConfig?.apiToken && waConfig?.phoneNumberId) {
+                    const phoneClient = String(payer.phone).replace(/\D/g, '');
+                    const safePhone = phoneClient.startsWith('55') ? phoneClient : `55${phoneClient}`;
+                    const msgPix = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*\n\nCopie o código PIX abaixo para pagar:\n\n${pixCodigo}\n\n*A cozinha será avisada assim que você pagar!* 🚀`;
+                    
+                    fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            messaging_product: "whatsapp",
+                            recipient_type: "individual",
+                            to: safePhone,
+                            type: "text",
+                            text: { body: msgPix }
+                        })
+                    }).catch(e => console.error("Erro ao enviar PIX no Zap:", e));
+                }
 
                 return res.status(200).json({ success: true, isPix: true, id: data.id });
             }

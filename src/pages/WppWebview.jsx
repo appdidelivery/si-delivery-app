@@ -1,7 +1,7 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import { db } from '../services/firebase'; 
-import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, serverTimestamp, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, X, Plus, Minus, Search } from 'lucide-react';
 import { Carousel } from 'react-responsive-carousel';
@@ -120,6 +120,7 @@ export default function WppWebview() {
         }
 
         const foundRate = shippingRates.find(r => {
+            let currentCepNum = parseInt(cep);
             if (r.cepStart && r.cepEnd && currentCepNum >= parseInt(String(r.cepStart).replace(/\D/g,'').padEnd(8,'0')) && currentCepNum <= parseInt(String(r.cepEnd).replace(/\D/g,'').padEnd(8,'9'))) return true;
             const norm = s => s ? String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
             const rName = norm(r.neighborhood);
@@ -222,7 +223,7 @@ export default function WppWebview() {
               createdAt: serverTimestamp(), 
               storeId: slug, 
               tipo: deliveryMethod === 'pickup' ? "retirada" : "delivery", 
-              source: 'whatsapp_bot' // <--- ALTERADO AQUI PARA RECONHECIMENTO NO PAINEL
+              source: 'whatsapp_bot' // <--- ALTERADO PARA RECONHECIMENTO NO PAINEL
           };
 
           // Baixa de Estoque Ficha Técnica
@@ -246,10 +247,9 @@ export default function WppWebview() {
               return window.location.href = `/track/${orderRef.id}?payment=pix_pending`;
           }
 
-          // Fluxo de Pagamento Online (Mercado Pago Transparente ou Link)
+          // Fluxo de Pagamento Online (PIX Transparente Direto)
           if (customer.payment === 'mercadopago_link') {
               try {
-                  // Tenta gerar o PIX Transparente primeiro para não tirar o cliente do app
                   const res = await fetch('/api/processar-pagamento-transparente-velo', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -258,34 +258,28 @@ export default function WppWebview() {
                           orderId: orderRef.id,
                           transaction_amount: cartTotal,
                           payment_method_id: 'pix',
-                          payer: { email: 'cliente@velodelivery.com.br', first_name: customer.name }
+                          payer: { 
+                              email: 'cliente@velodelivery.com.br', 
+                              first_name: customer.name,
+                              phone: customer.phone // OBRIGATÓRIO PARA O ZAP FUNCIONAR
+                          }
                       })
                   });
 
                   const data = await res.json();
 
                   if (res.ok && data.success) {
-                      // Sucesso no PIX Transparente! Salva o pedido e vai para o rastreio com o código na tela
                       await setDoc(orderRef, oData);
                       setCart([]); 
                       localStorage.removeItem(`veloCart_${slug}`);
                       return window.location.href = `/track/${orderRef.id}?payment=pix_generated`;
                   } else {
-                      // Fallback: Se o transparente falhar (falta CPF, etc), usa o link externo como última opção
-                      const fallbackRes = await fetch('/api/create-mp-checkout', {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ items: cart, storeId: slug, orderId: orderRef.id, customerEmail: 'cliente@app.com', shippingFee: deliveryMethod === 'pickup' ? 0 : deliveryFee })
-                      });
-                      const fallbackData = await fallbackRes.json();
-                      if (fallbackData.url) {
-                          await setDoc(orderRef, oData);
-                          setCart([]); 
-                          localStorage.removeItem(`veloCart_${slug}`);
-                          return window.location.href = fallbackData.url;
-                      } else throw new Error(fallbackData.error);
+                      throw new Error(data.error || "Falha ao gerar PIX Automático.");
                   }
               } catch (e) {
-                  throw new Error("Erro ao processar pagamento online. Tente outra forma.");
+                  alert("Erro ao gerar PIX: " + e.message);
+                  submitLock.current = false; setIsSubmitting(false);
+                  return;
               }
           }
       } catch (e) { alert(`Erro: ${e.message}`); submitLock.current = false; setIsSubmitting(false); }
@@ -482,6 +476,7 @@ export default function WppWebview() {
                   )}
                 </div>
 
+                {/* FORMA DE PAGAMENTO BLINDADA */}
                 <div className="mb-6">
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Como deseja pagar?</label>
                     <div className="grid grid-cols-1 gap-2">
