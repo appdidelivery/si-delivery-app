@@ -3284,9 +3284,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
             // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
 
-            const googlePayload = {
+           const googlePayload = {
                 languageCode: 'pt-BR',
-                topicType: 'STANDARD', // 🚨 CAMPO OBRIGATÓRIO EXIGIDO PELO GOOGLE
+                topicType: req.body.topicType || 'STANDARD', // 🚨 Recebe a escolha do lojista dinamicamente
                 summary: cleanSummary || "Confira nossa oferta especial!", // Fallback se a limpeza zerar o texto
                 callToAction: { 
                     actionType: 'LEARN_MORE',

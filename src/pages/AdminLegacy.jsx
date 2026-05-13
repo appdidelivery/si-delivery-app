@@ -11364,57 +11364,80 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* --- INÍCIO: GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
-                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
-                                                <FaGoogle size={16} /> Postar Oferta no Google
-                                            </h3>
-                                            <button 
-                                                onClick={async () => {
-                                                    // 1. Trava: Verifica se o Lojista configurou o Google na aba Integrações
-                                                    if (!settings?.integrations?.google_my_business?.locationId) {
-                                                        return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
-                                                    }
-                                                    // 2. Trava: O Google exige uma imagem para postar ofertas
-                                                    if (!promoCopyProduct?.imageUrl) {
-                                                        return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
-                                                    }
-                                                    
-                                                    // 3. Chamada para o Backend (que falará com a API do Google)
-                                                    try {
-                                                        const res = await fetch('/api/post-google-update', {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
-                                                                storeId: storeId,
-                                                                locationId: settings.integrations.google_my_business.locationId,
-                                                                summary: promoCopyResult.instagram, // Usa o texto do Insta como base para o Google
-                                                                imageUrl: promoCopyProduct.imageUrl,
-                                                                productUrl: `https://${storeId}.velodelivery.com.br/p/${promoCopyProduct.id}`
-                                                            })
-                                                        });
-                                                        
-                                                        const data = await res.json();
-                                                        
-                                                        if (res.ok) {
-                                                            alert("✅ Oferta postada com sucesso no seu Perfil do Google!");
-                                                        } else {
-                                                            alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
-                                                        }
-                                                    } catch (e) {
-                                                        alert("Erro de conexão ao tentar postar no Google.");
-                                                    }
-                                                }} 
-                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
-                                            >
-                                                <UploadCloud size={14}/> Publicar Agora
-                                            </button>
+                                        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
+                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
+                                                <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
+                                                    <FaGoogle size={16} /> Postar no Google Maps
+                                                </h3>
+                                                
+                                                <div className="flex items-center gap-2 w-full md:w-auto">
+                                                    <select 
+                                                        value={promoCopyResult.gmbType || 'STANDARD'} 
+                                                        onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
+                                                        className="flex-1 p-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none border border-blue-200 text-blue-800 bg-white cursor-pointer"
+                                                    >
+                                                        <option value="STANDARD">📢 Novidade (Padrão)</option>
+                                                        <option value="OFFER">🏷️ Oferta</option>
+                                                        <option value="EVENT">🎉 Evento</option>
+                                                    </select>
+
+                                                    <button 
+                                                        onClick={async (e) => {
+                                                            // 1. Trava: Verifica se o Lojista configurou o Google
+                                                            if (!settings?.integrations?.google_my_business?.locationId) {
+                                                                return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
+                                                            }
+                                                            // 2. Trava: O Google exige uma imagem
+                                                            if (!promoCopyProduct?.imageUrl) {
+                                                                return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
+                                                            }
+                                                            
+                                                            // 3. Chamada para o Backend (que falará com a API do Google)
+                                                            try {
+                                                                // Botão visual de carregamento
+                                                                const btn = e.currentTarget;
+                                                                const oldText = btn.innerHTML;
+                                                                btn.innerHTML = '⏳ Publicando...';
+                                                                btn.disabled = true;
+
+                                                                const res = await fetch('/api/post-google-update', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                        storeId: storeId,
+                                                                        locationId: settings.integrations.google_my_business.locationId,
+                                                                        summary: promoCopyResult.instagram, // Usa o texto do Insta como base para o Google
+                                                                        imageUrl: promoCopyProduct.imageUrl,
+                                                                        productUrl: `https://${storeId}.velodelivery.com.br/p/${promoCopyProduct.id}`,
+                                                                        topicType: promoCopyResult.gmbType || 'STANDARD' // 🚨 NOVO: Envia o tipo escolhido
+                                                                    })
+                                                                });
+                                                                
+                                                                const data = await res.json();
+                                                                
+                                                                btn.innerHTML = oldText;
+                                                                btn.disabled = false;
+
+                                                                if (res.ok) {
+                                                                    alert("✅ Postagem enviada com sucesso para o seu Perfil do Google Maps!");
+                                                                } else {
+                                                                    alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                                }
+                                                            } catch (err) {
+                                                                alert("Erro de conexão ao tentar postar no Google.");
+                                                            }
+                                                        }} 
+                                                        className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
+                                                    >
+                                                        <UploadCloud size={14}/> Publicar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-500 leading-tight">
+                                                Isso criará uma postagem no mapa do Google usando a imagem do seu produto e a Copy gerada. O cliente verá um botão "Saiba Mais" que levará direto para o seu cardápio.
+                                            </p>
                                         </div>
-                                        <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                                            Isso criará uma postagem de "Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O cliente verá um botão de comprar que levará direto para o seu cardápio.
-                                        </p>
-                                    </div>
-                                    {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
+                                        {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
                                     
                                     <button 
                                         onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
