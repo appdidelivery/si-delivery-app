@@ -3195,15 +3195,12 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const { storeName, storeNiche, productName, productDesc, productPrice, productId } = req.body;
             if (!productName) return res.status(400).json({ error: 'Nome do produto é obrigatório.' });
 
-            // 🚨 CÁLCULO DINÂMICO DO LINK EXATO DO PRODUTO
             const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
             const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
             const exactProductLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) {
-                return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
-            }
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente na Vercel." });
 
             const prompt = `Crie textos de vendas curtos para Delivery.
 Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
@@ -3214,62 +3211,36 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
-            // Usamos o gemini-1.5-flash (o mais rápido) e limitamos a saída para não estourar os 10s da Vercel
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { 
-                        responseMimeType: "application/json",
-                        maxOutputTokens: 150 // Trava a IA para escrever pouco e MUITO rápido
-                    }
+                    generationConfig: { responseMimeType: "application/json", maxOutputTokens: 150 }
                 })
             });
 
-            // CORREÇÃO APLICADA AQUI NO ARQUIVO ISOLADO
             let aiData;
-            try {
-                aiData = await response.json();
-            } catch (e) {
-                return res.status(200).json({ success: false, error: "O tempo esgotou ou a IA falhou. Tente novamente." });
-            }
+            try { aiData = await response.json(); } 
+            catch (e) { return res.status(200).json({ success: false, error: "O tempo esgotou." }); }
             
-            if (!response.ok) {
-                console.error("Erro da API Gemini (Status):", response.status, aiData);
-                return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Tente novamente." });
-            }
+            if (!response.ok) return res.status(200).json({ success: false, error: "O Google rejeitou a requisição." });
 
             if (aiData.candidates && aiData.candidates[0]) {
                 const candidate = aiData.candidates[0];
-                
-                if (candidate.finishReason === 'SAFETY') {
-                    return res.status(200).json({ success: false, error: "O Google bloqueou este texto por políticas de segurança." });
-                }
+                if (candidate.finishReason === 'SAFETY') return res.status(200).json({ success: false, error: "Bloqueado por segurança." });
 
                 const rawJsonText = candidate.content?.parts[0]?.text;
-                if (!rawJsonText) {
-                    return res.status(200).json({ success: false, error: "O Google não retornou nenhum texto." });
-                }
+                if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio." });
                 
                 try {
                     const parsedResult = JSON.parse(rawJsonText);
-                    return res.status(200).json({ 
-                        success: true, 
-                        whatsapp: parsedResult.whatsapp || "Garanta o seu agora!",
-                        instagram: parsedResult.instagram || "Peça agora no link da bio!",
-                        hashtags: parsedResult.hashtags || "#delivery"
-                    });
-                } catch (parseError) {
-                    return res.status(200).json({ success: false, error: "Erro ao formatar os textos da IA." });
-                }
+                    return res.status(200).json({ success: true, whatsapp: parsedResult.whatsapp, instagram: parsedResult.instagram, hashtags: parsedResult.hashtags });
+                } catch (e) { return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); }
             } else {
-                return res.status(200).json({ success: false, error: "Resposta vazia da Inteligência Artificial." });
+                return res.status(200).json({ success: false, error: "Resposta vazia." });
             }
-
         } catch (error) {
-            console.error("Erro Fatal na IA de Copy:", error);
-            // Sempre devolvemos 200 pro front, com a mensagem de erro dentro do JSON para o React exibir bonito
             return res.status(200).json({ success: false, error: `Erro no servidor: ${error.message}` });
         }
     }
@@ -3287,40 +3258,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
             }
 
-            // 🚨 CÁLCULO DINÂMICO DA URL (Garante o domínio real que fez a requisição para o Google)
             const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
             const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
             const exactLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
-
-            // Tenta pegar o token do lojista ou do robô de forma inteligente
-            let activeToken;
-            try {
-                activeToken = await getGoogleAuthToken(storeId);
-            } catch (err) {
-                return res.status(500).json({ error: 'Falha na autenticação com o Google.' });
-            }
-
-            let parentName = '';
-            const locationIdTrim = locationId.trim();
-            const regexMatch = locationIdTrim.match(/accounts\/\d+\/locations\/\d+/);
-
-            if (regexMatch) {
-                parentName = regexMatch[0];
-            } else {
-                const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-                    headers: { 'Authorization': `Bearer ${activeToken}` }
-                });
-                const accountsData = await accountsRes.json();
-                
-                if (accountsRes.ok && accountsData.accounts?.length > 0) {
-                    const cleanLoc = locationIdTrim.replace(/\D/g, '');
-                    // Tenta encontrar a conta correta ou usa a primeira como fallback
-                    const targetAccount = accountsData.accounts.find(a => a.type === 'LOCATION_GROUP') || accountsData.accounts[0];
-                    parentName = `${targetAccount.name}/locations/${cleanLoc}`;
-                } else {
-                    return res.status(400).json({ error: 'Não foi possível localizar sua conta comercial no Google.' });
-                }
-            }
 
             // Validação de URLs e Injeção do Link Exato do Produto
             const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
@@ -3329,10 +3269,10 @@ Retorne APENAS um JSON com 3 chaves curtas:
             // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
 
-           const googlePayload = {
+            const googlePayload = {
                 languageCode: 'pt-BR',
-                topicType: req.body.topicType || 'STANDARD', // 🚨 Recebe a escolha do lojista dinamicamente
-                summary: cleanSummary || "Confira nossa oferta especial!", // Fallback se a limpeza zerar o texto
+                topicType: req.body.topicType || 'STANDARD',
+                summary: cleanSummary || "Confira nossa oferta especial!",
                 callToAction: { 
                     actionType: 'LEARN_MORE',
                     url: safeProductUrl 

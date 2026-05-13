@@ -1627,8 +1627,9 @@ const handleGenerateProductCopy = async () => {
                     storeNiche: storeStatus.storeNiche,
                     productName: product.name,
                     productDesc: product.description || '',
+                    productDesc: product.description || '',
                     productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price,
-                    productId: product.id // 🚨 Envia o ID para o servidor injetar o link na Copy!
+                    productId: product.id
                 })
             });
 
@@ -11390,18 +11391,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                     <button 
                                                         onClick={async (e) => {
-                                                            // 1. Trava: Verifica se o Lojista configurou o Google
                                                             if (!settings?.integrations?.google_my_business?.locationId) {
                                                                 return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
                                                             }
-                                                            // 2. Trava: O Google exige uma imagem
                                                             if (!promoCopyProduct?.imageUrl) {
                                                                 return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
                                                             }
                                                             
-                                                            // 3. Chamada para o Backend (que falará com a API do Google)
                                                             try {
-                                                                // Botão visual de carregamento
                                                                 const btn = e.currentTarget;
                                                                 const oldText = btn.innerHTML;
                                                                 btn.innerHTML = '⏳ Publicando...';
@@ -11411,18 +11408,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     method: 'POST',
                                                                     headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({
-                                                                    storeId: storeId,
-                                                                    locationId: settings.integrations.google_my_business.locationId,
-                                                                    summary: promoCopyResult.instagram, 
-                                                                    imageUrl: promoCopyProduct.imageUrl,
-                                                                    // 🚨 AGORA O SISTEMA PEGA O DOMÍNIO DINÂMICO AUTOMATICAMENTE (Seja subdomínio ou customizado)
-                                                                    productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
-                                                                    topicType: promoCopyResult.gmbType || 'STANDARD'
-                                                                })
+                                                                        storeId: storeId,
+                                                                        locationId: settings.integrations.google_my_business.locationId,
+                                                                        summary: promoCopyResult.instagram, 
+                                                                        imageUrl: promoCopyProduct.imageUrl,
+                                                                        productId: promoCopyProduct.id,
+                                                                        topicType: promoCopyResult.gmbType || 'STANDARD'
+                                                                    })
                                                                 });
                                                                 
                                                                 const data = await res.json();
-                                                                
                                                                 btn.innerHTML = oldText;
                                                                 btn.disabled = false;
 
@@ -11442,7 +11437,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             </div>
                                             <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                                                Isso criará uma postagem no mapa do Google usando a imagem do seu produto e a Copy gerada. O cliente verá um botão "Saiba Mais" que levará direto para o seu cardápio.
+                                                Escolha o tipo da postagem acima. O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto.
                                             </p>
                                         </div>
                                         {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
