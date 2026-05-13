@@ -3277,9 +3277,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
             let safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
-            // 🚨 BLINDAGEM DE IMAGEM (Erro 10KB do Google): 
-            // O Google exige imagens maiores que 10KB. Se a foto for do Cloudinary, forçamos alta resolução e qualidade máxima para passar no filtro.
-            if (safeImageUrl.includes('cloudinary.com') && !safeImageUrl.includes('/upload/w_')) {
+            // 🚨 DETECÇÃO DINÂMICA DE MÍDIA (FOTO vs VÍDEO)
+            const isVideo = safeImageUrl.toLowerCase().match(/\.(mp4|webm|mov|avi)$/i) || safeImageUrl.includes('/video/upload/');
+            const mediaFormatType = isVideo ? 'VIDEO' : 'PHOTO';
+
+            // 🚨 BLINDAGEM DE IMAGEM (Aplica filtro de qualidade APENAS para imagens)
+            if (!isVideo && safeImageUrl.includes('cloudinary.com') && !safeImageUrl.includes('/upload/w_')) {
                 safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100/');
             }
 
@@ -3294,7 +3297,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     actionType: 'LEARN_MORE',
                     url: safeProductUrl 
                 },
-                media: [{ mediaFormat: 'PHOTO', sourceUrl: safeImageUrl }]
+                media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
             };
 
             // 🚨 BLINDAGEM ADICIONADA: Busca o token da loja e monta o nome pai (parentName)
