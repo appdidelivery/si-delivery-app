@@ -3281,11 +3281,15 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const safeProductUrl = productUrl.startsWith('http') ? productUrl : `https://${productUrl}`;
             const safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
+            // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
+            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
+
             const googlePayload = {
                 languageCode: 'pt-BR',
-                summary: summary.substring(0, 1400), // Mantém emojis agora!
+                topicType: 'STANDARD', // 🚨 CAMPO OBRIGATÓRIO EXIGIDO PELO GOOGLE
+                summary: cleanSummary || "Confira nossa oferta especial!", // Fallback se a limpeza zerar o texto
                 callToAction: { 
-                    actionType: 'LEARN_MORE', // Mudado de ORDER para LEARN_MORE por ser mais aceito universalmente
+                    actionType: 'LEARN_MORE',
                     url: safeProductUrl 
                 },
                 media: [{ mediaFormat: 'PHOTO', sourceUrl: safeImageUrl }]
