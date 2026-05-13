@@ -3277,13 +3277,19 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
             let safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
-            // 🚨 DETECÇÃO DINÂMICA DE MÍDIA (FOTO vs VÍDEO)
+           // 🚨 DETECÇÃO DINÂMICA DE MÍDIA (FOTO vs VÍDEO)
             const isVideo = safeImageUrl.toLowerCase().match(/\.(mp4|webm|mov|avi)$/i) || safeImageUrl.includes('/video/upload/');
             const mediaFormatType = isVideo ? 'VIDEO' : 'PHOTO';
 
-            // 🚨 BLINDAGEM DE IMAGEM (Aplica filtro de qualidade APENAS para imagens)
-            if (!isVideo && safeImageUrl.includes('cloudinary.com') && !safeImageUrl.includes('/upload/w_')) {
-                safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100/');
+            // 🚨 BLINDAGEM DE IMAGEM (Erro 10KB e WEBP do Google)
+            if (!isVideo && safeImageUrl.includes('cloudinary.com')) {
+                // 1. O Google odeia .webp, então trocamos a extensão da string para .jpg
+                safeImageUrl = safeImageUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
+                
+                // 2. Forçamos alta resolução, qualidade 100 e conversão para JPG nativa no Cloudinary
+                if (!safeImageUrl.includes('/upload/w_')) {
+                    safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
+                }
             }
 
             // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
