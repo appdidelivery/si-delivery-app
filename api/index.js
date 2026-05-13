@@ -3275,7 +3275,13 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             // Validação de URLs e Injeção do Link Exato do Produto
             const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
-            const safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
+            let safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
+
+            // 🚨 BLINDAGEM DE IMAGEM (Erro 10KB do Google): 
+            // O Google exige imagens maiores que 10KB. Se a foto for do Cloudinary, forçamos alta resolução e qualidade máxima para passar no filtro.
+            if (safeImageUrl.includes('cloudinary.com') && !safeImageUrl.includes('/upload/w_')) {
+                safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100/');
+            }
 
             // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
