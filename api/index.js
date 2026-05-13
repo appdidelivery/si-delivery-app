@@ -3519,23 +3519,42 @@ Retorne APENAS um JSON com 3 chaves curtas:
         try {
             const activeToken = await getGoogleAuthToken();
 
-            // 1. Pede pro Google listar TODOS os convites globais (usando o curinga '-')
-            const invitesRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts/-/invitations', {
+            // 1. Primeiro descobre o ID da conta da própria Service Account
+            const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+                headers: { 'Authorization': `Bearer ${activeToken}` }
+            });
+            const accountsData = await accountsRes.json();
+
+            if (!accountsRes.ok || !accountsData.accounts || accountsData.accounts.length === 0) {
+                return res.status(400).json({ 
+                    error: "Não foi possível localizar a conta do robô.", 
+                    details: accountsData 
+                });
+            }
+
+            // Pega o ID da conta (ex: accounts/12345)
+            const accountName = accountsData.accounts[0].name;
+
+            // 2. Busca os convites usando o ID real da conta (Matando o erro 404)
+            const invitesRes = await fetch(`https://mybusinessaccountmanagement.googleapis.com/v1/${accountName}/invitations`, {
                 headers: { 'Authorization': `Bearer ${activeToken}` }
             });
             const invitesData = await invitesRes.json();
 
-            // Blindagem: Se a API My Business Account Management estiver desativada no GCP, ele avisa agora
-            if (invitesData.error) {
-                return res.status(400).json({ error: "O Google bloqueou a requisição", detalhes: invitesData.error });
+            if (!invitesRes.ok) {
+                return res.status(400).json({ error: "Erro ao buscar convites no Google", detalhes: invitesData });
             }
 
             if (!invitesData.invitations || invitesData.invitations.length === 0) {
-                return res.status(200).json({ message: "Nenhum convite encontrado.", debug: invitesData });
+                return res.status(200).json({ 
+                    success: true,
+                    message: "O robô está ativo, mas não há convites pendentes no painel do Google Meu Negócio.",
+                    account: accountName
+                });
             }
 
             const accepted = [];
-            // 2. O robô "clica" em aceitar para cada convite da lista global
+            // 3. Aceita cada convite encontrado
             for (const invite of invitesData.invitations) {
                 const acceptRes = await fetch(`https://mybusinessaccountmanagement.googleapis.com/v1/${invite.name}:accept`, {
                     method: 'POST',
@@ -3549,13 +3568,13 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             return res.status(200).json({ 
                 success: true, 
-                message: "VITÓRIA! O robô aceitou os convites do Grupo!",
+                message: `Sucesso! O robô (${accountName}) aceitou ${accepted.length} convite(s).`,
                 accepted_invites: accepted 
             });
 
         } catch (error) {
-            console.error('Erro ao aceitar convites:', error);
-            return res.status(500).json({ error: error.message });
+            console.error('Erro crítico ao aceitar convites:', error);
+            return res.status(500).json({ error: "Erro interno no servidor Vercel.", details: error.message });
         }
     }
 
