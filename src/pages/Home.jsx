@@ -1918,7 +1918,7 @@ if (window.fbq) {
                   return;
 
             } catch (err) {
-                  try { await deleteDoc(newOrderRef); } catch(e) {} // 👻 MATA O PEDIDO FANTASMA
+                  try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Falha ao gerar PIX VeloPay.' }); } catch(e) {}
                   alert(`Erro VeloPay: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2014,7 +2014,7 @@ if (window.fbq) {
                   return;
 
               } catch (err) {
-                  try { await deleteDoc(newOrderRef); } catch(e) {} // 👻 MATA O PEDIDO FANTASMA
+                  try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Pagamento via Cartão recusado.' }); } catch(e) {}
                   alert(`Erro no Cartão: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2064,7 +2064,7 @@ if (window.fbq) {
                   return;
 
               } catch (err) {
-                  try { await deleteDoc(newOrderRef); } catch(e) {} // 👻 MATA O PEDIDO FANTASMA
+                  try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Falha ao gerar PIX Mercado Pago.' }); } catch(e) {}
                   alert(`Erro ao gerar PIX: ${err.message}`);
                   setIsFinalizing(false); submitLock.current = false;
                   return;
@@ -2348,15 +2348,15 @@ if (window.fbq) {
                                       setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                                       
                                       window.location.href = `/track/${orderId}?payment=success`;
-                                  } else {
+                                 } else {
                                       // Falha no pagamento
-                                      if (newOrderRef) { try { await deleteDoc(newOrderRef); } catch(err){} } // 👻 MATA O PEDIDO FANTASMA
+                                      if (newOrderRef) { try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Pagamento recusado pela operadora de cartão.' }); } catch(err){} }
                                       alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + (result.error || result.status_detail));
                                       setIsFinalizing(false);
                                       submitLock.current = false;
                                   }
                               } catch (e) {
-                                  if (newOrderRef) { try { await deleteDoc(newOrderRef); } catch(err){} } // 👻 MATA O PEDIDO FANTASMA
+                                  if (newOrderRef) { try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Erro de conexão durante o pagamento transparente.' }); } catch(err){} }
                                   alert("Erro de conexão ao processar. Tente novamente.");
                                   setIsFinalizing(false);
                                   submitLock.current = false;
