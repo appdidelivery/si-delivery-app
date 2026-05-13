@@ -454,7 +454,7 @@ export default async function handler(req, res) {
                                 if (GEMINI_KEY && cartItems) {
                                     const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
 
-                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -3008,7 +3008,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada para a versão mais recente e veloz do Gemini
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3124,7 +3124,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
@@ -3153,18 +3153,19 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
    // ------------------------------------------------------------------------
     // 21.5 GERADOR DE COPY DE PRODUTOS (NOME E DESCRIÇÃO VIA IA)
     // ------------------------------------------------------------------------
-    else if (path === '/api/generate-product-copy') {
+   else if (path === '/api/generate-product-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
+            const { termoRaw, lojaNome, lojaNicho } = req.body;
             if (!termoRaw) return res.status(400).json({ error: 'O termo do produto é obrigatório.' });
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente." });
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
 
-            const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
+            const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro, sem blocos de código: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
 
+            // 🚨 CORREÇÃO: Forçando modelo 1.5-flash (O 2.5 não existe)
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3175,14 +3176,24 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             });
 
             const aiData = await response.json();
+
+            // 🛡️ BLINDAGEM: Verifica se o Google retornou erro antes de tentar ler o texto
+            if (!response.ok) {
+                console.error("Erro Google API:", aiData);
+                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro na chave ou modelo'}` });
+            }
+
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawJsonText) throw new Error("A IA não retornou texto.");
+            
+            if (!rawJsonText) {
+                return res.status(200).json({ success: false, error: "A IA não conseguiu processar este produto agora." });
+            }
             
             const parsedResult = JSON.parse(rawJsonText);
             return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
         } catch (error) {
-            console.error("Erro na IA de Produtos:", error);
-            return res.status(200).json({ success: false, error: `Falha na IA: ${error.message}` });
+            console.error("Erro Crítico IA Produtos:", error);
+            return res.status(200).json({ success: false, error: `Falha técnica: ${error.message}` });
         }
     }
     // ------------------------------------------------------------------------

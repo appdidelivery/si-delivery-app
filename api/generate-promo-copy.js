@@ -47,9 +47,9 @@ export default async function handler(req, res) {
         }
         `;
 
-        // 6. Chama o modelo gemini-2.5-flash forçando a saída em JSON
+        // 6. Chama o modelo gemini-1.5-flash forçando a saída em JSON
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
