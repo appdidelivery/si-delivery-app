@@ -6,10 +6,47 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 // Ajuste o caminho se a pasta lib for diferente!
 import { sendWhatsAppNotification } from '../lib/evolution.js';
 
-// Helper global para gerar o token dinâmico da Service Account
-async function getGoogleAuthToken() {
+// Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
+async function getGoogleAuthToken(storeId = null) {
+    // 1. Se informou storeId, tenta buscar o token específico do lojista no Firebase
+    if (storeId) {
+        const storeSnap = await db.collection('settings').doc(storeId).get();
+        const googleConfig = storeSnap.data()?.integrations?.google_my_business;
+
+        if (googleConfig?.accessToken) {
+            // Verifica se o token precisa de refresh (Google dura 3600s)
+            const isExpired = (Date.now() - (googleConfig.connectedAt?.toMillis() || 0)) > 3500000;
+            
+            if (isExpired && googleConfig.refreshToken) {
+                console.log(`🔄 Refreshing Google Token para loja: ${storeId}`);
+                const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        client_id: process.env.GOOGLE_CLIENT_ID,
+                        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                        refresh_token: googleConfig.refreshToken,
+                        grant_type: 'refresh_token'
+                    })
+                });
+                const refreshData = await refreshRes.json();
+                if (refreshRes.ok) {
+                    await db.collection('settings').doc(storeId).set({
+                        integrations: { google_my_business: { 
+                            accessToken: refreshData.access_token, 
+                            connectedAt: admin.firestore.FieldValue.serverTimestamp() 
+                        }}
+                    }, { merge: true });
+                    return refreshData.access_token;
+                }
+            }
+            return googleConfig.accessToken;
+        }
+    }
+
+    // 2. Fallback para o Robô (Service Account) se não houver OAuth do lojista
     if (!process.env.GCP_SERVICE_ACCOUNT) {
-        throw new Error("Chave GCP_SERVICE_ACCOUNT não encontrada nas variáveis de ambiente.");
+        throw new Error("Credenciais do Google não encontradas (OAuth ou Service Account).");
     }
     const credentials = JSON.parse(process.env.GCP_SERVICE_ACCOUNT);
     const auth = new GoogleAuth({
