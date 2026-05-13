@@ -3251,14 +3251,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
             try {
                 activeToken = await getGoogleAuthToken(storeId);
             } catch (err) {
-                return res.status(500).json({ error: 'Erro ao gerar token da Conta de Serviço do Google Cloud.' });
+                return res.status(500).json({ error: 'Falha na autenticação com o Google.' });
             }
 
-            // --- MODO BYPASS COM EXTRATOR INTELIGENTE ---
             let parentName = '';
             const locationIdTrim = locationId.trim();
-
-            // Sugador Regex: Pega rigorosamente apenas o padrão "accounts/123/locations/456", ignorando links ou lixo em volta
             const regexMatch = locationIdTrim.match(/accounts\/\d+\/locations\/\d+/);
 
             if (regexMatch) {
@@ -3267,65 +3264,53 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
                     headers: { 'Authorization': `Bearer ${activeToken}` }
                 });
-
-                if (accountsRes.status === 429) {
-                    return res.status(400).json({ 
-                        error: 'Cota do Google Excedida. Cole o caminho exato no painel.' 
-                    });
-                }
-
                 const accountsData = await accountsRes.json();
+                
                 if (accountsRes.ok && accountsData.accounts?.length > 0) {
-                    const cleanLoc = locationIdTrim.replace(/\D/g, ''); // Força pegar apenas números caso venha sujo
-                    parentName = `${accountsData.accounts[0].name}/locations/${cleanLoc}`;
+                    const cleanLoc = locationIdTrim.replace(/\D/g, '');
+                    // Tenta encontrar a conta correta ou usa a primeira como fallback
+                    const targetAccount = accountsData.accounts.find(a => a.type === 'LOCATION_GROUP') || accountsData.accounts[0];
+                    parentName = `${targetAccount.name}/locations/${cleanLoc}`;
                 } else {
-                    return res.status(400).json({ error: 'A Conta de Serviço da Velo não foi adicionada como administradora desta loja no Google.' });
+                    return res.status(400).json({ error: 'Não foi possível localizar sua conta comercial no Google.' });
                 }
             }
 
-            // LIMPA EMOJIS COMPLEXOS QUE TRAVAM O GOOGLE
-            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r ]/gu, '').substring(0, 1400);
+            // Validação de URLs para evitar "Invalid Argument"
+            const safeProductUrl = productUrl.startsWith('http') ? productUrl : `https://${productUrl}`;
+            const safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
             const googlePayload = {
                 languageCode: 'pt-BR',
-                summary: cleanSummary,
-                callToAction: { actionType: 'ORDER', url: productUrl },
-                media: [{ mediaFormat: 'PHOTO', sourceUrl: imageUrl }]
+                summary: summary.substring(0, 1400), // Mantém emojis agora!
+                callToAction: { 
+                    actionType: 'LEARN_MORE', // Mudado de ORDER para LEARN_MORE por ser mais aceito universalmente
+                    url: safeProductUrl 
+                },
+                media: [{ mediaFormat: 'PHOTO', sourceUrl: safeImageUrl }]
             };
 
-            // URL Ajustada para o formato exato da API de Postagens aprovada
-            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName.replace(/\/$/, '')}/localPosts`, {
+            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
                 method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${activeToken}`, 
-                    'Content-Type': 'application/json' 
-                },
+                headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify(googlePayload)
             });
 
-            // PREVINE O ERRO "UNEXPECTED TOKEN <"
-            const responseText = await googleRes.text();
-            let googleData = {};
-            
-            try {
-                googleData = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error("❌ O Google retornou HTML:", responseText);
-                return res.status(400).json({ error: 'O ID da loja (Location ID) está incorreto ou a Service Account não tem permissão.' });
-            }
+            const googleData = await googleRes.json();
 
             if (!googleRes.ok) {
-                let errorMsg = googleData.error?.message || 'Falha ao processar postagem.';
-                if (errorMsg.includes('Unauthenticated')) errorMsg = 'Token da máquina expirou ou foi negado.';
-                else if (errorMsg.includes('Invalid Image')) errorMsg = 'A imagem foi rejeitada pelo Google.';
-                return res.status(400).json({ error: errorMsg });
+                console.error("❌ Google API Error Details:", JSON.stringify(googleData));
+                return res.status(400).json({ 
+                    error: googleData.error?.message || 'O Google rejeitou os dados enviados.',
+                    details: googleData.error?.details || null
+                });
             }
 
             return res.status(200).json({ success: true, post: googleData });
 
         } catch (error) {
-            console.error('❌ Erro Post Google:', error);
-            return res.status(500).json({ error: `Erro no servidor: ${error.message}` });
+            console.error('❌ Erro Crítico no Post Google:', error);
+            return res.status(500).json({ error: `Erro interno: ${error.message}` });
         }
     }
     // ------------------------------------------------------------------------
@@ -3618,8 +3603,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================
-    else {
-        return res.status(404).json({ error: 'Rota da API não foi encontrada no index.js', requestedPath: path });
+    // Silenciador de erros 404 para o gerador de prévia social
+    else if (path === '/api/og') {
+        return res.status(200).send('OG Service Active');
     }
 }
 
