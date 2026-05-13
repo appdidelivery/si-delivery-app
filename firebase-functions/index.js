@@ -146,7 +146,7 @@ exports.veloSupportWidget = onCall(
     try {
       const genAI = new GoogleGenerativeAI(geminiApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-pro",
+        model: "gemini-2.5-flash",
         systemInstruction: SYSTEM_INSTRUCTION,
       });
       const chat = model.startChat({ history: chatHistory });
@@ -171,7 +171,7 @@ exports.gerarCopyProduto = onCall(
         try {
             // Inicializa o Gemini usando a mesma chave secreta que o seu widget já usa!
             const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
             const prompt = `
             Você é um especialista Sênior em Local SEO e Copywriting para Delivery.
