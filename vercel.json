@@ -38,6 +38,17 @@
       "has": [
         {
           "type": "host",
+          "value": "encantolilas.velodelivery.com.br"
+        }
+      ],
+      "destination": "https://www.encantolilas.app.br/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
           "value": "ng.velodelivery.com.br"
         }
       ],

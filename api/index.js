@@ -130,6 +130,7 @@ export default async function handler(req, res) {
           "convenienciasantaisabel.com.br": "csi",
           "csi.com.br": "csi",
           "cowburguer.com.br": "cowburguer",
+          "encantolilas.app.br": "encantolilas",
           "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
           "rincaofood.com.br": "rincaofood",
