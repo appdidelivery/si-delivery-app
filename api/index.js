@@ -3256,64 +3256,64 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
-   /// ------------------------------------------------------------------------
-    // 23. GOOGLE MEU NEGÓCIO: POSTAR OFERTA / ATUALIZAÇÃO
-    // ------------------------------------------------------------------------
-    else if (path === '/api/post-google-update') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+   // ------------------------------------------------------------------------
+    // 23. GOOGLE MEU NEGÓCIO: POSTAR OFERTA / ATUALIZAÇÃO
+    // ------------------------------------------------------------------------
+    else if (path === '/api/post-google-update') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        try {
-            const { storeId, locationId, summary, imageUrl, productUrl, productId } = req.body;
+        try {
+            const { storeId, locationId, summary, imageUrl, productUrl, productId } = req.body;
 
-            if (!storeId || !locationId || !summary || !imageUrl) {
-                return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
-            }
+            if (!storeId || !locationId || !summary || !imageUrl) {
+                return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
+            }
 
-            const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
-            const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
-            const exactLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
+            const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
+            const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
+            const exactLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
 
-            // Validação de URLs e Injeção do Link Exato do Produto
-            const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
-            const safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
+            // Validação de URLs e Injeção do Link Exato do Produto
+            const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
+            const safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
-            // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
-            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
+            // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
+            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
 
-            const googlePayload = {
-                languageCode: 'pt-BR',
-                topicType: req.body.topicType || 'STANDARD',
-                summary: cleanSummary || "Confira nossa oferta especial!",
-                callToAction: { 
-                    actionType: 'LEARN_MORE',
-                    url: safeProductUrl 
-                },
-                media: [{ mediaFormat: 'PHOTO', sourceUrl: safeImageUrl }]
-            };
+            const googlePayload = {
+                languageCode: 'pt-BR',
+                topicType: req.body.topicType || 'STANDARD',
+                summary: cleanSummary || "Confira nossa oferta especial!",
+                callToAction: { 
+                    actionType: 'LEARN_MORE',
+                    url: safeProductUrl 
+                },
+                media: [{ mediaFormat: 'PHOTO', sourceUrl: safeImageUrl }]
+            };
 
-            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(googlePayload)
-            });
+            const googleRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(googlePayload)
+            });
 
-            const googleData = await googleRes.json();
+            const googleData = await googleRes.json();
 
-            if (!googleRes.ok) {
-                console.error("❌ Google API Error Details:", JSON.stringify(googleData));
-                return res.status(400).json({ 
-                    error: googleData.error?.message || 'O Google rejeitou os dados enviados.',
-                    details: googleData.error?.details || null
-                });
-            }
+            if (!googleRes.ok) {
+                console.error("❌ Google API Error Details:", JSON.stringify(googleData));
+                return res.status(400).json({ 
+                    error: googleData.error?.message || 'O Google rejeitou os dados enviados.',
+                    details: googleData.error?.details || null
+                });
+            }
 
-            return res.status(200).json({ success: true, post: googleData });
+            return res.status(200).json({ success: true, post: googleData });
 
-        } catch (error) {
-            console.error('❌ Erro Crítico no Post Google:', error);
-            return res.status(500).json({ error: `Erro interno: ${error.message}` });
-        }
-    }
+        } catch (error) {
+            console.error('❌ Erro Crítico no Post Google:', error);
+            return res.status(500).json({ error: `Erro interno: ${error.message}` });
+        }
+    }
     // ------------------------------------------------------------------------
     // 24. GOOGLE OAUTH: GERAR LINK DE LOGIN (CONSENT SCREEN)
     // ------------------------------------------------------------------------
