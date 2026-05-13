@@ -3246,10 +3246,10 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
             }
 
-            // GERA O TOKEN DIRETO DA MÁQUINA (IGNORA O OAUTH DO LOJISTA)
+            // Tenta pegar o token do lojista ou do robô de forma inteligente
             let activeToken;
             try {
-                activeToken = await getGoogleAuthToken();
+                activeToken = await getGoogleAuthToken(storeId);
             } catch (err) {
                 return res.status(500).json({ error: 'Erro ao gerar token da Conta de Serviço do Google Cloud.' });
             }
