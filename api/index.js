@@ -454,7 +454,7 @@ export default async function handler(req, res) {
                                 if (GEMINI_KEY && cartItems) {
                                     const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
 
-                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -3008,7 +3008,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada para a versão mais recente e veloz do Gemini
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3124,7 +3124,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
@@ -3166,7 +3166,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro, sem blocos de código: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
 
             // 🚨 CORREÇÃO: Forçando modelo 1.5-flash (O 2.5 não existe)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -3222,7 +3222,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
