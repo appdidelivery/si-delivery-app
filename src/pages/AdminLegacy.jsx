@@ -1579,33 +1579,35 @@ export default function Admin() {
         return data.secure_url;
     };
 const handleGenerateProductCopy = async () => {
-    if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
-    setIsGeneratingCopy(true);
-    
-    try {
-        const functions = getFunctions(getApp(), 'southamerica-east1');
-        const gerarCopy = httpsCallable(functions, 'gerarCopyProduto'); 
-        
-        const result = await gerarCopy({ 
-            termoRaw: termoIA, 
-            lojaNome: storeStatus.name,
-            lojaNicho: storeStatus.storeNiche,
-            lojaLocalizacao: storeStatus.address
-        });
-        
-        setForm(prev => ({
-            ...prev,
-            name: result.data.nome || prev.name,
-            description: result.data.descricao || prev.description
-        }));
-        
-        setTermoIA(''); 
-    } catch (error) {
-        console.error("Erro na IA:", error);
-        alert("Erro ao otimizar produto. Tente novamente.");
-    } finally {
-        setIsGeneratingCopy(false);
-    }
+    if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
+    setIsGeneratingCopy(true);
+    
+    try {
+        const functions = getFunctions(getApp(), 'southamerica-east1');
+        const gerarCopy = httpsCallable(functions, 'gerarCopyProduto'); 
+        
+        // BLINDAGEM: Garante que o Firebase nunca receba valores "undefined"
+        const result = await gerarCopy({ 
+            termoRaw: termoIA, 
+            lojaNome: storeStatus.name || 'Loja Delivery',
+            lojaNicho: storeStatus.storeNiche || 'Geral',
+            lojaLocalizacao: storeStatus.address || 'Brasil'
+        });
+        
+        setForm(prev => ({
+            ...prev,
+            name: result.data?.nome || prev.name,
+            description: result.data?.descricao || prev.description
+        }));
+        
+        setTermoIA(''); 
+    } catch (error) {
+        console.error("Erro Crítico na IA:", error);
+        // EXIBE O ERRO EXATO NA TELA (Isso nos dirá se o problema é faturamento, Firebase off ou CORS)
+        alert(`Erro ao otimizar produto: ${error.message || 'Falha na comunicação'}. Pressione F12 e veja o Console para detalhes.`);
+    } finally {
+        setIsGeneratingCopy(false);
+    }
 };
     const handleGeneratePromoCopy = async (product) => {
         setIsPromoCopyModalOpen(true);
@@ -11248,12 +11250,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             method: 'POST',
                                                             headers: { 'Content-Type': 'application/json' },
                                                             body: JSON.stringify({
-                                                                storeId: storeId,
-                                                                locationId: settings.integrations.google_my_business.locationId,
-                                                                summary: promoCopyResult.instagram, // Usa a copy do insta como base
-                                                                imageUrl: promoCopyProduct.imageUrl,
-                                                                productUrl: `https://${storeId}.velodelivery.com.br`
-                                                            })
+                                                                    storeId: storeId,
+                                                                    locationId: settings.integrations.google_my_business.locationId,
+                                                                    summary: promoCopyResult.instagram, 
+                                                                    imageUrl: promoCopyProduct.imageUrl,
+                                                                    // 🚨 AGORA O SISTEMA PEGA O DOMÍNIO DINÂMICO AUTOMATICAMENTE (Seja subdomínio ou customizado)
+                                                                    productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
+                                                                    topicType: promoCopyResult.gmbType || 'STANDARD'
+                                                                })
                                                         });
                                                         
                                                         if (res.ok) alert("✅ Oferta postada com sucesso no perfil do Google!");
@@ -11404,13 +11408,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     method: 'POST',
                                                                     headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({
-                                                                        storeId: storeId,
-                                                                        locationId: settings.integrations.google_my_business.locationId,
-                                                                        summary: promoCopyResult.instagram, // Usa o texto do Insta como base para o Google
-                                                                        imageUrl: promoCopyProduct.imageUrl,
-                                                                        productUrl: `https://${storeId}.velodelivery.com.br/p/${promoCopyProduct.id}`,
-                                                                        topicType: promoCopyResult.gmbType || 'STANDARD' // 🚨 NOVO: Envia o tipo escolhido
-                                                                    })
+                                                                    storeId: storeId,
+                                                                    locationId: settings.integrations.google_my_business.locationId,
+                                                                    summary: promoCopyResult.instagram, 
+                                                                    imageUrl: promoCopyProduct.imageUrl,
+                                                                    // 🚨 AGORA O SISTEMA PEGA O DOMÍNIO DINÂMICO AUTOMATICAMENTE (Seja subdomínio ou customizado)
+                                                                    productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
+                                                                    topicType: promoCopyResult.gmbType || 'STANDARD'
+                                                                })
                                                                 });
                                                                 
                                                                 const data = await res.json();
@@ -11656,12 +11661,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             method: 'POST',
                                                             headers: { 'Content-Type': 'application/json' },
                                                             body: JSON.stringify({
-                                                                storeId: storeId,
-                                                                locationId: settings.integrations.google_my_business.locationId,
-                                                                summary: promoCopyResult.instagram, 
-                                                                imageUrl: promoCopyProduct.imageUrl,
-                                                                productUrl: `https://${storeId}.velodelivery.com.br/p/${promoCopyProduct.id}`
-                                                            })
+                                                                    storeId: storeId,
+                                                                    locationId: settings.integrations.google_my_business.locationId,
+                                                                    summary: promoCopyResult.instagram, 
+                                                                    imageUrl: promoCopyProduct.imageUrl,
+                                                                    // 🚨 AGORA O SISTEMA PEGA O DOMÍNIO DINÂMICO AUTOMATICAMENTE (Seja subdomínio ou customizado)
+                                                                    productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
+                                                                    topicType: promoCopyResult.gmbType || 'STANDARD'
+                                                                })
                                                         });
                                                         
                                                         const data = await res.json();
