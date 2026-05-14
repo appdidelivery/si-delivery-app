@@ -3414,7 +3414,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 }
             }
 
-            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
+const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').substring(0, 1400);
             
             // 🚨 DEFINIÇÃO DO TIPO DE POSTAGEM
             const finalTopicType = topicType || 'STANDARD';
