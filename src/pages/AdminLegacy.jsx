@@ -11234,396 +11234,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
                                     
-                                    {/* Google Meu Negócio - Publicação Direta */}
-                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
-                                                <FaGoogle size={16} /> Postar Oferta no Google
-                                            </h3>
-                                            <button 
-                                                onClick={async () => {
-                                                    if (!settings?.integrations?.google_my_business?.locationId) {
-                                                        return alert("Configure o ID do seu Google Meu Negócio na aba de Integrações primeiro.");
-                                                    }
-                                                    if (!promoCopyProduct?.imageUrl) {
-                                                        return alert("O produto precisa de uma imagem para ser postado no Google.");
-                                                    }
-                                                    
-                                                    // Simulando chamada para sua API Route que vai lidar com o Google
-                                                    try {
-                                                        const res = await fetch('/api/post-google-update', {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
-                                                                    storeId: storeId,
-                                                                    locationId: settings.integrations.google_my_business.locationId,
-                                                                    summary: promoCopyResult.instagram, 
-                                                                    imageUrl: promoCopyProduct.imageUrl,
-                                                                        productId: promoCopyProduct.id, // 🚨 Deixa o Backend calcular o link seguro
-                                                                        topicType: promoCopyResult.gmbType || 'STANDARD'
-                                                                })
-                                                        });
-                                                        
-                                                        if (res.ok) alert("✅ Oferta postada com sucesso no perfil do Google!");
-                                                        else alert("❌ Erro ao postar. Verifique as configurações de integração.");
-                                                    } catch (e) {
-                                                        alert("Erro de conexão ao tentar postar no Google.");
-                                                    }
-                                                }} 
-                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
-                                            >
-                                                <UploadCloud size={14}/> Publicar Agora
-                                            </button>
-                                        </div>
-                                        <p className="text-xs font-bold text-slate-500">
-                                            Cria uma postagem de "Novidade/Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O botão do post levará o cliente para o seu cardápio Velo.
-                                        </p>
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
-                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <RefreshCw size={16}/> Gerar Outra Opção
-                                    </button>
-                                </div>
-                            )}
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-
-            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-            <AnimatePresence>
-                {isPromoCopyModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
-                            <button 
-                                onClick={() => setIsPromoCopyModalOpen(false)} 
-                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
-                            >
-                                <X size={20}/>
-                            </button>
-                            
-                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
-                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
-                            </h2>
-                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
-                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
-                            </p>
-
-                            {isGeneratingPromoCopy ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
-                                    <Loader2 className="animate-spin" size={48} />
-                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
-                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* WhatsApp Copy */}
-                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
-                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
-                                            </h3>
-                                            <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
-                                                    alert("Texto de WhatsApp copiado!");
-                                                }} 
-                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
-                                            >
-                                                <Copy size={12}/> Copiar
-                                            </button>
-                                        </div>
-                                        <textarea 
-                                            readOnly
-                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
-                                            value={promoCopyResult.whatsapp}
-                                        />
-                                    </div>
-
-                                    {/* Instagram Copy */}
-                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
-                                                <ImageIcon size={16} /> Legenda para Instagram
-                                            </h3>
-                                            <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
-                                                    alert("Legenda e Hashtags copiadas!");
-                                                }} 
-                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
-                                            >
-                                                <Copy size={12}/> Copiar Tudo
-                                            </button>
-                                        </div>
-                                        <textarea 
-                                            readOnly
-                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
-                                            value={promoCopyResult.instagram}
-                                        />
-                                       <div className="bg-white p-3 rounded-xl border border-pink-100">
-                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
-                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* --- INÍCIO: GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
-                                        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
-                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
-                                                <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
-                                                    <FaGoogle size={16} /> Postar no Google Maps
-                                                </h3>
-                                                
-                                                <div className="flex items-center gap-2 w-full md:w-auto">
-                                                    <select 
-                                                        value={promoCopyResult.gmbType || 'STANDARD'} 
-                                                        onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
-                                                        className="flex-1 p-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none border border-blue-200 text-blue-800 bg-white cursor-pointer"
-                                                    >
-                                                        <option value="STANDARD">📢 Novidade (Padrão)</option>
-                                                        <option value="OFFER">🏷️ Oferta</option>
-                                                        <option value="EVENT">🎉 Evento</option>
-                                                    </select>
-
-                                                    <button 
-                                                        onClick={async (e) => {
-                                                            if (!settings?.integrations?.google_my_business?.locationId) {
-                                                                return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
-                                                            }
-                                                            if (!promoCopyProduct?.imageUrl) {
-                                                                return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
-                                                            }
-                                                            
-                                                            try {
-                                                                const btn = e.currentTarget;
-                                                                const oldText = btn.innerHTML;
-                                                                btn.innerHTML = '⏳ Publicando...';
-                                                                btn.disabled = true;
-
-                                                                const res = await fetch('/api/post-google-update', {
-                                                                    method: 'POST',
-                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({
-                                                                        storeId: storeId,
-                                                                        locationId: settings.integrations.google_my_business.locationId,
-                                                                        summary: promoCopyResult.instagram, 
-                                                                        imageUrl: promoCopyProduct.imageUrl,
-                                                                        productId: promoCopyProduct.id,
-                                                                        topicType: promoCopyResult.gmbType || 'STANDARD'
-                                                                    })
-                                                                });
-                                                                
-                                                                const data = await res.json();
-                                                                btn.innerHTML = oldText;
-                                                                btn.disabled = false;
-
-                                                                if (res.ok) {
-                                                                    alert("✅ Postagem enviada com sucesso para o seu Perfil do Google Maps!");
-                                                                } else {
-                                                                    alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
-                                                                }
-                                                            } catch (err) {
-                                                                alert("Erro de conexão ao tentar postar no Google.");
-                                                            }
-                                                        }} 
-                                                        className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
-                                                    >
-                                                        <UploadCloud size={14}/> Publicar
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                                                Escolha o tipo da postagem acima. O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto.
-                                            </p>
-                                        </div>
-                                        {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
-                                    
-                                    <button 
-                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
-                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <RefreshCw size={16}/> Gerar Outra Opção
-                                    </button>
-                                </div>
-                            )}
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-
-            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-            <AnimatePresence>
-                {isPromoCopyModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
-                            <button 
-                                onClick={() => setIsPromoCopyModalOpen(false)} 
-                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
-                            >
-                                <X size={20}/>
-                            </button>
-                            
-                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
-                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
-                            </h2>
-                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
-                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
-                            </p>
-
-                            {isGeneratingPromoCopy ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
-                                    <Loader2 className="animate-spin" size={48} />
-                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
-                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* WhatsApp Copy */}
-                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
-                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
-                                            </h3>
-                                            <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
-                                                    alert("Texto de WhatsApp copiado!");
-                                                }} 
-                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
-                                            >
-                                                <Copy size={12}/> Copiar
-                                            </button>
-                                        </div>
-                                        <textarea 
-                                            readOnly
-                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
-                                            value={promoCopyResult.whatsapp}
-                                        />
-                                    </div>
-
-                                    {/* Instagram Copy */}
-                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
-                                                <ImageIcon size={16} /> Legenda para Instagram
-                                            </h3>
-                                            <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
-                                                    alert("Legenda e Hashtags copiadas!");
-                                                }} 
-                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
-                                            >
-                                                <Copy size={12}/> Copiar Tudo
-                                            </button>
-                                        </div>
-                                        <textarea 
-                                            readOnly
-                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
-                                            value={promoCopyResult.instagram}
-                                        />
-                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
-                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
-                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
-                                        className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <RefreshCw size={16}/> Gerar Outra Opção
-                                    </button>
-                                </div>
-                            )}
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-
-            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-            <AnimatePresence>
-                {isPromoCopyModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
-                            <button 
-                                onClick={() => setIsPromoCopyModalOpen(false)} 
-                                className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"
-                            >
-                                <X size={20}/>
-                            </button>
-                            
-                            <h2 className="text-2xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-2">
-                                <Sparkles className="text-purple-600"/> Gerador de Promoções IA
-                            </h2>
-                            <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
-                                Criando textos focados em conversão para o produto: <strong className="text-purple-700">{promoCopyProduct?.name}</strong>.
-                            </p>
-
-                            {isGeneratingPromoCopy ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-purple-500 gap-4">
-                                    <Loader2 className="animate-spin" size={48} />
-                                    <p className="font-black uppercase tracking-widest text-sm">O Cérebro da IA está escrevendo...</p>
-                                    <p className="text-xs text-slate-400 font-bold">Analisando o nicho da loja e as características do produto.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* WhatsApp Copy */}
-                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-green-800 uppercase flex items-center gap-2">
-                                                <FaWhatsapp size={16} /> Disparo para WhatsApp
-                                            </h3>
-                                            <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(promoCopyResult.whatsapp);
-                                                    alert("Texto de WhatsApp copiado!");
-                                                }} 
-                                                className="bg-white text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-green-100 transition-all flex items-center gap-1"
-                                            >
-                                                <Copy size={12}/> Copiar
-                                            </button>
-                                        </div>
-                                        <textarea 
-                                            readOnly
-                                            className="w-full bg-white border border-green-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar"
-                                            value={promoCopyResult.whatsapp}
-                                        />
-                                    </div>
-
-                                    {/* Instagram Copy */}
-                                    <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h3 className="text-sm font-black text-pink-800 uppercase flex items-center gap-2">
-                                                <ImageIcon size={16} /> Legenda para Instagram
-                                            </h3>
-                                            <button 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(promoCopyResult.instagram + "\n\n" + promoCopyResult.hashtags);
-                                                    alert("Legenda e Hashtags copiadas!");
-                                                }} 
-                                                className="bg-white text-pink-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-pink-100 transition-all flex items-center gap-1"
-                                            >
-                                                <Copy size={12}/> Copiar Tudo
-                                            </button>
-                                        </div>
-                                        <textarea 
-                                            readOnly
-                                            className="w-full bg-white border border-pink-100 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none resize-none h-32 custom-scrollbar mb-3"
-                                            value={promoCopyResult.instagram}
-                                        />
-                                        <div className="bg-white p-3 rounded-xl border border-pink-100">
-                                            <p className="text-[10px] font-black uppercase text-pink-500 mb-1">Hashtags Estratégicas</p>
-                                            <p className="text-xs font-bold text-slate-600">{promoCopyResult.hashtags}</p>
-                                        </div>
-                                    </div>
-                                    
                                     <button 
                                         onClick={() => handleGeneratePromoCopy(promoCopyProduct)}
                                         className="w-full bg-purple-100 text-purple-700 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-purple-200 transition-all flex items-center justify-center gap-2"
@@ -11633,65 +11243,75 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     {/* --- GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
                                     <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
-                                        <div className="flex justify-between items-center mb-3">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
                                             <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
-                                                <FaGoogle size={16} /> Publicar Oferta no Google Maps
+                                                <FaGoogle size={16} /> Postar no Google Maps
                                             </h3>
-                                            <button 
-                                                onClick={async (e) => {
-                                                    // 1. Trava: Verifica se o Lojista configurou o Google
-                                                    if (!settings?.integrations?.google_my_business?.locationId) {
-                                                        return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
-                                                    }
-                                                    // 2. Trava: O Google exige uma imagem
-                                                    if (!promoCopyProduct?.imageUrl) {
-                                                        return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
-                                                    }
-                                                    
-                                                    try {
-                                                        // Botão visual de carregamento
-                                                        const btn = e.currentTarget;
-                                                        const oldText = btn.innerHTML;
-                                                        btn.innerHTML = '⏳ Publicando...';
-                                                        btn.disabled = true;
+                                            
+                                            <div className="flex items-center gap-2 w-full md:w-auto">
+                                                <select 
+                                                    value={promoCopyResult.gmbType || 'STANDARD'} 
+                                                    onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
+                                                    className="flex-1 p-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none border border-blue-200 text-blue-800 bg-white cursor-pointer shadow-sm"
+                                                >
+                                                    <option value="STANDARD">📢 Atualização</option>
+                                                    <option value="OFFER">🏷️ Oferta</option>
+                                                    <option value="EVENT">📅 Agendamento/Evento</option>
+                                                </select>
 
-                                                        const res = await fetch('/api/post-google-update', {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
+                                                <button 
+                                                    onClick={async (e) => {
+                                                        if (!settings?.integrations?.google_my_business?.locationId) {
+                                                            return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
+                                                        }
+                                                        if (!promoCopyProduct?.imageUrl) {
+                                                            return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
+                                                        }
+                                                        
+                                                        try {
+                                                            const btn = e.currentTarget;
+                                                            const oldText = btn.innerHTML;
+                                                            btn.innerHTML = '⏳ Publicando...';
+                                                            btn.disabled = true;
+
+                                                            const res = await fetch('/api/post-google-update', {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
                                                                     storeId: storeId,
                                                                     locationId: settings.integrations.google_my_business.locationId,
                                                                     summary: promoCopyResult.instagram, 
                                                                     imageUrl: promoCopyProduct.imageUrl,
-                                                                    // 🚨 AGORA O SISTEMA PEGA O DOMÍNIO DINÂMICO AUTOMATICAMENTE (Seja subdomínio ou customizado)
                                                                     productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
                                                                     topicType: promoCopyResult.gmbType || 'STANDARD'
                                                                 })
-                                                        });
-                                                        
-                                                        const data = await res.json();
-                                                        
-                                                        btn.innerHTML = oldText;
-                                                        btn.disabled = false;
+                                                            });
+                                                            
+                                                            const data = await res.json();
+                                                            
+                                                            btn.innerHTML = oldText;
+                                                            btn.disabled = false;
 
-                                                        if (res.ok) {
-                                                            alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
-                                                        } else {
-                                                            alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                            if (res.ok) {
+                                                                alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
+                                                            } else {
+                                                                alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                            }
+                                                        } catch (err) {
+                                                            alert("Erro de conexão ao tentar postar no Google.");
                                                         }
-                                                    } catch (e) {
-                                                        alert("Erro de conexão ao tentar postar no Google.");
-                                                    }
-                                                }} 
-                                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95"
-                                            >
-                                                <UploadCloud size={14}/> Publicar Agora
-                                            </button>
+                                                    }} 
+                                                    className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95 whitespace-nowrap"
+                                                >
+                                                    <UploadCloud size={14}/> Publicar
+                                                </button>
+                                            </div>
                                         </div>
                                         <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                                            Isso criará uma postagem de "Oferta" no mapa do Google usando a imagem do seu produto e a Copy gerada acima. O cliente verá um botão "Fazer Pedido" que levará direto para o seu cardápio.
+                                            Escolha o tipo da postagem (Atualização, Oferta ou Evento). O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto.
                                         </p>
                                     </div>
+                                    {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
                                 </div>
                             )}
                         </motion.div>
@@ -11699,7 +11319,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             {/* --- FIM: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
-
             {/* --- INÍCIO: MODAL DE GESTÃO VIP (CADERNETA/FIADO) --- */}
             <AnimatePresence>
                 {isVipModalOpen && editingVip && (

@@ -504,13 +504,134 @@ export default async function handler(req, res) {
             }
 
             await Promise.all(abandonedPromises);
-            
-            if (alertsSent > 0 || faturasGeradas > 0) {
-                await batch.commit();
-            }
+            
+            // --- INÍCIO: MOTOR DE PÓS-VENDA (CASHBACK, VIP E AVALIAÇÃO GOOGLE) ---
+            let postOrderAlertsSent = 0;
+            const postOrderPromises = [];
+            const twoHoursAgo = new Date(now.getTime() - 2 * 3600000); 
+            
+            const recentOrdersSnap = await db.collection("orders")
+                .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(twoHoursAgo))
+                .get();
 
-            return res.status(200).json({ success: true, alertsSent, faturasGeradas });
-        } catch (error) {
+            for (const doc of recentOrdersSnap.docs) {
+                const oData = doc.data();
+                
+                if (oData.status === 'completed' && oData.paymentStatus === 'paid' && !oData.postOrderAlertSent) {
+                    const orderTime = oData.createdAt?.toDate ? oData.createdAt.toDate() : new Date();
+                    
+                    // Dispara a partir de 30 minutos pós-entrega
+                    if (now.getTime() - orderTime.getTime() > 30 * 60000) { 
+                        const storeId = oData.storeId;
+                        const customerPhone = oData.customerPhone;
+
+                        if (customerPhone) {
+                            const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
+                            const storeDoc = await db.collection('stores').doc(storeId).get();
+
+                            const settingsData = storeSettingsDoc.data() || {};
+                            const storeData = storeDoc.data() || {};
+                            const waConfig = settingsData.integrations?.whatsapp;
+
+                            if (waConfig && waConfig.phoneNumberId && waConfig.apiToken) {
+                                const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                                let rawPhone = String(customerPhone).replace(/\D/g, '');
+                                if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
+                                let cleanPhone = `55${rawPhone}`;
+
+                                const firstName = oData.customerName ? oData.customerName.split(' ')[0] : 'Cliente';
+                                const firstProductName = (oData.items && oData.items[0]) ? oData.items[0].name : 'pedido';
+                                const storeName = storeData.name || 'nossa loja';
+                                
+                                // Captura e formata o local de entrega para o texto SEO
+                                let cityName = '';
+                                if (typeof storeData.address === 'string') cityName = storeData.address;
+                                else if (storeData.address?.city) cityName = storeData.address.city;
+                                const seoLocation = cityName ? ` em ${cityName}` : '';
+
+                                // Puxa o link oficial do Google cadastrado pelo lojista no painel
+                                const googleLink = storeData.googleReviewUrl || `https://${storeId}.velodelivery.com.br`;
+
+                                postOrderPromises.push((async () => {
+                                    try {
+                                        // 1. Busca Saldo Real de Cashback do Cliente
+                                        let currentCashback = 0;
+                                        if (settingsData.gamification?.cashback) {
+                                            const walletSnap = await db.collection("wallets").doc(`${storeId}_${cleanPhone}`).get();
+                                            if (walletSnap.exists) currentCashback = walletSnap.data().balance || 0;
+                                        }
+
+                                        // 2. Busca Pontos Reais VIP do Cliente
+                                        let currentPoints = 0;
+                                        const loyaltyGoal = settingsData.loyaltyGoal || 1000;
+                                        const loyaltyReward = settingsData.loyaltyReward || "um prêmio exclusivo";
+                                        
+                                        if (settingsData.loyaltyActive) {
+                                            const loyaltySnap = await db.collection("users").doc(cleanPhone).collection("loyalty").doc(storeId).get();
+                                            if (loyaltySnap.exists) currentPoints = loyaltySnap.data().points || 0;
+                                        }
+                                        const pointsLeft = Math.max(0, loyaltyGoal - currentPoints);
+
+                                        // 3. Monta a Mensagem de Retenção (FOMO Dinâmico)
+                                        let msgRetencao = `Oi ${firstName}, esperamos que o seu pedido da *${storeName}* tenha sido incrível! 😋\n\n`;
+                                        
+                                        if (settingsData.gamification?.cashback && currentCashback > 0) {
+                                            msgRetencao += `💰 *Seu Saldo de Cashback:* R$ ${currentCashback.toFixed(2)}\nLembre-se que você pode usar esse valor como desconto no seu próximo pedido!\n\n`;
+                                        }
+                                        
+                                        if (settingsData.loyaltyActive) {
+                                            msgRetencao += `🏆 *Seu Clube VIP:* ${currentPoints} pontos.\nFaltam apenas ${pointsLeft} pontos para você resgatar: *${loyaltyReward}*! Não deixe seus pontos expirarem.\n\n`;
+                                        }
+                                        
+                                        msgRetencao += `👉 Faça um novo pedido: https://${storeId}.velodelivery.com.br`;
+
+                                        // 4. Monta a Mensagem do Google (Gamificada)
+                                        const msgGoogleInstrucoes = `⭐ *Missão VIP: Ganhe pontos extras!*\n\nAvalie seu pedido no Google e suba no nosso ranking:\n• Avaliação em texto = 50 pontos\n• Avaliação com FOTO do pedido = 100 pontos 📸🔥\n\nCopiamos um textinho pronto pra facilitar na mensagem abaixo. É só copiar e colar no link a seguir:\n👉 ${googleLink}`;
+                                        const copySEO = `Pedi o ${firstProductName} na ${storeName}${seoLocation} e super recomendo! Entrega rápida e o produto chegou perfeito. ⭐⭐⭐⭐⭐`;
+
+                                        // 5. Disparos Sequenciais (Respeitando as regras de Delay da API da Meta)
+                                        if (settingsData.gamification?.cashback || settingsData.loyaltyActive) {
+                                            await fetch(GRAPH_API_URL, {
+                                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msgRetencao } })
+                                            });
+                                        }
+
+                                        if (storeData.googleReviewUrl) {
+                                            await fetch(GRAPH_API_URL, {
+                                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: msgGoogleInstrucoes } })
+                                            });
+                                            await fetch(GRAPH_API_URL, {
+                                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "text", text: { body: copySEO } })
+                                            });
+                                        }
+
+                                        // 6. Registra no log do chat do Lojista
+                                        await db.collection('whatsapp_inbound').add({
+                                            storeId: storeId, to: cleanPhone, text: `[Automação] Resumo de Cashback/VIP e Pedido de Avaliação Google enviados para o cliente.`,
+                                            receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                                        });
+                                    } catch(e) { console.error('Erro no Motor de Retenção Pós-Venda:', e); }
+                                })());
+
+                                batch.update(doc.ref, { postOrderAlertSent: true });
+                                postOrderAlertsSent++;
+                            }
+                        }
+                    }
+                }
+            }
+            await Promise.all(postOrderPromises);
+            // --- FIM: MOTOR DE PÓS-VENDA ---
+            
+            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0) {
+                await batch.commit();
+            }
+
+            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent });
+        } catch (error) {
             console.error('❌ Erro no CRON:', error);
             return res.status(500).json({ error: error.message });
         }
@@ -2451,19 +2572,26 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 if (payer.phone && waConfig?.apiToken && waConfig?.phoneNumberId) {
                     const phoneClient = String(payer.phone).replace(/\D/g, '');
                     const safePhone = phoneClient.startsWith('55') ? phoneClient : `55${phoneClient}`;
-                    const msgPix = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*\n\nCopie o código PIX abaixo para pagar:\n\n${pixCodigo}\n\n*A cozinha será avisada assim que você pagar!* 🚀`;
                     
-                    fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            messaging_product: "whatsapp",
-                            recipient_type: "individual",
-                            to: safePhone,
-                            type: "text",
-                            text: { body: msgPix }
-                        })
-                    }).catch(e => console.error("Erro ao enviar PIX no Zap:", e));
+                    const msgPixInstrucoes = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*\n\nCopie o código PIX na mensagem abaixo para pagar 👇\n\n*A cozinha será avisada assim que você pagar!* 🚀`;
+                    const msgPixCodigoLimpo = pixCodigo;
+                    
+                    // Disparo Duplo: Primeiro as instruções, depois o código isolado para o "Copia e Cola"
+                    (async () => {
+                        try {
+                            await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: msgPixInstrucoes } })
+                            });
+                            
+                            await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: msgPixCodigoLimpo } })
+                            });
+                        } catch (e) {
+                            console.error("Erro ao enviar PIX no Zap:", e);
+                        }
+                    })();
                 }
 
                 return res.status(200).json({ success: true, isPix: true, id: data.id });
@@ -3263,7 +3391,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeId, locationId, summary, imageUrl, productUrl, productId } = req.body;
+            const { storeId, locationId, summary, imageUrl, productUrl, productId, topicType } = req.body;
 
             if (!storeId || !locationId || !summary || !imageUrl) {
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
@@ -3273,31 +3401,27 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
             const exactLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
 
-            // Validação de URLs e Injeção do Link Exato do Produto
             const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
             let safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
 
-           // 🚨 DETECÇÃO DINÂMICA DE MÍDIA (FOTO vs VÍDEO)
             const isVideo = safeImageUrl.toLowerCase().match(/\.(mp4|webm|mov|avi)$/i) || safeImageUrl.includes('/video/upload/');
             const mediaFormatType = isVideo ? 'VIDEO' : 'PHOTO';
 
-            // 🚨 BLINDAGEM DE IMAGEM (Erro 10KB e WEBP do Google)
             if (!isVideo && safeImageUrl.includes('cloudinary.com')) {
-                // 1. O Google odeia .webp, então trocamos a extensão da string para .jpg
                 safeImageUrl = safeImageUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
-                
-                // 2. Forçamos alta resolução, qualidade 100 e conversão para JPG nativa no Cloudinary
                 if (!safeImageUrl.includes('/upload/w_')) {
                     safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
                 }
             }
 
-            // LIMPEZA E FORMATAÇÃO (Garante que o Google não receba lixo)
             const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r]/gu, '').substring(0, 1400);
+            
+            // 🚨 DEFINIÇÃO DO TIPO DE POSTAGEM
+            const finalTopicType = topicType || 'STANDARD';
 
             const googlePayload = {
                 languageCode: 'pt-BR',
-                topicType: req.body.topicType || 'STANDARD',
+                topicType: finalTopicType,
                 summary: cleanSummary || "Confira nossa oferta especial!",
                 callToAction: { 
                     actionType: 'LEARN_MORE',
@@ -3306,7 +3430,24 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
             };
 
-            // 🚨 BLINDAGEM ADICIONADA: Busca o token da loja e monta o nome pai (parentName)
+            // 🚨 BLINDAGEM DO GOOGLE: Ofertas e Eventos exigem data de validade na API.
+            // Injetamos automaticamente uma validade de 30 dias para evitar o erro 400.
+            if (finalTopicType === 'OFFER' || finalTopicType === 'EVENT') {
+                const now = new Date();
+                const nextMonth = new Date();
+                nextMonth.setDate(now.getDate() + 30); // 30 dias de duração
+
+                googlePayload.event = {
+                    title: finalTopicType === 'OFFER' ? 'Oferta Especial' : 'Evento Especial',
+                    schedule: {
+                        startDate: { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() },
+                        startTime: { hours: 0, minutes: 0, seconds: 0 },
+                        endDate: { year: nextMonth.getFullYear(), month: nextMonth.getMonth() + 1, day: nextMonth.getDate() },
+                        endTime: { hours: 23, minutes: 59, seconds: 59 }
+                    }
+                };
+            }
+
             let activeToken;
             try {
                 activeToken = await getGoogleAuthToken(storeId);
