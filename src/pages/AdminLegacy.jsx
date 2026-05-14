@@ -3093,8 +3093,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
 
-                            {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
-                            {!trialInfo.isTrial && !trialInfo.isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
+                           {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
+                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
                                 <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
                                     <div>
                                         <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
