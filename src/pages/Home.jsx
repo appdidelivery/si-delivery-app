@@ -2137,20 +2137,21 @@ if (window.fbq) {
   };
 
   useEffect(() => {
-      if (productSlug && products.length > 0 && !selectedProduct) {
-          // BLINDAGEM MESTRA: Se o cliente clicou no X ou em Adicionar, a URL já foi limpa. Aborta o loop!
-          if (!window.location.pathname.includes('/p/')) return;
+    if (productSlug && products.length > 0 && !selectedProduct) {
+        // BLINDAGEM MESTRA: Se o cliente clicou no X ou em Adicionar, a URL já foi limpa. Aborta o loop!
+        if (!window.location.pathname.includes('/p/')) return;
 
-          const productFromUrl = products.find(p => generateSlug(p.name) === productSlug);
-          if (productFromUrl) {
-              setSelectedProduct(productFromUrl); // Abre o modal
-              setSelectedOptions({});
-              setItemObservation('');
-          } else {
-              window.history.pushState(null, '', '/');
-          }
-      }
-  }, [selectedProduct?.id, productSlug, products]);
+        // Suporte duplo: Tenta encontrar o produto tanto pelo texto amigável do nome quanto pelo ID direto do Firestore vindo do Google
+        const productFromUrl = products.find(p => generateSlug(p.name) === productSlug || p.id === productSlug);
+        if (productFromUrl) {
+            setSelectedProduct(productFromUrl); // Abre o modal
+            setSelectedOptions({});
+            setItemObservation('');
+        } else {
+            window.history.pushState(null, '', '/');
+        }
+    }
+}, [selectedProduct?.id, productSlug, products]);
 
   // --- INÍCIO: IA DE MENU DE ENGENHARIA (Personalização de Vitrine) ---
   const favoriteCategory = React.useMemo(() => {
