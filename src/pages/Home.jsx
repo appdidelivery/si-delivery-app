@@ -2766,15 +2766,32 @@ if (window.fbq) {
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
                   Nossos Destaques
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="columns-2 md:columns-4 gap-4">
                   <AnimatePresence>
                       {featuredProducts.map((p, index) => {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
-                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading={index < 2 ? "eager" : "lazy"} fetchpriority={index < 2 ? "high" : "auto"} decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
-                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
+                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                      {p.videoUrl ? (
+                                          <VeloProductVideo 
+                                              videoUrl={p.videoUrl} 
+                                              thumbnailUrl={optimizeCloudinary(p.imageUrl, 300)} 
+                                              altText={p.name} 
+                                          />
+                                      ) : (
+                                          <img 
+                                              src={optimizeCloudinary(p.imageUrl, 300)} 
+                                              alt={p.name} 
+                                              width="150" 
+                                              height="150" 
+                                              loading={index < 2 ? "eager" : "lazy"} 
+                                              fetchpriority={index < 2 ? "high" : "auto"} 
+                                              decoding="async" 
+                                              className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                          />
+                                      )}
+                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
                                           <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
@@ -2817,14 +2834,31 @@ if (window.fbq) {
               <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
                   Mais Vendidos
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="columns-2 md:columns-4 gap-4">
                   <AnimatePresence>
                       {bestsellingProducts.map((p, index) => {
                           const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                           return (
-                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      <img src={optimizeCloudinary(p.imageUrl, 300)} alt={p.name} width="150" height="150" loading={index < 2 ? "eager" : "lazy"} fetchpriority={index < 2 ? "high" : "auto"} decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                  <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                      {p.videoUrl ? (
+                                          <VeloProductVideo 
+                                              videoUrl={p.videoUrl} 
+                                              thumbnailUrl={optimizeCloudinary(p.imageUrl, 300)} 
+                                              altText={p.name} 
+                                          />
+                                      ) : (
+                                          <img 
+                                              src={optimizeCloudinary(p.imageUrl, 300)} 
+                                              alt={p.name} 
+                                              width="150" 
+                                              height="150" 
+                                              loading={index < 2 ? "eager" : "lazy"} 
+                                              fetchpriority={index < 2 ? "high" : "auto"} 
+                                              decoding="async" 
+                                              className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                          />
+                                      )}
                                       {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
                                       {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
                                       {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
@@ -2867,13 +2901,13 @@ if (window.fbq) {
       <main className="px-6 mb-20 mt-8 min-h-[50vh]">
         <h2 className="sr-only">Catálogo de Produtos</h2>
         {layoutTheme === 'grid' ? (
-            <div className={`grid grid-cols-2 md:grid-cols-4 gap-4`}>
+            <div className="columns-2 md:columns-4 gap-4">
                 <AnimatePresence>
                     {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((p, index) => {
                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                         return (
-                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                <div className="aspect-square rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
+                                <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                     {p.videoUrl ? (
                                         <VeloProductVideo 
                                             videoUrl={p.videoUrl} 
