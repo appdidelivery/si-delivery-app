@@ -54,9 +54,13 @@ export default function SEO({ title, description, image, productData }) {
                     const fetchedFacebook = fields.facebookUrl?.stringValue || "";
                     const fetchedPriceRange = fields.priceRange?.stringValue || "$$";
                     
+                    // Resgata o Link de Avaliação do Google (usado no painel) para injetar no SameAs
+                    // Blindagem: Tenta os nomes de campos mais comuns no BD para garantir a captura
+                    const fetchedGoogleReview = fields.googleReviewLink?.stringValue || fields.reviewLink?.stringValue || fields.googleMapsUrl?.stringValue || "";
+                    
                     // Monta a lista de redes sociais e links de autoridade para o Google associar (SameAs)
                     const authLinksArray = fetchedAuthLinks ? fetchedAuthLinks.split(',').map(l => l.trim()).filter(l => l.startsWith('http')) : [];
-                    const socialProfiles = [fetchedInstagram, fetchedFacebook, ...authLinksArray].filter(link => link !== "");
+                    const socialProfiles = [fetchedInstagram, fetchedFacebook, fetchedGoogleReview, ...authLinksArray].filter(link => link !== "");
                     
                     // Removida a linha duplicada de fetchedAbout aqui
                     
