@@ -1245,28 +1245,26 @@ export default function Admin() {
     const lastBarcodeKeystrokeTime = React.useRef(Date.now());
 
     useEffect(() => {
-        // Só ativa o leitor se o Lojista estiver na aba do PDV (Lançar Pedido) e com caixa aberto
-        if (activeTab !== 'manual' || !isCaixaAberto) return;
+        // Ativa se estiver no PDV (com caixa aberto) OU se o Modal de Editar/Criar Produto estiver aberto
+        if (!(activeTab === 'manual' && isCaixaAberto) && !isModalOpen) return;
 
         const handleGlobalKeyDown = (e) => {
-            // Regra 1: Evitar interferência em inputs padrão do sistema
             const activeElement = document.activeElement;
             const isInputFocused = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA';
             
-            // Mas se for especificamente a barra de busca de produtos do PDV, a gente aceita para o "bip" preencher ela
+            // Permite bypass se for a busca do PDV ou o campo GTIN do Modal
             const isProductSearchInput = activeElement.placeholder === 'Buscar produto por nome ou código...';
+            const isGtinInput = activeElement.placeholder === 'Ex: 7894900011517';
             
-            if (isInputFocused && !isProductSearchInput) return;
+            if (isInputFocused && !isProductSearchInput && !isGtinInput) return;
 
             const currentTime = Date.now();
             const timeDiff = currentTime - lastBarcodeKeystrokeTime.current;
 
-            // Filtro Anti-Humano: Se passar de 50ms entre um caractere e outro, foi o dedo do caixa, não o laser. Limpa.
             if (timeDiff > 50) {
                 barcodeBuffer.current = '';
             }
 
-            // O Leitor sempre envia um Enter no final do Bip
             if (e.key === 'Enter' && barcodeBuffer.current.length >= 3) {
                 e.preventDefault(); 
                 const scannedCode = barcodeBuffer.current.trim();
@@ -1283,36 +1281,46 @@ export default function Admin() {
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [activeTab, isCaixaAberto, products, manualCart]); 
+    }, [activeTab, isCaixaAberto, isModalOpen, products, manualCart]); 
 
     const processScannedBarcode = (code) => {
-        const foundProduct = products.find(p => p.id === code || p.gtin === code);
-
-        if (foundProduct) {
+        // CENÁRIO 1: Lojista está editando/criando produto no Modal
+        if (isModalOpen) {
+            setForm(prev => ({ ...prev, gtin: code }));
             new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(()=>{});
+            return; // Interrompe para não tentar lançar no PDV
+        }
 
-            const isOutOfStock = foundProduct.stock !== undefined && Number(foundProduct.stock) <= 0;
-            if (isOutOfStock) {
-                return alert(`❌ Produto ${foundProduct.name} está esgotado no sistema.`);
-            }
+        // CENÁRIO 2: Lojista está no PDV (Frente de Caixa)
+        if (activeTab === 'manual') {
+            const foundProduct = products.find(p => p.id === code || p.gtin === code);
 
-            const existingItem = manualCart.find(it => it.id === foundProduct.id);
-            if (existingItem) {
-                if (existingItem.quantity >= Number(foundProduct.stock)) {
-                    return alert(`Estoque máximo atingido: ${foundProduct.stock}`);
+            if (foundProduct) {
+                new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(()=>{});
+
+                const isOutOfStock = foundProduct.stock !== undefined && Number(foundProduct.stock) <= 0;
+                if (isOutOfStock) {
+                    return alert(`❌ Produto ${foundProduct.name} está esgotado no sistema.`);
                 }
-                setManualCart(manualCart.map(it => it.id === foundProduct.id ? { ...it, quantity: it.quantity + 1 } : it));
+
+                const existingItem = manualCart.find(it => it.id === foundProduct.id);
+                if (existingItem) {
+                    if (existingItem.quantity >= Number(foundProduct.stock)) {
+                        return alert(`Estoque máximo atingido: ${foundProduct.stock}`);
+                    }
+                    setManualCart(manualCart.map(it => it.id === foundProduct.id ? { ...it, quantity: it.quantity + 1 } : it));
+                } else {
+                    const productToAdd = { 
+                        ...foundProduct, 
+                        quantity: 1, 
+                        price: foundProduct.promotionalPrice > 0 ? foundProduct.promotionalPrice : foundProduct.price 
+                    };
+                    setManualCart([...manualCart, productToAdd]);
+                }
             } else {
-                const productToAdd = { 
-                    ...foundProduct, 
-                    quantity: 1, 
-                    price: foundProduct.promotionalPrice > 0 ? foundProduct.promotionalPrice : foundProduct.price 
-                };
-                setManualCart([...manualCart, productToAdd]);
+                new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(()=>{});
+                alert(`⚠️ Código ${code} não encontrado no estoque.`);
             }
-        } else {
-            new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(()=>{});
-            alert(`⚠️ Código ${code} não encontrado no estoque.`);
         }
     };
     // --- FIM: MOTOR DO LEITOR ---
