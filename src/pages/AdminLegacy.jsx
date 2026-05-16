@@ -1240,6 +1240,83 @@ export default function Admin() {
         }
     };
 
+    // --- NOVO: MOTOR DO LEITOR DE CÓDIGO DE BARRAS / QR CODE ---
+    const barcodeBuffer = React.useRef('');
+    const lastBarcodeKeystrokeTime = React.useRef(Date.now());
+
+    useEffect(() => {
+        // Só ativa o leitor se o Lojista estiver na aba do PDV (Lançar Pedido) e com caixa aberto
+        if (activeTab !== 'manual' || !isCaixaAberto) return;
+
+        const handleGlobalKeyDown = (e) => {
+            // Regra 1: Evitar interferência em inputs padrão do sistema
+            const activeElement = document.activeElement;
+            const isInputFocused = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA';
+            
+            // Mas se for especificamente a barra de busca de produtos do PDV, a gente aceita para o "bip" preencher ela
+            const isProductSearchInput = activeElement.placeholder === 'Buscar produto por nome ou código...';
+            
+            if (isInputFocused && !isProductSearchInput) return;
+
+            const currentTime = Date.now();
+            const timeDiff = currentTime - lastBarcodeKeystrokeTime.current;
+
+            // Filtro Anti-Humano: Se passar de 50ms entre um caractere e outro, foi o dedo do caixa, não o laser. Limpa.
+            if (timeDiff > 50) {
+                barcodeBuffer.current = '';
+            }
+
+            // O Leitor sempre envia um Enter no final do Bip
+            if (e.key === 'Enter' && barcodeBuffer.current.length >= 3) {
+                e.preventDefault(); 
+                const scannedCode = barcodeBuffer.current.trim();
+                barcodeBuffer.current = ''; 
+
+                processScannedBarcode(scannedCode);
+            } 
+            else if (e.key.length === 1) {
+                barcodeBuffer.current += e.key;
+            }
+
+            lastBarcodeKeystrokeTime.current = currentTime;
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [activeTab, isCaixaAberto, products, manualCart]); 
+
+    const processScannedBarcode = (code) => {
+        const foundProduct = products.find(p => p.id === code || p.gtin === code);
+
+        if (foundProduct) {
+            new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(()=>{});
+
+            const isOutOfStock = foundProduct.stock !== undefined && Number(foundProduct.stock) <= 0;
+            if (isOutOfStock) {
+                return alert(`❌ Produto ${foundProduct.name} está esgotado no sistema.`);
+            }
+
+            const existingItem = manualCart.find(it => it.id === foundProduct.id);
+            if (existingItem) {
+                if (existingItem.quantity >= Number(foundProduct.stock)) {
+                    return alert(`Estoque máximo atingido: ${foundProduct.stock}`);
+                }
+                setManualCart(manualCart.map(it => it.id === foundProduct.id ? { ...it, quantity: it.quantity + 1 } : it));
+            } else {
+                const productToAdd = { 
+                    ...foundProduct, 
+                    quantity: 1, 
+                    price: foundProduct.promotionalPrice > 0 ? foundProduct.promotionalPrice : foundProduct.price 
+                };
+                setManualCart([...manualCart, productToAdd]);
+            }
+        } else {
+            new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(()=>{});
+            alert(`⚠️ Código ${code} não encontrado no estoque.`);
+        }
+    };
+    // --- FIM: MOTOR DO LEITOR ---
+
     // --- LISTENERS FIREBASE ---
    useEffect(() => {
         if (!storeId) return;
