@@ -2653,18 +2653,31 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         const valorPago = paymentData.transaction_amount;
                         
                         // LÓGICA: MENSALIDADE DA LOJA PAGA
-                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
-                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
-                            
-                            const storeRef = db.collection('stores').doc(storeIdToRelease);
-                            await storeRef.set({
-                                paymentStatus: 'paid', // Libera o painel
-                                lastPaymentDate: admin.firestore.FieldValue.serverTimestamp()
-                            }, { merge: true });
+                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
+                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
+                            
+                            const storeRef = db.collection('stores').doc(storeIdToRelease);
+                            const storeDoc = await storeRef.get();
+                            let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
+                            
+                            // Encontra e atualiza as faturas pendentes para pagas
+                            faturasHistorico = faturasHistorico.map(fatura => {
+                                if (fatura.status === 'PENDENTE') {
+                                    return { ...fatura, status: 'PAGO' };
+                                }
+                                return fatura;
+                            });
 
-                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga!`);
-                            return res.status(200).send('OK');
-                        }
+                            await storeRef.set({
+                                billingStatus: 'ativo',
+                                paymentStatus: 'paid', // Libera o painel
+                                lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
+                                faturasHistorico: faturasHistorico
+                            }, { merge: true });
+
+                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga e histórico atualizado!`);
+                            return res.status(200).send('OK');
+                        }
 
                         // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
                         const orderId = externalRef;
