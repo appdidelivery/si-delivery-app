@@ -1420,7 +1420,7 @@ export default function Home() {
                         const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
                         
                         // 👇 AQUI ESTÁ O SEGREDO: Chama o seu backend, não o Google!
-                        const backendUrl = window.location.hostname.includes('localhost') ? 'https://app.velodelivery.com.br' : '';
+                        const backendUrl = window.location.hostname.includes('localhost') ? 'http://localhost:3000' : '';
                         
                         const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
                         const matrixData = await matrixRes.json();
