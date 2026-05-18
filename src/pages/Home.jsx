@@ -1414,42 +1414,78 @@ export default function Home() {
 
         let distanceCalculated = false;
 
-        if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
+        // CÓDIGO NOVO
+        if (storeLat && storeLng && zones.length > 0) {
                     try {
-                        const origin = `${storeLat},${storeLng}`;
-                        const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
-                        
-                        // 👇 AQUI ESTÁ O SEGREDO: Chama o seu backend, não o Google!
-                        const backendUrl = window.location.hostname.includes('localhost') ? 'http://localhost:3000' : '';
-                        
-                        const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
-                        const matrixData = await matrixRes.json();
+                        const origin = `${storeLat},${storeLng}`;
+                        const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
+                        
+                        // Redireciona o ambiente local para a API oficial para não dar conexão recusada
+                        const backendUrl = window.location.hostname.includes('localhost') ? 'https://app.velodelivery.com.br' : '';
+                        
+                        const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
+                        const matrixData = await matrixRes.json();
 
-                        if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
-                            // Converte a distância real de carro (metros para KM)
-                            const distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
-                            
-                            distanceCalculated = true;
-                            setDeliveryDistance(distanceKm);
-                            
-                            const matchedZone = [...zones]
-                                .sort((a, b) => a.radius_km - b.radius_km)
-                                .find(z => distanceKm <= z.radius_km);
+                        if (matrixData && matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
+                            const distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
+                            
+                            distanceCalculated = true;
+                            setDeliveryDistance(distanceKm);
+                            
+                            // Normalização dinâmica de propriedades (Lê radius_km, radius, km ou raio)
+                            const getRadiusValue = (z) => Number(z.radius_km || z.radius || z.km || z.raio) || 0;
+                            const getFeeValue = (z) => Number(String(z.fee || z.price || z.taxa || z.valor).replace(',', '.')) || 0;
 
-                            if (matchedZone) {
-                                const safeFee = parseFloat(String(matchedZone.fee).replace(',', '.'));
-                                setShippingFee(safeFee);
-                                setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)}`);
-                                return; 
-                            } else {
-                                throw new Error("Distância fora da área máxima de cobertura por KM.");
-                            }
-                        } else {
-                            throw new Error("Não foi possível traçar uma rota de rua para este endereço.");
-                        }
-                    } catch (geoError) {
-                        console.warn("Falha no cálculo por KM de rua, caindo para fallback (CEP).", geoError);
-                    }
+                            const matchedZone = [...zones]
+                                .sort((a, b) => getRadiusValue(a) - getRadiusValue(b))
+                                .find(z => distanceKm <= getRadiusValue(z));
+
+                            if (matchedZone) {
+                                const safeFee = getFeeValue(matchedZone);
+                                setShippingFee(safeFee);
+                                setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)} (${distanceKm.toFixed(1)} km)`);
+                                return; 
+                            } else {
+                                throw new Error("Fora do raio de quilometragem configurado.");
+                            }
+                        } else {
+                            // Caso a API do Google falhe por chaves, tenta o cálculo matemático Haversine em linha reta como escudo
+                            console.warn("API do Google indisponível. Ativando cálculo matemático de segurança.");
+                            
+                            const freeGeocodeRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&postalcode=${cep}&country=Brazil&limit=1`);
+                            const freeGeocodeData = await freeGeocodeRes.json();
+                            
+                            if (freeGeocodeData && freeGeocodeData.length > 0) {
+                                const clientLat = parseFloat(freeGeocodeData[0].lat);
+                                const clientLng = parseFloat(freeGeocodeData[0].lon);
+                                
+                                // Usa a função de Haversine nativa da sua Home
+                                const distanceKmFallback = calculateDistance(storeLat, storeLng, clientLat, clientLng);
+                                
+                                if (distanceKmFallback !== null) {
+                                    distanceCalculated = true;
+                                    setDeliveryDistance(distanceKmFallback);
+                                    
+                                    const getRadiusValue = (z) => Number(z.radius_km || z.radius || z.km || z.raio) || 0;
+                                    const getFeeValue = (z) => Number(String(z.fee || z.price || z.taxa || z.valor).replace(',', '.')) || 0;
+
+                                    const matchedZoneFallback = [...zones]
+                                        .sort((a, b) => getRadiusValue(a) - getRadiusValue(b))
+                                        .find(z => distanceKmFallback <= getRadiusValue(z));
+
+                                    if (matchedZoneFallback) {
+                                        const safeFee = getFeeValue(matchedZoneFallback);
+                                        setShippingFee(safeFee);
+                                        setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)} (${distanceKmFallback.toFixed(1)} km)`);
+                                        return;
+                                    }
+                                }
+                            }
+                            throw new Error("Não foi possível processar a rota de entrega.");
+                        }
+                    } catch (geoError) {
+                        console.warn("Falha no cálculo por KM, avaliando tabelas fixas.", geoError);
+                    }
         }
 
         const currentCepNum = parseInt(cep); 

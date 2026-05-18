@@ -3786,25 +3786,32 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
     // 29. GOOGLE MAPS: CALCULAR DISTÂNCIA REAL (PONTE ANTI-CORS)
     // ------------------------------------------------------------------------
     else if (path === '/api/calculate-distance') {
-        if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
-        try {
-            const { origin, destination } = req.query;
-            if (!origin || !destination) return res.status(400).json({ error: 'Origem e destino obrigatórios.' });
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-            const GOOGLE_API_KEY = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-            
-            if (!GOOGLE_API_KEY) return res.status(500).json({ error: 'Chave do Google Maps não configurada no servidor.' });
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
+        
+        try {
+            const { origin, destination } = req.query;
+            if (!origin || !destination) return res.status(400).json({ error: 'Origem e destino obrigatórios.' });
 
-            const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${encodeURIComponent(destination)}&key=${GOOGLE_API_KEY}`;
-            const response = await fetch(url);
-            const data = await response.json();
+            const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+            
+            if (!GOOGLE_API_KEY) return res.status(500).json({ error: 'Chave do Google Maps não configurada no servidor.' });
 
-            return res.status(200).json(data);
-        } catch (error) {
-            console.error('Erro na ponte do Google Maps:', error);
-            return res.status(500).json({ error: 'Erro interno ao calcular rota.' });
-        }
-    }
+            const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${encodeURIComponent(destination)}&key=${GOOGLE_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            return res.status(200).json(data);
+        } catch (error) {
+            console.error('Erro na ponte do Google Maps:', error);
+            return res.status(500).json({ error: 'Erro interno ao calcular rota.' });
+        }
+    }
 
     // ============================================================================
     // ROTA NÃO ENCONTRADA
