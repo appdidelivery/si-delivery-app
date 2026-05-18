@@ -4710,7 +4710,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             Estoque: <span className={p.stock <= 2 ? 'text-red-600' : 'text-slate-500'}>{p.stock !== undefined ? p.stock : 'N/A'}</span>
                                                         </p>
                                                         
-                                                        
                                                     </div>
 
                                                     {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}

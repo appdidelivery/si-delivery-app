@@ -1,87 +1,38 @@
 import { GoogleGenAI } from '@google/genai';
 import { v2 as cloudinary } from 'cloudinary';
 
-// Configuração do Cloudinary (Requer as variáveis em produção)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Inicialização do Gemini
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Prompt Mestre Blindado contra MUVERA
 const GMN_PROMPT_TEMPLATE = `
 Você é um especialista em SEO Local e Copywriting de alta conversão para o ecossistema Velo Delivery.
-Sua tarefa é gerar uma postagem para o Google Meu Negócio (Google Business Profile) com altíssima Densidade Factual e autoridade (E-E-A-T), totalmente livre de manipulação forçada de GEO (anti-spam de IA / Atualização MUVERA).
+Gere uma postagem para o Google Meu Negócio focada em Densidade Factual e E-E-A-T.
 
-Contexto do Lojista:
-- Nome da Loja: {{tenantName}}
-- Categoria/Nicho: {{tenantCategory}}
-- Cidade/Região de Atuação: {{tenantCity}}
+Lojista: {{tenantName}} ({{tenantCategory}} em {{tenantCity}})
+Produto: {{productName}} - R$ {{productPrice}}
+Descrição: {{productDescription}}
 
-Dados do Produto:
-- Nome do Produto: {{productName}}
-- Descrição Real: {{productDescription}}
-- Preço: R$ {{productPrice}}
+Detalhes da Foto (IA): {{visualAnalysis}}
 
-Instruções Visuais (Baseado na análise da imagem fornecida):
-{{visualAnalysis}}
-
-Regras de Conteúdo:
-1. Priorize fatos reais: ingredientes, pontos fortes do produto e utilidade para o cliente local.
-2. Proibido termos genéricos, adjetivos vazios em excesso ("o melhor", "incrível", "delicioso") ou repetição exaustiva da cidade/bairro.
-3. Inclua uma chamada para ação (CTA) natural direcionando para o link de pedidos do delivery.
-
-Formato de Saída Obrigatório:
-A resposta deve ser estritamente um objeto JSON válido, contendo duas chaves principais: "copy" (o texto da postagem) e "jsonLd" (os dados estruturados do produto).
-
-Exemplo de formato de saída:
-{
-  "copy": "Texto focado na realidade do produto...",
-  "jsonLd": {
-    "@context": "https://schema.org/",
-    "@type": "Product",
-    "name": "{{productName}}",
-    "image": "{{cloudinaryImageUrl}}",
-    "description": "{{productDescription}}",
-    "offers": {
-      "@type": "Offer",
-      "priceCurrency": "BRL",
-      "price": "{{productPrice}}"
-    }
-  }
-}
+Regras: Use os fatos reais, não faça SPAM de palavras-chave. Inclua CTA para pedir.
+Formato: Retorne um JSON estrito com "copy" e "jsonLd".
 `;
 
 export default async function handler(req, res) {
-  // 1. Liberação de CORS (Garante comunicação limpa)
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  // 2. Preflight request (Opções para o CORS)
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // Trava de segurança: apenas aceita requisições POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido. Use POST.' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
 
   try {
     const { imageBuffer, tenantData, productData } = req.body;
+    if (!imageBuffer) return res.status(400).json({ error: 'Falta imagem.' });
 
-    if (!imageBuffer || !tenantData || !productData) {
-      return res.status(400).json({ error: 'Faltam dados obrigatórios no payload.' });
-    }
-
-    // 1. Cloudinary: Remoção de Fundo
+    // 1. Cloudinary
     const cloudinaryResponse = await cloudinary.uploader.upload(`data:image/jpeg;base64,${imageBuffer}`, {
-      folder: `velo/${tenantData.name.replace(/\s+/g, '-').toLowerCase()}/gmn`,
+      folder: `velo/gmn_temp`,
       transformation: [
         { effect: "background_removal" },
         { width: 1080, height: 1080, crop: "pad", background: "auto" }
@@ -90,57 +41,38 @@ export default async function handler(req, res) {
 
     const finalImageUrl = cloudinaryResponse.secure_url;
 
-    // 2. Gemini 1.5 Pro: Análise Visual da Imagem
+    // 2. Gemini Visão
     const visionResponse = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
-      contents: [
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: imageBuffer
-          }
-        },
-        'Descreva detalhadamente os aspectos visuais reais deste produto para fins de copywriting comercial rigoroso. Foque em texturas, cores e apresentação real, sem inventar dados.'
-      ]
+      contents: [{ inlineData: { mimeType: 'image/jpeg', data: imageBuffer } }, 'Descreva os detalhes reais e apetitosos do produto nesta foto.']
     });
 
-    const visualAnalysis = visionResponse.text || '';
-
-    // 3. Montagem do Prompt Dinâmico
+    // 3. Copy Final
     let prompt = GMN_PROMPT_TEMPLATE
       .replace('{{tenantName}}', tenantData.name)
       .replace('{{tenantCategory}}', tenantData.category)
       .replace('{{tenantCity}}', tenantData.city)
       .replace('{{productName}}', productData.name)
       .replace('{{productDescription}}', productData.description)
-      .replace('{{productPrice}}', productData.price.toString())
-      .replace('{{cloudinaryImageUrl}}', finalImageUrl)
-      .replace('{{visualAnalysis}}', visualAnalysis);
+      .replace('{{productPrice}}', productData.price)
+      .replace('{{visualAnalysis}}', visionResponse.text || '');
 
-    // 4. Geração do Texto (Copy e JSON-LD)
-    const textGenerationResponse = await ai.models.generateContent({
+    const textResponse = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
+      config: { responseMimeType: 'application/json' }
     });
 
-    const contentResult = JSON.parse(textGenerationResponse.text || '{}');
+    const result = JSON.parse(textResponse.text || '{}');
 
-    // 5. Devolve o pacote para a interface
     return res.status(200).json({
       success: true,
       processedImage: finalImageUrl,
-      copy: contentResult.copy,
-      jsonLd: contentResult.jsonLd
+      copy: result.copy,
+      jsonLd: result.jsonLd
     });
 
   } catch (error) {
-    console.error('Erro na esteira GMN:', error);
-    return res.status(500).json({ 
-      error: 'Falha ao processar campanha via automação.', 
-      details: error.message 
-    });
+    return res.status(500).json({ error: 'Falha na IA', details: error.message });
   }
 }

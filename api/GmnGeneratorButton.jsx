@@ -15,7 +15,6 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
     setResult(null);
     
     try {
-      // 1. Converter a imagem em Base64
       const base64Image = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -23,7 +22,7 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
         reader.onerror = (error) => reject(error);
       });
 
-      // 2. Chamar nossa Serverless Function Vercel
+      // Rota de produção na Vercel
       const response = await fetch('/api/generate-gmn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,11 +39,10 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
         throw new Error(data.error || 'Erro ao processar imagem no servidor.');
       }
 
-      // 3. Atualizar Estado
       setResult(data);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Falha de conexão com a esteira de IA.');
+      setError(err.message || 'Falha de conexão com a API.');
     } finally {
       setLoading(false);
     }
@@ -71,14 +69,14 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
           animate={{ opacity: 1, y: 0 }}
           className="mt-3 p-4 border border-slate-200 rounded-2xl bg-white shadow-xl w-full"
         >
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Imagem Otimizada (Fundo Removido):</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Imagem Otimizada:</p>
           <img 
             src={result.processedImage} 
             alt="Produto Processado" 
             className="w-full h-auto max-h-48 object-contain rounded-xl mb-3 border border-slate-100 bg-slate-50"
           />
           
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Legenda Sugerida (E-E-A-T):</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Legenda Sugerida:</p>
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 max-h-32 overflow-y-auto custom-scrollbar">
             <p className="text-xs font-bold text-slate-700 whitespace-pre-wrap">{result.copy}</p>
           </div>
@@ -91,7 +89,7 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
             }}
             className="mt-3 w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-widest py-2.5 rounded-xl transition-all"
           >
-            Copiar Texto da Postagem
+            Copiar Texto
           </button>
         </motion.div>
       )}
