@@ -10561,12 +10561,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         }
                                     }
 
-                                    // Salva no Firebase Firestore dentro do documento 'settings' do lojista
-                                    await setDoc(doc(db, "settings", storeId), {
-                                        integrations: {
-                                            [selectedIntegration.id]: integrationForm 
-                                        }
-                                    }, { merge: true });
+                                    // Salva no Firebase Firestore blindando outras integrações ativas
+                                        const currentIntegrations = settings?.integrations || {};
+                                        await setDoc(doc(db, "settings", storeId), {
+                                            integrations: {
+                                                ...currentIntegrations,
+                                                [selectedIntegration.id]: integrationForm 
+                                            }
+                                        }, { merge: true });
                                     
                                     setIsIntegrationModalOpen(false);
                                     alert(`✅ ${selectedIntegration.name} configurado com sucesso!`);

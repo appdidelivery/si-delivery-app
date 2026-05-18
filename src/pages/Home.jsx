@@ -1101,13 +1101,18 @@ export default function Home() {
 
           const integrations = marketingSettings?.integrations;
 
-          // 1. Google Tag Manager (GTM)
-          if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
-              const script = document.createElement('script');
-              script.id = 'gtm-script';
-              script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
-              document.head.appendChild(script);
-          }
+          // 1. Google Tag Manager (GTM) Multi-tenant
+              if (integrations?.gtm?.containerId) {
+                  // Destrói script antigo se o lojista alterar o ID ou mudar de loja no cache local
+                  const oldScript = document.getElementById('gtm-script');
+                  if (oldScript) oldScript.remove();
+
+                  // Injeta a Tag cirurgicamente
+                  const script = document.createElement('script');
+                  script.id = 'gtm-script';
+                  script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
+                  document.head.appendChild(script);
+              }
 
           // 2. Meta Pixel (Facebook)
           if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
