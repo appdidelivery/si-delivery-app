@@ -2643,9 +2643,34 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                         if (geoData.status === "OK" && geoData.results[0]) {
                             const customerLat = geoData.results[0].geometry.location.lat;
-                            const customerLng = geoData.results[0].geometry.location.lng;
+                                                            const customerLng = geoData.results[0].geometry.location.lng;
 
-                            const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
+                                                            let distanceKm = null;
+                                                            try {
+                                                                // Frontend exige uso do JS SDK para evitar bloqueio de CORS
+                                                                if (window.google && window.google.maps) {
+                                                                    const service = new window.google.maps.DistanceMatrixService();
+                                                                    distanceKm = await new Promise((resolve, reject) => {
+                                                                        service.getDistanceMatrix({
+                                                                            origins: [{ lat: storeLat, lng: storeLng }],
+                                                                            destinations: [{ lat: customerLat, lng: customerLng }],
+                                                                            travelMode: 'DRIVING'
+                                                                        }, (res, status) => {
+                                                                            if (status === 'OK' && res.rows[0].elements[0].status === 'OK') {
+                                                                                resolve(res.rows[0].elements[0].distance.value / 1000);
+                                                                            } else {
+                                                                                reject('Falha ao calcular rota real');
+                                                                            }
+                                                                        });
+                                                                    });
+                                                                } else {
+                                                                    throw new Error("Google Maps JS API indisponível.");
+                                                                }
+                                                            } catch (err) {
+                                                                console.warn("Distance Matrix falhou no PDV. Usando fallback de linha reta + 30% de penalidade.", err);
+                                                                const straightLine = calculateDistance(storeLat, storeLng, customerLat, customerLng);
+                                                                if (straightLine !== null) distanceKm = straightLine * 1.3;
+                                                            }
                             
                             if (distanceKm !== null) {
                                 const matchedZone = [...zones]

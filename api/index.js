@@ -1819,11 +1819,27 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const clientLat = geoData.results[0].geometry.location.lat;
                                                                 const clientLng = geoData.results[0].geometry.location.lng;
                                                                 
+                                                                let distanceKm = null;
+                                                            try {
+                                                                // 1. TENTA ROTA REAL DIRIGÍVEL (Google Distance Matrix)
+                                                                const matrixRes = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${storeLat},${storeLng}&destinations=${clientLat},${clientLng}&key=${mapsKey}`);
+                                                                const matrixData = await matrixRes.json();
+
+                                                                if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
+                                                                    distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
+                                                                } else {
+                                                                    throw new Error("Falha na Distance Matrix API.");
+                                                                }
+                                                            } catch (matrixErr) {
+                                                                // 2. FALLBACK DE EMERGÊNCIA: Linha Reta + 30% de penalidade nas ruas
+                                                                console.warn("Google Distance Matrix falhou no Robô. Usando Fallback com penalidade.", matrixErr);
                                                                 const R = 6371;
                                                                 const dLat = (clientLat - storeLat) * Math.PI / 180;
                                                                 const dLng = (clientLng - storeLng) * Math.PI / 180;
                                                                 const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                                                                const straightLineKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                                                                distanceKm = straightLineKm * 1.3;
+                                                            }
                                                                 
                                                                 // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
                                                                 const setSnap = await db.collection('settings').doc(storeId).get();
@@ -1925,11 +1941,27 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     const clientLat = geoData.results[0].geometry.location.lat;
                                                                     const clientLng = geoData.results[0].geometry.location.lng;
                                                                     
-                                                                    const R = 6371;
-                                                                    const dLat = (clientLat - storeLat) * Math.PI / 180;
-                                                                    const dLng = (clientLng - storeLng) * Math.PI / 180;
-                                                                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                    const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                                                                    let distanceKm = null;
+                                                            try {
+                                                                // 1. TENTA ROTA REAL DIRIGÍVEL (Google Distance Matrix)
+                                                                const matrixRes = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${storeLat},${storeLng}&destinations=${clientLat},${clientLng}&key=${mapsKey}`);
+                                                                const matrixData = await matrixRes.json();
+
+                                                                if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
+                                                                    distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
+                                                                } else {
+                                                                    throw new Error("Falha na Distance Matrix API.");
+                                                                }
+                                                            } catch (matrixErr) {
+                                                                // 2. FALLBACK DE EMERGÊNCIA: Linha Reta + 30% de penalidade nas ruas
+                                                                console.warn("Google Distance Matrix falhou no Robô. Usando Fallback com penalidade.", matrixErr);
+                                                                const R = 6371;
+                                                                const dLat = (clientLat - storeLat) * Math.PI / 180;
+                                                                const dLng = (clientLng - storeLng) * Math.PI / 180;
+                                                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+                                                                const straightLineKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                                                                distanceKm = straightLineKm * 1.3;
+                                                            }
                                                                     
                                                                     // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
                                                                     const setSnap = await db.collection('settings').doc(storeId).get();

@@ -109,7 +109,36 @@ export default function WppWebview() {
                 const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(`${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`)}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`);
                 const geoData = await geoRes.json();
                 if (geoData.status === "OK" && geoData.results[0]) {
-                    const distKm = calculateDistance(store.lat, store.lng, geoData.results[0].geometry.location.lat, geoData.results[0].geometry.location.lng);
+                    const customerLat = geoData.results[0].geometry.location.lat;
+                    const customerLng = geoData.results[0].geometry.location.lng;
+
+                    let distKm = null;
+                    try {
+                        // Frontend exige uso do JS SDK para evitar bloqueio de CORS
+                        if (window.google && window.google.maps) {
+                            const service = new window.google.maps.DistanceMatrixService();
+                            distKm = await new Promise((resolve, reject) => {
+                                service.getDistanceMatrix({
+                                    origins: [{ lat: Number(store.lat), lng: Number(store.lng) }],
+                                    destinations: [{ lat: customerLat, lng: customerLng }],
+                                    travelMode: 'DRIVING'
+                                }, (res, status) => {
+                                    if (status === 'OK' && res.rows[0].elements[0].status === 'OK') {
+                                        resolve(res.rows[0].elements[0].distance.value / 1000);
+                                    } else {
+                                        reject('Falha ao calcular rota real');
+                                    }
+                                });
+                            });
+                        } else {
+                            throw new Error("Google Maps JS API indisponível.");
+                        }
+                    } catch (err) {
+                        console.warn("Distance Matrix falhou no Webview. Usando fallback de linha reta + 30% de penalidade.", err);
+                        const straightLine = calculateDistance(store.lat, store.lng, customerLat, customerLng);
+                        if (straightLine !== null) distKm = straightLine * 1.3;
+                    }
+
                     if (distKm !== null) {
                         const zone = [...store.delivery_zones].sort((a,b)=>a.radius_km - b.radius_km).find(z => distKm <= z.radius_km);
                         if (zone) return setDeliveryFee(parseFloat(String(zone.fee).replace(',','.')));
