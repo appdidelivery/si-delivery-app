@@ -1416,16 +1416,18 @@ export default function Home() {
 
         if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
                     try {
-                        // 🚀 NOVO MOTOR GOOGLE DISTANCE MATRIX (Via Backend Vercel para evitar bloqueio de CORS)
+                        // 🚀 NOVO MOTOR GOOGLE DISTANCE MATRIX (Via Backend Vercel)
                         const origin = `${storeLat},${storeLng}`;
-                        const destination = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
+                        const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
                         
-                        // Chama a SUA própria API, que tem passe livre para falar com o Google
-                        const matrixRes = await fetch(`/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destination)}`);
+                        // BLINDAGEM LOCALHOST: Se estiver testando no PC, usa a API oficial que está na Vercel
+                        const backendUrl = window.location.hostname.includes('localhost') ? 'https://app.velodelivery.com.br' : '';
+                        
+                        const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
                         const matrixData = await matrixRes.json();
 
                         if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
-                            // A API retorna a distância real da rota de carro em metros. Convertendo para KM:
+                            // Converte a distância real de carro (metros para KM)
                             const distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
                             
                             distanceCalculated = true;
@@ -1436,9 +1438,7 @@ export default function Home() {
                                 .find(z => distanceKm <= z.radius_km);
 
                             if (matchedZone) {
-                                // 🚨 BLINDAGEM DO NaN
                                 const safeFee = parseFloat(String(matchedZone.fee).replace(',', '.'));
-
                                 setShippingFee(safeFee);
                                 setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)}`);
                                 return; 
@@ -1447,9 +1447,6 @@ export default function Home() {
                             }
                         } else {
                             console.error("ERRO GOOGLE MAPS DISTANCE MATRIX:", matrixData);
-                            if (matrixData.error_message) {
-                                alert(`⚠️ Erro Google Maps: ${matrixData.error_message}`);
-                            }
                             throw new Error("Não foi possível traçar uma rota de rua para este endereço.");
                         }
                     } catch (geoError) {
