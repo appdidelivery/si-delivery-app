@@ -1162,23 +1162,23 @@ export default function Admin() {
     const [uploadingVideo, setUploadingVideo] = useState(false);
     const [uploadError, setUploadError] = useState('');
 
-    // 🚨 TRAVA DO PAINEL: Verifica o histórico real de faturas para ver se há inadimplência
-    const hasOverdueInvoice = (storeStatus?.faturasHistorico || []).some(fatura => {
-        if (fatura.status !== 'PENDENTE') return false;
-        if (!fatura.dueDate) return false;
-        
-        const dueDate = new Date(fatura.dueDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Ignora a hora, foca apenas no dia
-        
-        return dueDate < today; // Se a data de vencimento já passou e está PENDENTE, bloqueia!
-    });
+    // 🚨 TRAVA DO PAINEL DEFINITIVA: Confia APENAS nas faturas e ignora o 'bloqueado' fantasma
+    const hasOverdueInvoice = (storeStatus?.faturasHistorico || []).some(fatura => {
+        if (fatura.status !== 'PENDENTE') return false;
+        if (!fatura.dueDate) return false;
+        
+        const dueDate = new Date(fatura.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+        
+        return dueDate < today; // Só bloqueia se existir fatura com data no passado e status PENDENTE
+    });
 
-    const isOverdue = storeStatus?.billingStatus === 'bloqueado' || 
-        (storeStatus?.billingStatus !== 'gratis_vitalicio' && 
-         storeStatus?.billingStatus !== 'isento' && 
-         !trialInfo.isTrial && 
-         hasOverdueInvoice);
+    // Removemos o 'storeStatus.billingStatus === bloqueado'. Se estiver PAGO, libera na hora!
+    const isOverdue = storeStatus?.billingStatus !== 'gratis_vitalicio' && 
+         storeStatus?.billingStatus !== 'isento' && 
+         !trialInfo.isTrial && 
+         hasOverdueInvoice;
 
     // --- CORREÇÃO SEO: FORÇA O NOME DA LOJA NA ABA DO NAVEGADOR ---
     useEffect(() => {
@@ -2941,71 +2941,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 return 0;
         }
     };
-
-    // --- NOVO MOTOR: FECHAMENTO AUTOMÁTICO DE FATURA (SAAS) ---
-    useEffect(() => {
-        if (!storeId || !storeStatus || orders.length === 0) return;
-        if (storeStatus.billingStatus === 'gratis_vitalicio' || storeStatus.billingStatus === 'isento') return;
-
-        let diaVencimento = storeStatus.billingDay || 10;
-        if (storeStatus.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
-            const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
-            if (faturaReferencia.dueDate) {
-                const dataRef = new Date(faturaReferencia.dueDate);
-                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
-            }
-        }
-
-        const now = new Date();
-        let pastCycleStart, pastCycleEnd, pastDueDate;
-
-        if (now.getDate() > diaVencimento) {
-            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
-            pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
-            pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
-        } else {
-            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
-            pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
-            pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
-        }
-
-        const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
-        const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
-
-        const history = storeStatus.faturasHistorico || [];
-        const faturaExists = history.some(f => f.month.toUpperCase() === pastMonthName);
-
-        if (!faturaExists && pastDueDate < now) {
-            const pastOrdersCount = orders.filter(o => {
-                if (o.status === 'canceled' || o.status === 'cancelado') return false;
-                if (!o.createdAt) return false;
-                let d;
-                if (typeof o.createdAt.toDate === 'function') d = o.createdAt.toDate();
-                else if (o.createdAt.seconds) d = new Date(o.createdAt.seconds * 1000);
-                else d = new Date(o.createdAt);
-                if (isNaN(d)) return false;
-                return d >= pastCycleStart && d <= pastCycleEnd;
-            }).length;
-
-            const franchiseLimit = 100;
-            const extraOrders = Math.max(0, pastOrdersCount - franchiseLimit);
-            const extraCost = extraOrders * 0.25;
-            const totalAmount = 49.90 + extraCost;
-
-            const newFatura = {
-                id: `auto_${pastDueDate.getTime()}`,
-                month: pastMonthName,
-                amount: totalAmount,
-                status: 'PENDENTE',
-                dueDate: pastDueDate.toISOString(),
-                isAuto: true,
-                breakdown: { basePlan: 49.90, extraOrdersCost: extraCost, discount: 0 }
-            };
-
-            const newHistory = [...history, newFatura];
-            updateDoc(doc(db, "stores", storeId), { faturasHistorico: newHistory }).catch(e => console.error(e));
-        }
-    }, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, orders.length]);
 
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
