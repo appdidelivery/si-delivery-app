@@ -2652,19 +2652,40 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         const externalRef = paymentData.external_reference;
                         const valorPago = paymentData.transaction_amount;
                         
-                        // LÓGICA: MENSALIDADE DA LOJA PAGA
-                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
-                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
-                            
-                            const storeRef = db.collection('stores').doc(storeIdToRelease);
-                            await storeRef.set({
-                                paymentStatus: 'paid', // Libera o painel
-                                lastPaymentDate: admin.firestore.FieldValue.serverTimestamp()
-                            }, { merge: true });
+                        // LÓGICA DEFINITIVA: MENSALIDADE DA LOJA PAGA
+                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
+                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
+                            const storeRef = db.collection('stores').doc(storeIdToRelease);
+                            
+                            // 1. Puxa a loja para descobrir o histórico de faturas
+                            const storeDoc = await storeRef.get();
+                            if (storeDoc.exists) {
+                                const storeData = storeDoc.data();
+                                let faturas = storeData.faturasHistorico || [];
+                                let faturaAtualizada = false;
 
-                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga!`);
-                            return res.status(200).send('OK');
-                        }
+                                // 2. Varre de trás pra frente achando a fatura pendente e dá baixa
+                                for (let i = faturas.length - 1; i >= 0; i--) {
+                                    if (faturas[i].status === 'PENDENTE') {
+                                        faturas[i].status = 'PAGO';
+                                        faturas[i].paidAt = new Date().toISOString();
+                                        faturaAtualizada = true;
+                                        break; 
+                                    }
+                                }
+
+                                // 3. Salva a baixa no banco E libera a loja
+                                await storeRef.set({
+                                    billingStatus: 'ativo',
+                                    paymentStatus: 'paid',
+                                    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
+                                    ...(faturaAtualizada ? { faturasHistorico: faturas } : {})
+                                }, { merge: true });
+                            }
+
+                            console.log(`✅ Webhook MP: Fatura SaaS da loja ${storeIdToRelease} baixada para PAGO e loja desbloqueada!`);
+                            return res.status(200).send('OK');
+                        }
 
                         // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
                         const orderId = externalRef;
