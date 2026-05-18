@@ -1819,27 +1819,11 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                 const clientLat = geoData.results[0].geometry.location.lat;
                                                                 const clientLng = geoData.results[0].geometry.location.lng;
                                                                 
-                                                                let distanceKm = null;
-                                                            try {
-                                                                // 1. TENTA ROTA REAL DIRIGÍVEL (Google Distance Matrix)
-                                                                const matrixRes = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${storeLat},${storeLng}&destinations=${clientLat},${clientLng}&key=${mapsKey}`);
-                                                                const matrixData = await matrixRes.json();
-
-                                                                if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
-                                                                    distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
-                                                                } else {
-                                                                    throw new Error("Falha na Distance Matrix API.");
-                                                                }
-                                                            } catch (matrixErr) {
-                                                                // 2. FALLBACK DE EMERGÊNCIA: Linha Reta + 30% de penalidade nas ruas
-                                                                console.warn("Google Distance Matrix falhou no Robô. Usando Fallback com penalidade.", matrixErr);
                                                                 const R = 6371;
                                                                 const dLat = (clientLat - storeLat) * Math.PI / 180;
                                                                 const dLng = (clientLng - storeLng) * Math.PI / 180;
                                                                 const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                const straightLineKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-                                                                distanceKm = straightLineKm * 1.3;
-                                                            }
+                                                                const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
                                                                 
                                                                 // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
                                                                 const setSnap = await db.collection('settings').doc(storeId).get();
@@ -1941,27 +1925,11 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                                     const clientLat = geoData.results[0].geometry.location.lat;
                                                                     const clientLng = geoData.results[0].geometry.location.lng;
                                                                     
-                                                                    let distanceKm = null;
-                                                            try {
-                                                                // 1. TENTA ROTA REAL DIRIGÍVEL (Google Distance Matrix)
-                                                                const matrixRes = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${storeLat},${storeLng}&destinations=${clientLat},${clientLng}&key=${mapsKey}`);
-                                                                const matrixData = await matrixRes.json();
-
-                                                                if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
-                                                                    distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
-                                                                } else {
-                                                                    throw new Error("Falha na Distance Matrix API.");
-                                                                }
-                                                            } catch (matrixErr) {
-                                                                // 2. FALLBACK DE EMERGÊNCIA: Linha Reta + 30% de penalidade nas ruas
-                                                                console.warn("Google Distance Matrix falhou no Robô. Usando Fallback com penalidade.", matrixErr);
-                                                                const R = 6371;
-                                                                const dLat = (clientLat - storeLat) * Math.PI / 180;
-                                                                const dLng = (clientLng - storeLng) * Math.PI / 180;
-                                                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-                                                                const straightLineKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-                                                                distanceKm = straightLineKm * 1.3;
-                                                            }
+                                                                    const R = 6371;
+                                                                    const dLat = (clientLat - storeLat) * Math.PI / 180;
+                                                                    const dLng = (clientLng - storeLng) * Math.PI / 180;
+                                                                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(storeLat * Math.PI / 180) * Math.cos(clientLat * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+                                                                    const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
                                                                     
                                                                     // BLINDAGEM MÁXIMA (Transforma Objetos do Firebase em Array)
                                                                     const setSnap = await db.collection('settings').doc(storeId).get();
@@ -2684,40 +2652,19 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         const externalRef = paymentData.external_reference;
                         const valorPago = paymentData.transaction_amount;
                         
-                        // LÓGICA DEFINITIVA: MENSALIDADE DA LOJA PAGA
-                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
-                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
-                            const storeRef = db.collection('stores').doc(storeIdToRelease);
-                            
-                            // 1. Puxa a loja para descobrir o histórico de faturas
-                            const storeDoc = await storeRef.get();
-                            if (storeDoc.exists) {
-                                const storeData = storeDoc.data();
-                                let faturas = storeData.faturasHistorico || [];
-                                let faturaAtualizada = false;
+                        // LÓGICA: MENSALIDADE DA LOJA PAGA
+                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
+                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
+                            
+                            const storeRef = db.collection('stores').doc(storeIdToRelease);
+                            await storeRef.set({
+                                paymentStatus: 'paid', // Libera o painel
+                                lastPaymentDate: admin.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true });
 
-                                // 2. Varre de trás pra frente achando a fatura pendente e dá baixa
-                                for (let i = faturas.length - 1; i >= 0; i--) {
-                                    if (faturas[i].status === 'PENDENTE') {
-                                        faturas[i].status = 'PAGO';
-                                        faturas[i].paidAt = new Date().toISOString();
-                                        faturaAtualizada = true;
-                                        break; 
-                                    }
-                                }
-
-                                // 3. Salva a baixa no banco E libera a loja
-                                await storeRef.set({
-                                    billingStatus: 'ativo',
-                                    paymentStatus: 'paid',
-                                    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
-                                    ...(faturaAtualizada ? { faturasHistorico: faturas } : {})
-                                }, { merge: true });
-                            }
-
-                            console.log(`✅ Webhook MP: Fatura SaaS da loja ${storeIdToRelease} baixada para PAGO e loja desbloqueada!`);
-                            return res.status(200).send('OK');
-                        }
+                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga!`);
+                            return res.status(200).send('OK');
+                        }
 
                         // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
                         const orderId = externalRef;
@@ -3821,7 +3768,6 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
         }
     }
 
-    
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================

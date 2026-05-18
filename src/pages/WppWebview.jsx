@@ -141,8 +141,15 @@ export default function WppWebview() {
 
                     if (distKm !== null) {
                         const zone = [...store.delivery_zones].sort((a,b)=>a.radius_km - b.radius_km).find(z => distKm <= z.radius_km);
-                        if (zone) return setDeliveryFee(parseFloat(String(zone.fee).replace(',','.')));
-                        throw new Error("Fora da área de cobertura (KM).");
+                        if (zone) {
+                            return setDeliveryFee(parseFloat(String(zone.fee).replace(',','.')));
+                        } else {
+                            // TRAVA ABSOLUTA: Avisa o cliente e mata a função aqui para não ler o fallback antigo
+                            setCepError(`Infelizmente seu endereço está fora da nossa área de cobertura (${distKm.toFixed(1)}km).`);
+                            setDeliveryFee(0);
+                            setIsCepLoading(false);
+                            return; 
+                        }
                     }
                 }
             } catch (e) {}
