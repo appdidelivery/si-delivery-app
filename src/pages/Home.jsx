@@ -1416,42 +1416,40 @@ export default function Home() {
 
         if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
                     try {
-                        // 🚀 NOVO MOTOR GOOGLE DISTANCE MATRIX (Via Backend Vercel)
-                        const origin = `${storeLat},${storeLng}`;
-                        const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
-                        
-                        // BLINDAGEM LOCALHOST: Se estiver testando no PC, usa a API oficial que está na Vercel
-                        const backendUrl = window.location.hostname.includes('localhost') ? 'https://app.velodelivery.com.br' : '';
-                        
-                        const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
-                        const matrixData = await matrixRes.json();
+                        const origin = `${storeLat},${storeLng}`;
+                        const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
+                        
+                        // 👇 AQUI ESTÁ O SEGREDO: Chama o seu backend, não o Google!
+                        const backendUrl = window.location.hostname.includes('localhost') ? 'https://app.velodelivery.com.br' : '';
+                        
+                        const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
+                        const matrixData = await matrixRes.json();
 
-                        if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
-                            // Converte a distância real de carro (metros para KM)
-                            const distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
-                            
-                            distanceCalculated = true;
-                            setDeliveryDistance(distanceKm);
-                            
-                            const matchedZone = [...zones]
-                                .sort((a, b) => a.radius_km - b.radius_km)
-                                .find(z => distanceKm <= z.radius_km);
+                        if (matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
+                            // Converte a distância real de carro (metros para KM)
+                            const distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
+                            
+                            distanceCalculated = true;
+                            setDeliveryDistance(distanceKm);
+                            
+                            const matchedZone = [...zones]
+                                .sort((a, b) => a.radius_km - b.radius_km)
+                                .find(z => distanceKm <= z.radius_km);
 
-                            if (matchedZone) {
-                                const safeFee = parseFloat(String(matchedZone.fee).replace(',', '.'));
-                                setShippingFee(safeFee);
-                                setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)}`);
-                                return; 
-                            } else {
-                                throw new Error("Distância fora da área máxima de cobertura por KM.");
-                            }
-                        } else {
-                            console.error("ERRO GOOGLE MAPS DISTANCE MATRIX:", matrixData);
-                            throw new Error("Não foi possível traçar uma rota de rua para este endereço.");
-                        }
-                    } catch (geoError) {
-                        console.warn("Falha no cálculo por KM de rua, caindo para fallback (CEP).", geoError);
-                    }
+                            if (matchedZone) {
+                                const safeFee = parseFloat(String(matchedZone.fee).replace(',', '.'));
+                                setShippingFee(safeFee);
+                                setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)}`);
+                                return; 
+                            } else {
+                                throw new Error("Distância fora da área máxima de cobertura por KM.");
+                            }
+                        } else {
+                            throw new Error("Não foi possível traçar uma rota de rua para este endereço.");
+                        }
+                    } catch (geoError) {
+                        console.warn("Falha no cálculo por KM de rua, caindo para fallback (CEP).", geoError);
+                    }
         }
 
         const currentCepNum = parseInt(cep); 
