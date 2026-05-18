@@ -38,6 +38,7 @@ import {
     FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot, FaBowlRice, FaHeart
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
+import GmnGeneratorButton from '../components/GmnGeneratorButton';
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
 import { MissionTracker } from '../components/MissionTracker';
 import PartnersMarketplace from '../components/PartnersMarketplace';
