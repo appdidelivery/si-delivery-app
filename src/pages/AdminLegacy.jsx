@@ -38,7 +38,6 @@ import {
     FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot, FaBowlRice, FaHeart
 } from 'react-icons/fa6';
 import VeloSupportWidget from "../components/VeloSupportWidget";
-import GmnGeneratorButton from '../components/GmnGeneratorButton';
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
 import { MissionTracker } from '../components/MissionTracker';
 import PartnersMarketplace from '../components/PartnersMarketplace';
@@ -4710,6 +4709,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <p className={`text-[10px] font-bold mt-1 uppercase tracking-widest ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>
                                                             Estoque: <span className={p.stock <= 2 ? 'text-red-600' : 'text-slate-500'}>{p.stock !== undefined ? p.stock : 'N/A'}</span>
                                                         </p>
+                                                        
+                                                        
                                                     </div>
 
                                                     {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}

@@ -1,14 +1,17 @@
 import { GoogleGenAI } from '@google/genai';
 import { v2 as cloudinary } from 'cloudinary';
 
+// Configuração do Cloudinary (Requer as variáveis em produção)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Inicialização do Gemini
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// Prompt Mestre Blindado contra MUVERA
 const GMN_PROMPT_TEMPLATE = `
 Você é um especialista em SEO Local e Copywriting de alta conversão para o ecossistema Velo Delivery.
 Sua tarefa é gerar uma postagem para o Google Meu Negócio (Google Business Profile) com altíssima Densidade Factual e autoridade (E-E-A-T), totalmente livre de manipulação forçada de GEO (anti-spam de IA / Atualização MUVERA).
@@ -32,7 +35,7 @@ Regras de Conteúdo:
 3. Inclua uma chamada para ação (CTA) natural direcionando para o link de pedidos do delivery.
 
 Formato de Saída Obrigatório:
-A resposta deve ser estritamente um objeto JSON válido, contendo duas chaves principais: "copy" (o texto da postagem) e "jsonLd" (os dados estruturados do produto para blindagem no AI Overviews do Google).
+A resposta deve ser estritamente um objeto JSON válido, contendo duas chaves principais: "copy" (o texto da postagem) e "jsonLd" (os dados estruturados do produto).
 
 Exemplo de formato de saída:
 {
@@ -53,6 +56,18 @@ Exemplo de formato de saída:
 `;
 
 export default async function handler(req, res) {
+  // 1. Liberação de CORS (Garante comunicação limpa)
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+  // 2. Preflight request (Opções para o CORS)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // Trava de segurança: apenas aceita requisições POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido. Use POST.' });
   }
@@ -64,7 +79,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Faltam dados obrigatórios no payload.' });
     }
 
-    // 1. Processamento e otimização gráfica via Cloudinary
+    // 1. Cloudinary: Remoção de Fundo
     const cloudinaryResponse = await cloudinary.uploader.upload(`data:image/jpeg;base64,${imageBuffer}`, {
       folder: `velo/${tenantData.name.replace(/\s+/g, '-').toLowerCase()}/gmn`,
       transformation: [
@@ -75,7 +90,7 @@ export default async function handler(req, res) {
 
     const finalImageUrl = cloudinaryResponse.secure_url;
 
-    // 2. Visão Computacional de alta precisão
+    // 2. Gemini 1.5 Pro: Análise Visual da Imagem
     const visionResponse = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
       contents: [
@@ -85,13 +100,13 @@ export default async function handler(req, res) {
             data: imageBuffer
           }
         },
-        'Descreva detalhadamente os aspectos visuais reais deste produto para fins de copywriting comercial rigoroso. Foque em texturas, cores e apresentação real, sem inventar dados ou adjetivos vazios.'
+        'Descreva detalhadamente os aspectos visuais reais deste produto para fins de copywriting comercial rigoroso. Foque em texturas, cores e apresentação real, sem inventar dados.'
       ]
     });
 
     const visualAnalysis = visionResponse.text || '';
 
-    // 3. Injeção de Contexto do Tenant para Faturamento e SEO Local
+    // 3. Montagem do Prompt Dinâmico
     let prompt = GMN_PROMPT_TEMPLATE
       .replace('{{tenantName}}', tenantData.name)
       .replace('{{tenantCategory}}', tenantData.category)
@@ -102,7 +117,7 @@ export default async function handler(req, res) {
       .replace('{{cloudinaryImageUrl}}', finalImageUrl)
       .replace('{{visualAnalysis}}', visualAnalysis);
 
-    // 4. Geração Estabilizada em JSON
+    // 4. Geração do Texto (Copy e JSON-LD)
     const textGenerationResponse = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
       contents: prompt,
@@ -113,6 +128,7 @@ export default async function handler(req, res) {
 
     const contentResult = JSON.parse(textGenerationResponse.text || '{}');
 
+    // 5. Devolve o pacote para a interface
     return res.status(200).json({
       success: true,
       processedImage: finalImageUrl,

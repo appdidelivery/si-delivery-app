@@ -15,6 +15,7 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
     setResult(null);
     
     try {
+      // 1. Converter a imagem em Base64
       const base64Image = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -22,6 +23,7 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
         reader.onerror = (error) => reject(error);
       });
 
+      // 2. Chamar nossa Serverless Function Vercel
       const response = await fetch('/api/generate-gmn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,6 +40,7 @@ export default function GmnGeneratorButton({ tenantData, productData }) {
         throw new Error(data.error || 'Erro ao processar imagem no servidor.');
       }
 
+      // 3. Atualizar Estado
       setResult(data);
     } catch (err) {
       console.error(err);
