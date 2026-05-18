@@ -1073,9 +1073,15 @@ export default async function handler(req, res) {
     }
 
   // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/whatsapp-webhook') {
+    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
+    // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
+    // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/whatsapp-webhook') {
         const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'SUA_SENHA_SECRETA_WEBHOOK_VELO'; 
 
         if (req.method === 'GET') {
@@ -1556,11 +1562,12 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     if (existingItem) {
                                                         existingItem.quantity += 1;
                                                     } else {
-                                                    items.push({ id: productId, name: pData.name, price: price, quantity: 1, imageUrl: pData.imageUrl || '' });
-                                                }
-                                                
-                                                await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                                                const cartTotal = items.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
+                                                        items.push({ id: productId, name: pData.name, price: price, quantity: 1, imageUrl: pData.imageUrl || '' });
+                                                    }
+                                                    
+                                                    await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                                                    await cartRef.set({ items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                                                const cartTotal = items.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
                                                     
                                                     replyPayload = {
                                                         type: "interactive",
@@ -3782,43 +3789,14 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
         }
     }
 
-    // ------------------------------------------------------------------------
-    // 29. GOOGLE MAPS: CALCULAR DISTÂNCIA REAL (PONTE ANTI-CORS)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/calculate-distance') {
-        res.setHeader('Access-Control-Allow-Credentials', true);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-        if (req.method === 'OPTIONS') return res.status(200).end();
-        if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
-        
-        try {
-            const { origin, destination } = req.query;
-            if (!origin || !destination) return res.status(400).json({ error: 'Origem e destino obrigatórios.' });
-
-            const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
-            
-            if (!GOOGLE_API_KEY) return res.status(500).json({ error: 'Chave do Google Maps não configurada no servidor.' });
-
-            const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${encodeURIComponent(destination)}&key=${GOOGLE_API_KEY}`;
-            const response = await fetch(url);
-            const data = await response.json();
-
-            return res.status(200).json(data);
-        } catch (error) {
-            console.error('Erro na ponte do Google Maps:', error);
-            return res.status(500).json({ error: 'Erro interno ao calcular rota.' });
-        }
+    
+    // ============================================================================
+    // ROTA NÃO ENCONTRADA
+    // ============================================================================
+    // Silenciador de erros 404 para o gerador de prévia social
+    else if (path === '/api/og') {
+        return res.status(200).send('OG Service Active');
     }
-
-    // ============================================================================
-    // ROTA NÃO ENCONTRADA
-    // ============================================================================
-    else if (path === '/api/og') {
-        return res.status(200).send('OG Service Active');
-    }
 }
 
     // ============================================

@@ -1101,18 +1101,13 @@ export default function Home() {
 
           const integrations = marketingSettings?.integrations;
 
-          // 1. Google Tag Manager (GTM) Multi-tenant
-              if (integrations?.gtm?.containerId) {
-                  // Destrói script antigo se o lojista alterar o ID ou mudar de loja no cache local
-                  const oldScript = document.getElementById('gtm-script');
-                  if (oldScript) oldScript.remove();
-
-                  // Injeta a Tag cirurgicamente
-                  const script = document.createElement('script');
-                  script.id = 'gtm-script';
-                  script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
-                  document.head.appendChild(script);
-              }
+          // 1. Google Tag Manager (GTM)
+          if (integrations?.gtm?.containerId && !document.getElementById('gtm-script')) {
+              const script = document.createElement('script');
+              script.id = 'gtm-script';
+              script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
+              document.head.appendChild(script);
+          }
 
           // 2. Meta Pixel (Facebook)
           if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
@@ -1414,78 +1409,48 @@ export default function Home() {
 
         let distanceCalculated = false;
 
-        // CÓDIGO NOVO
-        if (storeLat && storeLng && zones.length > 0) {
+        if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
                     try {
-                        const origin = `${storeLat},${storeLng}`;
-                        const destinationText = `${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`;
-                        
-                        // Redireciona o ambiente local para a API oficial para não dar conexão recusada
-                        const backendUrl = window.location.hostname.includes('localhost') ? 'https://app.velodelivery.com.br' : '';
-                        
-                        const matrixRes = await fetch(`${backendUrl}/api/calculate-distance?origin=${origin}&destination=${encodeURIComponent(destinationText)}`);
-                        const matrixData = await matrixRes.json();
+                        // 🚨 BLINDAGEM DO GOOGLE MAPS: Formato internacional perfeito para evitar 
+                        // que o Google confunda o bairro "Campinas" (SC) com a cidade "Campinas" (SP).
+                        // Omitimos o bairro e usamos apenas Rua, Cidade - UF, CEP, Pais
+                        const addressString = encodeURIComponent(`${data.logradouro}, ${data.localidade} - ${data.uf}, ${cep}, Brasil`);
+                        const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${addressString}&key=${GOOGLE_API_KEY}`);
+                        const geoData = await geoRes.json();
 
-                        if (matrixData && matrixData.status === "OK" && matrixData.rows[0].elements[0].status === "OK") {
-                            const distanceKm = matrixData.rows[0].elements[0].distance.value / 1000;
-                            
-                            distanceCalculated = true;
-                            setDeliveryDistance(distanceKm);
-                            
-                            // Normalização dinâmica de propriedades (Lê radius_km, radius, km ou raio)
-                            const getRadiusValue = (z) => Number(z.radius_km || z.radius || z.km || z.raio) || 0;
-                            const getFeeValue = (z) => Number(String(z.fee || z.price || z.taxa || z.valor).replace(',', '.')) || 0;
+                        if (geoData.status === "OK" && geoData.results[0]) {
+                            const customerLat = geoData.results[0].geometry.location.lat;
+                            const customerLng = geoData.results[0].geometry.location.lng;
 
-                            const matchedZone = [...zones]
-                                .sort((a, b) => getRadiusValue(a) - getRadiusValue(b))
-                                .find(z => distanceKm <= getRadiusValue(z));
+                            const distanceKm = calculateDistance(storeLat, storeLng, customerLat, customerLng);
+                            
+                            if (distanceKm !== null) {
+                                distanceCalculated = true;
+                                setDeliveryDistance(distanceKm);
+                                const matchedZone = [...zones]
+                                    .sort((a, b) => a.radius_km - b.radius_km)
+                                    .find(z => distanceKm <= z.radius_km);
 
-                            if (matchedZone) {
-                                const safeFee = getFeeValue(matchedZone);
-                                setShippingFee(safeFee);
-                                setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)} (${distanceKm.toFixed(1)} km)`);
-                                return; 
-                            } else {
-                                throw new Error("Fora do raio de quilometragem configurado.");
-                            }
-                        } else {
-                            // Caso a API do Google falhe por chaves, tenta o cálculo matemático Haversine em linha reta como escudo
-                            console.warn("API do Google indisponível. Ativando cálculo matemático de segurança.");
-                            
-                            const freeGeocodeRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&postalcode=${cep}&country=Brazil&limit=1`);
-                            const freeGeocodeData = await freeGeocodeRes.json();
-                            
-                            if (freeGeocodeData && freeGeocodeData.length > 0) {
-                                const clientLat = parseFloat(freeGeocodeData[0].lat);
-                                const clientLng = parseFloat(freeGeocodeData[0].lon);
-                                
-                                // Usa a função de Haversine nativa da sua Home
-                                const distanceKmFallback = calculateDistance(storeLat, storeLng, clientLat, clientLng);
-                                
-                                if (distanceKmFallback !== null) {
-                                    distanceCalculated = true;
-                                    setDeliveryDistance(distanceKmFallback);
+                                if (matchedZone) {
+                                    // 🚨 BLINDAGEM DO NaN: Se o lojista digitou 5,99 com vírgula, trocamos por ponto na marra.
+                                    const safeFee = parseFloat(String(matchedZone.fee).replace(',', '.'));
                                     
-                                    const getRadiusValue = (z) => Number(z.radius_km || z.radius || z.km || z.raio) || 0;
-                                    const getFeeValue = (z) => Number(String(z.fee || z.price || z.taxa || z.valor).replace(',', '.')) || 0;
-
-                                    const matchedZoneFallback = [...zones]
-                                        .sort((a, b) => getRadiusValue(a) - getRadiusValue(b))
-                                        .find(z => distanceKmFallback <= getRadiusValue(z));
-
-                                    if (matchedZoneFallback) {
-                                        const safeFee = getFeeValue(matchedZoneFallback);
-                                        setShippingFee(safeFee);
-                                        setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)} (${distanceKmFallback.toFixed(1)} km)`);
-                                        return;
-                                    }
-                                }
-                            }
-                            throw new Error("Não foi possível processar a rota de entrega.");
+                                    setShippingFee(safeFee);
+                                    setDeliveryAreaMessage(`Taxa de Entrega: R$ ${safeFee.toFixed(2)}`);
+                                    return; 
+                                } else {
+                            throw new Error("Distância fora da área máxima de cobertura por KM.");
                         }
-                    } catch (geoError) {
-                        console.warn("Falha no cálculo por KM, avaliando tabelas fixas.", geoError);
                     }
+                } else {
+                    console.error("ERRO GOOGLE MAPS API:", geoData.status, geoData.error_message);
+                    if (geoData.status === "REQUEST_DENIED") {
+                        alert("⚠️ AVISO PARA O LOJISTA: O frete falhou porque a 'Geocoding API' do Google não está ativada no seu Google Cloud Platform, ou a chave API está restrita.");
+                    }
+                }
+            } catch (geoError) {
+                console.warn("Falha no cálculo por KM, caindo para fallback (CEP).", geoError);
+            }
         }
 
         const currentCepNum = parseInt(cep); 
