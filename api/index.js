@@ -3789,6 +3789,31 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
         }
     }
 
+    // ------------------------------------------------------------------------
+    // 29. GOOGLE MAPS: CALCULAR DISTÂNCIA REAL (PONTE ANTI-CORS)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/calculate-distance') {
+        if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
+        try {
+            const { origin, destination } = req.query;
+            if (!origin || !destination) return res.status(400).json({ error: 'Origem e destino obrigatórios.' });
+
+            // Puxa a chave do Google Maps das variáveis da Vercel
+            const GOOGLE_API_KEY = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+            
+            if (!GOOGLE_API_KEY) return res.status(500).json({ error: 'Chave do Google Maps não configurada no servidor.' });
+
+            // Faz a requisição segura direto do servidor
+            const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${encodeURIComponent(destination)}&key=${GOOGLE_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            return res.status(200).json(data);
+        } catch (error) {
+            console.error('Erro na ponte do Google Maps:', error);
+            return res.status(500).json({ error: 'Erro interno ao calcular rota.' });
+        }
+    }// 🚀 NOVO MOTOR GOOGLE DISTANCE MATRIX
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================
