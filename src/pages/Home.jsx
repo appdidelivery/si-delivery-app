@@ -2978,6 +2978,10 @@ if (window.fbq) {
                                             fetchpriority={index < 4 ? "high" : "auto"} 
                                             decoding={index < 4 ? "sync" : "async"} 
                                             className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                            onError={(e) => { 
+                                                e.target.onerror = null; 
+                                                e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
+                                            }}
                                         />
                                     )}
                                     {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
