@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, limit, startAfter, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
 import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
+import useProducts from '../hooks/useProducts';
 import SEO from '../components/SEO';
 import VeloProductVideo from '../components/VeloProductVideo';
 import { Carousel } from 'react-responsive-carousel';
@@ -444,8 +445,34 @@ export default function Home() {
       setShowCheckout(true); // Abre o Checkout imediatamente!
   };
 
-  const [products, setProducts] = useState([]);
-  const[categories, setCategories] = useState([]);
+  // Imports necessários no topo do arquivo (adicione se faltar):
+  // import useProducts from '../hooks/useProducts';
+  // import { useInView } from 'framer-motion';
+
+  // 1. DECLARAÇÃO DOS ESTADOS BASES PRIMEIRO
+  const [categories, setCategories] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all'); 
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  
+  // 2. DEBOUNCE DA BUSCA
+  useEffect(() => {
+      const handler = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+      return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // 3. AGORA SIM CHAMAMOS O HOOK COMPLETO
+  const { products, loading, loadingMore, hasMore, loadMore } = useProducts(storeId, activeCategory, debouncedSearch);
+
+  // 4. TRIGGER PARA O INFINITE SCROLL BLINDADO
+  const loaderRef = useRef(null);
+  const isInView = useInView(loaderRef, { margin: "200px" });
+  useEffect(() => {
+      // Só dispara o Load More se já tiver produtos na tela (products.length > 0)
+      if (isInView && hasMore && !loading && !loadingMore && products.length > 0) {
+          loadMore();
+      }
+  }, [isInView, hasMore, loading, loadingMore, products.length, loadMore]);
   
   // 1. CARREGA O CARRINHO SALVO NO NAVEGADOR E IMPEDE QUE ESVAZIE
   const [cart, setCart] = useState(() => {
@@ -457,8 +484,6 @@ export default function Home() {
   useEffect(() => {
       localStorage.setItem(`veloCart_${storeId}`, JSON.stringify(cart));
   }, [cart, storeId]);
-
-  const [searchTerm, setSearchTerm] = useState('');
 
   // --- VELO INSIGHTS: Rastreia Termos de Busca (com Debounce para não explodir o banco) ---
   useEffect(() => {
@@ -486,11 +511,10 @@ export default function Home() {
                   }, { merge: true });
               } catch (e) {}
           }
-      }, 1500); // Só salva se o cliente parar de digitar por 1.5 segundos
+      }, 1500); 
 
       return () => clearTimeout(timer);
   }, [searchTerm, storeId]);
-  const [activeCategory, setActiveCategory] = useState('all'); 
   const [showCheckout, setShowCheckout] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const submitLock = useRef(false); // Trava Síncrona Anti-Duplicação
@@ -1185,12 +1209,13 @@ export default function Home() {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
-    const unsubProducts = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId)), (s) => {
-        // Filtra os produtos para remover os pausados
-        const fetchedProducts = s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false);
-        setProducts(fetchedProducts);
-        setFeaturedProducts(fetchedProducts.filter(p => p.isFeatured && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
-        setBestsellingProducts(fetchedProducts.filter(p => p.isBestSeller && ((p.stock && parseInt(p.stock) > 0) || !p.stock)));
+    // A busca de produtos agora é gerenciada pelo useProducts hook.
+    // Para Featured e Bestselling, mantenha queries separadas limitadas para não pesar.
+    const unsubFeatured = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId), where("isFeatured", "==", true), limit(8)), (s) => {
+        setFeaturedProducts(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false));
+    });
+    const unsubBestselling = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId), where("isBestSeller", "==", true), limit(8)), (s) => {
+        setBestsellingProducts(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false));
     });
 
     const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
@@ -1310,7 +1335,9 @@ export default function Home() {
     });
 
     return () => {
-        unsubProducts(); unsubCategories(); unsubCoupons(); unsubShippingRates();
+        // Trocamos o unsubProducts pelos dois novos unsubs que criamos
+        unsubFeatured(); unsubBestselling(); 
+        unsubCategories(); unsubCoupons(); unsubShippingRates();
         unsubGeneralBanners(); unsubStoreSettings(); unsubMarketingSettings();
     };
   },[storeId]);
@@ -2928,7 +2955,8 @@ if (window.fbq) {
         {layoutTheme === 'grid' ? (
             <div className="columns-2 md:columns-4 gap-4">
                 <AnimatePresence>
-                    {products.filter(p => (activeCategory === 'all' || p.category === activeCategory) && p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((p, index) => {
+                    {products.map((p, index) => { 
+                    // O filtro Client-Side foi removido. Os dados já vêm filtrados do Hook.
                         const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
                         return (
                             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
@@ -3057,6 +3085,18 @@ if (window.fbq) {
                     })}
             </div>
         )}
+        {/* SKELETON E TRIGGER DE INFINITE SCROLL */}
+        {loading && (
+             <div className="columns-2 md:columns-4 gap-4 mt-4">
+                 {[1,2,3,4].map(n => (
+                     <div key={n} className="bg-slate-200 animate-pulse h-64 rounded-[2rem] mb-4 break-inside-avoid"></div>
+                 ))}
+             </div>
+        )}
+        
+        <div ref={loaderRef} className="w-full h-10 mt-4 flex items-center justify-center">
+            {loadingMore && <Loader2 className="animate-spin text-slate-400" size={24} />}
+        </div>
       </main>
 
       {/* OTIMIZAÇÃO CLS: min-h-[250px] evita o Shift de Layout mapeado pelo Google */}
