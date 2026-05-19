@@ -80,6 +80,7 @@ export default function AdminChat() {
 
     // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
+    const [filterUnread, setFilterUnread] = useState(false); // <-- NOVO: ESTADO DA ABA NÃO LIDOS
 // --- NOVO: AVISA O SISTEMA GLOBAL QUAL CHAT ESTÁ ABERTO PARA NÃO TOCAR SOM ---
     useEffect(() => {
         if (activeChat) {
@@ -227,7 +228,9 @@ export default function AdminChat() {
     }, {});
 
     // Transforma em array e ordena para que o cliente com a mensagem mais recente fique no topo da lista
-    const chatList = Object.values(chats).sort((a, b) => {
+    const chatList = Object.values(chats)
+        .filter(chat => filterUnread ? chat.unreadCount > 0 : true) // <-- FILTRO APLICADO AQUI
+        .sort((a, b) => {
         const lastMsgA = a.msgs[a.msgs.length - 1];
         const lastMsgB = b.msgs[b.msgs.length - 1];
         const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds ? lastMsgA.receivedAt.seconds * 1000 : Date.now());
@@ -900,6 +903,27 @@ export default function AdminChat() {
                     )}
                 </AnimatePresence>
                 
+
+                {/* Abas de Filtro de Lidos/Não Lidos */}
+                <div className="flex bg-white border-b border-gray-200 shrink-0">
+                    <button 
+                        onClick={() => setFilterUnread(false)}
+                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-colors border-b-2 ${!filterUnread ? 'text-[#008069] border-[#008069]' : 'text-gray-500 border-transparent hover:bg-gray-50'}`}
+                    >
+                        Todas as Conversas
+                    </button>
+                    <button 
+                        onClick={() => setFilterUnread(true)}
+                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-colors border-b-2 flex items-center justify-center gap-2 ${filterUnread ? 'text-[#008069] border-[#008069]' : 'text-gray-500 border-transparent hover:bg-gray-50'}`}
+                    >
+                        Não Lidos
+                        {Object.values(chats).filter(c => c.unreadCount > 0).length > 0 && (
+                            <span className="bg-[#25d366] text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm animate-pulse">
+                                {Object.values(chats).filter(c => c.unreadCount > 0).length}
+                            </span>
+                        )}
+                    </button>
+                </div>
 
                 {/* Lista de Chats */}
                 <div className="flex-1 overflow-y-auto bg-white custom-scrollbar">
