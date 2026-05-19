@@ -39,23 +39,10 @@ export default defineConfig({
       }
     })
   ],
-  // 👇 INÍCIO DA OTIMIZAÇÃO DE PERFORMANCE PARA O PAGESPEED 👇
   build: {
     target: 'esnext',
-    cssCodeSplit: true, // Separa o CSS para não bloquear a tela
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Fatiando o JS gigante em pedaços menores (Evita travar o celular do cliente)
-            if (id.includes('firebase')) return 'firebase-core';
-            if (id.includes('framer-motion')) return 'framer-motion';
-            if (id.includes('lucide-react') || id.includes('react-icons')) return 'icons';
-            if (id.includes('react-dom') || id.includes('react-router')) return 'react-vendor';
-            return 'vendor'; // O resto das bibliotecas vai pra cá
-          }
-        }
-      }
-    }
+    cssCodeSplit: true
+    // Removemos o manualChunks agressivo que separou o React e causou a tela branca.
+    // O Vite fará a otimização de forma automática e segura agora.
   }
 });
