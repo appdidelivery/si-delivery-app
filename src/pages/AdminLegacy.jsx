@@ -159,25 +159,28 @@ const DAYS_OF_WEEK =[
 
 // --- ITENS DE NAVEGAÇÃO COMPLETA (USADO PARA DESKTOP E MOBILE) ---
 const allNavItems =[
-    { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
-    { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
-    { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
-    { id: 'fleet', name: 'Monitor de Frota', icon: <Truck size={18} />, mobileIcon: <Truck size={22} /> }, // <-- NOVA ABA
-    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
-    { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
-    { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
-    { id: 'ingredients', name: 'Insumos (Pães)', icon: <Database size={18} />, mobileIcon: <Database size={22} /> },
-    { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
-    { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
-    { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
-    { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
-    { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
-    { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
-    { id: 'partners', name: 'Hub Parceiros', icon: <Handshake size={18} />, mobileIcon: <Handshake size={22} /> },
-    { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
-    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
-    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
+    { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
+    { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
+    { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+    { id: 'fleet', name: 'Monitor de Frota', icon: <Truck size={18} />, mobileIcon: <Truck size={22} /> }, // <-- NOVA ABA
+    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
+    { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
+    { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
+    { id: 'ingredients', name: 'Insumos (Pães)', icon: <Database size={18} />, mobileIcon: <Database size={22} /> },
+    { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
+    { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
+    { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
+    { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
+    { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
+    { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
+    { id: 'partners', name: 'Hub Parceiros', icon: <Handshake size={18} />, mobileIcon: <Handshake size={22} /> },
+    { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
+    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
+    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
 ];
+
+// FEATURE FLAG: Controla a exibição da Stripe como "Plano B"
+const STRIPE_ENABLED = false;
 
 export default function Admin() {
     const navigate = useNavigate();
@@ -7085,72 +7088,74 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
                         
-                        {/* NOVO CARD: STRIPE CONNECT */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
-                            <div className="flex items-center gap-2 mb-6">
-                                <Landmark size={24} className="text-blue-600"/>
-                                <h3 className="text-2xl font-black uppercase text-slate-800 italic">Recebimento de Vendas <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(Stripe Connect)</span></h3>
-                            </div>
-
-                            {/* --- INFO DE TAXAS STRIPE --- */}
-                            <div className="grid grid-cols-1 gap-4 mb-6">
-                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
-                                    <p className="font-black text-3xl italic text-slate-800 leading-none">5,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-2">Recebimento padrão em 30 dias (D+30).</p>
+                        {/* NOVO CARD: STRIPE CONNECT (OCULTO - PLANO B) */}
+                        {STRIPE_ENABLED && (
+                            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
+                                <div className="flex items-center gap-2 mb-6">
+                                    <Landmark size={24} className="text-blue-600"/>
+                                    <h3 className="text-2xl font-black uppercase text-slate-800 italic">Recebimento de Vendas <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(Stripe Connect)</span></h3>
                                 </div>
+
+                                {/* --- INFO DE TAXAS STRIPE --- */}
+                                <div className="grid grid-cols-1 gap-4 mb-6">
+                                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                        <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 mb-3"><CreditCard size={14}/> CARTÃO DE CRÉDITO</p>
+                                        <p className="font-black text-3xl italic text-slate-800 leading-none">5,99% <span className="text-xs text-slate-500 not-italic font-bold">+ R$ 0,39</span></p>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-2">Recebimento padrão em 30 dias (D+30).</p>
+                                    </div>
+                                </div>
+                                
+                                {storeStatus.stripeConnectId ? (
+                                    <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Bancária Conectada</p>
+                                            <p className="text-green-600 font-bold text-xs mt-1">ID: {storeStatus.stripeConnectId}</p>
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={handleOpenStripeDashboard} 
+                                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                                        >
+                                            Ver Extrato e Saques <ExternalLink size={16} />
+                                        </button>
+                                        <div className="flex gap-2">
+        <button 
+            onClick={handleOpenStripeDashboard} 
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2"
+        >
+            Ver Extrato e Saques <ExternalLink size={16} />
+        </button>
+        
+        {/* NOVO BOTÃO PARA DESCONECTAR A STRIPE */}
+        <button 
+            onClick={async () => {
+                if(window.confirm("Deseja desconectar a Stripe?")) {
+                    await updateDoc(doc(db, "stores", storeId), {
+                        stripeConnectId: null
+                    });
+                    alert("Stripe desconectada com sucesso.");
+                }
+            }} 
+            className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
+        >
+            Desconectar
+        </button>
+    </div>
+                                    </div>
+                                    
+                                ) : (
+                                    <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
+                                        <p className="text-slate-500 font-bold text-sm">Você ainda não configurou sua conta bancária para receber os pagamentos das suas vendas online via cartão e Pix.</p>
+                                        <button 
+                                            onClick={handleConectarBanco} 
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+                                        >
+                                            <Landmark size={20}/> 🏦 Configurar Recebimento (Stripe)
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            
-                            {storeStatus.stripeConnectId ? (
-                                <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div>
-                                        <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Bancária Conectada</p>
-                                        <p className="text-green-600 font-bold text-xs mt-1">ID: {storeStatus.stripeConnectId}</p>
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={handleOpenStripeDashboard} 
-                                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2"
-                                    >
-                                        Ver Extrato e Saques <ExternalLink size={16} />
-                                    </button>
-                                    <div className="flex gap-2">
-    <button 
-        onClick={handleOpenStripeDashboard} 
-        className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-lg transition-all active:scale-95 flex items-center gap-2"
-    >
-        Ver Extrato e Saques <ExternalLink size={16} />
-    </button>
-    
-    {/* NOVO BOTÃO PARA DESCONECTAR A STRIPE */}
-    <button 
-        onClick={async () => {
-            if(window.confirm("Deseja desconectar a Stripe?")) {
-                await updateDoc(doc(db, "stores", storeId), {
-                    stripeConnectId: null
-                });
-                alert("Stripe desconectada com sucesso.");
-            }
-        }} 
-        className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
-    >
-        Desconectar
-    </button>
-</div>
-                                </div>
-                                
-                            ) : (
-                                <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
-                                    <p className="text-slate-500 font-bold text-sm">Você ainda não configurou sua conta bancária para receber os pagamentos das suas vendas online via cartão e Pix.</p>
-                                    <button 
-                                        onClick={handleConectarBanco} 
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
-                                    >
-                                        <Landmark size={20}/> 🏦 Configurar Recebimento (Stripe)
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        )}
                        {/* NOVO CARD: MERCADO PAGO CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
                             <div className="flex items-center gap-2 mb-6">

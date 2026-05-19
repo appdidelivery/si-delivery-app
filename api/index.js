@@ -3,6 +3,8 @@ import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
+
+const STRIPE_ENABLED = false;
 // Ajuste o caminho se a pasta lib for diferente!
 import { sendWhatsAppNotification } from '../lib/evolution.js';
 
@@ -167,6 +169,7 @@ export default async function handler(req, res) {
     // 1. ACTIVATE PIX
     // ------------------------------------------------------------------------
     if (path === '/api/activate-pix') {
+        if (!STRIPE_ENABLED) return res.status(404).json({ error: 'Stripe temporariamente desativada.' });
         if (req.method !== 'POST') return res.status(405).end();
         try {
             const { stripeConnectId } = req.body;
@@ -257,6 +260,7 @@ export default async function handler(req, res) {
     // 3. CREATE CONNECT ACCOUNT
     // ------------------------------------------------------------------------
     else if (path === '/api/create-connect-account') {
+        if (!STRIPE_ENABLED) return res.status(404).json({ error: 'Stripe temporariamente desativada.' });
         if (req.method !== 'POST') return res.status(405).end();
         try {
             const { storeId } = req.body;
@@ -299,6 +303,7 @@ export default async function handler(req, res) {
     // 4. CREATE LOGIN LINK
     // ------------------------------------------------------------------------
     else if (path === '/api/create-login-link') {
+        if (!STRIPE_ENABLED) return res.status(404).json({ error: 'Stripe temporariamente desativada.' });
         if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
         try {
             const { stripeConnectId } = req.body;
@@ -778,6 +783,8 @@ export default async function handler(req, res) {
     // 8. STRIPE WEBHOOK (EXIGE RAW BODY PARA ASSINATURA)
     // ------------------------------------------------------------------------
     else if (path === '/api/stripe-webhook') {
+        // Se desativado, retorna 200 OK para a Stripe parar de tentar enviar o mesmo evento
+        if (!STRIPE_ENABLED) return res.status(200).send('Stripe webhook disabled'); 
         if (req.method !== 'POST') return res.status(405).end();
         try {
             // Usa a variável rawBody intocada para que a Stripe consiga ler perfeitamente!
@@ -2198,6 +2205,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     // 13. MARKETPLACE CHECKOUT (CLIENTE FINAL PAGANDO COM STRIPE CONNECT)
     // ------------------------------------------------------------------------
     else if (path === '/api/create-marketplace-checkout') {
+        if (!STRIPE_ENABLED) return res.status(404).json({ error: 'Stripe temporariamente desativada.' });
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');

@@ -12,6 +12,8 @@ import useSmartRetention from '../hooks/useSmartRetention';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
+const STRIPE_ENABLED = false;
+
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
 import { 
     GiHamburger, GiFrenchFries, GiShrimp, GiOyster, GiSushis, 
@@ -1758,7 +1760,7 @@ export default function Home() {
         }
     }
 
-  const hasOnlinePayments = storeSettings?.stripeConnectId || marketingSettings?.integrations?.mercadopago?.accessToken;
+  const hasOnlinePayments = (STRIPE_ENABLED && storeSettings?.stripeConnectId) || marketingSettings?.integrations?.mercadopago?.accessToken;
     if (!isWaiterMode && !hasOnlinePayments &&['pix', 'cartao', 'voucherOnline'].includes(customer.payment)) {
         setIsFinalizing(false);
         return alert("Por favor, selecione uma das formas de pagamento disponíveis abaixo para a entrega.");
@@ -2071,7 +2073,7 @@ if (window.fbq) {
                   return;
               }
           }
-          const hasStripe = storeSettings?.stripeConnectId;
+         const hasStripe = STRIPE_ENABLED && storeSettings?.stripeConnectId;
           const hasMP = marketingSettings?.integrations?.mercadopago?.accessToken;
 
           // --- NOVO FLUXO: PIX TRANSPARENTE MERCADO PAGO ---
@@ -3676,7 +3678,7 @@ if (window.fbq) {
                                     
                                     const hasVeloPayPix = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
                                     const hasVeloPayCredit = storeSettings?.velopayCreditStatus === 'active';
-                                    const hasStripe = !!storeSettings?.stripeConnectId;
+                                    const hasStripe = STRIPE_ENABLED && !!storeSettings?.stripeConnectId;
                                     const hasMP = !!marketingSettings?.integrations?.mercadopago?.accessToken;
                                     const hasMPPublicKey = !!marketingSettings?.integrations?.mercadopago?.publicKey;
                                     const hasGateway = hasStripe || hasMP;
