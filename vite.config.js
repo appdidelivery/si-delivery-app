@@ -1,15 +1,13 @@
-// si-delivery-app-main/vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/', // <--- ADICIONE ESTA LINHA AQUI
+  base: '/',
   plugins: [
     react(),
     VitePWA({
       injectRegister: 'inline',
-      registerType: 'autoUpdate',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'logo-square.png', 'logo-padrao-velo.png', 'logo-loja.png', 'logo retangular Vero Delivery.png'],
       manifest: {
@@ -41,4 +39,23 @@ export default defineConfig({
       }
     })
   ],
+  // 👇 INÍCIO DA OTIMIZAÇÃO DE PERFORMANCE PARA O PAGESPEED 👇
+  build: {
+    target: 'esnext',
+    cssCodeSplit: true, // Separa o CSS para não bloquear a tela
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            // Fatiando o JS gigante em pedaços menores (Evita travar o celular do cliente)
+            if (id.includes('firebase')) return 'firebase-core';
+            if (id.includes('framer-motion')) return 'framer-motion';
+            if (id.includes('lucide-react') || id.includes('react-icons')) return 'icons';
+            if (id.includes('react-dom') || id.includes('react-router')) return 'react-vendor';
+            return 'vendor'; // O resto das bibliotecas vai pra cá
+          }
+        }
+      }
+    }
+  }
 });

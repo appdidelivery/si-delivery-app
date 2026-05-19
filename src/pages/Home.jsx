@@ -36,11 +36,15 @@ const Reviews = React.lazy(() => import('../components/Reviews'));
 const AgeGate = React.lazy(() => import('../components/AgeGate'));
 
 // --- OTIMIZADOR DE IMAGENS CLOUDINARY (Corta o peso de Megabytes para Kilobytes) ---
-const optimizeCloudinary = (url, width = 400) => {
+const optimizeCloudinary = (url, width = 200) => {
     if (!url || typeof url !== 'string') return url;
     if (!url.includes('cloudinary.com')) return url;
-    // OTIMIZAÇÃO PAGESPEED: f_auto (usa AVIF se o celular suportar) e q_auto (compressão inteligente)
-    return url.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto,w_${width},c_limit/v`);
+    
+    // 1. Remove extensões (.jpg, .png) do final da URL para obrigar o Cloudinary a entregar formato de nova geração (WebP/AVIF)
+    let cleanUrl = url.replace(/\.(jpg|jpeg|png)$/i, '');
+
+    // 2. Aplica qualidade inteligente e largura exata (f_auto entrega AVIF se o chrome suportar)
+    return cleanUrl.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto:good,w_${width},c_limit/v`);
 };
 
 const renderCategoryIcon = (iconName, categoryName) => {
@@ -2835,7 +2839,7 @@ if (window.fbq) {
                                           />
                                       ) : (
                                           <img 
-                                              src={optimizeCloudinary(p.imageUrl, 300)} 
+                                              src={optimizeCloudinary(p.imageUrl, 200)} 
                                               alt={p.name} 
                                               width="150" 
                                               height="150" 
