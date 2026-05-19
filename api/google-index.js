@@ -13,24 +13,32 @@ export default async function handler(req, res) {
         const productUrl = `https://${storeId}.velodelivery.com.br/p/${productId}`;
 
         // ==========================================
-        // 🛡️ BLINDAGEM MÁXIMA DE VARIÁVEIS (VERCEL)
+        // 🛡️ LÊ A CHAVE NOVA DIRETO DO JSON DA VERCEL
         // ==========================================
-        let clientEmail = process.env.GOOGLE_CLIENT_EMAIL || '';
-        let privateKey = process.env.GOOGLE_PRIVATE_KEY || '';
-
-        // 1. Remove aspas duplas acidentais copiadas do JSON
-        clientEmail = clientEmail.replace(/^"|"$/g, '').trim();
-        privateKey = privateKey.replace(/^"|"$/g, '').trim();
-        
-        // 2. Garante que as quebras de linha literais (\n) virem quebras reais para o RSA
-        privateKey = privateKey.replace(/\\n/g, '\n');
-
-        if (!clientEmail || !privateKey) {
-            console.error("Erro: Vercel não carregou o process.env");
-            return res.status(500).json({ error: 'Variáveis de ambiente vazias na Vercel.' });
+        if (!process.env.GCP_SERVICE_ACCOUNT) {
+            console.error("Erro: Variável GCP_SERVICE_ACCOUNT não encontrada.");
+            return res.status(500).json({ error: 'GCP_SERVICE_ACCOUNT vazia na Vercel.' });
         }
 
-        // 3. Inicia Autenticação (Usando o formato de Objeto que evita erros de ordem)
+        let credentials;
+        try {
+            credentials = JSON.parse(process.env.GCP_SERVICE_ACCOUNT);
+        } catch (e) {
+            console.error("Erro ao dar parse no JSON:", e);
+            return res.status(500).json({ error: 'GCP_SERVICE_ACCOUNT não é um JSON válido.' });
+        }
+
+        const clientEmail = credentials.client_email;
+        let privateKey = credentials.private_key;
+
+        if (!clientEmail || !privateKey) {
+            return res.status(500).json({ error: 'JSON incompleto. Faltam client_email ou private_key.' });
+        }
+        
+        // Garante que as quebras de linha literais (\n) virem quebras reais para o RSA
+        privateKey = privateKey.replace(/\\n/g, '\n');
+
+        // 3. Inicia Autenticação
         const jwtClient = new google.auth.JWT({
             email: clientEmail,
             key: privateKey,
