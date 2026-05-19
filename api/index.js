@@ -3649,14 +3649,13 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
         }
     }
 
-    // ------------------------------------------------------------------------
-    // 27. GOOGLE MEU NEGÓCIO: SINCRONIZAÇÃO AUTOMÁTICA (CRON)
+    // 27. GOOGLE MEU NEGÓCIO: SINCRONIZAÇÃO (SUPORTA FILTRO POR STOREID)
     // ------------------------------------------------------------------------
     else if (path === '/api/sync-google-reviews') {
         try {
-            console.log("🔄 Iniciando Sincronização Global de Avaliações Google via Service Account...");
+            const { storeId: targetStoreId } = req.body;
+            console.log(`🔄 Iniciando Sincronização de Avaliações ${targetStoreId ? `para ${targetStoreId}` : 'Global'}...`);
             
-            // Puxa o token uma única vez para usar no loop inteiro
             let activeToken;
             try {
                 activeToken = await getGoogleAuthToken();
@@ -3665,12 +3664,19 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
                 return res.status(500).json({ error: "Falha na geração de token GCP." });
             }
 
-            const settingsSnap = await db.collection('settings').get();
-            let totalSync = 0;
+            // Se recebeu storeId, busca apenas essa, senão busca todas
+            let settingsQuery;
+            if (targetStoreId) {
+                settingsQuery = await db.collection('settings').where(admin.firestore.FieldPath.documentId(), '==', targetStoreId).get();
+            } else {
+                settingsQuery = await db.collection('settings').get();
+            }
 
-            const syncPromises = settingsSnap.docs.map(async (storeDoc) => {
+            let totalSync = 0;
+            const syncPromises = settingsQuery.docs.map(async (storeDoc) => {
                 const storeId = storeDoc.id;
                 const config = storeDoc.data().integrations?.google_my_business;
+                // ... (O restante do código interno permanece igual)
 
                 // Não checamos mais o refreshToken, apenas o ID do local no Google
                 if (!config || !config.locationId) return;

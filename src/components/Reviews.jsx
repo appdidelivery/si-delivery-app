@@ -6,6 +6,7 @@ import { Star, ThumbsUp, ImageIcon } from 'lucide-react';
 export default function Reviews({ storeId }) {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [newRating, setNewRating] = useState(5);
     const[comment, setComment] = useState('');
     const [orderId, setOrderId] = useState('');
@@ -37,7 +38,27 @@ export default function Reviews({ storeId }) {
 
         if (storeId) fetchReviews();
     }, [storeId]);
+const handleSyncGoogleReviews = async () => {
+        setIsSyncing(true);
+        try {
+            // Substitua 'SUA_CLOUD_FUNCTION_URL' pela URL da sua Function que chama a API do Google
+            const response = await fetch('SUA_CLOUD_FUNCTION_URL', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId })
+            });
 
+            if (!response.ok) throw new Error("Falha ao sincronizar");
+            
+            alert("Avaliações do Google sincronizadas com sucesso!");
+            window.location.reload();
+        } catch (error) {
+            console.error("Erro na sincronização:", error);
+            alert("Erro ao buscar avaliações do Google. Verifique a integração.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         
@@ -102,12 +123,21 @@ export default function Reviews({ storeId }) {
                 </div>
                 
                 {averageRating >= 4.0 && (
-                    <div className="bg-green-100 text-green-700 flex items-center gap-2 px-4 py-2 rounded-2xl border border-green-200 shadow-sm">
-                        <ThumbsUp size={20} className="mb-1" />
-                        <div className="flex flex-col">
-                            <span className="text-xs font-black uppercase tracking-widest leading-none">Excelente</span>
-                            <span className="text-[9px] font-bold opacity-80 uppercase tracking-widest">Loja Verificada</span>
+                    <div className="flex flex-col gap-2">
+                        <div className="bg-green-100 text-green-700 flex items-center gap-2 px-4 py-2 rounded-2xl border border-green-200 shadow-sm">
+                            <ThumbsUp size={20} className="mb-1" />
+                            <div className="flex flex-col">
+                                <span className="text-xs font-black uppercase tracking-widest leading-none">Excelente</span>
+                                <span className="text-[9px] font-bold opacity-80 uppercase tracking-widest">Loja Verificada</span>
+                            </div>
                         </div>
+                        <button 
+                            onClick={handleSyncGoogleReviews}
+                            disabled={isSyncing}
+                            className="text-[10px] font-bold text-blue-600 underline hover:text-blue-800 uppercase tracking-widest"
+                        >
+                            {isSyncing ? "Sincronizando..." : "Atualizar do Google"}
+                        </button>
                     </div>
                 )}
             </div>
@@ -121,7 +151,12 @@ export default function Reviews({ storeId }) {
                 ) : reviews.map(r => (
                     <div key={r.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex justify-between items-center mb-3">
-                            <span className="font-black text-sm text-slate-800 uppercase tracking-tight">{r.customerName}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-black text-sm text-slate-800 uppercase tracking-tight">{r.customerName}</span>
+                                {r.source === 'google' && (
+                                    <span className="bg-blue-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">GOOGLE</span>
+                                )}
+                            </div>
                             <div className="flex text-yellow-400">
                                 {[...Array(5)].map((_, i) => (
                                     <Star key={i} size={16} fill={i < r.rating ? "currentColor" : "none"} />
