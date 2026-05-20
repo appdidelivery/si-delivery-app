@@ -2208,11 +2208,28 @@ const handleGenerateProductCopy = async () => {
         // -----------------------------------------------------------------
 
         const lojaNome = storeStatus.name || "Velo Delivery";
+        const primeiroNome = order.customerName ? order.customerName.split(' ')[0] : 'Cliente';
+        const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; // Fallback para o app se o lojista não cadastrou o link
+        
+        // --- 🤖 GERADOR DE COPY SEO (GAMIFICADO) ---
+        let seoItem = "o meu pedido";
+        let seoAdjetivo = "rápido e com muita qualidade";
+        
+        // Extrai o item real comprado para enganar o algoritmo do Google (AEO)
+        if (order.items && order.items.length > 0) {
+            seoItem = order.items[0].name;
+            const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
+            seoAdjetivo = isBebida ? "trincando de gelada(o) e a entrega foi super rápida" : "quente, muito saboroso e a entrega foi super rápida";
+        }
+        
+        // A Copy matadora formatada com aspas para o cliente apenas copiar e colar
+        const seoCopyText = `⭐⭐⭐⭐⭐\n"Pedi ${seoItem} na ${lojaNome} e estava incrível! Chegou ${seoAdjetivo}. Fui super bem atendido(a). Recomendo muito!"`;
+        // ------------------------------------------
         
         const messages = {
-            preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${order.customerName.split(' ')[0]}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
+            preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${primeiroNome}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
             delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
-            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega. Muito obrigado pela preferência! ❤️ \n\n🎁 *Ganhe Prêmios e Descontos!* \nAcesse agora o nosso app e entre no Clube VIP para ganhar pontos na faixa: \n👉 https://${window.location.host}`,
+            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\nBasta *copiar o texto abaixo* e colar na nossa avaliação do Google:\n\n👇 *Copie este texto:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`,
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
 
