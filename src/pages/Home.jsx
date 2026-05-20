@@ -1991,7 +1991,7 @@ if (window.fbq) {
                   return;
               }
           }
-// 2. NOVA PRIORIDADE: VeloPay Cartão de Crédito Nativo
+// 2. NOVA PRIORIDADE: VeloPay attCartão de Crédito Nativo
           const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
           
          if (customer.payment === 'velopay_credit' && window.$gn) {
