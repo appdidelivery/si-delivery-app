@@ -1979,7 +1979,7 @@ if (window.fbq) {
                   // Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                  draftOrderIdRef.current = null; draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`);
                   
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
