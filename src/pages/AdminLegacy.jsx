@@ -5641,9 +5641,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 const sellerEmail = auth.currentUser?.email || 'owner';
 
                 try {
-                    // === BAIXA DE INSUMOS (PDV BALCÃO) ===
+                    // === BAIXA DE ESTOQUE E INSUMOS (PDV BALCÃO) ===
                     const promisesBaixa = [];
                     manualCart.forEach(cartItem => {
+                        // 1. Baixa do Produto Principal (Se ele tiver controle de estoque ativado)
+                        if (cartItem.stock !== undefined && cartItem.stock !== null && cartItem.stock !== '') {
+                            const productRef = doc(db, "products", cartItem.id);
+                            promisesBaixa.push(updateDoc(productRef, { stock: increment(-Number(cartItem.quantity)) }));
+                        }
+
+                        // 2. Baixa dos Insumos da Ficha Técnica (Se existirem)
                         if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
                             cartItem.consumedIngredients.forEach(ci => {
                                 const ingRef = doc(db, "ingredients", ci.ingredientId);
@@ -5652,8 +5659,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             });
                         }
                     });
+                    
                     if (promisesBaixa.length > 0) {
-                        await Promise.all(promisesBaixa).catch(e => console.error("Erro ao baixar insumo:", e));
+                        // Dispara todas as requisições de updateDoc em paralelo para não travar a UI
+                        await Promise.all(promisesBaixa).catch(e => console.error("Erro ao processar baixa de estoque/insumo:", e));
                     }
 
                     await addDoc(collection(db, "orders"), { 
