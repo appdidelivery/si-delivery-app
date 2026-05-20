@@ -2209,27 +2209,49 @@ const handleGenerateProductCopy = async () => {
 
         const lojaNome = storeStatus.name || "Velo Delivery";
         const primeiroNome = order.customerName ? order.customerName.split(' ')[0] : 'Cliente';
-        const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; // Fallback para o app se o lojista não cadastrou o link
+        const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; 
         
         // --- 🤖 GERADOR DE COPY SEO (GAMIFICADO) ---
         let seoItem = "o meu pedido";
         let seoAdjetivo = "rápido e com muita qualidade";
         
-        // Extrai o item real comprado para enganar o algoritmo do Google (AEO)
         if (order.items && order.items.length > 0) {
             seoItem = order.items[0].name;
             const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
             seoAdjetivo = isBebida ? "trincando de gelada(o) e a entrega foi super rápida" : "quente, muito saboroso e a entrega foi super rápida";
         }
         
-        // A Copy matadora formatada com aspas para o cliente apenas copiar e colar
         const seoCopyText = `⭐⭐⭐⭐⭐\n"Pedi ${seoItem} na ${lojaNome} e estava incrível! Chegou ${seoAdjetivo}. Fui super bem atendido(a). Recomendo muito!"`;
-        // ------------------------------------------
         
+        // --- ⚖️ MOTOR DE TESTE A/B (50% / 50%) ---
+        let msgCompleted = "";
+        
+        // Math.random() gera um número entre 0 e 1. Menor que 0.5 = 50% de chance.
+        if (Math.random() < 0.5) {
+            
+            // 🔴 OPÇÃO A: Copy Focada no Clube VIP (Gamificação Suave)
+            msgCompleted = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\nBasta *copiar o texto abaixo* e colar na nossa avaliação do Google:\n\n👇 *Copie este texto:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`;
+            
+        } else {
+            
+            // 🔵 OPÇÃO B: Copy Agressiva (Gatilho da Ganância / Dinheiro)
+            const percentualCashback = settings?.gamification?.cashbackPercent || 2;
+            const valorEmReais = ((Number(order.total) || 0) * (percentualCashback / 100)).toFixed(2);
+            
+            // Trava de Segurança: Só manda a copy B se houver valor real a receber
+            if (Number(valorEmReais) > 0) {
+                msgCompleted = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado! ❤️ \n\n💸 *QUER R$ ${valorEmReais.replace('.', ',')} DE VOLTA NA SUA CARTEIRA DIGITAL AGORA?*\n\nNós liberamos esse saldo de Cashback para o seu próximo pedido, basta nos dar uma força no Google!\n\n👇 *Copie o texto abaixo:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Mandou o print, o saldo de R$ ${valorEmReais.replace('.', ',')} cai na sua conta do App na mesma hora!_`;
+            } else {
+                // Fallback para a opção A
+                msgCompleted = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\nBasta *copiar o texto abaixo* e colar na nossa avaliação do Google:\n\n👇 *Copie este texto:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`;
+            }
+        }
+        // ------------------------------------------
+
         const messages = {
             preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${primeiroNome}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
             delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
-            completed: `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\nBasta *copiar o texto abaixo* e colar na nossa avaliação do Google:\n\n👇 *Copie este texto:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`,
+            completed: msgCompleted,
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
 
