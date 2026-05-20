@@ -524,6 +524,7 @@ export default function Home() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const submitLock = useRef(false); // Trava Síncrona Anti-Duplicação
+  const draftOrderIdRef = useRef(null); // NOVO: Trava de Idempotência para evitar pedidos duplicados
 
   const [customer, setCustomer] = useState({
     name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery',
@@ -1611,6 +1612,7 @@ export default function Home() {
   };
 
   const updateQuantity = (productId, amount) => {
+    draftOrderIdRef.current = null; // Limpa o rascunho de pedido
     setCart(prevCart => {
         return prevCart.map(item => {
             if (item.id === productId) {
@@ -1634,7 +1636,10 @@ export default function Home() {
     });
   };
 
-  const removeFromCart = (pid) => setCart(p => p.filter(i => i.id !== pid));
+  const removeFromCart = (pid) => {
+      draftOrderIdRef.current = null; // Limpa o rascunho de pedido
+      setCart(p => p.filter(i => i.id !== pid));
+  };
 
   const subtotal = cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0);
   const freeShippingThreshold = Number(storeSettings.freeShippingThreshold || 0);
@@ -1777,8 +1782,13 @@ export default function Home() {
     
     try {
       const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
-      const newOrderRef = doc(collection(db, "orders"));
-      const orderId = newOrderRef.id;
+      
+      // NOVO: Se o cliente estiver tentando de novo após um erro, reaproveita o mesmo ID para não duplicar!
+      if (!draftOrderIdRef.current) {
+          draftOrderIdRef.current = doc(collection(db, "orders")).id;
+      }
+      const orderId = draftOrderIdRef.current;
+      const newOrderRef = doc(db, "orders", orderId);
 
      // No modo Garçom, força o envio direto e ignora o Gateway para não travar
       const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup', 'voucherDelivery', 'voucherPickup'].includes(customer.payment);
@@ -1918,7 +1928,7 @@ if (window.fbq) {
           
           localStorage.setItem('activeOrderId', orderId);
           setActiveOrderId(orderId);
-          setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
+          draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false); setAppliedCoupon(null); setDiscountAmount(0); setCouponCode('');
           setIsFinalizing(false); 
 
           // BLINDAGEM MODO GARÇOM: Não envia WhatsApp, não abre roleta, não muda de tela. Apenas zera o carrinho.
@@ -1969,7 +1979,7 @@ if (window.fbq) {
                   // Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                   
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
