@@ -41,7 +41,6 @@ export default async function middleware(request) {
           "encantolilas.app.br": "encantolilas",
           "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
-          "rincaofood.com.br": "rincaofood",
        };
       storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
   }

@@ -45,7 +45,6 @@ export const getStoreIdFromHostname = () => {
           "encantolilas.app.br": "encantolilas",
           "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
-          "rincaofood.com.br": "rincaofood",
        };
 
        // CORREÇÃO 3: Se o domínio não estiver no mapa, extrai apenas a primeira palavra antes do ".com" 

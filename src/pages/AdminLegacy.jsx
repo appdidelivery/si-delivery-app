@@ -355,7 +355,6 @@ export default function Admin() {
         "encantolilas.app.br": "encantolilas",
         "macanudorex.com.br": "macanudorex",
         "ngconveniencia.com.br": "ng",
-        "rincaofood.com.br": "rincaofood"
     };
 
     let currentSubdomain = null;

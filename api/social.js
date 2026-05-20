@@ -39,7 +39,6 @@ export default async function handler(req, res) {
           "encantolilas.app.br": "encantolilas",
           "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
-          "rincaofood.com.br": "rincaofood",
        };
         // Se não achar no diacionário,aa pega só o nome base antes do .com para não quebrar a busca no banco
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
