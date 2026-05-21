@@ -2259,19 +2259,50 @@ if (window.fbq) {
   }, [categories, favoriteCategory, storeSettings?.storeNiche]);
   // --- FIM: IA DE MENU DE ENGENHARIA ---
 
-  const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds ||[]);
-  const smartUpsell = products.filter(p => 
-      recommendedIdsInCart.includes(p.id) && 
-      !cart.some(c => c.id === p.id) && 
+  const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds || []);
+  
+  // Filtro base de segurança: Só itens com estoque e que NÃO estão no carrinho
+  const availableForUpsell = products.filter(p => 
+      !cart.some(item => item.id === p.id) && 
       ((p.stock && parseInt(p.stock) > 0) || !p.stock)
   );
 
-  const upsellProducts = smartUpsell.length > 0 
-      ? smartUpsell 
-      : products
-          .filter(p => !cart.some(item => item.id === p.id) && ((p.stock && parseInt(p.stock) > 0) || !p.stock)) 
-          .filter(p => p.isBestSeller || p.isFeatured) 
-          .slice(0, 5); 
+  // Nível 0: Configuração Manual do Lojista (Respeitamos se ele fez o trabalho)
+  let finalUpsell = availableForUpsell.filter(p => recommendedIdsInCart.includes(p.id));
+
+  // Nível 1: A Inteligência Pessoal (A categoria que este cliente mais compra)
+  if (finalUpsell.length < 5 && favoriteCategory) {
+      const favProducts = availableForUpsell.filter(p => 
+          p.category === favoriteCategory && !finalUpsell.some(u => u.id === p.id)
+      );
+      finalUpsell = [...finalUpsell, ...favProducts];
+  }
+
+  // Nível 2: Busca Semântica (Bebidas, Doces, Combos - blindado contra erros de digitação do lojista)
+  if (finalUpsell.length < 5) {
+      const semanticKeywords = ['bebida', 'refri', 'adicion', 'acompanha', 'doce', 'sobremesa', 'combo', 'porç', 'porc', 'gelad'];
+      const semanticProducts = availableForUpsell.filter(p => {
+          if (finalUpsell.some(u => u.id === p.id)) return false; // Evita duplicatas
+          const catName = (p.category || '').toLowerCase();
+          return semanticKeywords.some(keyword => catName.includes(keyword));
+      });
+      finalUpsell = [...finalUpsell, ...semanticProducts];
+  }
+
+  // Nível 3: Bala de Prata (Impulso por Preço Baixo - Puxa os itens mais baratos da loja para fechar as 5 vagas)
+  if (finalUpsell.length < 5) {
+      const impulseProducts = availableForUpsell
+          .filter(p => !finalUpsell.some(u => u.id === p.id))
+          .sort((a, b) => {
+              const priceA = Number(a.promotionalPrice) > 0 ? Number(a.promotionalPrice) : Number(a.price);
+              const priceB = Number(b.promotionalPrice) > 0 ? Number(b.promotionalPrice) : Number(b.price);
+              return priceA - priceB; // Ordena do mais barato pro mais caro
+          });
+      finalUpsell = [...finalUpsell, ...impulseProducts];
+  }
+
+  // Garante que o layout não quebre entregando exatamente os 5 primeiros
+  const upsellProducts = finalUpsell.slice(0, 5);
 
   const layoutTheme = storeSettings?.layoutTheme || 'grid';
   
@@ -3668,10 +3699,22 @@ if (window.fbq) {
                       <div className="mt-8 pt-6 border-t border-slate-100">
                           <p className="font-black text-xs text-slate-400 uppercase ml-4 tracking-widest mb-4">Que tal pedir também?</p>
                           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                              {upsellProducts.map(p => (
-                                  <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
-                                      <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} width="112" height="112" loading="lazy" decoding="async" className="w-24 h-24 object-contain mx-auto mb-2" />
-                                      <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
+      {upsellProducts.map(p => (
+          <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
+              <img 
+                  src={optimizeCloudinary(p.imageUrl, 200)} 
+                  alt={p.name} 
+                  width="112" 
+                  height="112" 
+                  loading="lazy" 
+                  decoding="async" 
+                  className="w-24 h-24 object-contain mx-auto mb-2 rounded-xl" 
+                  onError={(e) => { 
+                      e.target.onerror = null; 
+                      e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
+                  }}
+              />
+              <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">{p.name}</p>
                                       <p className={`${currentTheme.text} font-black text-sm`}>
                                           R$ {Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice).toFixed(2) : Number(p.price).toFixed(2)}
                                       </p>
