@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc } from 'firebase/firestore';
-import { db } from "../services/firebase"; // ATENÇÃO: Ajuste este caminho de importação conforme a estrutura do seu projeto Velo
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from "../services/firebase"; 
+import { useStore } from '../context/StoreContext'; // <--- ESTA LINHA É A CHAVE
 import { Search, MessageCircle, Package, Camera, TrendingUp, Handshake, Ticket, Printer, Calculator, Truck, Lightbulb, Shield, Wrench, Tag, Megaphone, Link, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -149,6 +150,7 @@ const categories = [
 ];
 
 export default function PartnersMarketplace() {
+  const { store } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [partnersList, setPartnersList] = useState([]);
@@ -199,41 +201,32 @@ export default function PartnersMarketplace() {
 
   const handleAddInfluencer = async (e) => {
     e.preventDefault();
+    // Blindagem: Verifica se a loja está carregada antes de salvar
+    if (!store?.slug) return alert("Erro: Identidade da loja não encontrada.");
     setIsSubmitting(true);
 
     try {
-      // BLINDAGEM MULTI-TENANT: Substitua esta string pelo ID real da loja vindo do seu Auth/Contexto (ex: user.uid)
-      const currentTenantId = "LOJA_ID_DINAMICO"; 
-
       const newPartnerData = {
         ...formData,
-        category: 'Influenciadores', // Hardcoded de segurança
-        tenantId: currentTenantId,
-        // Imagem padrão (avatar genérico) caso ele não tenha foto ainda
+        category: 'Influenciadores', 
+        storeId: store.slug, // Agora usa o ID dinâmico da loja logada
         imageUrl: 'https://images.unsplash.com/photo-1511556820780-d912e42b4980?auto=format&fit=crop&w=400&q=80',
         createdAt: new Date().toISOString()
       };
 
-      // 1. Salva no Firebase
-      const docRef = await addDoc(collection(db, 'partners'), newPartnerData);
-
-      // 2. Atualiza a lista na tela imediatamente (sem precisar dar refresh)
-      const partnerWithId = { id: docRef.id, ...newPartnerData };
-      setPartnersList((prev) => [...prev, partnerWithId]);
-
-      // 3. Limpa e fecha o modal
+      await addDoc(collection(db, 'partners'), newPartnerData);
+      
+      // Removemos o setPartnersList manual porque o onSnapshot já cuida da atualização da tela
       setFormData({ name: '', instagram: '', whatsapp: '', description: '', badge: 'Tier Bronze', discount: 'Permuta Simples' });
       setIsModalOpen(false);
       alert('Influenciador cadastrado com sucesso!');
-
     } catch (error) {
-      console.error("Erro ao cadastrar influenciador:", error);
-      alert("Houve um erro ao tentar salvar o influenciador.");
+      console.error("Erro ao cadastrar:", error);
+      alert("Houve um erro ao tentar salvar no banco.");
     } finally {
       setIsSubmitting(false);
     }
   };
-
   // Filtro Duplo: Busca por texto + Categoria (agora consumindo do state 'partnersList')
   const filteredPartners = partnersList.filter((partner) => {
     const matchesSearch = partner.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
