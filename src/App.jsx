@@ -133,7 +133,7 @@ function App() {
       <StoreProvider> 
         <BrowserRouter>
           <DeepLinkListener /> {/* <-- NOVO: O Escudo de Roteamento ativo */}
-          <CartUrlListener /> {/* <-- NOVO: Escuta parâmetros ?add= na URL da IA */}
+          {/* <CartUrlListener />  Desativado temporariamente para não causar erros de undefined */}
           <Routes>
             <Route path="/" element={<AppRouter />} />
             <Route path="/driver-login" element={<div className="p-10 text-center mt-20 font-bold text-slate-500">Faça login com seu link de Motoboy enviado pelo lojista 🛵...</div>} />

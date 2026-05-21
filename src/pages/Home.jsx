@@ -2075,7 +2075,7 @@ if (window.fbq) {
                   
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                   
                   window.location.href = `/track/${orderId}?payment=success`;
                   return;
@@ -2125,7 +2125,7 @@ if (window.fbq) {
 
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                   
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
@@ -2188,7 +2188,7 @@ if (window.fbq) {
               
               localStorage.setItem('activeOrderId', orderId);
               setActiveOrderId(orderId);
-              setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+              draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
               window.location.href = data.url;
           } else {
               alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
@@ -2444,7 +2444,7 @@ if (window.fbq) {
 
                                       localStorage.setItem('activeOrderId', orderId);
                                       setActiveOrderId(orderId);
-                                      setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                                      draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
                                       
                                       window.location.href = `/track/${orderId}?payment=success`;
                                  } else {

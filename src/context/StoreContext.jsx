@@ -91,4 +91,6 @@ export const StoreProvider = ({ children }) => {
   );
 };
 
-export const useStore = () => useContext(StoreContext);
+export function useStore() {
+  return useContext(StoreContext);
+}
