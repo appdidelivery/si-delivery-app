@@ -1151,8 +1151,9 @@ export default function Admin() {
     const [bannerImageFile, setBannerImageFile] = useState(null);
     const[uploadingBannerImage, setUploadingBannerImage] = useState(false);
 
-    // Pedido Manual
-    const[manualCart, setManualCart] = useState([]);
+    // Pedido Manual e Complementos PDV
+    const [pdvActiveProduct, setPdvActiveProduct] = useState(null); // NOVO: Controle de complementos no PDV
+    const [manualCart, setManualCart] = useState([]);
     const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery', splitPayments: [] });
     const[manualCouponCode, setManualCouponCode] = useState('');
     const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
@@ -2131,7 +2132,28 @@ const handleGenerateProductCopy = async () => {
         const stSnap = await getDoc(doc(db, "stores", o.storeId || storeId));
         const currentStoreStatus = stSnap.exists() ? stSnap.data() : storeStatus;
 
-        const itemsHtml = (o.items ||[]).map(i => `<li style="margin-bottom: 4px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)} un)</strong> ${i.observation ? `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>` : ''}</li>`).join('');
+        // Contador de Pedidos do Cliente
+        const telefoneLimpo = String(o.customerPhone || '').replace(/\D/g, '');
+        const historicoCount = orders.filter(pedido => String(pedido.customerPhone || '').replace(/\D/g, '') === telefoneLimpo && pedido.status !== 'canceled').length || 1;
+
+        const itemsHtml = (o.items ||[]).map(i => {
+            let html = `<li style="margin-bottom: 4px; font-size: 14px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)})</strong>`;
+            
+            if (i.selectedComplements && i.selectedComplements.length > 0) {
+                 html += `<ul style="margin: 2px 0 4px 12px; padding: 0; list-style: none; font-size: 12px;">`;
+                 i.selectedComplements.forEach(comp => {
+                     html += `<li>- ${comp.quantity || 1}x ${comp.name}</li>`;
+                 });
+                 html += `</ul>`;
+            }
+
+            if (i.observation) {
+                html += `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>`;
+            }
+            html += `</li>`;
+            return html;
+        }).join('');
+
         const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
         // Formata a data
@@ -2143,6 +2165,7 @@ const handleGenerateProductCopy = async () => {
                     <small>-- ${titulo} --</small>
                     <h2>${currentStoreStatus.name || 'DELIVERY'}</h2>
                     <small>${dataPedido}</small>
+                    ${o.tipo !== 'local' ? `<br><strong style="font-size: 14px; background: #000; color: #fff; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 6px;">🎯 ${historicoCount}º PEDIDO NA LOJA</strong>` : ''}
                 </center>
                 <hr>
                 <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
@@ -2250,9 +2273,12 @@ const handleGenerateProductCopy = async () => {
         }
         // ------------------------------------------
 
+        const telefoneLimpoParaContagem = String(order.customerPhone || '').replace(/\D/g, '');
+        const qtdPedidosFeitos = orders.filter(pedido => String(pedido.customerPhone || '').replace(/\D/g, '') === telefoneLimpoParaContagem && pedido.status !== 'canceled').length || 1;
+
         const messages = {
             preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${primeiroNome}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
-            delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
+            delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n🎉 Que legal! Vimos aqui que este já é o seu *${qtdPedidosFeitos}º pedido* com a gente. Muito obrigado pela preferência!\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
             completed: msgCompleted,
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
@@ -5311,10 +5337,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </button>
                                     )}
                                 </div>
-                                {/* Filtro Rápido de Categorias */}
+                                {/* Filtro Rápido de Categorias (Apenas Reais) */}
                                 <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
                                     <button onClick={() => setProductSearch('')} className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase whitespace-nowrap shadow-md">Todas</button>
-                                    {categories.map(c => (
+                                    {categories.filter(c => !['mais vendidos', 'destaques', 'promoções', 'o hambúrguer do mês', 'combos'].includes(c.name.toLowerCase())).map(c => (
                                         <button key={c.id} onClick={() => setProductSearch(c.name)} className="px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 whitespace-nowrap transition-all">
                                             {c.name}
                                         </button>
@@ -5336,16 +5362,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 onClick={() => {
                                                     if (isOutOfStock) return;
                                                     const ex = manualCart.find(it => it.id === p.id);
-                                                    if (ex) {
-                                                        if (ex.quantity >= Number(p.stock)) return alert(`Estoque máximo: ${p.stock}`);
-                                                        setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
-                                                    } else {
-                                                        const productToAdd = { 
+                                                    if (p.complements && p.complements.length > 0) {
+                                                        // Se tem complemento cadastrado, abre a tela de montagem antes de jogar pro carrinho
+                                                        setPdvActiveProduct({ 
                                                             ...p, 
                                                             quantity: 1, 
-                                                            price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
-                                                        };
-                                                        setManualCart([...manualCart, productToAdd]);
+                                                            basePrice: p.promotionalPrice > 0 ? p.promotionalPrice : p.price,
+                                                            price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price,
+                                                            selectedComplements: [] 
+                                                        });
+                                                    } else {
+                                                        // Se não tem, vai direto pro carrinho
+                                                        if (ex) {
+                                                            if (ex.quantity >= Number(p.stock)) return alert(`Estoque máximo: ${p.stock}`);
+                                                            setManualCart(manualCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
+                                                        } else {
+                                                            const productToAdd = { 
+                                                                ...p, 
+                                                                quantity: 1, 
+                                                                price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
+                                                            };
+                                                            setManualCart([...manualCart, productToAdd]);
+                                                        }
                                                     }
                                                 }}
                                                 className={`bg-white rounded-3xl p-4 border-2 transition-all flex flex-col justify-between h-44 group select-none ${isOutOfStock ? 'border-slate-100 opacity-50 cursor-not-allowed grayscale' : 'border-transparent hover:border-blue-400 cursor-pointer shadow-sm hover:shadow-md active:scale-95'}`}
@@ -5368,6 +5406,88 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         );
                                     })}
                                 </div>
+                                
+                                {/* MODAL DE COMPLEMENTOS (PDV RÁPIDO) */}
+                                {pdvActiveProduct && (
+                                    <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col p-6 animate-in slide-in-from-bottom-10">
+                                        <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+                                            <div>
+                                                <h3 className="text-2xl font-black italic text-slate-800 uppercase leading-none">{pdvActiveProduct.name}</h3>
+                                                <p className="text-sm font-bold text-slate-500 mt-1">Selecione os complementos/adicionais</p>
+                                            </div>
+                                            <button onClick={() => setPdvActiveProduct(null)} className="p-3 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-all"><X size={24}/></button>
+                                        </div>
+                                        
+                                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-2">
+                                            {pdvActiveProduct.complements.map((grupo, gIdx) => (
+                                                <div key={gIdx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <h4 className="font-black text-slate-700 uppercase">{grupo.name}</h4>
+                                                        <span className="text-[10px] font-black bg-slate-200 text-slate-600 px-2 py-1 rounded-md">Máx: {grupo.maxSelections || 1}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                        {grupo.options.map((opt, oIdx) => {
+                                                            const isSelected = pdvActiveProduct.selectedComplements.some(sc => sc.name === opt.name && sc.groupName === grupo.name);
+                                                            return (
+                                                                <label key={oIdx} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-400' : 'bg-white border-transparent hover:border-slate-300'}`}>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={isSelected}
+                                                                            onChange={(e) => {
+                                                                                const currentSelections = pdvActiveProduct.selectedComplements;
+                                                                                const groupSelections = currentSelections.filter(sc => sc.groupName === grupo.name);
+                                                                                
+                                                                                if (e.target.checked) {
+                                                                                    if (groupSelections.length >= (grupo.maxSelections || 1)) return alert(`Máximo de ${grupo.maxSelections} opções atingido neste grupo.`);
+                                                                                    const newComp = { name: opt.name, price: Number(opt.price || 0), groupName: grupo.name, quantity: 1 };
+                                                                                    setPdvActiveProduct({
+                                                                                        ...pdvActiveProduct,
+                                                                                        price: pdvActiveProduct.price + newComp.price,
+                                                                                        selectedComplements: [...currentSelections, newComp]
+                                                                                    });
+                                                                                } else {
+                                                                                    setPdvActiveProduct({
+                                                                                        ...pdvActiveProduct,
+                                                                                        price: pdvActiveProduct.price - Number(opt.price || 0),
+                                                                                        selectedComplements: currentSelections.filter(sc => !(sc.name === opt.name && sc.groupName === grupo.name))
+                                                                                    });
+                                                                                }
+                                                                            }}
+                                                                            className="w-5 h-5 accent-blue-600 cursor-pointer"
+                                                                        />
+                                                                        <span className="font-bold text-sm text-slate-700">{opt.name}</span>
+                                                                    </div>
+                                                                    <span className="font-black text-blue-600 text-xs">+ R$ {Number(opt.price || 0).toFixed(2)}</span>
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        
+                                        <div className="pt-6 border-t border-slate-200 flex justify-between items-center gap-4">
+                                            <div className="flex items-center gap-3 bg-slate-100 p-2 rounded-2xl">
+                                                <button onClick={() => setPdvActiveProduct({...pdvActiveProduct, quantity: Math.max(1, pdvActiveProduct.quantity - 1)})} className="w-10 h-10 bg-white rounded-xl font-black text-lg text-slate-600 hover:text-red-500 shadow-sm">-</button>
+                                                <span className="font-black text-xl w-8 text-center">{pdvActiveProduct.quantity}</span>
+                                                <button onClick={() => setPdvActiveProduct({...pdvActiveProduct, quantity: pdvActiveProduct.quantity + 1})} className="w-10 h-10 bg-white rounded-xl font-black text-lg text-slate-600 hover:text-blue-600 shadow-sm">+</button>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    // Gera um ID único para este item, para permitir que o cliente peça dois burgers iguais, mas com acompanhamentos diferentes
+                                                    const uniqueCartId = pdvActiveProduct.id + '-' + Date.now();
+                                                    const finalProduct = { ...pdvActiveProduct, id: uniqueCartId, isConfigured: true };
+                                                    setManualCart([...manualCart, finalProduct]);
+                                                    setPdvActiveProduct(null);
+                                                }}
+                                                className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl hover:bg-blue-700 active:scale-95 transition-all"
+                                            >
+                                                Adicionar (R$ {(pdvActiveProduct.price * pdvActiveProduct.quantity).toFixed(2)})
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -5417,6 +5537,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <span className="font-black text-slate-700 text-xs flex-1 pr-2 leading-tight">{i.name}</span>
                                                     <span className="font-black text-blue-600 text-sm whitespace-nowrap">R$ {(i.price * i.quantity).toFixed(2)}</span>
                                                 </div>
+                                                {i.selectedComplements && i.selectedComplements.length > 0 && (
+                                                    <ul className="text-[10px] font-bold text-slate-500 pl-2 border-l-2 border-slate-200 space-y-0.5">
+                                                        {i.selectedComplements.map((c, idx) => (
+                                                            <li key={idx}>+ {c.name}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                                 <div className="flex justify-between items-center mt-2">
                                                     {/* Botoes de Quantidade */}
                                                     <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
