@@ -214,9 +214,11 @@ export default function PartnersMarketplace() {
         createdAt: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'partners'), newPartnerData);
+      const docRef = await addDoc(collection(db, 'partners'), newPartnerData);
       
-      // Removemos o setPartnersList manual porque o onSnapshot já cuida da atualização da tela
+      // NOVO: Injeta o parceiro na tela instantaneamente sem precisar dar F5
+      setPartnersList(prev => [...prev, { id: docRef.id, ...newPartnerData }]);
+      
       setFormData({ name: '', instagram: '', whatsapp: '', description: '', badge: 'Tier Bronze', discount: 'Permuta Simples' });
       setIsModalOpen(false);
       alert('Influenciador cadastrado com sucesso!');
