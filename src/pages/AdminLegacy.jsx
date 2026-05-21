@@ -1355,11 +1355,12 @@ export default function Admin() {
                             new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
                         }
                         
-                        // 🖨️ GATILHO: AUTO IMPRESSÃO "AO RECEBER"
+                       // 🖨️ GATILHO: AUTO IMPRESSÃO "AO RECEBER"
                         const stSnap = await getDoc(doc(db, "stores", storeId));
                         if (stSnap.exists()) {
                             const autoPrintTrigger = stSnap.data().autoPrintStatus || 'none';
-                            if (autoPrintTrigger === 'pending' && newOrderData.status === 'pending') {
+                            // CORREÇÃO: Agora ele aceita qualquer status que seja igual ao gatilho configurado pelo lojista
+                            if (autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status) {
                                 printLabel(newOrderData);
                             }
                         }
@@ -2175,13 +2176,15 @@ const handleGenerateProductCopy = async () => {
 
     const updateStatusAndNotify = async (order, newStatus) => {
         // 1. Atualiza o status do pedido no banco de dados primeiro
-        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
-        
-        // --- NOVO: AUTO IMPRESSÃO DINÂMICA ---
-        const autoPrintTrigger = storeStatus?.autoPrintStatus || (storeStatus?.autoPrintCompleted ? 'completed' : 'none');
-        if (newStatus === autoPrintTrigger) {
-            printLabel(order);
-        }
+        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+        
+        // --- CORREÇÃO: AUTO IMPRESSÃO DINÂMICA BLINDADA ---
+        const stSnap = await getDoc(doc(db, "stores", storeId));
+        const autoPrintTrigger = stSnap.exists() ? (stSnap.data().autoPrintStatus || 'none') : 'none';
+        
+        if (autoPrintTrigger !== 'none' && newStatus === autoPrintTrigger) {
+            printLabel({ ...order, status: newStatus }); // Passa o pedido com o status atualizado para a impressora
+        }
         
         // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
         if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
@@ -10178,6 +10181,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     fetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgPagamento } }) }).catch(()=>{});
                                                 }
                                             }
+                                        }
+                                    }
+                                    
+                                    // --- CORREÇÃO: GATILHO DE IMPRESSÃO VIA MODAL DE EDIÇÃO ---
+                                    if (mudouStatusPedido) {
+                                        const stSnap = await getDoc(doc(db, "stores", storeId));
+                                        const autoPrintTrigger = stSnap.exists() ? (stSnap.data().autoPrintStatus || 'none') : 'none';
+                                        
+                                        if (autoPrintTrigger !== 'none' && dataParaSalvar.status === autoPrintTrigger) {
+                                            printLabel({ ...editingOrderData, ...dataParaSalvar, id: editingOrderData.id });
                                         }
                                     }
                                     // ------------------------------------------
