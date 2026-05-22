@@ -542,6 +542,18 @@ export default function Home() {
   const [waiterName, setWaiterName] = useState('');
   const[tableNumber, setTableNumber] = useState('');
 
+  // --- ESTADO AUTOATENDIMENTO MESA ---
+  const [tableSession, setTableSession] = useState(() => {
+      const existingSessionStr = localStorage.getItem('veloTableSession');
+      if (existingSessionStr) {
+          try {
+              const session = JSON.parse(existingSessionStr);
+              if (Date.now() - session.timestamp <= 7200000) return session.tableNumber;
+          } catch(e) {}
+      }
+      return null;
+  });
+
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const[couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -780,7 +792,7 @@ export default function Home() {
   const [userTier, setUserTier] = useState({ name: 'Visitante', next: 'Bronze', missing: 0, progress: 0, color: 'text-slate-400' });
   const [userBadges, setUserBadges] = useState([]);
 
-  // CAPTURA DO LINK DE INDICAÇÃO E INFLUENCIADORES NO LOAD INICIAL
+  // CAPTURA DO LINK DE INDICAÇÃO, INFLUENCIADORES E AUTOATENDIMENTO (MESA) NO LOAD INICIAL
   useEffect(() => {
       const params = new URLSearchParams(window.location.search);
       
@@ -795,6 +807,30 @@ export default function Home() {
       if (affiliateId) {
           localStorage.setItem('veloAffiliateId', affiliateId);
       }
+
+      // Motor de Autoatendimento na Mesa (QR Code) com Validade (TTL)
+      const mesaParam = params.get('mesa');
+      if (mesaParam) {
+          const sessionData = { tableNumber: mesaParam, timestamp: Date.now() };
+          localStorage.setItem('veloTableSession', JSON.stringify(sessionData));
+          
+          // Limpa a URL silenciosamente para evitar bugs em recarregamentos
+          const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+          window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+      } else {
+          // Valida a sessão existente (limpa se for maior que 2 horas = 7200000 ms)
+          const existingSessionStr = localStorage.getItem('veloTableSession');
+          if (existingSessionStr) {
+              try {
+                  const existingSession = JSON.parse(existingSessionStr);
+                  if (Date.now() - existingSession.timestamp > 7200000) {
+                      localStorage.removeItem('veloTableSession');
+                  }
+              } catch (e) {
+                  localStorage.removeItem('veloTableSession');
+              }
+          }
+      }
   }, []);
 
   // --- LEITURA REAL DA CARTEIRA (WALLET) NO BANCO DE DADOS ---
@@ -1708,8 +1744,8 @@ export default function Home() {
   const freeShippingThreshold = Number(storeSettings.freeShippingThreshold || 0);
   const isFreeShipping = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
   const isPickup = customer.deliveryMethod === 'pickup';
-  // Zera o frete se for Modo Garçom ou Retirada na Loja
-  const finalShippingFee = (isFreeShipping || isWaiterMode || isPickup) ? 0 : Number(shippingFee || 0);
+  // Zera o frete se for Modo Garçom, Retirada na Loja ou Autoatendimento na Mesa
+  const finalShippingFee = (isFreeShipping || isWaiterMode || isPickup || tableSession) ? 0 : Number(shippingFee || 0);
   
   const baseTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
   // Cálculo do Cashback dinâmico: Não pode abater mais do que o total do pedido.
@@ -1822,6 +1858,9 @@ export default function Home() {
     
     if (isWaiterMode) {
         if (!customer.name || !tableNumber) return alert("Preencha o nome do cliente e o número da mesa.");
+    } else if (tableSession) {
+        if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp para identificação da mesa.");
+        if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
     } else {
         if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
         if (!isPickup && (!customer.cep || !customer.street || !customer.number)) return alert("Preencha o endereço de entrega completo.");
@@ -1878,8 +1917,9 @@ export default function Home() {
         createdAt: serverTimestamp(),
         storeId: storeId || "",
         // Adicionando as TAGs para o Modo Garçom e Retirada:
-        tipo: isWaiterMode ? "local" : (isPickup ? "retirada" : "delivery"),
-        mesa: isWaiterMode ? tableNumber : null,
+        tipo: (isWaiterMode || tableSession) ? "local" : (isPickup ? "retirada" : "delivery"),
+        mesa: isWaiterMode ? tableNumber : (tableSession ? tableSession : null),
+        orderType: tableSession ? "mesa_qrcode" : (isWaiterMode ? "garcom" : (isPickup ? "retirada" : "delivery")),
         waiterName: isWaiterMode ? waiterName : null,
         // Gamificação Info:
         usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
@@ -1964,7 +2004,10 @@ if (window.fbq) {
                 return text;
             }).join('\n');
           const totalMsg = `*Total: R$ ${finalTotal.toFixed(2)}*`;
-          const enderecoMsg = isWaiterMode ? `\n🍽️ *Mesa:* ${tableNumber}` : `\n📍 *Endereço:* ${fullAddress}`;
+          let enderecoMsg = `\n📍 *Endereço:* ${fullAddress}`;
+          if (isWaiterMode) enderecoMsg = `\n🍽️ *Mesa:* ${tableNumber}`;
+          else if (tableSession) enderecoMsg = `\n🍽️ *Autoatendimento (Mesa):* ${tableSession}`;
+          else if (isPickup) enderecoMsg = `\n🏪 *Retirada no Balcão*`;
           
        let obsMsg = '';
           if (isWaiterMode) {
@@ -3596,8 +3639,25 @@ if (window.fbq) {
                   </div> 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Detalhes de Entrega:</p>
                   
+                  {tableSession && (
+                      <div className="bg-yellow-100 border border-yellow-300 p-4 rounded-2xl mb-4 mt-2 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm animate-pulse">
+                          <p className="text-yellow-800 font-bold text-sm">
+                              📍 Pedido vinculado à <strong className="font-black">Mesa {tableSession}</strong>. Não está no restaurante?
+                          </p>
+                          <button 
+                              onClick={() => {
+                                  localStorage.removeItem('veloTableSession');
+                                  window.location.reload();
+                              }}
+                              className="bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap active:scale-95"
+                          >
+                              Limpar Mesa
+                          </button>
+                      </div>
+                  )}
+
                   <div className="mb-6">
-                    {useSavedAddress && customer.deliveryMethod !== 'pickup' && !isWaiterMode ? (
+                    {useSavedAddress && !tableSession && customer.deliveryMethod !== 'pickup' && !isWaiterMode ? (
                         <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 shadow-sm relative animate-in fade-in zoom-in-95">
                             <h3 className="text-2xl font-black text-blue-900 mb-2 tracking-tighter italic">Olá, {customer.name.split(' ')[0]}! 👋</h3>
                             <p className="text-sm font-bold text-blue-700 mb-5 leading-relaxed">
@@ -3709,7 +3769,7 @@ if (window.fbq) {
                                     {/* ------------------------------------------- */}
 
                                     {/* CONTROLE INTELIGENTE DE BOTÕES DE ENTREGA/RETIRADA */}
-                                    {((storeSettings?.deliveryEnabled !== false) || (storeSettings?.pickupEnabled !== false)) && (
+                                    {!tableSession && ((storeSettings?.deliveryEnabled !== false) || (storeSettings?.pickupEnabled !== false)) && (
                                         <div className="flex gap-2 mb-3 mt-2">
                                             {storeSettings?.deliveryEnabled !== false && (
                                                 <button 
@@ -3735,7 +3795,7 @@ if (window.fbq) {
                                         </div>
                                     )}
 
-                                    {customer.deliveryMethod !== 'pickup' && (
+                                    {!tableSession && customer.deliveryMethod !== 'pickup' && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
                                             <div className="relative">
                                               <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
@@ -3891,8 +3951,8 @@ if (window.fbq) {
                     {!isWaiterMode && (
                           <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
                               <span>Frete</span>
-                              <span className={(isFreeShipping || customer.deliveryMethod === 'pickup') ? "text-green-600 font-black" : ""}>
-                                  {customer.deliveryMethod === 'pickup' ? "GRÁTIS (Retirada)" : (shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--')}
+                              <span className={(isFreeShipping || customer.deliveryMethod === 'pickup' || tableSession) ? "text-green-600 font-black" : ""}>
+                                  {tableSession ? "GRÁTIS (Mesa)" : (customer.deliveryMethod === 'pickup' ? "GRÁTIS (Retirada)" : (shippingFee !== null ? (isFreeShipping ? "GRÁTIS" : `R$ ${shippingFee.toFixed(2)}`) : '--'))}
                               </span>
                           </div>
                       )}

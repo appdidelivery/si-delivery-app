@@ -4053,6 +4053,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>
                                                                 ) : o.source === 'google_food_marketplace' ? (
                                                                     <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>
+                                                                ) : o.orderType === 'mesa_qrcode' ? (
+                                                                    <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-yellow-300 shadow-sm flex items-center gap-1">📱 AUTOATENDIMENTO (MESA {o.mesa})</span>
                                                                 ) : (
                                                                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-blue-200 shadow-sm flex items-center gap-1">📱 APP (ONLINE)</span>
                                                                 )}
@@ -4207,11 +4209,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                             {/* SELETOR DE STATUS */}
                                                             <div className="w-full md:w-48 mt-2 md:mt-0">
-                                                                <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className="w-full py-3 px-4 rounded-xl font-black text-xs uppercase border border-slate-200 outline-none cursor-pointer bg-white text-slate-700 hover:bg-slate-50 focus:ring-2 ring-blue-500 transition-all shadow-sm">
+                                                                <select value={o.status} onChange={(e) => updateStatusAndNotify(o, e.target.value)} className={`w-full py-3 px-4 rounded-xl font-black text-xs uppercase border border-slate-200 outline-none cursor-pointer text-slate-700 hover:bg-slate-50 focus:ring-2 ring-blue-500 transition-all shadow-sm ${o.orderType === 'mesa_qrcode' ? 'bg-yellow-50' : 'bg-white'}`}>
                                                                     <option value="pending">⏳ Novo Pedido</option>
                                                                     <option value="preparing">👨‍🍳 Preparando</option>
-                                                                    <option value="delivery">🏍️ Em Rota</option>
-                                                                    <option value="completed">✅ Concluído</option>
+                                                                    {o.orderType === 'mesa_qrcode' ? (
+                                                                        <option value="completed">🍽️ Servir na Mesa {o.mesa}</option>
+                                                                    ) : (
+                                                                        <>
+                                                                            <option value="delivery">🏍️ Em Rota</option>
+                                                                            <option value="completed">✅ Concluído</option>
+                                                                        </>
+                                                                    )}
                                                                     <option value="canceled">❌ Cancelado</option>
                                                                 </select>
                                                             </div>
@@ -4294,6 +4302,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-purple-200 shadow-sm inline-flex items-center gap-1">💻 PDV</span>
                                                             ) : o.source === 'google_food_marketplace' ? (
                                                                 <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-orange-200 shadow-sm inline-flex items-center gap-1">🌐 GOOGLE MAPS</span>
+                                                            ) : o.orderType === 'mesa_qrcode' ? (
+                                                                <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-yellow-300 shadow-sm inline-flex items-center gap-1">📱 AUTOATENDIMENTO (MESA {o.mesa})</span>
                                                             ) : (
                                                                 <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>
                                                             )}
@@ -4429,10 +4439,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 )}
                                                             </div>
                                                             <button 
-                                                                onClick={() => updateStatusAndNotify(o, col.next)}
-                                                                className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                                                                onClick={() => updateStatusAndNotify(o, (o.orderType === 'mesa_qrcode' && col.id === 'preparing') ? 'completed' : col.next)}
+                                                                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 ${o.orderType === 'mesa_qrcode' && col.id === 'preparing' ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                                                             >
-                                                                {col.nextLabel}
+                                                                {o.orderType === 'mesa_qrcode' && col.id === 'preparing' ? `🍽️ Servir na Mesa ${o.mesa}` : col.nextLabel}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -8614,6 +8624,75 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         onChange={(e) => updateDoc(doc(db, "stores", storeId), { waiterPin: e.target.value }, { merge: true })}
                                     />
                                     <p className="text-[10px] text-slate-400 font-bold mt-2 ml-2">Senha para os garçons acessarem o sistema no rodapé da loja. (Se vazio, o padrão é 1234).</p>
+                                </div>
+
+                                {/* --- GERADOR DE QR CODES (MESA) --- */}
+                                <div className="pt-4 border-t border-slate-100 mt-4 mb-4">
+                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                        <QrCode size={14} className="text-blue-500"/> Placas de Autoatendimento (QR Code)
+                                    </label>
+                                    <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-sm font-black text-blue-800 uppercase">Gerar QR Codes para as Mesas</p>
+                                            <p className="text-[10px] font-bold text-blue-600 mt-1">Imprima as placas para os clientes fazerem o pedido sozinhos pelo celular.</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                const qtdStr = prompt("Quantas mesas o seu estabelecimento possui? (Ex: 10)");
+                                                const qtd = parseInt(qtdStr);
+                                                if (!qtd || qtd <= 0) return;
+
+                                                const baseUrl = storeStatus.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                
+                                                const w = window.open('', '_blank');
+                                                let html = `
+                                                    <html>
+                                                    <head>
+                                                        <title>QR Codes - Mesas</title>
+                                                        <style>
+                                                            body { font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
+                                                            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; }
+                                                            .card { border: 2px dashed #ccc; padding: 20px; border-radius: 15px; page-break-inside: avoid; }
+                                                            img { max-width: 100%; height: auto; border-radius: 10px; }
+                                                            h2 { margin: 10px 0 5px 0; font-size: 24px; }
+                                                            p { margin: 0; font-size: 12px; color: #666; }
+                                                        </style>
+                                                    </head>
+                                                    <body>
+                                                        <h1 style="margin-bottom: 30px;">QR Codes de Autoatendimento - ${storeStatus.name || 'Loja'}</h1>
+                                                        <div class="grid">
+                                                `;
+
+                                                for (let i = 1; i <= qtd; i++) {
+                                                    const mesaUrl = `${baseUrl}/?mesa=${i}`;
+                                                    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(mesaUrl)}&margin=10`;
+                                                    html += `
+                                                        <div class="card">
+                                                            <h2>MESA ${i}</h2>
+                                                            <img src="${qrUrl}" alt="Mesa ${i}" />
+                                                            <p>Escaneie para fazer seu pedido</p>
+                                                            <p style="font-size: 9px; margin-top: 5px;">${baseUrl}</p>
+                                                        </div>
+                                                    `;
+                                                }
+
+                                                html += `
+                                                        </div>
+                                                        <script>
+                                                            // Aguarda as imagens carregarem da API para imprimir
+                                                            setTimeout(() => { window.print(); }, 2000);
+                                                        </script>
+                                                    </body>
+                                                    </html>
+                                                `;
+                                                w.document.write(html);
+                                                w.document.close();
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-all active:scale-95 whitespace-nowrap flex items-center gap-2"
+                                        >
+                                            <Printer size={16} /> Imprimir QR Codes
+                                        </button>
+                                    </div>
                                 </div>
 
                                {/* --- VALOR MÍNIMO DO PEDIDO --- */}
