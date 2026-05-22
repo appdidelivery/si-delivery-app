@@ -1564,11 +1564,74 @@ export default function Home() {
     const handler = setTimeout(() => fetchDeliveryInfo(), 600);
     return () => clearTimeout(handler);
   },[customer.cep, shippingRates, storeSettings]);
+// --- INÍCIO: TRAVA DE HORÁRIO EM TEMPO REAL ---
+  const checkRealTimeStoreStatus = () => {
+      // Se o lojista fechou no botão manual ou foi bloqueado por falta de pagamento
+      if (!storeSettings || storeSettings.isOpen === false || storeSettings.billingStatus === 'bloqueado') return false;
+      if (!storeSettings.schedule) return storeSettings.isOpen;
 
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      
+      const todayDayId = now.getDay();
+      const yesterdayDayId = todayDayId === 0 ? 6 : todayDayId - 1;
+
+      const todayConfig = storeSettings.schedule[todayDayId];
+      const yesterdayConfig = storeSettings.schedule[yesterdayDayId];
+
+      let isOpenToday = false;
+      let isOpenFromYesterday = false;
+
+      const checkShift = (startStr, endStr) => {
+          if (!startStr || !endStr) return { openToday: false, overnightYest: false };
+          const [sH, sM] = startStr.split(':').map(Number);
+          const [eH, eM] = endStr.split(':').map(Number);
+          const sTime = sH * 60 + sM;
+          const eTime = eH * 60 + eM;
+
+          let openToday = false;
+          let overnightYest = false;
+
+          if (eTime <= sTime) { 
+              if (currentTime >= sTime) openToday = true; 
+              if (currentTime < eTime) overnightYest = true; 
+          } else { 
+              if (currentTime >= sTime && currentTime < eTime) openToday = true;
+          }
+          return { openToday, overnightYest };
+      };
+
+      if (todayConfig && todayConfig.open) {
+          const shift1 = checkShift(todayConfig.start || '00:00', todayConfig.end || '23:59');
+          if (shift1.openToday) isOpenToday = true;
+          if (todayConfig.splitShift) {
+              const shift2 = checkShift(todayConfig.start2 || '00:00', todayConfig.end2 || '23:59');
+              if (shift2.openToday) isOpenToday = true;
+          }
+      }
+
+      if (yesterdayConfig && yesterdayConfig.open) {
+          const shift1Yest = checkShift(yesterdayConfig.start || '00:00', yesterdayConfig.end || '23:59');
+          if (shift1Yest.overnightYest) isOpenFromYesterday = true;
+          if (yesterdayConfig.splitShift) {
+              const shift2Yest = checkShift(yesterdayConfig.start2 || '00:00', yesterdayConfig.end2 || '23:59');
+              if (shift2Yest.overnightYest) isOpenFromYesterday = true;
+          }
+      }
+
+      return isOpenToday || isOpenFromYesterday;
+  };
+  // --- FIM: TRAVA DE HORÁRIO EM TEMPO REAL ---
   const addToCart = (p, quantity = 1) => {
-    if (!isStoreOpenNow) { alert(storeMessage); return; }
+    // Verifica a hora EXATA do clique (Permite que o Garçom fure a regra se precisar)
+    const isReallyOpen = checkRealTimeStoreStatus();
+    if (!isReallyOpen && !isWaiterMode) { 
+        alert("O horário de atendimento encerrou. A loja encontra-se fechada agora."); 
+        window.location.reload(); // Recarrega a página para atualizar o status visual
+        return; 
+    }
     
-    if (p.stock !== undefined && Number(p.stock) <= 0) { 
+    if (p.stock !== undefined && Number(p.stock) <= 0) {
         alert(`O produto ${p.name} está esgotado!`); 
         return; 
     }
@@ -1740,7 +1803,14 @@ export default function Home() {
 
   const finalizeOrder = async () => {
     if (isFinalizing) return; 
-    if (!isStoreOpenNow) return alert(storeMessage);
+
+    // Verifica a hora EXATA do clique antes de enviar pro banco de dados
+    const isReallyOpen = checkRealTimeStoreStatus();
+    if (!isReallyOpen && !isWaiterMode) { 
+        alert("O horário de atendimento encerrou. Não é possível concluir este pedido agora."); 
+        window.location.reload(); // Recarrega a página para o cliente ver que fechou
+        return; 
+    }
 
     // Trava de segurança: Obriga o cliente a selecionar como vai pagar
     if (!customer.payment) {
