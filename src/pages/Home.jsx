@@ -1911,7 +1911,7 @@ export default function Home() {
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
         items: sanitizedCart,
         subtotal: subtotal || 0, 
-        shippingFee: (isWaiterMode || isPickup) ? 0 : (shippingFee || 0), 
+        shippingFee: (isWaiterMode || isPickup || tableSession) ? 0 : (shippingFee || 0),
         total: finalTotal || 0, 
         status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
         createdAt: serverTimestamp(),
@@ -3815,8 +3815,8 @@ if (window.fbq) {
                     )}
                   </div>
 
-                  {!isWaiterMode && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
-                  {!isWaiterMode && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
+                  {!isWaiterMode && !tableSession && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
+                  {!isWaiterMode && !tableSession && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
