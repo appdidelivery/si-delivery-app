@@ -2323,15 +2323,52 @@ if (window.fbq) {
 
         // Suporte duplo: Tenta encontrar o produto tanto pelo texto amigável do nome quanto pelo ID direto do Firestore vindo do Google
         const productFromUrl = products.find(p => generateSlug(p.name) === productSlug || p.id === productSlug);
+        
         if (productFromUrl) {
             setSelectedProduct(productFromUrl); // Abre o modal
             setSelectedOptions({});
             setItemObservation('');
         } else {
-            window.history.pushState(null, '', '/');
+            // BUSCA DE RESGATE (FALLBACK): Se o produto não estiver na primeira página da vitrine (Infinite Scroll),
+            // buscamos ele diretamente no banco de dados para a URL não quebrar!
+            const fetchMissingProduct = async () => {
+                try {
+                    // Tenta achar pelo ID primeiro (se o link for antigo)
+                    let docRef = doc(db, "products", productSlug);
+                    let docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists() && docSnap.data().storeId === storeId) {
+                        setSelectedProduct({ id: docSnap.id, ...docSnap.data() });
+                        setSelectedOptions({});
+                        setItemObservation('');
+                        return;
+                    }
+
+                    // Se não for ID, faz uma query varrendo a loja pelo nome (Slug - Novo Formato)
+                    const q = query(collection(db, "products"), where("storeId", "==", storeId));
+                    const querySnapshot = await getDocs(q);
+                    
+                    const foundBySlug = querySnapshot.docs
+                        .map(d => ({ id: d.id, ...d.data() }))
+                        .find(p => generateSlug(p.name) === productSlug);
+
+                    if (foundBySlug) {
+                        setSelectedProduct(foundBySlug);
+                        setSelectedOptions({});
+                        setItemObservation('');
+                    } else {
+                        // Se realmente não existe no banco (foi excluído de verdade), aí sim limpa a URL.
+                        window.history.pushState(null, '', '/');
+                    }
+                } catch (e) {
+                    window.history.pushState(null, '', '/');
+                }
+            };
+            
+            fetchMissingProduct();
         }
     }
-}, [selectedProduct?.id, productSlug, products]);
+}, [selectedProduct?.id, productSlug, products, storeId]);
 
   // --- INÍCIO: IA DE MENU DE ENGENHARIA (Personalização de Vitrine) ---
   const favoriteCategory = React.useMemo(() => {

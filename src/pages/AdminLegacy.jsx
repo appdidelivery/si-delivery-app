@@ -11593,6 +11593,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             btn.innerHTML = '⏳ Publicando...';
                                                             btn.disabled = true;
 
+                                                            // Gera a URL exata do produto usando o slug e o domínio correto
+                                                            const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                            const safeSlug = promoCopyProduct.name.toString().toLowerCase()
+                                                                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                                                                .replace(/[^a-z0-9 -]/g, '')
+                                                                .replace(/\s+/g, '-')
+                                                                .replace(/-+/g, '-')
+                                                                .replace(/^-+/, '').replace(/-+$/, '');
+
                                                             const res = await fetch('/api/post-google-update', {
                                                                 method: 'POST',
                                                                 headers: { 'Content-Type': 'application/json' },
@@ -11601,7 +11610,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     locationId: settings.integrations.google_my_business.locationId,
                                                                     summary: promoCopyResult.instagram, 
                                                                     imageUrl: promoCopyProduct.imageUrl,
-                                                                    productUrl: `${window.location.origin}/p/${promoCopyProduct.id}`,
+                                                                    productUrl: `${baseUrl}/p/${safeSlug}`,
                                                                     topicType: promoCopyResult.gmbType || 'STANDARD'
                                                                 })
                                                             });
