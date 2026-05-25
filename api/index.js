@@ -3439,47 +3439,51 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
             // 🚨 DEFINIÇÃO DO TIPO DE POSTAGEM
             const finalTopicType = topicType || 'STANDARD';
 
-            const googlePayload = {
-                languageCode: 'pt-BR',
-                topicType: finalTopicType,
-                summary: cleanSummary || "Confira nossa oferta especial!",
-                callToAction: { 
-                    actionType: 'LEARN_MORE',
-                    url: safeProductUrl 
-                },
-                media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
-            };
+const googlePayload = {
+    languageCode: 'pt-BR',
+    topicType: finalTopicType,
+    summary: cleanSummary || "Confira nossa oferta especial!",
+    media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
+};
 
-            // 🚨 BLINDAGEM DO GOOGLE: Ofertas e Eventos exigem data de validade na API.
-            // Injetamos automaticamente uma validade de 30 dias para evitar o erro 400.
-            // 🚨 CONFIGURAÇÃO DE OFERTA/EVENTO COM DATAS EXATAS
-            if (finalTopicType === 'OFFER' || finalTopicType === 'EVENT') {
-                
-                // Se por acaso a data não veio, usa 30 dias como plano B
-                const fallbackStart = new Date();
-                const fallbackEnd = new Date();
-                fallbackEnd.setDate(fallbackStart.getDate() + 30);
+// 🚨 SEGREDO DO GOOGLE: Call To Action genérico só é aceito em STANDARD ou EVENT.
+if (finalTopicType !== 'OFFER') {
+    googlePayload.callToAction = { 
+        actionType: 'LEARN_MORE',
+        url: safeProductUrl 
+    };
+}
 
-                const startToUse = startDate ? new Date(startDate) : fallbackStart;
-                const endToUse = endDate ? new Date(endDate) : fallbackEnd;
+// 🚨 CONFIGURAÇÃO DE OFERTA/EVENTO COM DATAS EXATAS
+if (finalTopicType === 'OFFER' || finalTopicType === 'EVENT') {
+    
+    const fallbackStart = new Date();
+    const fallbackEnd = new Date();
+    fallbackEnd.setDate(fallbackStart.getDate() + 30);
 
-                googlePayload.event = {
-                    title: finalTopicType === 'OFFER' ? 'Oferta Especial' : 'Evento Especial',
-                    schedule: {
-                        startDate: { year: startToUse.getFullYear(), month: startToUse.getMonth() + 1, day: startToUse.getDate() },
-                        startTime: { hours: 0, minutes: 0, seconds: 0 },
-                        endDate: { year: endToUse.getFullYear(), month: endToUse.getMonth() + 1, day: endToUse.getDate() },
-                        endTime: { hours: 23, minutes: 59, seconds: 59 }
-                    }
-                };
+    const startToUse = startDate ? new Date(startDate) : fallbackStart;
+    const endToUse = endDate ? new Date(endDate) : fallbackEnd;
 
-                // Se for oferta e tiver cupom, injeta o cupom no JSON
-                if (finalTopicType === 'OFFER' && couponCode) {
-                    googlePayload.offer = {
-                        couponCode: couponCode
-                    };
-                }
-            }
+    googlePayload.event = {
+        title: finalTopicType === 'OFFER' ? 'Oferta Especial' : 'Evento Especial',
+        schedule: {
+            startDate: { year: startToUse.getFullYear(), month: startToUse.getMonth() + 1, day: startToUse.getDate() },
+            startTime: { hours: 0, minutes: 0, seconds: 0 },
+            endDate: { year: endToUse.getFullYear(), month: endToUse.getMonth() + 1, day: endToUse.getDate() },
+            endTime: { hours: 23, minutes: 59, seconds: 59 }
+        }
+    };
+
+    // 🚨 AQUI NASCE O BOTÃO DA OFERTA! O Google exige que seja em "redeemOfferUrl"
+    if (finalTopicType === 'OFFER') {
+        googlePayload.offer = {
+            redeemOfferUrl: safeProductUrl
+        };
+        if (couponCode) {
+            googlePayload.offer.couponCode = couponCode;
+        }
+    }
+}
 
             let activeToken;
             try {
