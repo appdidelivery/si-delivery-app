@@ -1939,7 +1939,50 @@ export default function Home() {
         orderData.discountAmount = discountAmount || 0;
       }
 
-      // === 🚨 NOVA LÓGICA: BAIXA DE INSUMOS DA FICHA TÉCNICA ===
+      // === 🚨 NOVA LÓGICA: VALIDAÇÃO E BAIXA DE INSUMOS DA FICHA TÉCNICA ===
+      
+      // 1. Soma todos os insumos que esse carrinho vai consumir
+      const requiredIngredients = {};
+      sanitizedCart.forEach(cartItem => {
+          if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
+              cartItem.consumedIngredients.forEach(ci => {
+                  if (!requiredIngredients[ci.ingredientId]) {
+                      requiredIngredients[ci.ingredientId] = 0;
+                  }
+                  requiredIngredients[ci.ingredientId] += Number(cartItem.quantity) * Number(ci.qty);
+              });
+          }
+      });
+
+      const ingredientIds = Object.keys(requiredIngredients);
+      if (ingredientIds.length > 0) {
+          let hasStockError = false;
+          let stockErrorMsg = '';
+
+          // 2. Consulta o estoque real no banco ANTES de fechar a compra
+          for (const ingId of ingredientIds) {
+              const ingSnap = await getDoc(doc(db, "ingredients", ingId));
+              if (ingSnap.exists()) {
+                  const ingData = ingSnap.data();
+                  const currentStock = Number(ingData.stock || 0);
+                  
+                  if (currentStock < requiredIngredients[ingId]) {
+                      hasStockError = true;
+                      stockErrorMsg = `O ingrediente "${ingData.name}" está esgotado (Restam: ${currentStock} ${ingData.unit}).`;
+                      break;
+                  }
+              }
+          }
+
+          // 3. Trava de Segurança (Igual iFood)
+          if (hasStockError) {
+              setIsFinalizing(false);
+              submitLock.current = false;
+              return alert(`⚠️ ESTOQUE INSUFICIENTE:\n\n${stockErrorMsg}\n\nPor favor, remova este item do carrinho ou contate a loja.`);
+          }
+      }
+
+      // 4. Se passou na validação, efetua a baixa com segurança
       const promisesBaixaEstoque = [];
       sanitizedCart.forEach(cartItem => {
           if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {

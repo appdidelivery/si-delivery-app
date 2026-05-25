@@ -1347,21 +1347,36 @@ export default function Admin() {
         let initialOrders = true;
         const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), async (s) => {
             if (!initialOrders) {
+                // Puxa as configurações da loja UMA VEZ por lote de atualizações (Otimização)
+                const stSnap = await getDoc(doc(db, "stores", storeId));
+                const autoPrintTrigger = stSnap.exists() ? (stSnap.data().autoPrintStatus || 'none') : 'none';
+
                 s.docChanges().forEach(async (change) => {
+                    const newOrderData = { id: change.doc.id, ...change.doc.data() };
+                    
+                    // 1. PEDIDO NOVO ("AO RECEBER")
                     if (change.type === "added") {
-                        const newOrderData = { id: change.doc.id, ...change.doc.data() };
-                        
-                        // 🔇 BLINDAGEM SONORA: Só toca o alarme se NÃO for um pedido manual do PDV/Balcão
+                        // 🔇 BLINDAGEM SONORA
                         if (newOrderData.source !== 'manual' && newOrderData.source !== 'manual_pdv') {
                             new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
                         }
                         
-                       // 🖨️ GATILHO: AUTO IMPRESSÃO "AO RECEBER"
-                        const stSnap = await getDoc(doc(db, "stores", storeId));
-                        if (stSnap.exists()) {
-                            const autoPrintTrigger = stSnap.data().autoPrintStatus || 'none';
-                            // CORREÇÃO: Agora ele aceita qualquer status que seja igual ao gatilho configurado pelo lojista
-                            if (autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status) {
+                        // 🖨️ GATILHO DE IMPRESSÃO
+                        if (autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status) {
+                            if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
+                                sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
+                                printLabel(newOrderData);
+                            }
+                        }
+                    }
+
+                    // 2. 🚀 O SEGREDO DO IFOOD: MUDANÇA DE STATUS EM BACKGROUND
+                    // Exemplo: O cliente pagou via Mercado Pago, o webhook atualizou pra "Preparando"
+                    if (change.type === "modified") {
+                        if (autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status) {
+                            // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina
+                            if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
+                                sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
                                 printLabel(newOrderData);
                             }
                         }
@@ -2128,6 +2143,12 @@ const handleGenerateProductCopy = async () => {
     const printLabel = async (o) => {
         const w = window.open('', '_blank');
         
+        // 🚨 BLINDAGEM DE POP-UP BLOQUEADO PELO NAVEGADOR
+        if (!w) {
+            alert("⚠️ POP-UP BLOQUEADO!\n\nO seu navegador impediu a auto-impressão. Olhe na barra de endereços (lá em cima), clique no ícone de 'janela com um X vermelho' e selecione 'Sempre permitir pop-ups deste site'. Depois tente imprimir novamente.");
+            return;
+        }
+        
         // 🖨️ BLINDAGEM DE CACHE: Busca os dados reais da loja na hora para evitar nome em branco
         const stSnap = await getDoc(doc(db, "stores", o.storeId || storeId));
         const currentStoreStatus = stSnap.exists() ? stSnap.data() : storeStatus;
@@ -2208,16 +2229,15 @@ const handleGenerateProductCopy = async () => {
     };
 
     const updateStatusAndNotify = async (order, newStatus) => {
-        // 1. Atualiza o status do pedido no banco de dados primeiro
-        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
-        
-        // --- CORREÇÃO: AUTO IMPRESSÃO DINÂMICA BLINDADA ---
-        const stSnap = await getDoc(doc(db, "stores", storeId));
-        const autoPrintTrigger = stSnap.exists() ? (stSnap.data().autoPrintStatus || 'none') : 'none';
-        
+        // 🚀 MÁGICA DA IMPRESSÃO SÍNCRONA: Executamos ANTES do await para não perder 
+        // o contexto do "clique do usuário", evitando que o navegador bloqueie a aba de impressão.
+        const autoPrintTrigger = storeStatus?.autoPrintStatus || 'none';
         if (autoPrintTrigger !== 'none' && newStatus === autoPrintTrigger) {
             printLabel({ ...order, status: newStatus }); // Passa o pedido com o status atualizado para a impressora
         }
+
+        // 1. Atualiza o status do pedido no banco de dados primeiro
+        await updateDoc(doc(db, "orders", order.id), { status: newStatus });
         
         // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
         if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
@@ -5856,16 +5876,47 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 const sellerEmail = auth.currentUser?.email || 'owner';
 
                 try {
-                    // === BAIXA DE ESTOQUE E INSUMOS (PDV BALCÃO) ===
+                    // === VALIDAÇÃO E BAIXA DE ESTOQUE E INSUMOS (PDV BALCÃO) ===
+                    
+                    // 1. Validação de Estoque de Insumos ANTES de prosseguir
+                    const requiredIngs = {};
+                    manualCart.forEach(cartItem => {
+                        if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
+                            cartItem.consumedIngredients.forEach(ci => {
+                                if (!requiredIngs[ci.ingredientId]) requiredIngs[ci.ingredientId] = 0;
+                                requiredIngs[ci.ingredientId] += Number(cartItem.quantity) * Number(ci.qty);
+                            });
+                        }
+                    });
+
+                    let pdvStockError = '';
+                    for (const ingId of Object.keys(requiredIngs)) {
+                        // Aproveitamos o estado "ingredients" que já existe na tela do Admin
+                        const ingMem = ingredients.find(i => i.id === ingId);
+                        if (ingMem) {
+                            const currentStock = Number(ingMem.stock || 0);
+                            if (currentStock < requiredIngs[ingId]) {
+                                pdvStockError = `O insumo "${ingMem.name}" tem apenas ${currentStock} ${ingMem.unit} disponíveis (Necessário: ${requiredIngs[ingId]}).`;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (pdvStockError) {
+                        setIsSubmittingPOS(false);
+                        return alert(`⚠️ Erro de Estoque:\n\n${pdvStockError}\n\nAjuste o carrinho antes de lançar o pedido.`);
+                    }
+
+                    // 2. Se passou na validação, executa a baixa
                     const promisesBaixa = [];
                     manualCart.forEach(cartItem => {
-                        // 1. Baixa do Produto Principal (Se ele tiver controle de estoque ativado)
+                        // Baixa do Produto Principal
                         if (cartItem.stock !== undefined && cartItem.stock !== null && cartItem.stock !== '') {
                             const productRef = doc(db, "products", cartItem.id);
                             promisesBaixa.push(updateDoc(productRef, { stock: increment(-Number(cartItem.quantity)) }));
                         }
 
-                        // 2. Baixa dos Insumos da Ficha Técnica (Se existirem)
+                        // Baixa dos Insumos da Ficha Técnica
                         if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
                             cartItem.consumedIngredients.forEach(ci => {
                                 const ingRef = doc(db, "ingredients", ci.ingredientId);
@@ -5876,7 +5927,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     });
                     
                     if (promisesBaixa.length > 0) {
-                        // Dispara todas as requisições de updateDoc em paralelo para não travar a UI
                         await Promise.all(promisesBaixa).catch(e => console.error("Erro ao processar baixa de estoque/insumo:", e));
                     }
 
@@ -10427,11 +10477,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         }
                                     }
                                     
-                                    // --- CORREÇÃO: GATILHO DE IMPRESSÃO VIA MODAL DE EDIÇÃO ---
+                                   // --- CORREÇÃO: GATILHO DE IMPRESSÃO VIA MODAL DE EDIÇÃO ---
+                                    // Lemos direto do estado para acelerar a renderização
                                     if (mudouStatusPedido) {
-                                        const stSnap = await getDoc(doc(db, "stores", storeId));
-                                        const autoPrintTrigger = stSnap.exists() ? (stSnap.data().autoPrintStatus || 'none') : 'none';
-                                        
+                                        const autoPrintTrigger = storeStatus?.autoPrintStatus || 'none';
                                         if (autoPrintTrigger !== 'none' && dataParaSalvar.status === autoPrintTrigger) {
                                             printLabel({ ...editingOrderData, ...dataParaSalvar, id: editingOrderData.id });
                                         }
