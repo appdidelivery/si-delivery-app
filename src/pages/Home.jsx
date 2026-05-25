@@ -457,6 +457,7 @@ export default function Home() {
 
   // 1. DECLARAÇÃO DOS ESTADOS BASES PRIMEIRO
   const [categories, setCategories] = useState([]);
+  const [ingredients, setIngredients] = useState([]); // NOVO: Guarda o estoque de insumos
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all'); 
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -1263,6 +1264,9 @@ export default function Home() {
 
     const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
 
+    // NOVO: Lê o estoque de pães/carnes (Insumos) em tempo real para o app do cliente
+    const unsubIngredients = onSnapshot(query(collection(db, "ingredients"), where("storeId", "==", storeId)), (s) => setIngredients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+
     const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId)), (s) => {
         setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -1380,7 +1384,7 @@ export default function Home() {
     return () => {
         // Trocamos o unsubProducts pelos dois novos unsubs que criamos
         unsubFeatured(); unsubBestselling(); 
-        unsubCategories(); unsubCoupons(); unsubShippingRates();
+        unsubCategories(); unsubIngredients(); unsubCoupons(); unsubShippingRates();
         unsubGeneralBanners(); unsubStoreSettings(); unsubMarketingSettings();
     };
   },[storeId]);
@@ -1681,11 +1685,44 @@ export default function Home() {
       }
 
       if (p.stock !== undefined && (newQuantity > Number(p.stock))) {
-          alert(`⚠️ Desculpe, só temos ${p.stock} unidades de ${p.name} disponíveis no momento.`);
-          return prev; 
-      }
-      
-      // 1. PRIMEIRO: Calculamos o preço final (A CORREÇÃO ESTÁ AQUI)
+              alert(`⚠️ Desculpe, só temos ${p.stock} unidades de ${p.name} disponíveis no momento.`);
+              return prev; 
+          }
+
+          // === 🚨 TRAVA DE ESTOQUE DA FICHA TÉCNICA (INSUMOS) AO CLICAR EM COMPRAR ===
+          if (p.consumedIngredients && p.consumedIngredients.length > 0) {
+              let stockError = '';
+              p.consumedIngredients.forEach(ci => {
+                  const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                  if (ingMem) {
+                      let usedSoFar = 0;
+                      // Soma quanto desse insumo já tem no carrinho
+                      prev.forEach(mc => {
+                          if (mc.consumedIngredients) {
+                              mc.consumedIngredients.forEach(mci => {
+                                  if (mci.ingredientId === ci.ingredientId) {
+                                      usedSoFar += Number(mc.quantity) * Number(mci.qty);
+                                  }
+                              });
+                          }
+                      });
+                      
+                      // Calcula o que precisa AGORA: O que já tá no carrinho + a quantidade nova clicada
+                      const neededNow = usedSoFar + (quantity * Number(ci.qty));
+                      if (Number(ingMem.stock || 0) < neededNow) {
+                          stockError = `Infelizmente acabou o estoque de "${ingMem.name}" (Restam: ${ingMem.stock} ${ingMem.unit}).`;
+                      }
+                  }
+              });
+              if (stockError) {
+                  // O setTimeout evita conflito visual do React ao bloquear a adição
+                  setTimeout(() => alert(`⚠️ ITEM ESGOTADO:\n\n${stockError}`), 10);
+                  return prev; // Bloqueia a adição ao carrinho
+              }
+          }
+          // =======================================================================
+          
+          // 1. PRIMEIRO: Calculamos o preço final (A CORREÇÃO ESTÁ AQUI)
       const finalPricePerUnit = getPriceWithQuantityDiscount(p, newQuantity);
 
       // 2. SEGUNDO: Disparamos os Pixels (Agora a variável finalPricePerUnit já existe!)
@@ -1726,6 +1763,38 @@ export default function Home() {
                         return item; 
                     }
                 }
+
+                // === 🚨 TRAVA DE ESTOQUE DA FICHA TÉCNICA (INSUMOS) NO BOTÃO + ===
+                if (amount > 0 && productOriginal && productOriginal.consumedIngredients?.length > 0) {
+                    let stockError = '';
+                    productOriginal.consumedIngredients.forEach(ci => {
+                        const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                        if (ingMem) {
+                            let usedSoFar = 0;
+                            // Soma quanto já tem do insumo no carrinho todo
+                            prevCart.forEach(mc => {
+                                if (mc.consumedIngredients) {
+                                    mc.consumedIngredients.forEach(mci => {
+                                        if (mci.ingredientId === ci.ingredientId) {
+                                            usedSoFar += Number(mc.quantity) * Number(mci.qty);
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            // Adiciona apenas +1 da quantidade de clique
+                            const neededNow = usedSoFar + (amount * Number(ci.qty));
+                            if (Number(ingMem.stock || 0) < neededNow) {
+                                stockError = `Acabou o estoque de "${ingMem.name}" (Restam: ${ingMem.stock} ${ingMem.unit}).`;
+                            }
+                        }
+                    });
+                    if (stockError) {
+                        setTimeout(() => alert(`⚠️ LIMITE ATINGIDO:\n\n${stockError}`), 10);
+                        return item; // Impede que o número aumente no carrinho
+                    }
+                }
+                // =======================================================================
 
                 const priceWithDiscount = productOriginal ? getPriceWithQuantityDiscount(productOriginal, newQuantity) : item.price;
                 return { ...item, quantity: newQuantity, price: priceWithDiscount };

@@ -262,10 +262,46 @@ export default function WppWebview() {
               source: 'whatsapp_bot' // <--- ALTERADO PARA RECONHECIMENTO NO PAINEL
           };
 
-          // Baixa de Estoque Ficha Técnica
+          // === 🚨 VALIDAÇÃO DE ESTOQUE DA FICHA TÉCNICA (WEBVIEW) ===
+          const requiredIngredients = {};
+          cart.forEach(cartItem => {
+              if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
+                  cartItem.consumedIngredients.forEach(ci => {
+                      if (!requiredIngredients[ci.ingredientId]) requiredIngredients[ci.ingredientId] = 0;
+                      requiredIngredients[ci.ingredientId] += Number(cartItem.quantity) * Number(ci.qty);
+                  });
+              }
+          });
+
+          const ingredientIds = Object.keys(requiredIngredients);
+          if (ingredientIds.length > 0) {
+              let hasStockError = false;
+              let stockErrorMsg = '';
+
+              for (const ingId of ingredientIds) {
+                  const ingSnap = await getDoc(doc(db, "ingredients", ingId));
+                  if (ingSnap.exists()) {
+                      const currentStock = Number(ingSnap.data().stock || 0);
+                      if (currentStock < requiredIngredients[ingId]) {
+                          hasStockError = true;
+                          stockErrorMsg = `Infelizmente, um dos insumos do seu pedido esgotou agorinha (Restam: ${currentStock}).`;
+                          break;
+                      }
+                  }
+              }
+
+              if (hasStockError) {
+                  setIsSubmitting(false);
+                  submitLock.current = false;
+                  return alert(`⚠️ ESTOQUE INSUFICIENTE:\n\n${stockErrorMsg}\n\nPor favor, remova o item do carrinho.`);
+              }
+          }
+
+          // Baixa de Estoque Ficha Técnica Segura
           const proms = [];
           cart.forEach(c => c.consumedIngredients?.forEach(ci => proms.push(updateDoc(doc(db, "ingredients", ci.ingredientId), { stock: increment(-(c.quantity * ci.qty)) }))));
           if(proms.length) await Promise.all(proms).catch(()=>{});
+          // =========================================================
 
           // Offline
           if (['dinheiro', 'cardDelivery', 'cashDelivery', 'cardPickup', 'cashPickup'].includes(customer.payment)) {
