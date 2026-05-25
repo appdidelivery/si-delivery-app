@@ -2154,7 +2154,17 @@ const handleGenerateProductCopy = async () => {
             return html;
         }).join('');
 
-        const pagto = { pix: 'PIX', cartao: 'CARTÃO', dinheiro: 'DINHEIRO' }[o.paymentMethod] || o.paymentMethod || 'PIX';
+        // Tradução amigável dos métodos de pagamento para o ticket impresso
+        const pagto = { 
+            pix: 'PIX', 
+            cartao: 'CARTÃO', 
+            dinheiro: 'DINHEIRO', 
+            mercadopago_link: 'MERCADO PAGO (ONLINE)', 
+            mercado_pago: 'MERCADO PAGO (ONLINE)', 
+            velopay_pix: 'PIX (ONLINE)', 
+            velopay_credit: 'CARTÃO (ONLINE)', 
+            link_mp: 'LINK MERCADO PAGO' 
+        }[o.paymentMethod] || o.paymentMethod || 'PIX';
         
         // Formata a data
         const dataPedido = o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
@@ -3979,7 +3989,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             {(() => {
                                                                 const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
                                                                 const isFailed = o.paymentStatus === 'failed' || o.paymentStatus === 'rejected';
-                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
+                                                                // ADICIONADO mercadopago_link e mercado_pago AQUI:
+                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago'].includes(o.paymentMethod);
                                                                 const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
 
                                                                 const handleForcePay = async (e) => {
@@ -4003,9 +4014,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 }
 
                                                                 if (isFailed) {
+                                                                    // DICIONÁRIO DE ERROS DO MERCADO PAGO
+                                                                    const mpReasons = { 
+                                                                        cc_rejected_insufficient_amount: 'Saldo Insuficiente', 
+                                                                        cc_rejected_bad_filled_security_code: 'CVV Inválido', 
+                                                                        cc_rejected_bad_filled_date: 'Validade Inválida', 
+                                                                        cc_rejected_call_for_authorize: 'Requer Autorização (Banco)', 
+                                                                        cc_rejected_card_disabled: 'Cartão Desativado', 
+                                                                        cc_rejected_high_risk: 'Bloqueio Antifraude', 
+                                                                        cc_rejected_max_attempts: 'Tentativas Excedidas', 
+                                                                        cc_rejected_other_reason: 'Recusado pelo Banco',
+                                                                        cc_rejected_bad_filled_other: 'Dados Incorretos'
+                                                                    };
+                                                                    const reason = o.mpPaymentStatusDetail ? (mpReasons[o.mpPaymentStatusDetail] || o.mpPaymentStatusDetail) : 'Falha';
+                                                                    
                                                                     return (
-                                                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-red-200 cursor-default select-none">
-                                                                            ❌ RECUSADO
+                                                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm border border-red-200 cursor-default select-none" title={o.mpPaymentStatusDetail}>
+                                                                            ❌ RECUSADO ({reason})
                                                                         </span>
                                                                     );
                                                                 }
@@ -4308,10 +4333,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-blue-200 shadow-sm inline-flex items-center gap-1">📱 APP (ONLINE)</span>
                                                             )}
                                                             
-                                                            {(() => {
+                                                           {(() => {
                                                                 const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
                                                                 const isFailed = o.paymentStatus === 'failed' || o.paymentStatus === 'rejected';
-                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp'].includes(o.paymentMethod);
+                                                                // ADICIONADO mercadopago_link e mercado_pago AQUI TAMBÉM:
+                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago'].includes(o.paymentMethod);
                                                                 const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
 
                                                                 const handleForcePay = async (e) => {
@@ -4335,9 +4361,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 }
 
                                                                 if (isFailed) {
+                                                                    const mpReasons = { 
+                                                                        cc_rejected_insufficient_amount: 'Saldo', 
+                                                                        cc_rejected_bad_filled_security_code: 'CVV', 
+                                                                        cc_rejected_bad_filled_date: 'Validade', 
+                                                                        cc_rejected_call_for_authorize: 'Autorizar Banco', 
+                                                                        cc_rejected_card_disabled: 'Cartão Inativo', 
+                                                                        cc_rejected_high_risk: 'Antifraude', 
+                                                                        cc_rejected_max_attempts: 'Tentativas excedidas', 
+                                                                        cc_rejected_other_reason: 'Recusado Banco'
+                                                                    };
+                                                                    const reason = o.mpPaymentStatusDetail ? (mpReasons[o.mpPaymentStatusDetail] || 'Falha') : 'Falha';
                                                                     return (
-                                                                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm cursor-default select-none">
-                                                                            ❌ RECUSADO
+                                                                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest shadow-sm cursor-default select-none" title={o.mpPaymentStatusDetail}>
+                                                                            ❌ RECUSADO ({reason})
                                                                         </span>
                                                                     );
                                                                 }
