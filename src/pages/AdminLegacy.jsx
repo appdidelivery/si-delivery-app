@@ -5478,10 +5478,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
                                         p.category.toLowerCase().includes(productSearch.toLowerCase())
                                     ).map(p => {
-                                        const isOutOfStock = p.stock !== undefined && Number(p.stock) <= 0;
+                                        // 🚨 MÁGICA: Verifica o estoque do Produto E dos Insumos (Ficha Técnica)
+                                        let isOutOfStock = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
+                                        
+                                        if (!isOutOfStock && settings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+                                            for (let ci of p.consumedIngredients) {
+                                                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                                                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
+                                                    isOutOfStock = true;
+                                                    break; // Se faltar 1 insumo, o produto inteiro esgota na tela
+                                                }
+                                            }
+                                        }
+
                                         return (
                                             <div 
-                                                key={p.id} 
+                                                key={p.id}
                                                 onClick={() => {
                                                     if (isOutOfStock) return;
                                                     
@@ -9899,10 +9911,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     step="any"
                                                                     value={selected.qty}
                                                                     onChange={(e) => {
+                                                                        const val = Number(e.target.value);
+                                                                        if (val > Number(ing.stock || 0)) {
+                                                                            alert(`⚠️ Dica: Você configurou o consumo para ${val}, mas o estoque atual de "${ing.name}" é apenas ${ing.stock}. Assim que salvar, os lanches que usam esse insumo ficarão "Esgotados" automaticamente na loja até você repor!`);
+                                                                        }
                                                                         const current = [...form.consumedIngredients];
                                                                         const index = current.findIndex(ci => ci.ingredientId === ing.id);
                                                                         if(index !== -1) {
-                                                                            current[index].qty = Number(e.target.value);
+                                                                            current[index].qty = val;
                                                                             setForm({...form, consumedIngredients: current});
                                                                         }
                                                                     }}

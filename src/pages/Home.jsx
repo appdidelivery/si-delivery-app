@@ -3130,7 +3130,16 @@ if (window.fbq) {
               <div className="columns-2 md:columns-4 gap-4">
                   <AnimatePresence>
                       {featuredProducts.map((p, index) => {
-                          const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                          let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+            for (let ci of p.consumedIngredients) {
+                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
+                    hasStock = false;
+                    break;
+                }
+            }
+        }
                           return (
                               <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                   <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
@@ -3202,7 +3211,16 @@ if (window.fbq) {
               <div className="columns-2 md:columns-4 gap-4">
                   <AnimatePresence>
                       {bestsellingProducts.map((p, index) => {
-                          const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                          let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+            for (let ci of p.consumedIngredients) {
+                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
+                    hasStock = false;
+                    break;
+                }
+            }
+        }
                           return (
                               <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                   <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
@@ -3274,7 +3292,16 @@ if (window.fbq) {
                 <AnimatePresence>
                     {products.map((p, index) => { 
                     // O filtro Client-Side foi removido. Os dados já vêm filtrados do Hook.
-                        const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                        let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+            for (let ci of p.consumedIngredients) {
+                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
+                    hasStock = false;
+                    break;
+                }
+            }
+        }
                         return (
                             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
                                 <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
@@ -3360,7 +3387,16 @@ if (window.fbq) {
                                 </h2>
                                 <AnimatePresence>
                                     {categoryProducts.map(p => {
-                                        const hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                                        let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
+                                        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+                                            for (let ci of p.consumedIngredients) {
+                                                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                                                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
+                                                    hasStock = false;
+                                                    break;
+                                                }
+                                            }
+                                        }
                                         return (
                                             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} 
                                                 onClick={() => hasStock ? handleOpenProduct(p) : null}
