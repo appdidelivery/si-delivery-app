@@ -3439,51 +3439,51 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
             // 🚨 DEFINIÇÃO DO TIPO DE POSTAGEM
             const finalTopicType = topicType || 'STANDARD';
 
-const googlePayload = {
-    languageCode: 'pt-BR',
-    topicType: finalTopicType,
-    summary: cleanSummary || "Confira nossa oferta especial!",
-    media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
-};
+            const googlePayload = {
+                languageCode: 'pt-BR',
+                topicType: finalTopicType,
+                summary: cleanSummary || "Confira nossa oferta especial!",
+                media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
+            };
 
-// 🚨 SEGREDO DO GOOGLE: Call To Action genérico só é aceito em STANDARD ou EVENT.
-if (finalTopicType !== 'OFFER') {
-    googlePayload.callToAction = { 
-        actionType: 'LEARN_MORE',
-        url: safeProductUrl 
-    };
-}
+            // 🚨 SEGREDO DO GOOGLE: Call To Action genérico só é aceito em STANDARD ou EVENT.
+            if (finalTopicType !== 'OFFER') {
+                googlePayload.callToAction = { 
+                    actionType: 'LEARN_MORE',
+                    url: safeProductUrl 
+                };
+            }
 
-// 🚨 CONFIGURAÇÃO DE OFERTA/EVENTO COM DATAS EXATAS
-if (finalTopicType === 'OFFER' || finalTopicType === 'EVENT') {
-    
-    const fallbackStart = new Date();
-    const fallbackEnd = new Date();
-    fallbackEnd.setDate(fallbackStart.getDate() + 30);
+            // 🚨 CONFIGURAÇÃO DE OFERTA/EVENTO COM DATAS EXATAS
+            if (finalTopicType === 'OFFER' || finalTopicType === 'EVENT') {
+                
+                const fallbackStart = new Date();
+                const fallbackEnd = new Date();
+                fallbackEnd.setDate(fallbackStart.getDate() + 30);
 
-    const startToUse = startDate ? new Date(startDate) : fallbackStart;
-    const endToUse = endDate ? new Date(endDate) : fallbackEnd;
+                const startToUse = startDate ? new Date(startDate) : fallbackStart;
+                const endToUse = endDate ? new Date(endDate) : fallbackEnd;
 
-    googlePayload.event = {
-        title: finalTopicType === 'OFFER' ? 'Oferta Especial' : 'Evento Especial',
-        schedule: {
-            startDate: { year: startToUse.getFullYear(), month: startToUse.getMonth() + 1, day: startToUse.getDate() },
-            startTime: { hours: 0, minutes: 0, seconds: 0 },
-            endDate: { year: endToUse.getFullYear(), month: endToUse.getMonth() + 1, day: endToUse.getDate() },
-            endTime: { hours: 23, minutes: 59, seconds: 59 }
-        }
-    };
+                googlePayload.event = {
+                    title: finalTopicType === 'OFFER' ? 'Oferta Especial' : 'Evento Especial',
+                    schedule: {
+                        startDate: { year: startToUse.getFullYear(), month: startToUse.getMonth() + 1, day: startToUse.getDate() },
+                        startTime: { hours: 0, minutes: 0, seconds: 0 },
+                        endDate: { year: endToUse.getFullYear(), month: endToUse.getMonth() + 1, day: endToUse.getDate() },
+                        endTime: { hours: 23, minutes: 59, seconds: 59 }
+                    }
+                };
 
-    // 🚨 AQUI NASCE O BOTÃO DA OFERTA! O Google exige que seja em "redeemOfferUrl"
-    if (finalTopicType === 'OFFER') {
-        googlePayload.offer = {
-            redeemOfferUrl: safeProductUrl
-        };
-        if (couponCode) {
-            googlePayload.offer.couponCode = couponCode;
-        }
-    }
-}
+                // 🚨 CORREÇÃO AQUI: O Google exige "redeemOnlineUrl" e não "redeemOfferUrl"
+                if (finalTopicType === 'OFFER') {
+                    googlePayload.offer = {
+                        redeemOnlineUrl: safeProductUrl // <-- Corrigido!
+                    };
+                    if (couponCode) {
+                        googlePayload.offer.couponCode = couponCode;
+                    }
+                }
+            }
 
             let activeToken;
             try {
