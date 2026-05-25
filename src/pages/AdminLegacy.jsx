@@ -2646,15 +2646,40 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         
     }, [orders, loyaltyRedemptions, settings, storeCustomersDB]);
 
-    // --- ALTERAÇÃO INICIADA: FUNÇÕES PARA MANIPULAR ITENS NO MODAL DE EDIÇÃO ---
     const handleAddProductToEditingOrder = (productToAdd) => {
         // 1. Trava inicial: Verifica se tem estoque
-        if (productToAdd.stock === undefined || Number(productToAdd.stock) <= 0) {
+        if (productToAdd.stock !== undefined && Number(productToAdd.stock) <= 0) {
             return alert(`⚠️ O produto ${productToAdd.name} está esgotado!`);
         }
 
         setEditingOrderData(prevOrder => {
             if (!prevOrder) return null;
+            
+            // 🚨 TRAVA DE INSUMOS
+            if (settings?.enableIngredientsControl && productToAdd.consumedIngredients?.length > 0) {
+                let stockError = '';
+                productToAdd.consumedIngredients.forEach(ci => {
+                    const ingMem = ingredients.find(i => i.id === ci.ingredientId);
+                    if (ingMem) {
+                        let usedSoFar = 0;
+                        prevOrder.items.forEach(pi => {
+                            if (pi.consumedIngredients) {
+                                pi.consumedIngredients.forEach(pci => {
+                                    if (pci.ingredientId === ci.ingredientId) usedSoFar += Number(pi.quantity) * Number(pci.qty);
+                                });
+                            }
+                        });
+                        if (Number(ingMem.stock || 0) < (usedSoFar + Number(ci.qty))) {
+                            stockError = `O insumo "${ingMem.name}" tem apenas ${ingMem.stock} ${ingMem.unit}.`;
+                        }
+                    }
+                });
+                if (stockError) {
+                    alert(`⚠️ Estoque de Insumos Insuficiente!\n${stockError}`);
+                    return prevOrder;
+                }
+            }
+
             const existingItem = prevOrder.items.find(item => item.id === productToAdd.id);
             
             let newItems;
@@ -2683,9 +2708,40 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             const originalProduct = products.find(p => p.id === itemId);
 
             // Trava para o botão de "+"
-            if (originalProduct && newQuantity > Number(originalProduct.stock)) {
+            if (originalProduct && originalProduct.stock !== undefined && originalProduct.stock !== '' && newQuantity > Number(originalProduct.stock)) {
                 alert(`⚠️ Estoque máximo atingido! Restam apenas ${originalProduct.stock} unid. de ${originalProduct.name}.`);
                 return prevOrder; 
+            }
+
+            // 🚨 TRAVA DE INSUMOS
+            if (settings?.enableIngredientsControl && originalProduct?.consumedIngredients?.length > 0) {
+                const currentItem = prevOrder.items.find(i => i.id === itemId);
+                const diffQty = newQuantity - (currentItem ? currentItem.quantity : 0);
+                
+                if (diffQty > 0) {
+                    let stockError = '';
+                    originalProduct.consumedIngredients.forEach(ci => {
+                        const ingMem = ingredients.find(i => i.id === ci.ingredientId);
+                        if (ingMem) {
+                            let usedSoFar = 0;
+                            prevOrder.items.forEach(pi => {
+                                if (pi.consumedIngredients) {
+                                    pi.consumedIngredients.forEach(pci => {
+                                        if (pci.ingredientId === ci.ingredientId) usedSoFar += Number(pi.quantity) * Number(pci.qty);
+                                    });
+                                }
+                            });
+                            const neededNow = usedSoFar + (diffQty * Number(ci.qty));
+                            if (Number(ingMem.stock || 0) < neededNow) {
+                                stockError = `O insumo "${ingMem.name}" tem apenas ${ingMem.stock} ${ingMem.unit}.`;
+                            }
+                        }
+                    });
+                    if (stockError) {
+                        alert(`⚠️ Estoque de Insumos Insuficiente!\n${stockError}`);
+                        return prevOrder;
+                    }
+                }
             }
 
             let newItems;
@@ -5428,6 +5484,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 key={p.id} 
                                                 onClick={() => {
                                                     if (isOutOfStock) return;
+                                                    
+                                                    // 🚨 TRAVA DE INSUMOS NO PDV
+                                                    if (settings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+                                                        let stockError = '';
+                                                        p.consumedIngredients.forEach(ci => {
+                                                            const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                                                            if (ingMem) {
+                                                                let usedSoFar = 0;
+                                                                manualCart.forEach(mc => {
+                                                                    if (mc.consumedIngredients) {
+                                                                        mc.consumedIngredients.forEach(mci => {
+                                                                            if (mci.ingredientId === ci.ingredientId) usedSoFar += Number(mc.quantity) * Number(mci.qty);
+                                                                        });
+                                                                    }
+                                                                });
+                                                                if (Number(ingMem.stock || 0) < (usedSoFar + Number(ci.qty))) {
+                                                                    stockError = `O insumo "${ingMem.name}" tem apenas ${ingMem.stock} ${ingMem.unit} em estoque.`;
+                                                                }
+                                                            }
+                                                        });
+                                                        if (stockError) return alert(`⚠️ Estoque Insuficiente!\n${stockError}`);
+                                                    }
+
                                                     const ex = manualCart.find(it => it.id === p.id);
                                                     if (p.complements && p.complements.length > 0) {
                                                         // Se tem complemento cadastrado, abre a tela de montagem antes de jogar pro carrinho
@@ -5620,7 +5699,30 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         }} className="w-6 h-6 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-500 hover:text-red-500 font-bold active:scale-95">-</button>
                                                         <span className="font-black text-slate-800 text-xs w-4 text-center">{i.quantity}</span>
                                                         <button onClick={() => {
-                                                            if (i.quantity >= Number(i.stock)) return alert('Estoque máximo atingido!');
+                                                            if (i.stock !== undefined && i.stock !== '' && i.quantity >= Number(i.stock)) return alert('Estoque máximo do produto atingido!');
+                                                            
+                                                            // 🚨 TRAVA DE INSUMOS NO BOTÃO + DO PDV
+                                                            if (settings?.enableIngredientsControl && i.consumedIngredients?.length > 0) {
+                                                                let stockError = '';
+                                                                i.consumedIngredients.forEach(ci => {
+                                                                    const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                                                                    if (ingMem) {
+                                                                        let usedSoFar = 0;
+                                                                        manualCart.forEach(mc => {
+                                                                            if (mc.consumedIngredients) {
+                                                                                mc.consumedIngredients.forEach(mci => {
+                                                                                    if (mci.ingredientId === ci.ingredientId) usedSoFar += Number(mc.quantity) * Number(mci.qty);
+                                                                                });
+                                                                            }
+                                                                        });
+                                                                        if (Number(ingMem.stock || 0) < (usedSoFar + Number(ci.qty))) {
+                                                                            stockError = `O insumo "${ingMem.name}" tem apenas ${ingMem.stock} ${ingMem.unit}.`;
+                                                                        }
+                                                                    }
+                                                                });
+                                                                if (stockError) return alert(`⚠️ Estoque Insuficiente!\n${stockError}`);
+                                                            }
+
                                                             setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: item.quantity + 1 } : item));
                                                         }} className="w-6 h-6 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-500 hover:text-blue-600 font-bold active:scale-95">+</button>
                                                     </div>
