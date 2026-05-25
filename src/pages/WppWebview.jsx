@@ -518,12 +518,12 @@ export default function WppWebview() {
                     <div className="grid grid-cols-1 gap-2">
                         {(() => {
                             const pmConf = store?.acceptedPayments || {};
-                            const isPickup = deliveryMethod === 'pickup';
                             const hasVeloPix = store?.velopayStatus === 'active';
                             const hasMP = store?.integrations?.mercadopago?.accessToken;
 
                             let methods = [];
 
+                            // REGRA DE NEGÓCIO: Webview do WhatsApp exige pagamento online obrigatório
                             if (pmConf.online !== false || pmConf.pix !== false) {
                                 if (pmConf.pix !== false) {
                                     methods.push({ id: hasVeloPix ? 'velopay_pix' : 'mercadopago_link', label: '⚡ PIX Automático' });
@@ -537,21 +537,18 @@ export default function WppWebview() {
                                 }
                             }
 
-                            if (!isPickup) {
-                                if (pmConf.cardDelivery !== false) methods.push({ id: 'cardDelivery', label: '📠 Maquininha na Entrega' });
-                                if (pmConf.cashDelivery !== false) methods.push({ id: 'dinheiro', label: '💵 Dinheiro na Entrega' });
-                                if (pmConf.voucherDelivery === true) methods.push({ id: 'voucherDelivery', label: '🎟️ Vale Refeição na Entrega' });
-                            } else {
-                                if (pmConf.cardPickup !== false) methods.push({ id: 'cardPickup', label: '📠 Maquininha na Retirada' });
-                                if (pmConf.cashPickup !== false) methods.push({ id: 'dinheiro', label: '💵 Dinheiro na Retirada' });
-                                if (pmConf.voucherPickup === true) methods.push({ id: 'voucherPickup', label: '🎟️ Vale Refeição na Retirada' });
+                            if (methods.length === 0) {
+                                return (
+                                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-center">
+                                        <p className="text-red-400 font-bold text-xs uppercase tracking-widest">Loja Indisponível</p>
+                                        <p className="text-slate-400 text-[10px] mt-1">A loja não possui meios de pagamento online (Pix/Cartão) configurados para o fluxo automático do WhatsApp.</p>
+                                    </div>
+                                );
                             }
 
-                            if (methods.length === 0) {
-                                methods = [
-                                    { id: 'cardDelivery', label: '💳 Cartão (Maquininha)' },
-                                    { id: 'dinheiro', label: '💵 Dinheiro' }
-                                ];
+                            // Auto-seleciona a primeira opção se o pagamento atual não for mais válido
+                            if (!methods.some(m => m.id === customer.payment)) {
+                                setTimeout(() => setCustomer(prev => ({...prev, payment: methods[0].id, changeFor: ''})), 0);
                             }
 
                             return methods.map((pm, idx) => (
@@ -561,7 +558,6 @@ export default function WppWebview() {
                             ));
                         })()}
                     </div>
-                    {customer.payment === 'dinheiro' && <input type="text" value={customer.changeFor || ''} onChange={e => setCustomer({...customer, changeFor: e.target.value})} placeholder="Troco para quanto? (Deixe em branco se não precisar)" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold text-white outline-none mt-3 shadow-inner" />}
                 </div>
 
                 <div className="bg-[#1E293B] rounded-[2rem] p-5 border border-slate-700">
