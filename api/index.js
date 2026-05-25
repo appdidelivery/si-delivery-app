@@ -3411,7 +3411,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeId, locationId, summary, imageUrl, productUrl, productId, topicType } = req.body;
+            const { storeId, locationId, summary, imageUrl, productUrl, productId, topicType, startDate, endDate, couponCode } = req.body;
 
             if (!storeId || !locationId || !summary || !imageUrl) {
                 return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
@@ -3452,20 +3452,33 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
 
             // 🚨 BLINDAGEM DO GOOGLE: Ofertas e Eventos exigem data de validade na API.
             // Injetamos automaticamente uma validade de 30 dias para evitar o erro 400.
+            // 🚨 CONFIGURAÇÃO DE OFERTA/EVENTO COM DATAS EXATAS
             if (finalTopicType === 'OFFER' || finalTopicType === 'EVENT') {
-                const now = new Date();
-                const nextMonth = new Date();
-                nextMonth.setDate(now.getDate() + 30); // 30 dias de duração
+                
+                // Se por acaso a data não veio, usa 30 dias como plano B
+                const fallbackStart = new Date();
+                const fallbackEnd = new Date();
+                fallbackEnd.setDate(fallbackStart.getDate() + 30);
+
+                const startToUse = startDate ? new Date(startDate) : fallbackStart;
+                const endToUse = endDate ? new Date(endDate) : fallbackEnd;
 
                 googlePayload.event = {
                     title: finalTopicType === 'OFFER' ? 'Oferta Especial' : 'Evento Especial',
                     schedule: {
-                        startDate: { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() },
+                        startDate: { year: startToUse.getFullYear(), month: startToUse.getMonth() + 1, day: startToUse.getDate() },
                         startTime: { hours: 0, minutes: 0, seconds: 0 },
-                        endDate: { year: nextMonth.getFullYear(), month: nextMonth.getMonth() + 1, day: nextMonth.getDate() },
+                        endDate: { year: endToUse.getFullYear(), month: endToUse.getMonth() + 1, day: endToUse.getDate() },
                         endTime: { hours: 23, minutes: 59, seconds: 59 }
                     }
                 };
+
+                // Se for oferta e tiver cupom, injeta o cupom no JSON
+                if (finalTopicType === 'OFFER' && couponCode) {
+                    googlePayload.offer = {
+                        couponCode: couponCode
+                    };
+                }
             }
 
             let activeToken;

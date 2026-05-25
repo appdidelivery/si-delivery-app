@@ -11647,85 +11647,129 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </button>
 
                                     {/* --- GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
-                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
-                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
-                                            <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
-                                                <FaGoogle size={16} /> Postar no Google Maps
-                                            </h3>
-                                            
-                                            <div className="flex items-center gap-2 w-full md:w-auto">
-                                                <select 
-                                                    value={promoCopyResult.gmbType || 'STANDARD'} 
-                                                    onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
-                                                    className="flex-1 p-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none border border-blue-200 text-blue-800 bg-white cursor-pointer shadow-sm"
-                                                >
-                                                    <option value="STANDARD">📢 Atualização</option>
-                                                    <option value="OFFER">🏷️ Oferta</option>
-                                                    <option value="EVENT">📅 Agendamento/Evento</option>
-                                                </select>
+                                            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
+                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
+                                                    <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
+                                                        <FaGoogle size={16} /> Postar no Google Maps
+                                                    </h3>
+                                                    
+                                                    <div className="flex items-center gap-2 w-full md:w-auto">
+                                                        <select 
+                                                            value={promoCopyResult.gmbType || 'STANDARD'} 
+                                                            onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
+                                                            className="flex-1 p-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none border border-blue-200 text-blue-800 bg-white cursor-pointer shadow-sm"
+                                                        >
+                                                            <option value="STANDARD">📢 Atualização</option>
+                                                            <option value="OFFER">🏷️ Oferta</option>
+                                                            <option value="EVENT">📅 Agendamento/Evento</option>
+                                                        </select>
 
-                                                <button 
-                                                    onClick={async (e) => {
-                                                        if (!settings?.integrations?.google_my_business?.locationId) {
-                                                            return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
-                                                        }
-                                                        if (!promoCopyProduct?.imageUrl) {
-                                                            return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
-                                                        }
-                                                        
-                                                        try {
-                                                            const btn = e.currentTarget;
-                                                            const oldText = btn.innerHTML;
-                                                            btn.innerHTML = '⏳ Publicando...';
-                                                            btn.disabled = true;
+                                                        <button 
+                                                            onClick={async (e) => {
+                                                                if (!settings?.integrations?.google_my_business?.locationId) {
+                                                                    return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
+                                                                }
+                                                                if (!promoCopyProduct?.imageUrl) {
+                                                                    return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
+                                                                }
+                                                                if ((promoCopyResult.gmbType === 'OFFER' || promoCopyResult.gmbType === 'EVENT') && (!promoCopyResult.gmbStartDate || !promoCopyResult.gmbEndDate)) {
+                                                                    return alert("⚠️ Para Ofertas e Eventos, as datas de Início e Fim são obrigatórias.");
+                                                                }
+                                                                
+                                                                try {
+                                                                    const btn = e.currentTarget;
+                                                                    const oldText = btn.innerHTML;
+                                                                    btn.innerHTML = '⏳ Publicando...';
+                                                                    btn.disabled = true;
 
-                                                            // Gera a URL exata do produto usando o slug e o domínio correto
-                                                            const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
-                                                            const safeSlug = promoCopyProduct.name.toString().toLowerCase()
-                                                                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                                                                .replace(/[^a-z0-9 -]/g, '')
-                                                                .replace(/\s+/g, '-')
-                                                                .replace(/-+/g, '-')
-                                                                .replace(/^-+/, '').replace(/-+$/, '');
+                                                                    // Gera a URL exata do produto usando o slug e o domínio correto
+                                                                    const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                                    const safeSlug = promoCopyProduct.name.toString().toLowerCase()
+                                                                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                                                                        .replace(/[^a-z0-9 -]/g, '')
+                                                                        .replace(/\s+/g, '-')
+                                                                        .replace(/-+/g, '-')
+                                                                        .replace(/^-+/, '').replace(/-+$/, '');
 
-                                                            const res = await fetch('/api/post-google-update', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({
-                                                                    storeId: storeId,
-                                                                    locationId: settings.integrations.google_my_business.locationId,
-                                                                    summary: promoCopyResult.instagram, 
-                                                                    imageUrl: promoCopyProduct.imageUrl,
-                                                                    productUrl: `${baseUrl}/p/${safeSlug}`,
-                                                                    topicType: promoCopyResult.gmbType || 'STANDARD'
-                                                                })
-                                                            });
-                                                            
-                                                            const data = await res.json();
-                                                            
-                                                            btn.innerHTML = oldText;
-                                                            btn.disabled = false;
+                                                                    const res = await fetch('/api/post-google-update', {
+                                                                        method: 'POST',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({
+                                                                            storeId: storeId,
+                                                                            locationId: settings.integrations.google_my_business.locationId,
+                                                                            summary: promoCopyResult.instagram, 
+                                                                            imageUrl: promoCopyProduct.imageUrl,
+                                                                            productUrl: `${baseUrl}/p/${safeSlug}`,
+                                                                            topicType: promoCopyResult.gmbType || 'STANDARD',
+                                                                            startDate: promoCopyResult.gmbStartDate,
+                                                                            endDate: promoCopyResult.gmbEndDate,
+                                                                            couponCode: promoCopyResult.gmbCoupon
+                                                                        })
+                                                                    });
+                                                                    
+                                                                    const data = await res.json();
+                                                                    
+                                                                    btn.innerHTML = oldText;
+                                                                    btn.disabled = false;
 
-                                                            if (res.ok) {
-                                                                alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
-                                                            } else {
-                                                                alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
-                                                            }
-                                                        } catch (err) {
-                                                            alert("Erro de conexão ao tentar postar no Google.");
-                                                        }
-                                                    }} 
-                                                    className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95 whitespace-nowrap"
-                                                >
-                                                    <UploadCloud size={14}/> Publicar
-                                                </button>
+                                                                    if (res.ok) {
+                                                                        alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
+                                                                    } else {
+                                                                        alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                                    }
+                                                                } catch (err) {
+                                                                    alert("Erro de conexão ao tentar postar no Google.");
+                                                                }
+                                                            }} 
+                                                            className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95 whitespace-nowrap"
+                                                        >
+                                                            <UploadCloud size={14}/> Publicar
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* --- NOVOS CAMPOS DINÂMICOS PARA OFERTA E EVENTO --- */}
+                                                {(promoCopyResult.gmbType === 'OFFER' || promoCopyResult.gmbType === 'EVENT') && (
+                                                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 border-t border-blue-200/50 pt-3 animate-in fade-in">
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[9px] font-black uppercase text-blue-700 tracking-widest">Data de Início *</label>
+                                                            <input 
+                                                                type="date" 
+                                                                value={promoCopyResult.gmbStartDate || ''} 
+                                                                onChange={e => setPromoCopyResult({...promoCopyResult, gmbStartDate: e.target.value})} 
+                                                                className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 bg-white" 
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[9px] font-black uppercase text-blue-700 tracking-widest">Data de Término *</label>
+                                                            <input 
+                                                                type="date" 
+                                                                value={promoCopyResult.gmbEndDate || ''} 
+                                                                onChange={e => setPromoCopyResult({...promoCopyResult, gmbEndDate: e.target.value})} 
+                                                                className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 bg-white" 
+                                                            />
+                                                        </div>
+                                                        {promoCopyResult.gmbType === 'OFFER' && (
+                                                            <div className="flex flex-col gap-1 md:col-span-2">
+                                                                <label className="text-[9px] font-black uppercase text-blue-700 tracking-widest">Código do Cupom (Opcional)</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="Ex: PROMO10" 
+                                                                    value={promoCopyResult.gmbCoupon || ''} 
+                                                                    onChange={e => setPromoCopyResult({...promoCopyResult, gmbCoupon: e.target.value.toUpperCase()})} 
+                                                                    className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 uppercase bg-white" 
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {/* --------------------------------------------------- */}
+
+                                                <p className="text-[10px] font-bold text-slate-500 leading-tight">
+                                                    Escolha o tipo da postagem (Atualização, Oferta ou Evento). O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto.
+                                                </p>
                                             </div>
-                                        </div>
-                                        <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                                            Escolha o tipo da postagem (Atualização, Oferta ou Evento). O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto.
-                                        </p>
-                                    </div>
-                                    {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
+                                            {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}
                                 </div>
                             )}
                         </motion.div>
