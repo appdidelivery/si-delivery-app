@@ -93,6 +93,9 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
+// 🚨 OTIMIZAÇÃO DE COTA (FIREBASE): Guarda os números de WhatsApp na memória RAM da Vercel
+const phoneToStoreCache = new Map();
+
 // Helper para o Google Order Feed
 const generateSlug = (text) => {
     if (!text) return 'produto';
@@ -1374,17 +1377,34 @@ export default async function handler(req, res) {
                                 try {
                                     if (!phoneNumberId) continue;
 
-                                    let settingsSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
-                                    
                                     let storeId = 'desconhecida';
                                     let apiToken = null;
                                     let storeDomain = '';
+                                    let cachedSettings = null;
 
-                                    if (!settingsSnap.empty) {
-                                        const storeData = settingsSnap.docs[0].data();
-                                        storeId = settingsSnap.docs[0].id;
-                                        apiToken = storeData.integrations?.whatsapp?.apiToken;
-                                        storeDomain = `https://${storeId}.velodelivery.com.br`; 
+                                    // 1. Tenta buscar na Memória RAM da Vercel (Custo Zero pro Firebase)
+                                    if (phoneToStoreCache.has(phoneNumberId)) {
+                                        const cachedData = phoneToStoreCache.get(phoneNumberId);
+                                        storeId = cachedData.storeId;
+                                        apiToken = cachedData.apiToken;
+                                        storeDomain = cachedData.storeDomain;
+                                        cachedSettings = cachedData.settings;
+                                    } else {
+                                        // 2. Se não tem na memória, vai no banco UMA vez só e salva
+                                        let settingsSnap = await db.collection('settings')
+                                            .where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)])
+                                            .limit(1).get();
+                                        
+                                        if (!settingsSnap.empty) {
+                                            const storeData = settingsSnap.docs[0].data();
+                                            storeId = settingsSnap.docs[0].id;
+                                            apiToken = storeData.integrations?.whatsapp?.apiToken;
+                                            storeDomain = `https://${storeId}.velodelivery.com.br`; 
+                                            cachedSettings = storeData;
+
+                                            // Guarda na RAM para as próximas mensagens não pagarem pedágio
+                                            phoneToStoreCache.set(phoneNumberId, { storeId, apiToken, storeDomain, settings: storeData });
+                                        }
                                     }
 
                                     let logText = messageText || '';
@@ -3987,8 +4007,9 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
             });
 
         } catch (error) {
-            console.error('Erro crítico ao aceitar convites:', error);
-            return res.status(500).json({ error: "Erro interno no servidor Vercel.", details: error.message });
+            console.error('❌ Erro crítico no processamento do Webhook:', error);
+            // MÁGICA DE DEFESA: Sempre retorna 200 para o Facebook parar de tentar mandar a mesma mensagem repetida e causar loop!
+            return res.status(200).send('EVENT_RECEIVED_WITH_ERROR');
         }
     }
 
