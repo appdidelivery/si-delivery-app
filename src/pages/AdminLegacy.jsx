@@ -9512,13 +9512,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 
                                 const isFood = isFoodCategory(form.category) && storeStatus?.storeNiche !== 'floricultura';
                                 
-                                // PASSO 3: Parse dos novos campos antes de salvar, com proteção de UX
+                                // PASSO 3: Parse dos novos campos antes de salvar (TRAVA REMOVIDA)
                                 const data = { 
                                     ...form, 
                                     price: parseFloat(form.price) || 0, 
                                     costPrice: parseFloat(form.costPrice) || 0,
                                     promotionalPrice: parseFloat(form.promotionalPrice) || 0,
-                                    stock: parseInt(form.stock || 0), 
+                                    stock: form.stock === '' || form.stock === null ? '' : parseInt(form.stock), // <-- Salva vazio se o lojista deixar vazio!
                                     // Zera preparo, caloria e dieta se não for comida
                                     prepTime: isFood && form.prepTime ? parseInt(form.prepTime) : null,
                                     calories: isFood && form.calories ? parseInt(form.calories) : null,
@@ -9701,10 +9701,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-400 ml-2">Estoque Disponível</label>
-                                        <input type="number" placeholder="Ex: 100" className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                                        <label className="text-xs font-bold text-slate-400 ml-2">Estoque do Produto (Opcional)</label>
+                                        <input 
+                                            type="number" 
+                                            placeholder="Ilimitado (Deixe Vazio)" 
+                                            className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none placeholder-slate-300" 
+                                            value={form.stock === 0 ? '' : form.stock} 
+                                            onChange={e => setForm({ ...form, stock: e.target.value })} 
+                                        />
+                                        <p className="text-[9px] text-slate-400 font-bold ml-2 mt-1 leading-tight">
+                                            Deixe em branco se o estoque for controlado automaticamente pela Ficha Técnica (Insumos).
+                                        </p>
                                     </div>
-                                    {storeStatus?.storeNiche !== 'floricultura' && (
+                                    {['default', 'drinks'].includes(storeStatus?.storeNiche) && (
                                         <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px]">
                                             <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
                                             <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
