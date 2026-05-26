@@ -87,6 +87,13 @@ export default async function handler(req, res) {
                 let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
                 
                if (fetchedImage) {
+                    // 🚨 CORREÇÃO CLOUDINARY PARA WHATSAPP
+                    if (fetchedImage.includes('cloudinary.com')) {
+                        fetchedImage = fetchedImage.replace(/\.(webp|svg|png)$/i, '.jpg');
+                        if (!fetchedImage.includes('/upload/c_pad')) {
+                            fetchedImage = fetchedImage.replace('/upload/', '/upload/c_pad,w_600,h_600,b_white,f_jpg,q_80/');
+                        }
+                    }
                     if (fetchedImage.startsWith('http')) {
                         image = fetchedImage;
                     } else {

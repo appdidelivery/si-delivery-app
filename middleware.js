@@ -63,50 +63,40 @@ export default async function middleware(request) {
               const fields = data.fields;
               
               if (fields) {
-                  // Extração segura dos campos do Firestore REST API
+                 // Extração segura dos campos do Firestore REST API
                   const name = fields.name?.stringValue || 'Velo Delivery';
                   const slogan = fields.slogan?.stringValue || 'Faça seu pedido online.';
                   let logo = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || 'https://velodelivery.com.br/painel.jpg';
 
-                  // CORREÇÃO: O WhatsApp bloqueia imagens se não forem links absolutos
-                  if (!logo.startsWith('http')) {
+                  // 🚨 CORREÇÃO CLOUDINARY PARA WHATSAPP/FACEBOOK: Transforma em JPG Quadrado
+                  if (logo.includes('cloudinary.com')) {
+                      logo = logo.replace(/\.(webp|svg|png)$/i, '.jpg');
+                      if (!logo.includes('/upload/c_pad')) {
+                          logo = logo.replace('/upload/', '/upload/c_pad,w_600,h_600,b_white,f_jpg,q_80/');
+                      }
+                  } else if (!logo.startsWith('http')) {
                       logo = `https://${host}${logo.startsWith('/') ? '' : '/'}${logo}`;
                   }
 
                   // 4. ESTRATÉGIA BLINDADA DE INJEÇÃO ANTES DE ENVIAR PARA O WHATSAPP
-                  // Limpa qualquer lixo residual do React/Vite no topo
                   html = html.replace(/<title>.*?<\/title>/gi, '');
                   html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
                   html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
                   html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
 
-                  // Força o Cloudinary a entregar a imagem num quadrado seguro para o Zap ler (600x600 em JPG)
-                  let otimizadaLogo = logo;
-                  if (logo.includes('cloudinary.com')) {
-                      // Se o lojista upou no Cloudinary do painel, a gente obriga a ser JPG (evita webp/svg que o zap odeia)
-                      otimizadaLogo = logo.replace(/\.(webp|svg|png)$/i, '.jpg');
-                      if (!otimizadaLogo.includes('/upload/c_pad')) {
-                          otimizadaLogo = otimizadaLogo.replace('/upload/', '/upload/c_pad,w_600,h_600,b_white,f_jpg,q_80/');
-                      }
-                  }
-
-                  // O WhatsApp confia muito mais se enviarmos a URL canônica junto.
-                  const currentUrl = `https://${cleanHost}`;
-
-                  // Cria o bloco perfeito. Removemos as amarras estritas de height/width que quebravam imagens pequenas.
+                  // Cria o bloco exato e validado (Removemos as tags de height/width rígidas)
                   const tagsSEO = `
-                    <title>${name} | Pede Online</title>
+                    <title>${name} | Delivery</title>
                     <meta name="description" content="${slogan}" />
                     <meta property="og:title" content="${name}" />
                     <meta property="og:description" content="${slogan}" />
-                    <meta property="og:image" content="${otimizadaLogo}" />
-                    <meta property="og:image:secure_url" content="${otimizadaLogo}" />
+                    <meta property="og:image" content="${logo}" />
+                    <meta property="og:image:secure_url" content="${logo}" />
                     <meta property="og:type" content="website" />
-                    <meta property="og:url" content="${currentUrl}" />
                     <meta name="twitter:card" content="summary_large_image" />
                     <meta name="twitter:title" content="${name}" />
                     <meta name="twitter:description" content="${slogan}" />
-                    <meta name="twitter:image" content="${otimizadaLogo}" />
+                    <meta name="twitter:image" content="${logo}" />
                   `;
 
                   // Injeta LOGO APÓS O <HEAD>! As redes sociais preguiçosas não leem até o final do arquivo.
