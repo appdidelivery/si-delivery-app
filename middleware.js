@@ -74,31 +74,43 @@ export default async function middleware(request) {
                   }
 
                   // 4. ESTRATÉGIA BLINDADA DE INJEÇÃO ANTES DE ENVIAR PARA O WHATSAPP
-                  // Remove tags antigas para não gerar conflito ou duplicidade
+                  // Limpa qualquer lixo residual do React/Vite no topo
                   html = html.replace(/<title>.*?<\/title>/gi, '');
                   html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
                   html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
                   html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
 
-                  // Cria o bloco exato e validado que já funciona na sua api/social.js
+                  // Força o Cloudinary a entregar a imagem num quadrado seguro para o Zap ler (600x600 em JPG)
+                  let otimizadaLogo = logo;
+                  if (logo.includes('cloudinary.com')) {
+                      // Se o lojista upou no Cloudinary do painel, a gente obriga a ser JPG (evita webp/svg que o zap odeia)
+                      otimizadaLogo = logo.replace(/\.(webp|svg|png)$/i, '.jpg');
+                      if (!otimizadaLogo.includes('/upload/c_pad')) {
+                          otimizadaLogo = otimizadaLogo.replace('/upload/', '/upload/c_pad,w_600,h_600,b_white,f_jpg,q_80/');
+                      }
+                  }
+
+                  // O WhatsApp confia muito mais se enviarmos a URL canônica junto.
+                  const currentUrl = `https://${cleanHost}`;
+
+                  // Cria o bloco perfeito. Removemos as amarras estritas de height/width que quebravam imagens pequenas.
                   const tagsSEO = `
-                    <title>${name} | Delivery</title>
+                    <title>${name} | Pede Online</title>
                     <meta name="description" content="${slogan}" />
-                    <meta property="og:title" content="${name} | Delivery" />
+                    <meta property="og:title" content="${name}" />
                     <meta property="og:description" content="${slogan}" />
-                    <meta property="og:image" content="${logo}" />
-                    <meta property="og:image:secure_url" content="${logo}" />
-                    <meta property="og:image:width" content="1200" />
-                    <meta property="og:image:height" content="630" />
+                    <meta property="og:image" content="${otimizadaLogo}" />
+                    <meta property="og:image:secure_url" content="${otimizadaLogo}" />
                     <meta property="og:type" content="website" />
+                    <meta property="og:url" content="${currentUrl}" />
                     <meta name="twitter:card" content="summary_large_image" />
-                    <meta name="twitter:title" content="${name} | Delivery" />
+                    <meta name="twitter:title" content="${name}" />
                     <meta name="twitter:description" content="${slogan}" />
-                    <meta name="twitter:image" content="${logo}" />
+                    <meta name="twitter:image" content="${otimizadaLogo}" />
                   `;
 
-                  // Injeta com precisão cirúrgica antes de fechar o cabeçalho
-                  html = html.replace('</head>', `${tagsSEO}\n</head>`);
+                  // Injeta LOGO APÓS O <HEAD>! As redes sociais preguiçosas não leem até o final do arquivo.
+                  html = html.replace('<head>', `<head>\n${tagsSEO}`);
               }
           }
       } catch (err) {
@@ -106,13 +118,12 @@ export default async function middleware(request) {
       }
   }
 
-  // 5. Retorna o HTML alterado com Cache agressivo para não onerar o Firebase
+  // 5. Retorna o HTML alterado com Cache agressivo
   return new Response(html, {
       headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          // Armazena no Edge Cache da Vercel por 10 minutos (600s)
-          'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
-          // Vercel Cache Key: Garante que o cache seja isolado por Host (Domínio)
+          // Reduzi o tempo de cache no Edge para o WhatsApp não ficar pegando imagem antiga (5 minutos)
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
           'Vary': 'Host'
       },
   });
