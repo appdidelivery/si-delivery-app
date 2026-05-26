@@ -640,7 +640,80 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: error.message });
         }
     }
+// ------------------------------------------------------------------------
+    // 5.5 EVOLUTION API MANAGER (GERAÇÃO DE INSTÂNCIAS MULTI-TENANT)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/evolution-manager') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+        
+        const { storeId, action } = req.body;
+        if (!storeId || !action) return res.status(400).json({ error: 'Parâmetros inválidos' });
 
+        const EVO_URL = process.env.EVOLUTION_API_URL;
+        const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
+
+        if (!EVO_URL || !GLOBAL_API_KEY) {
+            return res.status(500).json({ error: 'Servidor VPS da Evolution não configurado no backend.' });
+        }
+
+        try {
+            const instanceName = `velo_${storeId}`;
+
+            if (action === 'create_instance') {
+                const createRes = await fetch(`${EVO_URL}/instance/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': GLOBAL_API_KEY },
+                    body: JSON.stringify({
+                        instanceName: instanceName,
+                        qrcode: true,
+                        integration: "WHATSAPP-BAILEYS"
+                    })
+                });
+                const createData = await createRes.json();
+
+                const instanceToken = createData.hash?.apikey || createData.instance?.token || "TOKEN_NAO_ENCONTRADO";
+
+                await db.collection('settings').doc(storeId).set({
+                    integrations: {
+                        whatsapp: {
+                            backup_instance_name: instanceName,
+                            backup_instance_token: instanceToken,
+                            backup_active: false
+                        }
+                    }
+                }, { merge: true });
+
+                return res.status(200).json({ success: true, instance: instanceName, token: instanceToken });
+            }
+
+            if (action === 'get_qr') {
+                const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
+                    method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
+                });
+                return res.status(200).json(await qrRes.json());
+            }
+
+            if (action === 'get_status') {
+                const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
+                    method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
+                });
+                return res.status(200).json(await statusRes.json());
+            }
+
+            if (action === 'delete_instance') {
+                await fetch(`${EVO_URL}/instance/logout/${instanceName}`, { method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY } });
+                await fetch(`${EVO_URL}/instance/delete/${instanceName}`, { method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY } });
+                await db.collection('settings').doc(storeId).set({
+                    integrations: { whatsapp: { backup_instance_name: null, backup_instance_token: null, backup_active: false } }
+                }, { merge: true });
+                return res.status(200).json({ success: true });
+            }
+
+        } catch (error) {
+            console.error('Evolution Manager Error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
     // ------------------------------------------------------------------------
     // 6. GOOGLE ORDER FEED
     // ------------------------------------------------------------------------
@@ -872,44 +945,112 @@ export default async function handler(req, res) {
             const { phoneNumberId, apiToken } = waConfig;
             const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
+            // --- 🛡️ MOTOR DE FAILOVER MULTI-TENANT (META -> EVOLUTION) ---
+            const triggerFailover = async (cleanPhone, messageText, metaErrorDetails) => {
+                console.warn(`⚠️ [Gateway Failover] Acionando Evolution API para loja: ${storeId}`);
+                try {
+                    const backupInstance = waConfig.backup_instance_name;
+                    const backupToken = waConfig.backup_instance_token;
+                    const evoBaseUrl = process.env.EVOLUTION_API_URL;
+
+                    if (!backupInstance || !backupToken || !evoBaseUrl) {
+                        throw new Error("Instância de backup não configurada para este Tenant.");
+                    }
+
+                    const payload = {
+                        number: cleanPhone,
+                        options: { delay: 1200, presence: "composing" },
+                        textMessage: { text: messageText }
+                    };
+
+                    // Disparo isolado para a instância específica do cliente
+                    const evoRes = await fetch(`${evoBaseUrl}/message/sendText/${backupInstance}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': backupToken
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!evoRes.ok) {
+                        const evoErrorData = await evoRes.json();
+                        throw new Error(`Evolution Error: ${JSON.stringify(evoErrorData)}`);
+                    }
+
+                    // Notifica a loja no Firebase (Degraded Mode)
+                    await db.collection('settings').doc(storeId).set({
+                        integrations: {
+                            whatsapp: {
+                                healthStatus: 'degraded',
+                                lastError: metaErrorDetails?.error?.message || 'Falha na Meta API. Roteando via Evolution.',
+                                errorTimestamp: admin.firestore.FieldValue.serverTimestamp()
+                            }
+                        }
+                    }, { merge: true });
+
+                    return { ok: true, fallbackUsed: true };
+                } catch (evoError) {
+                    console.error("🚨 [Double Fault] Falha na Meta e na Evolution:", evoError);
+                    await db.collection('settings').doc(storeId).set({
+                        integrations: { whatsapp: { healthStatus: 'offline' } }
+                    }, { merge: true });
+                    return { ok: false, fallbackUsed: false, error: evoError.message };
+                }
+            };
+
             const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR', variables = []) => {
-                // FORMATANDO NÚMERO: Garante que o telefone tenha 55 sem forçar 9º dígito
                 let cleanPhone = String(recipientPhone).replace(/\D/g, '');
                 if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
                 cleanPhone = `55${cleanPhone}`;
 
-                const payload = {
-                    messaging_product: "whatsapp", 
-                    recipient_type: "individual",
-                    to: cleanPhone, 
-                    type: "template",
-                    template: { 
-                        name: template, 
-                        language: { code: languageCode } 
-                    }
-                };
+                const fallbackText = `⚠️ *Aviso Velo Delivery*\nMensagem de contingência.\nReferência: [${template}]`;
 
-                // INJEÇÃO SEGURA: Adiciona as variáveis dinâmicas no formato exigido pela API da Meta
-                if (Array.isArray(variables) && variables.length > 0) {
-                    payload.template.components = [
-                        {
-                            type: "body",
-                            parameters: variables.map(v => ({
-                                type: "text",
-                                text: String(v) // Força String para evitar erros de tipagem com números/booleanos
-                            }))
-                        }
-                    ];
+                // 🚨 INTERCEPTAÇÃO: Se o lojista ativou o Modo de Guerra, bloqueia a Meta e vai direto pra Evolution!
+                if (waConfig.whatsapp_failover_active) {
+                    const failoverResult = await triggerFailover(cleanPhone, fallbackText, { error: { message: "Failover forçado manualmente pelo lojista." } });
+                    return { ok: failoverResult.ok, data: null, fallbackUsed: failoverResult.fallbackUsed };
                 }
 
-                const response = await fetch(GRAPH_API_URL, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                return { ok: response.ok, data };
+                const payload = {
+                    messaging_product: "whatsapp", recipient_type: "individual", to: cleanPhone, type: "template",
+                    template: { name: template, language: { code: languageCode } }
+                };
+
+                if (Array.isArray(variables) && variables.length > 0) {
+                    payload.template.components = [{
+                        type: "body", parameters: variables.map(v => ({ type: "text", text: String(v) }))
+                    }];
+                }
+
+                try {
+                    const response = await fetch(GRAPH_API_URL, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        const failoverResult = await triggerFailover(cleanPhone, fallbackText, data);
+                        return { ok: failoverResult.ok, data, fallbackUsed: failoverResult.fallbackUsed };
+                    }
+                    
+                    // Auto-healing se a Meta voltar
+                    if (waConfig.healthStatus === 'degraded' || waConfig.healthStatus === 'offline') {
+                        await db.collection('settings').doc(storeId).set({
+                            integrations: { whatsapp: { healthStatus: 'healthy', whatsapp_failover_active: false } }
+                        }, { merge: true });
+                    }
+
+                    return { ok: true, data, fallbackUsed: false };
+                } catch (networkError) {
+                    const failoverResult = await triggerFailover(cleanPhone, fallbackText, { error: { message: networkError.message } });
+                    return { ok: failoverResult.ok, data: null, fallbackUsed: failoverResult.fallbackUsed };
+                }
             };
+            // --- 🛡️ FIM DO MOTOR DE FAILOVER MULTI-TENANT ---
 
             if (action === 'broadcast') {
                 const templateVariables = req.body.variables || []; // Captura variáveis dinâmicas

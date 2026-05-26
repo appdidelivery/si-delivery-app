@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -675,6 +675,10 @@ export default function Admin() {
     const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
     const[selectedIntegration, setSelectedIntegration] = useState(null);
     const [integrationForm, setIntegrationForm] = useState({});
+    // --- ESTADOS DO PLANO B (EVOLUTION QR CODE) ---
+    const [evoQrCode, setEvoQrCode] = useState(null);
+    const [evoStatus, setEvoStatus] = useState('offline');
+    const [isLoadingEvo, setIsLoadingEvo] = useState(false);
     // Estado da Busca e Filtros de Produtos
     const [productSearch, setProductSearch] = useState('');
     const [productsPerPage, setProductsPerPage] = useState(25);
@@ -3279,11 +3283,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     return (
                         <div className="space-y-8">
                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                                <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
+                                <div className="flex items-center gap-4 flex-wrap">
+                                    <h1 className="text-4xl font-black italic tracking-tighter uppercase">Visão Geral</h1>
+                                    
+                                    {/* --- 📡 RADAR DE SAÚDE (WHATSAPP) --- */}
+                                    {settings?.integrations?.whatsapp?.apiToken && (
+                                        <div className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border shadow-sm ${
+                                            settings.integrations.whatsapp.healthStatus === 'degraded' 
+                                            ? 'bg-red-50 text-red-700 border-red-200 animate-pulse' 
+                                            : 'bg-green-50 text-green-700 border-green-200'
+                                        }`}>
+                                            <div className={`w-2 h-2 rounded-full ${settings.integrations.whatsapp.healthStatus === 'degraded' ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                            {settings.integrations.whatsapp.healthStatus === 'degraded' ? 'WhatsApp Instável' : 'WhatsApp Online'}
+                                        </div>
+                                    )}
+                                </div>
+                                
                                 <button onClick={() => setIsReportModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95">
                                     <Printer size={20}/> Fechar Caixa / Relatório
                                 </button>
                             </div>
+
                             {/* --- BANNER DE AVISO: TESTE OU FATURA --- */}
                             {trialInfo.isTrial && storeStatus.paymentStatus !== 'paid' && (
                                 <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
@@ -3309,17 +3329,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
 
-                           {/* --- AVISO DE FATURA PENDENTE (NÃO VENCIDA, MAS DISPONÍVEL) --- */}
-                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && (
+                           {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
+                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
                                 <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
                                     <div>
                                         <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
-                                            <Clock size={20} className="text-amber-600"/> FATURA DISPONÍVEL
+                                            <Clock size={20} className="text-amber-600"/> FATURA PRÓXIMA DO VENCIMENTO
                                         </h3>
                                         <p className="text-amber-700 font-bold text-sm">
-                                            {invoiceData.daysUntilDue > 0 
-                                                ? `Sua fatura vence em ${invoiceData.daysUntilDue} dias.` 
-                                                : `Sua fatura vence HOJE!`} Garanta o pagamento para não pausar suas vendas.
+                                            Sua fatura da Velo Delivery vence em <span className="font-black text-amber-900">{invoiceData.daysUntilDue} {invoiceData.daysUntilDue === 1 ? 'dia' : 'dias'}</span>. Garanta o pagamento para não pausar as suas vendas!
                                         </p>
                                     </div>
                                     <button onClick={() => setActiveTab('finance')} className="bg-amber-500 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-amber-600 transition-all active:scale-95 whitespace-nowrap">
@@ -3327,7 +3345,66 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </button>
                                 </div>
                             )}
-                            {/* -------------------------------------- */}
+
+                            {/* --- 🚨 BOTÃO DE GUERRA (FAILOVER MANUAL) --- */}
+                            {settings?.integrations?.whatsapp?.healthStatus === 'degraded' && (
+                                <div className="bg-red-50 border-2 border-red-500 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl animate-in zoom-in">
+                                    <div className="flex items-start gap-4">
+                                        <div className="bg-red-100 p-3 rounded-full text-red-600 flex-shrink-0 mt-1">
+                                            <Zap size={28} className="animate-pulse" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-red-700 font-black uppercase text-lg tracking-tight flex items-center gap-2 mb-1">
+                                                🚨 Emergência: Meta API Offline
+                                            </h3>
+                                            <p className="text-red-900 font-bold text-sm leading-relaxed">
+                                                Detectamos que sua API Oficial da Meta está offline ou retornando erros crônicos. 
+                                                Deseja forçar o sistema a enviar as mensagens pelo Chip Reserva (Plano B) até que a Meta normalize?
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="w-full md:w-auto flex flex-col gap-2">
+                                        <button 
+                                            onClick={async () => {
+                                                try {
+                                                    await updateDoc(doc(db, "settings", storeId), {
+                                                        "integrations.whatsapp.whatsapp_failover_active": true
+                                                    });
+                                                    alert("✅ MODO DE GUERRA ATIVADO!\n\nAs notificações agora serão roteadas forçadamente pelo Chip de Emergência (Evolution API).");
+                                                } catch(e) {
+                                                    alert("Erro ao ativar failover: " + e.message);
+                                                }
+                                            }} 
+                                            disabled={settings?.integrations?.whatsapp?.whatsapp_failover_active}
+                                            className={`w-full px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
+                                                settings?.integrations?.whatsapp?.whatsapp_failover_active 
+                                                ? 'bg-slate-300 text-slate-500 cursor-not-allowed' 
+                                                : 'bg-red-600 text-white hover:bg-red-700'
+                                            }`}
+                                        >
+                                            <ShieldCheck size={18}/> 
+                                            {settings?.integrations?.whatsapp?.whatsapp_failover_active ? 'Plano B Já Ativo' : 'Ativar Plano B Agora'}
+                                        </button>
+                                        
+                                        {settings?.integrations?.whatsapp?.whatsapp_failover_active && (
+                                            <button 
+                                                onClick={async () => {
+                                                    await updateDoc(doc(db, "settings", storeId), {
+                                                        "integrations.whatsapp.whatsapp_failover_active": false,
+                                                        "integrations.whatsapp.healthStatus": 'healthy' // Reseta a saúde para testar a Meta novamente
+                                                    });
+                                                    alert("✅ Sistema retornado para a Meta Cloud (API Oficial).");
+                                                }} 
+                                                className="w-full text-[10px] font-bold text-red-500 hover:text-red-700 underline uppercase tracking-widest text-center"
+                                            >
+                                                Desativar e voltar para Meta API
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            {/* ------------------------------------------------ */}
                             
                             {/* --- COMPONENTE ONBOARDING (MISSION TRACKER) --- */}
                             {/* Só exibe se o usuário ainda não tiver completado as 5 missões */}
@@ -9320,7 +9397,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     {app.icon}
                                                 </div>
                                                 {isConnected ? (
-                                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1">✅ Ativo</span>
+                                                    // Avaliação de Saúde do Canal
+                                                    savedData.healthStatus === 'degraded' ? (
+                                                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-red-200 shadow-sm animate-pulse">
+                                                            ⚠️ API Instável (Plano B Ativo)
+                                                        </span>
+                                                    ) : savedData.healthStatus === 'offline' ? (
+                                                        <span className="bg-slate-800 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                                                            ❌ Offline / Falha Total
+                                                        </span>
+                                                    ) : (
+                                                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-green-200">
+                                                            🟢 Saudável
+                                                        </span>
+                                                    )
                                                 ) : (
                                                     <span className="bg-slate-100 text-slate-400 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">Desconectado</span>
                                                 )}
@@ -11172,8 +11262,127 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                         ) : (
                                             <>
+                                                {/* --- 🛡️ INÍCIO: CONFIGURAÇÃO DE CONTINGÊNCIA (PLANO B) MULTI-TENANT --- */}
+                                                <div className="mt-8 mb-8 bg-slate-900 p-6 rounded-3xl border border-slate-700 relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><ShieldCheck size={100}/></div>
+                                                    
+                                                    <div className="relative z-10">
+                                                        <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-2">
+                                                            <Zap className="text-yellow-400" size={18}/> Contingência (Plano B)
+                                                        </h3>
+                                                        <p className="text-[10px] font-medium text-slate-400 leading-relaxed mb-5">
+                                                            Conecte um aparelho celular exclusivo para esta loja. Se a Meta API cair, o sistema assume esta conexão isolada automaticamente.
+                                                        </p>
+
+                                                        <div className="bg-slate-800/80 p-5 rounded-2xl border border-slate-600">
+                                                            {integrationForm.backup_instance_name ? (
+                                                                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Instância Alocada</p>
+                                                                        <p className="text-lg font-black text-white flex items-center gap-2">
+                                                                            {integrationForm.backup_instance_name}
+                                                                            <span className={`text-[9px] px-2 py-1 rounded-md uppercase tracking-widest ${evoStatus === 'open' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                                                {evoStatus === 'open' ? 'Conectado' : 'Aguardando Leitura'}
+                                                                            </span>
+                                                                        </p>
+                                                                    </div>
+                                                                    
+                                                                    <div className="flex gap-2">
+                                                                        <button 
+                                                                            type="button"
+                                                                            disabled={isLoadingEvo}
+                                                                            onClick={async () => {
+                                                                                setIsLoadingEvo(true);
+                                                                                try {
+                                                                                    // Busca o QR
+                                                                                    const res = await fetch('/api/evolution-manager', {
+                                                                                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                                        body: JSON.stringify({ storeId, action: 'get_qr' })
+                                                                                    });
+                                                                                    const data = await res.json();
+                                                                                    if (data.base64) {
+                                                                                        setEvoQrCode(data.base64);
+                                                                                        setEvoStatus('qr_ready');
+                                                                                    } else {
+                                                                                        // Tenta pegar o status
+                                                                                        const statRes = await fetch('/api/evolution-manager', {
+                                                                                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                                            body: JSON.stringify({ storeId, action: 'get_status' })
+                                                                                        });
+                                                                                        const statData = await statRes.json();
+                                                                                        setEvoStatus(statData.instance?.state || 'offline');
+                                                                                        if(statData.instance?.state === 'open') alert("Instância já está conectada e operante!");
+                                                                                    }
+                                                                                } catch(e) { alert("Erro ao buscar QR Code na VPS."); }
+                                                                                setIsLoadingEvo(false);
+                                                                            }}
+                                                                            className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg hover:bg-blue-500 transition-all flex items-center gap-2"
+                                                                        >
+                                                                            {isLoadingEvo ? <Loader2 size={16} className="animate-spin"/> : <QrCode size={16}/>}
+                                                                            Ver QR / Status
+                                                                        </button>
+                                                                        
+                                                                        <button 
+                                                                            type="button"
+                                                                            onClick={async () => {
+                                                                                if(!window.confirm("Isso apagará a instância da VPS e exigirá nova leitura de QR Code. Continuar?")) return;
+                                                                                await fetch('/api/evolution-manager', {
+                                                                                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                                    body: JSON.stringify({ storeId, action: 'delete_instance' })
+                                                                                });
+                                                                                setIntegrationForm({...integrationForm, backup_instance_name: null, backup_instance_token: null});
+                                                                                setEvoQrCode(null);
+                                                                            }}
+                                                                            className="bg-red-500/20 text-red-400 px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all border border-red-500/30"
+                                                                        >
+                                                                            Desconectar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <button 
+                                                                    type="button"
+                                                                    disabled={isLoadingEvo}
+                                                                    onClick={async () => {
+                                                                        setIsLoadingEvo(true);
+                                                                        try {
+                                                                            const res = await fetch('/api/evolution-manager', {
+                                                                                method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                                body: JSON.stringify({ storeId, action: 'create_instance' })
+                                                                            });
+                                                                            const data = await res.json();
+                                                                            if(data.success) {
+                                                                                setIntegrationForm({...integrationForm, backup_instance_name: data.instance, backup_instance_token: data.token});
+                                                                                alert("Instância criada na VPS! Clique em 'Ver QR' para conectar o celular.");
+                                                                            }
+                                                                        } catch(e) { alert("Erro de rede ao solicitar instância."); }
+                                                                        setIsLoadingEvo(false);
+                                                                    }}
+                                                                    className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-500 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                                >
+                                                                    {isLoadingEvo ? <Loader2 size={18} className="animate-spin"/> : <Plus size={18}/>}
+                                                                    Criar Instância Isolada
+                                                                </button>
+                                                            )}
+
+                                                            {evoQrCode && evoStatus !== 'open' && (
+                                                                <div className="mt-6 flex flex-col items-center justify-center bg-white p-4 rounded-2xl animate-in fade-in zoom-in">
+                                                                    <p className="text-slate-800 font-black uppercase tracking-widest text-xs mb-3">Escaneie o QR Code</p>
+                                                                    <img src={evoQrCode} alt="QR Code" className="w-48 h-48 rounded-xl border-4 border-slate-100" />
+                                                                    <p className="text-[9px] text-slate-500 font-bold mt-3 text-center">
+                                                                        Aponte a câmera do WhatsApp.<br/>
+                                                                        Se o QR Code falhar, feche e clique em 'Ver QR' novamente.
+                                                                    </p>
+                                                                    <button type="button" onClick={() => setEvoQrCode(null)} className="mt-3 text-red-500 text-[10px] font-black uppercase underline hover:text-red-700">Ocultar</button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {/* --- 🛡️ FIM: CONFIGURAÇÃO DE CONTINGÊNCIA MULTI-TENANT --- */}
+
                                                 {/* 1. GATILHOS E AUTOMAÇÕES */}
-                                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mt-6">
                                                     🤖 Gatilhos e Automações
                                                 </h3>
                                                 
