@@ -690,7 +690,12 @@ export default async function handler(req, res) {
                 const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
                     method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                 });
-                return res.status(200).json(await qrRes.json());
+                const qrData = await qrRes.json();
+                
+                // Trata as diferenças de versão da Evolution API
+                const base64Image = qrData.base64 || qrData.qrcode || qrData.code || null;
+                
+                return res.status(200).json({ base64: base64Image, ...qrData });
             }
 
             if (action === 'get_status') {

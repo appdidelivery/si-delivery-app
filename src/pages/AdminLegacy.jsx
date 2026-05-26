@@ -11276,47 +11276,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                         <div className="bg-slate-800/80 p-5 rounded-2xl border border-slate-600">
                                                             {integrationForm.backup_instance_name ? (
-                                                                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                                                <div className="flex flex-col gap-4">
                                                                     <div>
                                                                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Instância Alocada</p>
                                                                         <p className="text-lg font-black text-white flex items-center gap-2">
                                                                             {integrationForm.backup_instance_name}
-                                                                            <span className={`text-[9px] px-2 py-1 rounded-md uppercase tracking-widest ${evoStatus === 'open' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                                            <span className={`text-[9px] px-2 py-1 rounded-md uppercase tracking-widest flex-shrink-0 ${evoStatus === 'open' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                                                                 {evoStatus === 'open' ? 'Conectado' : 'Aguardando Leitura'}
                                                                             </span>
                                                                         </p>
                                                                     </div>
                                                                     
-                                                                    <div className="flex gap-2">
+                                                                    {/* Mudado para Flex-Wrap para o botão vermelho cair para a linha de baixo se não couber */}
+                                                                    <div className="flex flex-wrap gap-2 w-full">
                                                                         <button 
                                                                             type="button"
                                                                             disabled={isLoadingEvo}
                                                                             onClick={async () => {
                                                                                 setIsLoadingEvo(true);
                                                                                 try {
-                                                                                    // Busca o QR
                                                                                     const res = await fetch('/api/evolution-manager', {
                                                                                         method: 'POST', headers: {'Content-Type': 'application/json'},
                                                                                         body: JSON.stringify({ storeId, action: 'get_qr' })
                                                                                     });
                                                                                     const data = await res.json();
+                                                                                    
                                                                                     if (data.base64) {
-                                                                                        setEvoQrCode(data.base64);
+                                                                                        // Garante que se vier um base64 crú sem o mimetype de data, ele adicione.
+                                                                                        const imageStr = String(data.base64).includes('data:image') 
+                                                                                            ? data.base64 
+                                                                                            : `data:image/png;base64,${data.base64}`;
+                                                                                        
+                                                                                        setEvoQrCode(imageStr);
                                                                                         setEvoStatus('qr_ready');
                                                                                     } else {
-                                                                                        // Tenta pegar o status
                                                                                         const statRes = await fetch('/api/evolution-manager', {
                                                                                             method: 'POST', headers: {'Content-Type': 'application/json'},
                                                                                             body: JSON.stringify({ storeId, action: 'get_status' })
                                                                                         });
                                                                                         const statData = await statRes.json();
                                                                                         setEvoStatus(statData.instance?.state || 'offline');
-                                                                                        if(statData.instance?.state === 'open') alert("Instância já está conectada e operante!");
+                                                                                        
+                                                                                        if(statData.instance?.state === 'open') {
+                                                                                            alert("A Instância já está Conectada e operante! 🟢");
+                                                                                        } else {
+                                                                                            alert("O servidor ainda está gerando o QR Code ou a instância está offline. Tente novamente em 5 segundos.");
+                                                                                        }
                                                                                     }
-                                                                                } catch(e) { alert("Erro ao buscar QR Code na VPS."); }
+                                                                                } catch(e) { alert("Erro de conexão com o servidor Evolution."); }
                                                                                 setIsLoadingEvo(false);
                                                                             }}
-                                                                            className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg hover:bg-blue-500 transition-all flex items-center gap-2"
+                                                                            className="flex-1 min-w-[140px] bg-blue-600 text-white px-4 py-3 rounded-xl text-xs font-black uppercase shadow-lg hover:bg-blue-500 transition-all flex items-center justify-center gap-2"
                                                                         >
                                                                             {isLoadingEvo ? <Loader2 size={16} className="animate-spin"/> : <QrCode size={16}/>}
                                                                             Ver QR / Status
@@ -11333,9 +11343,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                                 setIntegrationForm({...integrationForm, backup_instance_name: null, backup_instance_token: null});
                                                                                 setEvoQrCode(null);
                                                                             }}
-                                                                            className="bg-red-500/20 text-red-400 px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all border border-red-500/30"
+                                                                            className="flex-shrink-0 bg-red-500/20 text-red-400 px-4 py-3 rounded-xl text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all border border-red-500/30 flex items-center justify-center gap-1"
                                                                         >
-                                                                            Desconectar
+                                                                            <Trash2 size={14}/> Desconectar
                                                                         </button>
                                                                     </div>
                                                                 </div>
@@ -11354,8 +11364,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                             if(data.success) {
                                                                                 setIntegrationForm({...integrationForm, backup_instance_name: data.instance, backup_instance_token: data.token});
                                                                                 alert("Instância criada na VPS! Clique em 'Ver QR' para conectar o celular.");
+                                                                            } else {
+                                                                                alert("Falha na criação. A VPS pode estar desligada ou com erro de API Key.");
                                                                             }
-                                                                        } catch(e) { alert("Erro de rede ao solicitar instância."); }
+                                                                        } catch(e) { alert("Erro de rede ao solicitar instância na VPS."); }
                                                                         setIsLoadingEvo(false);
                                                                     }}
                                                                     className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-500 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -11368,10 +11380,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             {evoQrCode && evoStatus !== 'open' && (
                                                                 <div className="mt-6 flex flex-col items-center justify-center bg-white p-4 rounded-2xl animate-in fade-in zoom-in">
                                                                     <p className="text-slate-800 font-black uppercase tracking-widest text-xs mb-3">Escaneie o QR Code</p>
-                                                                    <img src={evoQrCode} alt="QR Code" className="w-48 h-48 rounded-xl border-4 border-slate-100" />
-                                                                    <p className="text-[9px] text-slate-500 font-bold mt-3 text-center">
-                                                                        Aponte a câmera do WhatsApp.<br/>
-                                                                        Se o QR Code falhar, feche e clique em 'Ver QR' novamente.
+                                                                    <img src={evoQrCode} alt="QR Code Evolution" className="w-48 h-48 rounded-xl border-4 border-slate-100 bg-white" />
+                                                                    <p className="text-[9px] text-slate-500 font-bold mt-3 text-center leading-tight">
+                                                                        Aponte a câmera do WhatsApp no Celular de Contingência.<br/>
+                                                                        Se o QR Code falhar, aguarde 5s e clique em 'Ver QR' novamente.
                                                                     </p>
                                                                     <button type="button" onClick={() => setEvoQrCode(null)} className="mt-3 text-red-500 text-[10px] font-black uppercase underline hover:text-red-700">Ocultar</button>
                                                                 </div>
