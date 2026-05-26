@@ -72,7 +72,7 @@ export default async function handler(req, res) {
 
     try {
         // 3. Busca os dados da loja no Firebase via REST API
-        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
+        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
         const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
         
         const response = await fetch(url);
