@@ -1,5 +1,3 @@
-// Arquivo: /middleware.js (Raiz do projeto)
-
 export const config = {
   // Executa o middleware APENAS em rotas de navegação (ignora imagens, js, css e apis)
   matcher: ['/((?!api|_vercel|assets|.*\\..*).*)'], 
@@ -8,8 +6,6 @@ export const config = {
 export default async function middleware(request) {
   const url = new URL(request.url);
   
-  // 🚨 CORREDOR EXCLUSIVO PARA PRODUTOS (Risco Zero para a Loja)
-  // Se for página de produto, o middleware não injeta a loja e deixa o api/social assumir o SEO.
   if (url.pathname.includes('/p/')) {
       return; 
   }
@@ -18,8 +14,7 @@ export default async function middleware(request) {
   const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
   const baseDomain = 'velodelivery.com.br';
   
-  // 1. Descobre a loja pela URL (Lógica blindada idêntica à API)
-  let storeId = 'csi'; // Loja padrão de fallback
+  let storeId = 'csi'; 
   
   if (cleanHost === 'app' || cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1') || cleanHost.includes('github.dev')) {
       storeId = 'csi';
@@ -32,8 +27,6 @@ export default async function middleware(request) {
       const parts = subdomains.split('.');
       storeId = parts[parts.length - 1];
   } else {
-      // Dicionário Híbrido para Domínios Próprios
-      // CÓDIGO NOVO (Copie e cole por cima)
        const domainMap = {
           "convenienciasantaisabel.com.br": "csi",
           "csi.com.br": "csi",
@@ -45,27 +38,22 @@ export default async function middleware(request) {
       storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
   }
 
-  // 2. Pega o index.html original do seu build (SPA Vite)
   const response = await fetch(new URL('/index.html', request.url));
   let html = await response.text();
 
- // 2. Pega o index.html original do seu build (SPA Vite)
-  const response = await fetch(new URL('/index.html', request.url));
-  let html = await response.text();
-
-  // 🚨 LIMPEZA OBRIGATÓRIA (Tirado de dentro do Try/Catch)
-  // Independente do Firebase funcionar ou não, varremos as tags quebradas do index.html
+  // 🚨 1. LIMPEZA INCONDICIONAL: Apaga as tags genéricas e o erro /api/og do index.html
   html = html.replace(/<title>.*?<\/title>/gi, '');
   html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
   html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
   html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
 
-  // Valores dinâmicos de Fallback. Se o banco falhar, usamos o domínio capitalizado (ex: Cowburguer)
-  let name = storeId === 'csi' || storeId === 'main-app' ? 'Velo Delivery' : storeId.charAt(0).toUpperCase() + storeId.slice(1);
+  // 🚨 2. FALLBACK INTELIGENTE: Pega o nome do domínio e capitaliza se o banco falhar
+  const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+  let name = storeId === 'csi' || storeId === 'main-app' ? 'Velo Delivery' : capitalize(storeId);
   let slogan = 'O seu app de entregas';
-  let logo = 'https://velodelivery.com.br/logo-square.png'; 
-  
-  // 3. Busca os dados da loja no Firestore via REST API (Edge Compatible)
+  let logo = `https://${host}/logo-square.png`; 
+
+  // 3. Tenta buscar dados ricos no Firebase
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp'; 
   
   if (projectId) {
@@ -97,11 +85,11 @@ export default async function middleware(request) {
               }
           }
       } catch (err) {
-          console.error("Vercel Edge Middleware Error:", err);
+          console.error("Vercel Edge Middleware Firebase block:", err);
       }
   }
 
-  // 4. ESTRATÉGIA BLINDADA DE INJEÇÃO
+  // 🚨 4. INJEÇÃO BLINDADA: Injeta fora do Try/Catch para garantir a leitura social
   const tagsSEO = `
     <title>${name} | Delivery</title>
     <meta name="description" content="${slogan}" />
@@ -116,10 +104,8 @@ export default async function middleware(request) {
     <meta name="twitter:image" content="${logo}" />
   `;
 
-  // Injeta LOGO APÓS O <HEAD>! 
   html = html.replace('<head>', `<head>\n${tagsSEO}`);
 
-  // 5. Retorna o HTML alterado com Cache agressivo
   return new Response(html, {
       headers: {
           'Content-Type': 'text/html; charset=utf-8',
