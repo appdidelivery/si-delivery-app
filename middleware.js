@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+// REMOVA O IMPORT DO NEXT/SERVER - ELE CAUSA O ERRO DE BUILD
+// import { NextResponse } from 'next/server'; 
 
 export const config = {
   matcher: ['/((?!api|_vercel|assets|.*\\..*).*)'], 
@@ -6,36 +7,35 @@ export const config = {
 
 export async function middleware(request) {
   const url = new URL(request.url);
-  if (url.pathname.includes('/api/')) return NextResponse.next();
+  
+  // Ignora rotas de API
+  if (url.pathname.includes('/api/')) {
+      return new Response(null, { status: 200 }); // Continua sem alterar
+  }
 
   const host = request.headers.get('host') || '';
   const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
-  
-  // Detecção robusta do storeId
-  let storeId = 'csi'; // Default de segurança
-  if (cleanHost.includes('cowburguer')) storeId = 'cowburguer';
-  else if (cleanHost.includes('macanudo')) storeId = 'macanudorex';
-  else if (cleanHost.includes('convenienciasantaisabel')) storeId = 'csi';
-  else if (cleanHost.endsWith('.vercel.app')) storeId = cleanHost.split('.')[0];
-  else storeId = cleanHost.split('.')[0];
+  const storeId = cleanHost.split('.')[0] || 'csi';
 
-  // 1. Pega o template base
+  // 1. Pega o index.html original
   const response = await fetch(new URL('/index.html', request.url));
   let html = await response.text();
 
-  // 2. Limpeza profunda: Remove qualquer tag de SEO anterior
+  // 2. Limpeza das tags antigas
   html = html.replace(/<title>.*?<\/title>/gi, '');
   html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
   html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
   html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
 
-  // 3. Fallbacks Seguros (Reseta para cada requisição)
-  let name = 'Velo Delivery';
-  let slogan = 'Peça online com rapidez e segurança.';
+  // 3. Fallbacks
+  const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+  let name = storeId === 'csi' || storeId === 'main-app' ? 'Velo Delivery' : capitalize(storeId);
+  let slogan = 'O seu app de entregas';
   let logo = `https://${host}/logo-square.png`; 
 
-  // 4. Busca dados no Firebase
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
+  // 4. Busca dados no Firebase (Tratamento de erro silencioso)
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
+  
   try {
       const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
       const dbRes = await fetch(firestoreUrl);
@@ -49,17 +49,16 @@ export async function middleware(request) {
           }
       }
   } catch (err) {
-      console.error("Middleware Firebase error:", err);
+      console.error("Middleware Firebase skip:", err.message);
   }
 
-  // 5. Injeção das tags corretas
+  // 5. Injeção das Tags
   const tagsSEO = `
-    <title>${name} | App de Delivery</title>
+    <title>${name} | Delivery</title>
     <meta name="description" content="${slogan}" />
     <meta property="og:title" content="${name}" />
     <meta property="og:description" content="${slogan}" />
     <meta property="og:image" content="${logo}" />
-    <meta property="og:url" content="${request.url}" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${name}" />
@@ -72,7 +71,7 @@ export async function middleware(request) {
   return new Response(html, {
       headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
       },
   });
 }
