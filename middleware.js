@@ -1,9 +1,26 @@
 export const config = {
+    // Ignora chamadas de API, arquivos do Vercel e arquivos estáticos (css, js, imagens)
     matcher: ['/((?!api|_vercel|assets|.*\\..*).*)'], 
 };
 
 export default async function middleware(request) {
     const url = new URL(request.url);
+    const userAgent = request.headers.get('user-agent') || '';
+
+    // 1. O SEGREDO DO WHATSAPP: REDIRECIONAR O ROBÔ DIRETO NO MIDDLEWARE
+    // Como o middleware roda ANTES do vercel.json, precisamos repassar o bot aqui.
+    const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|Googlebot|Bingbot|Slurp|DuckDuckBot|YandexBot/i.test(userAgent);
+
+    if (isBot) {
+        // Redireciona a requisição do bot internamente para o api/social.js de forma transparente
+        const apiSocialUrl = new URL(`/api/social`, request.url);
+        apiSocialUrl.searchParams.set('route', url.pathname);
+        
+        return fetch(apiSocialUrl.toString(), {
+            method: 'GET',
+            headers: request.headers // Repassa os headers originais
+        });
+    }
 
     if (url.pathname.startsWith('/api/') || url.pathname.includes('.')) {
         return fetch(request); 
@@ -12,7 +29,7 @@ export default async function middleware(request) {
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
-    // 1. MOTOR DE ROTEAMENTO DE DOMÍNIOS
+    // 2. MOTOR DE ROTEAMENTO DE DOMÍNIOS
     const baseDomain = 'velodelivery.com.br';
     let storeId = 'csi'; 
 
@@ -35,25 +52,23 @@ export default async function middleware(request) {
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
 
-    // 2. VALORES PADRÃO (FALLBACKS)
+    // 3. VALORES PADRÃO (FALLBACKS)
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     let name = capitalize(storeId);
     let slogan = 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png'; 
     let debugStatus = 'fallback-initialized';
 
-    // 3. BUSCA NO FIREBASE (AGORA COM API KEY PARA EVITAR ERRO 429)
+    // 4. BUSCA NO FIREBASE (EDGE COMPATIBLE)
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
-    // Puxa a chave de API das variáveis de ambiente da Vercel
     const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
     
     try {
-        // Injeta a key na URL se ela existir
         const authParam = apiKey ? `?key=${apiKey}` : '';
         const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout no Edge
 
         const dbRes = await fetch(firestoreUrl, { 
             signal: controller.signal,
@@ -80,10 +95,10 @@ export default async function middleware(request) {
             debugStatus = `firebase-error-${dbRes.status}`;
         }
     } catch (err) {
-        debugStatus = `firebase-fetch-failed-${err.name}`;
+        debugStatus = `firebase-fetch-failed`;
     }
 
-    // 4. LEITURA E INJEÇÃO NO INDEX.HTML
+    // 5. LEITURA E INJEÇÃO NO INDEX.HTML DO VITE
     let html = '';
     try {
         const indexResponse = await fetch(new URL('/index.html', request.url));
@@ -93,10 +108,12 @@ export default async function middleware(request) {
         return fetch(request);
     }
 
-    html = html.replace(/<title>.*?<\/title>/gi, '');
-    html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
-    html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
-    html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
+    // 6. LIMPEZA VORAZ DE META-TAGS ANTIGAS
+    // Usamos a flag 'gis' para garantir que ele apague mesmo se a tag quebrar linha
+    html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
+    html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
+    html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
+    html = html.replace(/<meta\s+(?:property|name)=["']twitter:[^>]*>/gis, '');
 
     const tagsSEO = `
     <title>${name} | Delivery</title>
@@ -118,8 +135,8 @@ export default async function middleware(request) {
         status: 200,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            // Aumentamos o cache para 5 minutos (300 segundos). Isso blinda o Firebase contra limite de requisições.
             'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+            'Vary': 'Host', // CRÍTICO: Previne que o cache da loja A apareça na loja B
             'X-SEO-Debug': debugStatus,
             'X-Store-Id': storeId       
         },
