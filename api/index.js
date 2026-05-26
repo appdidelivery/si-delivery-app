@@ -687,22 +687,38 @@ export default async function handler(req, res) {
             }
 
             if (action === 'get_qr') {
+                // A Evolution V2 gera o QR code em formato base64 nativamente na rota de "connect"
                 const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
                     method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                 });
                 const qrData = await qrRes.json();
                 
-                // Trata as diferenças de versão da Evolution API
-                const base64Image = qrData.base64 || qrData.qrcode || qrData.code || null;
+                // Tratamento seguro para pegar o Base64, independente de como a Evolution cuspir
+                let base64Image = qrData.base64 || qrData.qrcode || qrData.code || null;
+
+                // Em alguns casos da V2, se a instância travar o QR, temos que forçar a conexão de novo
+                if (!base64Image && (qrData.instance?.state === 'close' || qrData.instance?.state === 'connecting')) {
+                    console.log(`[Evolution] Forçando nova geração de QR para ${instanceName}`);
+                    const retryRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
+                        method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
+                    });
+                    const retryData = await retryRes.json();
+                    base64Image = retryData.base64 || retryData.qrcode || retryData.code || null;
+                }
                 
-                return res.status(200).json({ base64: base64Image, ...qrData });
+                return res.status(200).json({ base64: base64Image, raw: qrData });
             }
 
             if (action === 'get_status') {
                 const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
                     method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                 });
-                return res.status(200).json(await statusRes.json());
+                const statData = await statusRes.json();
+                
+                // Trata erro 404 se a instância não existir
+                if (!statusRes.ok) return res.status(200).json({ instance: { state: 'offline' } });
+                
+                return res.status(200).json(statData);
             }
 
             if (action === 'delete_instance') {
