@@ -1,40 +1,67 @@
-// ATENÇÃO: NENHUMA IMPORTAÇÃO DO 'next/server' DEVE SER FEITA AQUI.
-
 export const config = {
-    // O matcher ignora a pasta /api/, arquivos estáticos e internos da Vercel
+    // Ignora rotas de api, arquivos estáticos da vercel, imagens, etc.
     matcher: ['/((?!api|_vercel|assets|.*\\..*).*)'], 
 };
 
 export default async function middleware(request) {
     const url = new URL(request.url);
 
-    // 1. Pass-through de Segurança
-    // Se a requisição burlar o matcher e for uma API ou um arquivo (ex: .png, .js),
-    // apenas repassa a requisição sem tentar injetar HTML.
+    // Pass-through de Segurança para arquivos estáticos e rotas de API
     if (url.pathname.startsWith('/api/') || url.pathname.includes('.')) {
         return fetch(request); 
     }
 
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
-    const storeId = cleanHost.split('.')[0] || 'csi';
+    
+    // ---------------------------------------------------------
+    // 1. MOTOR DE ROTEAMENTO DE DOMÍNIOS (Igual ao Backend)
+    // ---------------------------------------------------------
+    const baseDomain = 'velodelivery.com.br';
+    let storeId = 'csi'; // Fallback absoluto
 
-    // 2. Variáveis Declaradas Localmente (Impede vazamento de dados entre clientes)
+    if (cleanHost.endsWith('.vercel.app')) {
+        storeId = cleanHost.split('.')[0];
+    } else if (cleanHost === baseDomain) {
+        storeId = 'main-app';
+    } else if (cleanHost.endsWith(`.${baseDomain}`)) {
+        const parts = cleanHost.replace(`.${baseDomain}`, '').split('.');
+        storeId = parts[parts.length - 1];
+    } else {
+        // Dicionário de Domínios Próprios
+        const domainMap = {
+            "convenienciasantaisabel.com.br": "csi",
+            "csi.com.br": "csi",
+            "cowburguer.com.br": "cowburguer",
+            "encantolilas.app.br": "encantolilas",
+            "macanudorex.com.br": "macanudorex",
+            "ngconveniencia.com.br": "ng",
+        };
+        storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
+    }
+
+    // ---------------------------------------------------------
+    // 2. VALORES PADRÃO (FALLBACKS)
+    // ---------------------------------------------------------
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     
-    let name = (storeId === 'csi' || storeId === 'main-app') ? 'Velo Delivery' : capitalize(storeId);
+    let name = capitalize(storeId);
     let slogan = 'O seu app de entregas';
-    let logo = `https://${host}/logo-square.png`; 
+    // Coloquei a logo genérica da Velo aqui para não vazar a da Santa Isabel caso falhe.
+    let logo = 'https://app.velodelivery.com.br/logo-square.png'; 
+    let debugStatus = 'fallback-initialized';
 
-    // 3. Busca de Dados no Firebase (Com Tratamento de Erro e Timeout)
+    // ---------------------------------------------------------
+    // 3. BUSCA NO FIREBASE
+    // ---------------------------------------------------------
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
     
     try {
         const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
         
-        // Timeout de proteção: Evita que o site fique lento se o Firebase travar (1.5s max)
+        // Timeout de 2 segundos para não travar o carregamento do site
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500);
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
 
         const dbRes = await fetch(firestoreUrl, { 
             signal: controller.signal,
@@ -46,67 +73,68 @@ export default async function middleware(request) {
         if (dbRes.ok) {
             const data = await dbRes.json();
             if (data && data.fields) {
+                // Puxa os dados reais do Banco!
                 name = data.fields.name?.stringValue || name;
-                slogan = data.fields.slogan?.stringValue || slogan;
+                // Busca em 'slogan' e, se não achar, busca em 'message' (aviso do topo)
+                slogan = data.fields.slogan?.stringValue || data.fields.message?.stringValue || slogan;
                 
                 const fetchedLogo = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
                 if (fetchedLogo) {
                     logo = fetchedLogo.startsWith('http') ? fetchedLogo : `https://${host}${fetchedLogo}`;
                 }
+                debugStatus = 'firebase-success'; // Deu tudo certo!
+            } else {
+                debugStatus = 'firebase-document-empty';
             }
+        } else {
+            debugStatus = `firebase-error-${dbRes.status}`;
         }
     } catch (err) {
-        // Se cair aqui (Timeout, erro 403, banco fora do ar), o código IGNORA o erro silenciosamente
-        // e segue usando os valores de Fallback declarados na Etapa 2.
-        console.warn(`[Edge SEO] Firebase lookup skip para a loja '${storeId}': ${err.message}`);
+        debugStatus = `firebase-fetch-failed-${err.name}`;
     }
 
-    // 4. Carrega o index.html estático gerado pelo seu Build (Vite)
+    // ---------------------------------------------------------
+    // 4. LEITURA E INJEÇÃO NO INDEX.HTML
+    // ---------------------------------------------------------
     let html = '';
     try {
         const indexResponse = await fetch(new URL('/index.html', request.url));
-        if (!indexResponse.ok) {
-            return fetch(request); // Fallback: Apenas entrega a requisição intacta
-        }
+        if (!indexResponse.ok) return fetch(request);
         html = await indexResponse.text();
     } catch (err) {
         return fetch(request);
     }
 
-    // 5. Destruição das Meta Tags Antigas (Regex varredor)
+    // Limpa tags sujas geradas pelo Vite
     html = html.replace(/<title>.*?<\/title>/gi, '');
     html = html.replace(/<meta\s+name="description"[^>]*>/gi, '');
     html = html.replace(/<meta\s+property="og:[^>]*>/gi, '');
     html = html.replace(/<meta\s+name="twitter:[^>]*>/gi, '');
-    html = html.replace(/<meta\s+name="og:[^>]*>/gi, ''); // Prevenção extra
 
-    // 6. Construção e Injeção das Meta Tags Vivas
     const tagsSEO = `
     <title>${name} | Delivery</title>
     <meta name="description" content="${slogan}" />
-    
     <meta property="og:title" content="${name}" />
     <meta property="og:description" content="${slogan}" />
     <meta property="og:image" content="${logo}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${request.url}" />
-    
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${name}" />
     <meta name="twitter:description" content="${slogan}" />
     <meta name="twitter:image" content="${logo}" />
     `;
 
-    // Injeta logo após a abertura do <head>
     html = html.replace('<head>', `<head>\n${tagsSEO}`);
 
-    // 7. Entrega o pacote modificado com API Response Web Standard
+    // Retorna a página com os HEADERS DE DEBUG
     return new Response(html, {
         status: 200,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            // Permite cache rápido na borda para melhorar performance, validando após 5 minutos.
-            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' 
+            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+            'X-SEO-Debug': debugStatus, // <-- OLHE ISSO NO NAVEGADOR
+            'X-Store-Id': storeId       // <-- MOSTRA QUAL LOJA O SISTEMA ACHOU QUE É
         },
     });
 }
