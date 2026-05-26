@@ -871,10 +871,25 @@ export default function Admin() {
             const faturasPendentes = (storeStatus?.faturasHistorico || []).filter(f => f.status === 'PENDENTE');
             
             if (faturasPendentes.length > 0) {
-                // Se tem fatura pendente, os dias restantes são baseados nela (Pega a mais antiga)
-                const faturaAtual = faturasPendentes.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b); 
-                const dueDate = new Date(faturaAtual.dueDate);
-                const diffTime = dueDate.getTime() - now.getTime();
+                // Pega a fatura mais urgente (Blinda faturas geradas manualmente que usam createdAt em vez de dueDate)
+                const faturaAtual = faturasPendentes.reduce((a, b) => {
+                    const dateA = new Date(a.dueDate || a.createdAt || 0).getTime();
+                    const dateB = new Date(b.dueDate || b.createdAt || 0).getTime();
+                    return dateA < dateB ? a : b;
+                }); 
+                
+                // Pega a data e corrige o fuso horário (Timezone) se veio como UTC
+                const targetDate = faturaAtual.dueDate || faturaAtual.createdAt;
+                let dueDateObj = new Date(targetDate);
+                if (typeof targetDate === 'string' && targetDate.endsWith('Z')) {
+                    dueDateObj = new Date(dueDateObj.getTime() + (dueDateObj.getTimezoneOffset() * 60000));
+                }
+
+                const todayObj = new Date();
+                todayObj.setHours(0,0,0,0);
+                dueDateObj.setHours(0,0,0,0);
+
+                const diffTime = dueDateObj.getTime() - todayObj.getTime();
                 daysUntilDue = Math.ceil(diffTime / (1000 * 3600 * 24));
             } else {
                 // Se não tem fatura pendente, calcula o próximo ciclo normal
@@ -3294,15 +3309,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
 
-                           {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
-                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
+                           {/* --- AVISO DE FATURA PENDENTE (NÃO VENCIDA, MAS DISPONÍVEL) --- */}
+                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && (
                                 <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
                                     <div>
                                         <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
-                                            <Clock size={20} className="text-amber-600"/> FATURA PRÓXIMA DO VENCIMENTO
+                                            <Clock size={20} className="text-amber-600"/> FATURA DISPONÍVEL
                                         </h3>
                                         <p className="text-amber-700 font-bold text-sm">
-                                            Sua fatura da Velo Delivery vence em <span className="font-black text-amber-900">{invoiceData.daysUntilDue} {invoiceData.daysUntilDue === 1 ? 'dia' : 'dias'}</span>. Garanta o pagamento para não pausar as suas vendas!
+                                            {invoiceData.daysUntilDue > 0 
+                                                ? `Sua fatura vence em ${invoiceData.daysUntilDue} dias.` 
+                                                : `Sua fatura vence HOJE!`} Garanta o pagamento para não pausar suas vendas.
                                         </p>
                                     </div>
                                     <button onClick={() => setActiveTab('finance')} className="bg-amber-500 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-amber-600 transition-all active:scale-95 whitespace-nowrap">
