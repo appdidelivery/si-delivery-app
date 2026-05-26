@@ -687,26 +687,45 @@ export default async function handler(req, res) {
             }
 
             if (action === 'get_qr') {
-                // A Evolution V2 gera o QR code em formato base64 nativamente na rota de "connect"
-                const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
-                    method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
-                });
-                const qrData = await qrRes.json();
-                
-                // Tratamento seguro para pegar o Base64, independente de como a Evolution cuspir
-                let base64Image = qrData.base64 || qrData.qrcode || qrData.code || null;
-
-                // Em alguns casos da V2, se a instância travar o QR, temos que forçar a conexão de novo
-                if (!base64Image && (qrData.instance?.state === 'close' || qrData.instance?.state === 'connecting')) {
-                    console.log(`[Evolution] Forçando nova geração de QR para ${instanceName}`);
-                    const retryRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
+                try {
+                    // Passo 1: Forçamos o Logout se a sessão travou como 'connecting'
+                    const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
                         method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                     });
-                    const retryData = await retryRes.json();
-                    base64Image = retryData.base64 || retryData.qrcode || retryData.code || null;
+                    const stat = await statusRes.json();
+                    
+                    if (stat?.instance?.state === 'connecting') {
+                        await fetch(`${EVO_URL}/instance/logout/${instanceName}`, {
+                            method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY }
+                        });
+                    }
+
+                    // Passo 2: Busca agressiva do QR Code na V2
+                    const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
+                        method: 'GET', 
+                        headers: { 'apikey': GLOBAL_API_KEY }
+                    });
+                    
+                    if (!qrRes.ok) throw new Error("A VPS recusou a conexão.");
+                    
+                    const qrData = await qrRes.json();
+                    
+                    // Varredura completa para extrair a imagem
+                    let base64Image = qrData.base64 || qrData.qrcode || qrData.code;
+                    
+                    if (!base64Image && qrData.instance) {
+                        base64Image = qrData.instance.qrcode || qrData.instance.base64;
+                    }
+
+                    if (base64Image) {
+                        return res.status(200).json({ base64: base64Image, raw: qrData });
+                    } else {
+                        return res.status(200).json({ error: "QR não gerado ainda", raw: qrData });
+                    }
+                } catch (e) {
+                    console.error("Erro Get QR:", e);
+                    return res.status(500).json({ error: "Falha na comunicação com a VPS" });
                 }
-                
-                return res.status(200).json({ base64: base64Image, raw: qrData });
             }
 
             if (action === 'get_status') {
