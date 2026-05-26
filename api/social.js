@@ -10,12 +10,12 @@ const generateSlug = (text) => {
 };
 
 export default async function handler(req, res) {
-    // 1. Identifica a loja de forma Híbrida e Blindada
+    // 1. Identifica a loja de forma Híbrida e Blindada (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
     const baseDomain = 'velodelivery.com.br';
-    let storeId = 'velo'; 
+    let storeId = 'velo'; // Fallback seguro para não vazar clientes
     
     if (cleanHost.includes('app.github.dev') || cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1')) {
         const queryStore = req.query.store;
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
         const parts = subdomains.split('.');
         storeId = parts[parts.length - 1];
     } else if (cleanHost !== baseDomain && !cleanHost.endsWith(`.${baseDomain}`)) {
-       // Dicionário Híbrido Multitenant
+        // Mapeamento Multi-Tenant Correto
        const domainMap = {
           "convenienciasantaisabel.com.br": "csi",
           "csi.com.br": "csi",
@@ -41,20 +41,23 @@ export default async function handler(req, res) {
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
 
-    // 2. Fallbacks de Segurança
-    const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
-    let title = `${capitalize(storeId)} - Delivery`;
+    // 2. Fallback de dados padrão
+    let title = "Velo Delivery | O seu app de entregas";
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
     let image = "https://app.velodelivery.com.br/logo-square.png"; 
 
-    // 3. Extrator de URL e Rotas
+    // 🚨 SUPER EXTRATOR DE URL V5 (Trata Rewrite da Vercel e Query Strings do Facebook)
     let rawPath = req.url || '';
+    
     if (rawPath.includes('route=')) {
         rawPath = decodeURIComponent(rawPath.split('route=')[1].split('&')[0]);
     } else if (req.headers['x-forwarded-uri']) {
         rawPath = req.headers['x-forwarded-uri'];
     }
-    if (!rawPath.startsWith('/')) rawPath = '/' + rawPath;
+
+    if (!rawPath.startsWith('/')) {
+        rawPath = '/' + rawPath;
+    }
 
     const finalCleanUrl = `https://${host}${rawPath.split('?')[0]}`;
 
@@ -64,7 +67,7 @@ export default async function handler(req, res) {
     let fbDebugStatus = "fallback";
 
     try {
-        // 4. MÁGICA AQUI: Injeção da API KEY para evitar Erro 429
+        // 3. Busca os dados da loja no Firebase via REST API (BLINDADO CONTRA 429)
         const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
         const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '';
         const authParam = apiKey ? `?key=${apiKey}` : '';
@@ -77,7 +80,7 @@ export default async function handler(req, res) {
             const data = await response.json();
             fbDebugStatus = "success";
 
-            // 5. Injeta os dados da Loja no HTML
+            // 4. Injeta dados da loja
             if (data && data.fields) {
                 title = data.fields.name?.stringValue || title;
                 description = data.fields.slogan?.stringValue || data.fields.message?.stringValue || description;
@@ -99,8 +102,9 @@ export default async function handler(req, res) {
                 }
             }
 
-            // 6. Inteligência de Compartilhamento de Produtos
+            // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO (100% RESTAURADA) ---
             isProductPage = rawPath.includes('/p/');
+            
             if (isProductPage) {
                 const rawSlug = rawPath.split('/p/')[1];
                 const productSlug = rawSlug.split('?')[0].split('&')[0].split('#')[0].replace(/\/$/, '');
@@ -109,7 +113,9 @@ export default async function handler(req, res) {
                 const queryBody = {
                     structuredQuery: {
                         from: [{ collectionId: "products" }],
-                        where: { fieldFilter: { field: { fieldPath: "storeId" }, op: "EQUAL", value: { stringValue: storeId } } }
+                        where: {
+                            fieldFilter: { field: { fieldPath: "storeId" }, op: "EQUAL", value: { stringValue: storeId } }
+                        }
                     }
                 };
 
@@ -125,6 +131,7 @@ export default async function handler(req, res) {
                             const savedSlug = item.document.fields.slug?.stringValue || '';
                             
                             const cleanStr = (s) => s ? s.replace(/[^a-z0-9]/g, '') : '';
+                            
                             const isMatch = cleanStr(productSlug) === cleanStr(generatedSlug) || 
                                             (savedSlug !== '' && cleanStr(productSlug) === cleanStr(savedSlug)) ||
                                             productSlug.includes(generatedSlug) || 
@@ -133,36 +140,87 @@ export default async function handler(req, res) {
                             if (isMatch) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pImg = item.document.fields.imageUrl?.stringValue || '';
+                                
                                 const pPrice = item.document.fields.price?.doubleValue || item.document.fields.price?.integerValue || 0;
                                 const pPromoPrice = item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
+                                const pBrand = item.document.fields.brand?.stringValue || title; 
+                                const pGtin = item.document.fields.gtin?.stringValue || '';
                                 const pIsPromo = item.document.fields.isPromo?.booleanValue || (pPromoPrice > 0);
                                 const finalPrice = pIsPromo && pPromoPrice > 0 ? pPromoPrice : pPrice;
 
-                                title = `${pName} | ${title}`; 
-                                description = pDesc || `Compre ${pName} online!`;
+                                const pPrepTime = item.document.fields.prepTime?.integerValue || item.document.fields.prepTime?.doubleValue || null;
+                                const pCalories = item.document.fields.calories?.integerValue || item.document.fields.calories?.doubleValue || null;
+                                const pDeliveryTime = item.document.fields.deliveryLeadTime?.integerValue || item.document.fields.deliveryLeadTime?.doubleValue || null;
+                                const pRatingValue = item.document.fields.ratingValue?.doubleValue || item.document.fields.ratingValue?.integerValue || null;
+                                const pReviewCount = item.document.fields.reviewCount?.integerValue || item.document.fields.reviewCount?.doubleValue || null;
+
+                                let pDietSchema = "";
+                                if (item.document.fields.suitableForDiet && item.document.fields.suitableForDiet.arrayValue && item.document.fields.suitableForDiet.arrayValue.values) {
+                                    const dietArray = item.document.fields.suitableForDiet.arrayValue.values.map(v => `"${v.stringValue}"`);
+                                    if (dietArray.length > 0) {
+                                        pDietSchema = `"suitableForDiet": [${dietArray.join(', ')}],`;
+                                    }
+                                }
+
+                                const storeName = title; 
+                                title = `${pName} | ${storeName}`; 
+                                description = pDesc || `Compre ${pName} online na ${storeName}!`;
                                 if (pImg) image = pImg;
                                 
                                 productMetaTags = `
-                                <meta property="product:availability" content="in stock" />
-                                <meta property="product:condition" content="new" />
-                                <meta property="product:price:amount" content="${finalPrice}" />
-                                <meta property="product:price:currency" content="BRL" />`;
+        <meta property="product:brand" content="${pBrand}" />
+        <meta property="product:availability" content="in stock" />
+        <meta property="product:condition" content="new" />
+        <meta property="product:price:amount" content="${finalPrice}" />
+        <meta property="product:price:currency" content="BRL" />
+        ${pGtin ? `<meta property="product:gtin" content="${pGtin}" />` : ''}
+                                `;
+
+                                const isFoodItem = pPrepTime !== null || pCalories !== null || pDietSchema !== "";
+                                const schemaType = isFoodItem ? "MenuItem" : "Product";
+
+                                productSchema = `
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org/",
+          "@type": "${schemaType}",
+          "@id": "${finalCleanUrl}#product",
+          "name": "${pName}",
+          "image": "${image}",
+          "description": "${description}",
+          ${!isFoodItem ? `"brand": { "@type": "Brand", "name": "${pBrand}" },` : ''}
+          ${pGtin ? `"gtin13": "${pGtin}",` : ''}
+          ${pDietSchema}
+          ${pCalories ? `"nutrition": { "@type": "NutritionInformation", "calories": "${pCalories} calories" },` : ''}
+          ${pRatingValue && pReviewCount ? `"aggregateRating": { "@type": "AggregateRating", "ratingValue": "${pRatingValue}", "reviewCount": "${pReviewCount}" },` : ''}
+          "offers": {
+            "@type": "Offer",
+            "url": "${finalCleanUrl}",
+            "priceCurrency": "BRL",
+            "price": "${finalPrice}",
+            "availability": "https://schema.org/InStock",
+            "itemCondition": "https://schema.org/NewCondition"
+            ${pDeliveryTime ? `,"deliveryLeadTime": { "@type": "QuantitativeValue", "value": "${pDeliveryTime}", "unitCode": "MIN" }` : ''}
+          }
+        }
+        </script>
+                                `;
                                 break; 
                             }
                         }
                     }
                 }
             }
+            // --- FIM: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
         } else {
             fbDebugStatus = `error-${response.status}`;
-            console.error(`[SEO] Firebase falhou para a loja ${storeId}. Status: ${response.status}`);
         }
     } catch (error) {
         fbDebugStatus = "crash";
-        console.error(`[SEO] Erro geral na API Social para ${storeId}:`, error.message);
+        console.error(`Erro ao buscar dados para o WhatsApp:`, error);
     }
 
-    // 7. Monta o HTML invisível focado SOMENTE nos robôs
+    // 5. Monta o HTML puro focado SOMENTE nos robôs
     const html = `
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -183,12 +241,14 @@ export default async function handler(req, res) {
         <meta property="fb:app_id" content="966242223397117" />
         
         <meta property="og:type" content="${isProductPage ? 'product' : 'website'}" />
-        ${productMetaTags}
+        ${productMetaTags ? productMetaTags : ''}
         
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${description}" />
         <meta name="twitter:image" content="${image}" />
+        
+        ${productSchema ? productSchema : ''}
     </head>
     <body>
         <h1>${title}</h1>
@@ -198,11 +258,10 @@ export default async function handler(req, res) {
     </html>
     `;
 
-    // 8. Headers que farão o Facebook ler super rápido e você conseguir debugar
-    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate'); // Cache CDN Vercel 24h
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('X-SEO-Store', storeId); // <-- Ajuda vc a auditar no network
-    res.setHeader('X-SEO-Firebase', fbDebugStatus); // <-- Ajuda a auditar se o Firebase barrou
-
+    res.setHeader('X-SEO-Store', storeId); 
+    res.setHeader('X-SEO-Firebase', fbDebugStatus); 
+    
     res.status(200).send(html);
 }
