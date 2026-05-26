@@ -10,12 +10,12 @@ const generateSlug = (text) => {
 };
 
 export default async function handler(req, res) {
-    // 1. Identifica a loja de forma Híbrida e Blindada (Subdomínio e Custom Domain)
+    // 1. Identifica a loja de forma Híbrida e Blindada
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
     const baseDomain = 'velodelivery.com.br';
-    let storeId = 'velo'; // Fallback seguro para não vazar clientes
+    let storeId = 'velo'; 
     
     if (cleanHost.includes('app.github.dev') || cleanHost.includes('localhost') || cleanHost.includes('127.0.0.1')) {
         const queryStore = req.query.store;
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
         const parts = subdomains.split('.');
         storeId = parts[parts.length - 1];
     } else if (cleanHost !== baseDomain && !cleanHost.endsWith(`.${baseDomain}`)) {
-        // Mapeamento Multi-Tenant Correto
+       // Mapeamento Multi-Tenant Correto
        const domainMap = {
           "convenienciasantaisabel.com.br": "csi",
           "csi.com.br": "csi",
@@ -42,22 +42,26 @@ export default async function handler(req, res) {
     }
 
     // 2. Fallback de dados padrão
-    let title = "Velo Delivery | O seu app de entregas";
+    const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+    let title = `${capitalize(storeId)} - Delivery`;
     let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
     let image = "https://app.velodelivery.com.br/logo-square.png"; 
 
-    // 🚨 SUPER EXTRATOR DE URL V5 (Trata Rewrite da Vercel e Query Strings do Facebook)
-    let rawPath = req.url || '';
-    
-    if (rawPath.includes('route=')) {
-        rawPath = decodeURIComponent(rawPath.split('route=')[1].split('&')[0]);
-    } else if (req.headers['x-forwarded-uri']) {
-        rawPath = req.headers['x-forwarded-uri'];
+    // -------------------------------------------------------------------------
+    // 🚨 A MÁGICA DA CORREÇÃO ESTÁ AQUI (Extrator e Decodificador Universal)
+    // -------------------------------------------------------------------------
+    let rawPath = '/';
+    if (req.query && req.query.route) {
+        rawPath = req.query.route; // A Vercel já entrega decodificado aqui!
+    } else if (req.url) {
+        const decodedUrl = decodeURIComponent(req.url); // Transforma %2F em /
+        if (decodedUrl.includes('route=')) {
+            rawPath = decodedUrl.split('route=')[1].split('&')[0];
+        } else if (req.headers['x-forwarded-uri']) {
+            rawPath = decodeURIComponent(req.headers['x-forwarded-uri']);
+        }
     }
-
-    if (!rawPath.startsWith('/')) {
-        rawPath = '/' + rawPath;
-    }
+    if (!rawPath.startsWith('/')) rawPath = '/' + rawPath;
 
     const finalCleanUrl = `https://${host}${rawPath.split('?')[0]}`;
 
@@ -78,9 +82,9 @@ export default async function handler(req, res) {
         
         if (response.ok) {
             const data = await response.json();
-            fbDebugStatus = "success";
+            fbDebugStatus = "store_success";
 
-            // 4. Injeta dados da loja
+            // 4. Injeta dados da loja (Fallback do Produto)
             if (data && data.fields) {
                 title = data.fields.name?.stringValue || title;
                 description = data.fields.slogan?.stringValue || data.fields.message?.stringValue || description;
@@ -102,10 +106,13 @@ export default async function handler(req, res) {
                 }
             }
 
-            // --- INÍCIO: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO (100% RESTAURADA) ---
+            // -------------------------------------------------------------------------
+            // 5. INTELIGÊNCIA DE PRODUTOS RESTAURADA
+            // -------------------------------------------------------------------------
             isProductPage = rawPath.includes('/p/');
             
             if (isProductPage) {
+                fbDebugStatus = "product_detected"; // Para você ver no Header se ele achou a rota
                 const rawSlug = rawPath.split('/p/')[1];
                 const productSlug = rawSlug.split('?')[0].split('&')[0].split('#')[0].replace(/\/$/, '');
                 
@@ -126,18 +133,22 @@ export default async function handler(req, res) {
                     
                     for (const item of productsData) {
                         if (item.document && item.document.fields) {
+                            const docId = item.document.name.split('/').pop(); // Pega o ID do Firebase
                             const pName = item.document.fields.name?.stringValue || '';
                             const generatedSlug = generateSlug(pName);
                             const savedSlug = item.document.fields.slug?.stringValue || '';
                             
                             const cleanStr = (s) => s ? s.replace(/[^a-z0-9]/g, '') : '';
                             
-                            const isMatch = cleanStr(productSlug) === cleanStr(generatedSlug) || 
+                            // 🚨 Match Ultra Robusto: Tenta por ID, Slug salvo, Slug Gerado ou Fuzzy!
+                            const isMatch = docId === productSlug || 
+                                            cleanStr(productSlug) === cleanStr(generatedSlug) || 
                                             (savedSlug !== '' && cleanStr(productSlug) === cleanStr(savedSlug)) ||
                                             productSlug.includes(generatedSlug) || 
                                             generatedSlug.includes(productSlug);
                             
                             if (isMatch) {
+                                fbDebugStatus = "product_matched";
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pImg = item.document.fields.imageUrl?.stringValue || '';
                                 
@@ -209,9 +220,11 @@ export default async function handler(req, res) {
                             }
                         }
                     }
+                } else {
+                    fbDebugStatus = "product_fetch_failed";
                 }
             }
-            // --- FIM: INTELIGÊNCIA DE COMPARTILHAMENTO DE PRODUTO ---
+
         } else {
             fbDebugStatus = `error-${response.status}`;
         }
@@ -220,7 +233,7 @@ export default async function handler(req, res) {
         console.error(`Erro ao buscar dados para o WhatsApp:`, error);
     }
 
-    // 5. Monta o HTML puro focado SOMENTE nos robôs
+    // 6. Monta o HTML puro focado SOMENTE nos robôs
     const html = `
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -262,6 +275,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('X-SEO-Store', storeId); 
     res.setHeader('X-SEO-Firebase', fbDebugStatus); 
+    res.setHeader('X-SEO-Path', rawPath); // Ajuda você a debugar se o path ta chegando certo!
     
     res.status(200).send(html);
 }
