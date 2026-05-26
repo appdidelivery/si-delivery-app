@@ -97,7 +97,9 @@ export default async function handler(req, res) {
                     if (fetchedImage.startsWith('http')) {
                         image = fetchedImage;
                     } else {
-                        image = `https://${host}${fetchedImage.startsWith('/') ? '' : '/'}${fetchedImage}`;
+                        // Garantia absoluta de URL
+                        const cleanImage = fetchedImage.startsWith('/') ? fetchedImage.substring(1) : fetchedImage;
+                        image = `https://${host}/${cleanImage}`;
                     }
                 }
             }

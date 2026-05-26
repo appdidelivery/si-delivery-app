@@ -74,8 +74,11 @@ export default async function middleware(request) {
                       if (!logo.includes('/upload/c_pad')) {
                           logo = logo.replace('/upload/', '/upload/c_pad,w_600,h_600,b_white,f_jpg,q_80/');
                       }
-                  } else if (!logo.startsWith('http')) {
-                      logo = `https://${host}${logo.startsWith('/') ? '' : '/'}${logo}`;
+                  // Garantia absoluta de URL para o Facebook/WhatsApp
+                  if (!logo.startsWith('http')) {
+                      // Remove barra inicial para evitar duplicidade no join
+                      const cleanLogo = logo.startsWith('/') ? logo.substring(1) : logo;
+                      logo = `https://${host}/${cleanLogo}`;
                   }
 
                   // 4. ESTRATÉGIA BLINDADA DE INJEÇÃO ANTES DE ENVIAR PARA O WHATSAPP
