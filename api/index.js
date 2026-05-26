@@ -1383,12 +1383,15 @@ export default async function handler(req, res) {
                                     let cachedSettings = null;
 
                                     // 1. Tenta buscar na Memória RAM da Vercel (Custo Zero pro Firebase)
+                                    let waSettings = {}; // 🚨 AQUI NASCE A MEMÓRIA DO ROBÔ
+
                                     if (phoneToStoreCache.has(phoneNumberId)) {
                                         const cachedData = phoneToStoreCache.get(phoneNumberId);
                                         storeId = cachedData.storeId;
                                         apiToken = cachedData.apiToken;
                                         storeDomain = cachedData.storeDomain;
                                         cachedSettings = cachedData.settings;
+                                        waSettings = cachedData.settings.integrations?.whatsapp || {};
                                     } else {
                                         // 2. Se não tem na memória, vai no banco UMA vez só e salva
                                         let settingsSnap = await db.collection('settings')
@@ -1401,6 +1404,7 @@ export default async function handler(req, res) {
                                             apiToken = storeData.integrations?.whatsapp?.apiToken;
                                             storeDomain = `https://${storeId}.velodelivery.com.br`; 
                                             cachedSettings = storeData;
+                                            waSettings = storeData.integrations?.whatsapp || {};
 
                                             // Guarda na RAM para as próximas mensagens não pagarem pedágio
                                             phoneToStoreCache.set(phoneNumberId, { storeId, apiToken, storeDomain, settings: storeData });
@@ -1504,7 +1508,6 @@ export default async function handler(req, res) {
                                                         }
                                                     }
 
-                                    let waSettings = !settingsSnap.empty ? settingsSnap.docs[0].data().integrations?.whatsapp || {} : {};
                                     
                                     // 3. LÓGICA DO ROBÔ (SÓ EXECUTA SE O BOT TIVER ATIVO)
                                     if (apiToken) {
