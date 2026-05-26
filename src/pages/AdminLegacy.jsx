@@ -9713,8 +9713,27 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             Deixe em branco se o estoque for controlado automaticamente pela Ficha Técnica (Insumos).
                                         </p>
                                     </div>
-                                    {['default', 'drinks'].includes(storeStatus?.storeNiche) && (
-                                        <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px]">
+                                    {(() => {
+                                        // 1. Floricultura nunca tem bebida gelada
+                                        if (storeStatus?.storeNiche === 'floricultura') return false;
+                                        
+                                        // 2. Se a loja for Conveniência ou Adega, sempre mostra o botão
+                                        if (['default', 'drinks'].includes(storeStatus?.storeNiche)) return true;
+                                        
+                                        // 3. LÓGICA INTELIGENTE: Lê tudo que o lojista digitou (Nome, Categoria e Tags) tirando os acentos
+                                        const textToSearch = `${form.name} ${form.category} ${form.tag}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                        
+                                        // 4. Dicionário de Gatilhos de Bebidas
+                                        const drinkKeywords = [
+                                            'bebida', 'agua', 'suco', 'refri', 'cerveja', 'chopp', 'vinho', 'vodka', 'gin', 
+                                            'whisky', 'drink', 'energetico', 'lata', 'ml ', 'garrafa', 'long neck', 
+                                            'coca', 'guarana', 'pepsi', 'sprite', 'fanta', 'kombucha', 'ice', 'licor', 'litro', 'combo'
+                                        ];
+                                        
+                                        // Se encontrar qualquer uma das palavras acima, retorna TRUE e mostra o botão
+                                        return drinkKeywords.some(kw => textToSearch.includes(kw));
+                                    })() && (
+                                        <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px] animate-in fade-in zoom-in">
                                             <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
                                             <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
                                         </label>
