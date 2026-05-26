@@ -9782,8 +9782,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
 
-                                    {/* CONDICIONAL: APENAS SE FOR COMIDA PREPARADA E NÃO FOR FLORICULTURA */}
-                                                {isFoodCategory(form.category) && storeStatus?.storeNiche !== 'floricultura' && (
+                                    {/* CONDICIONAL MESTRA: APENAS SE FOR NICHO DE COMIDA */}
+                                    {!['default', 'drinks', 'floricultura'].includes(storeStatus?.storeNiche) && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                                 <div>

@@ -280,6 +280,23 @@ export default function Home() {
   const [selectedProduct, setSelectedProduct] = useState(null); 
   const[selectedOptions, setSelectedOptions] = useState({}); 
   const [itemObservation, setItemObservation] = useState(''); 
+
+  // --- NOVO: Salva os favoritos no cache do navegador do cliente ---
+  const [likedProducts, setLikedProducts] = useState(() => {
+      const saved = localStorage.getItem(`veloLiked_${storeId}`);
+      return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+      localStorage.setItem(`veloLiked_${storeId}`, JSON.stringify(likedProducts));
+  }, [likedProducts, storeId]);
+
+  const handleToggleLike = (productId) => {
+      setLikedProducts(prev => 
+          prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
+      );
+  };
+  // ---------------------------------------------------------------- 
   const [selectedVariation, setSelectedVariation] = useState(''); // NOVO: Estado da Variação
   const [selectedRemovals, setSelectedRemovals] = useState([]); // NOVO: Estado dos Ingredientes Removidos
 
@@ -4255,30 +4272,78 @@ if (window.fbq) {
               </div>
 
               <div className="p-6 overflow-y-auto pb-32 custom-scrollbar flex-1">
-                <h2 className="text-2xl font-black text-slate-900 mb-2 leading-tight">{selectedProduct.name}</h2>
+                <div className="flex justify-between items-start gap-4 mb-2">
+                    <h2 className="text-2xl font-black text-slate-900 leading-tight">{selectedProduct.name}</h2>
+                    
+                    {/* BOTOES DE AÇÃO: FAVORITAR E COMPARTILHAR */}
+                    <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+                        <button 
+                            onClick={() => handleToggleLike(selectedProduct.id)}
+                            className={`p-2.5 rounded-full transition-all border ${likedProducts.includes(selectedProduct.id) ? 'bg-red-50 border-red-200 text-red-500 shadow-sm scale-110' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-red-400'}`}
+                        >
+                            <FaHeart size={18} className={likedProducts.includes(selectedProduct.id) ? "fill-current" : ""} />
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const prodUrl = `${window.location.origin}/p/${generateSlug(selectedProduct.name)}`;
+                                if (navigator.share) {
+                                    navigator.share({ title: selectedProduct.name, text: `Olha isso na ${storeSettings.name}!`, url: prodUrl });
+                                } else {
+                                    navigator.clipboard.writeText(prodUrl);
+                                    alert("Link do produto copiado!");
+                                }
+                            }}
+                            className="p-2.5 bg-white border border-slate-200 text-blue-600 rounded-full hover:bg-blue-50 transition-all shadow-sm"
+                        >
+                            <Share2 size={18} />
+                        </button>
+                    </div>
+                </div>
+                
+                {/* --- AVALIAÇÕES (ESTRELAS) NO FRONTEND --- */}
+                {selectedProduct.ratingValue > 0 && (
+                    <div className="flex items-center gap-1.5 mb-4 bg-yellow-50/50 w-fit px-3 py-1.5 rounded-xl border border-yellow-100">
+                        <div className="flex text-yellow-400">
+                            <Star size={16} fill="currentColor" className="text-yellow-400" />
+                        </div>
+                        <span className="text-sm font-black text-slate-800">{Number(selectedProduct.ratingValue).toFixed(1)}</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">({selectedProduct.reviewCount} Avaliações)</span>
+                    </div>
+                )}
+
                 <p className="text-slate-500 text-sm mb-6 leading-relaxed">
                   {selectedProduct.description || "Sem descrição adicional detalhada."}
                 </p>
-                {/* --- INÍCIO: BADGES DE SEO E NUTRIÇÃO VISUAIS --- */}
-                {(selectedProduct.brand || selectedProduct.prepTime || selectedProduct.calories || (selectedProduct.suitableForDiet && selectedProduct.suitableForDiet.length > 0)) && (
-                  <div className="flex flex-wrap gap-2 mb-6 border-t border-slate-100 pt-4">
+
+                {/* --- BADGES DE INFORMAÇÃO (MARCA, EAN E TEMPOS) --- */}
+                {(selectedProduct.brand || selectedProduct.gtin || selectedProduct.deliveryLeadTime || selectedProduct.prepTime || selectedProduct.calories || (selectedProduct.suitableForDiet && selectedProduct.suitableForDiet.length > 0)) && (
+                  <div className="flex flex-wrap gap-2 mb-6 border-t border-slate-100 pt-5">
                     {selectedProduct.brand && (
-                      <span className="flex items-center gap-1 bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                        🏷️ {selectedProduct.brand}
+                      <span className="flex items-center gap-1.5 bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        🏷️ Marca: {selectedProduct.brand}
+                      </span>
+                    )}
+                    {selectedProduct.gtin && (
+                      <span className="flex items-center gap-1.5 bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        🎫 EAN: {selectedProduct.gtin}
+                      </span>
+                    )}
+                    {selectedProduct.deliveryLeadTime && (
+                      <span className="flex items-center gap-1.5 bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        🛵 Entrega Média: {selectedProduct.deliveryLeadTime} min
                       </span>
                     )}
                     {selectedProduct.prepTime && (
-                      <span className="flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-100 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                        ⏱️ Prepara em {selectedProduct.prepTime} min
+                      <span className="flex items-center gap-1.5 bg-orange-50 text-orange-600 border border-orange-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        👨‍🍳 Prepara em {selectedProduct.prepTime} min
                       </span>
                     )}
                     {selectedProduct.calories && (
-                      <span className="flex items-center gap-1 bg-rose-50 text-rose-600 border border-rose-100 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
                         🔥 {selectedProduct.calories} Kcal
                       </span>
                     )}
                     {selectedProduct.suitableForDiet && selectedProduct.suitableForDiet.map((dietUrl, index) => {
-                       // Converte URL do schema.org em Label bonito
                        const dietLabels = {
                           'https://schema.org/VeganDiet': '🌿 Vegano',
                           'https://schema.org/VegetarianDiet': '🥗 Vegetariano',
@@ -4294,7 +4359,6 @@ if (window.fbq) {
                     })}
                   </div>
                 )}
-                {/* --- FIM: BADGES DE SEO E NUTRIÇÃO VISUAIS --- */}
 
                 {selectedProduct.variations && selectedProduct.variations.length > 0 && (
                     <div className="border-t border-slate-100 pt-4 mt-4">
