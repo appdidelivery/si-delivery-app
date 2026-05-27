@@ -693,7 +693,7 @@ export default async function handler(req, res) {
         let EVO_URL = process.env.EVOLUTION_API_URL;
         const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
 
-        // DEBUG: Isso vai aparecer nos seus Logs da Vercel
+        // DEBUG: Isso vai aparecer nos seus Logs da Vercel 
         console.log("DEBUG - EVO_URL carregada:", EVO_URL);
 
         if (!EVO_URL || !GLOBAL_API_KEY) {
