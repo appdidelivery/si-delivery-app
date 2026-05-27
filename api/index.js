@@ -804,7 +804,8 @@ export default async function handler(req, res) {
                     if (base64Image) {
                         return res.status(200).json({ base64: base64Image, raw: qrData });
                     } else {
-                        // Se retornou 200 OK mas veio sem imagem (já conectado, por exemplo)
+                        // 🚨 ADICIONAMOS ESTE LOG AQUI PARA VER O QUE A VPS ESTÁ MANDANDO
+                        console.log("[EVO API] QR Code ainda não gerado. Resposta atual da VPS:", JSON.stringify(qrData));
                         return res.status(200).json({ error: "O QR Code não veio na resposta.", raw: qrData });
                     }
                 } catch (e) {
