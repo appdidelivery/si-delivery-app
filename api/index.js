@@ -691,10 +691,12 @@ export default async function handler(req, res) {
         if (!storeId || !action) return res.status(400).json({ error: 'Parâmetros inválidos' });
 
         let EVO_URL = process.env.EVOLUTION_API_URL;
-const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
+        const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
 
-// Blindagem: força a inclusão da porta 8080 se esquecida
-if (EVO_URL && !EVO_URL.includes(':8080')) {
+        // DEBUG: Isso vai aparecer nos seus Logs da Vercel
+        console.log("DEBUG - EVO_URL carregada:", EVO_URL);
+
+        if (!EVO_URL || !GLOBAL_API_KEY) {
     EVO_URL = EVO_URL.replace(/\/+$/, '') + ':8080';
 }
 
