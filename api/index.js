@@ -773,7 +773,13 @@ export default async function handler(req, res) {
                 let base64Image = qrData.base64 || qrData.qrcode || qrData.code || qrData.instance?.qrcode || qrData.instance?.base64;
                 
                 if (base64Image) {
-                    return res.status(200).json({ base64: base64Image, raw: qrData });
+                    return res.status(200).json({ 
+    success: true, 
+    instance: instanceName, 
+    token: instanceToken, 
+    base64: base64Image,
+    qrcode: base64Image 
+});
                 } else {
                     return res.status(200).json({ error: "QR não gerado ainda", raw: qrData });
                 }
