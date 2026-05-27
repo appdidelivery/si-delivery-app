@@ -242,11 +242,36 @@ export default function PartnersMarketplace() {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const handleCopyAffiliateLink = (partnerId) => {
-    // Na fase 2 (Firebase), substituiremos "sualoja" pelo tenantId dinâmico do lojista logado
-    const trackingUrl = `https://sualoja.velodelivery.com/?affiliate_id=${partnerId}`;
-    navigator.clipboard.writeText(trackingUrl);
-    alert(`Link de indicação copiado com sucesso!\n\nEnvie este link para o influenciador: ${trackingUrl}`);
+  const handleCopyAffiliateLink = async (e, partnerId) => {
+    const btn = e.currentTarget;
+    const originalHtml = btn.innerHTML;
+
+    // Monta o link real usando o slug da loja logada
+    const baseUrl = window.location.hostname.includes('localhost') 
+        ? `http://localhost:5173` 
+        : `https://${store?.slug || 'app'}.velodelivery.com.br`;
+    
+    const trackingUrl = `${baseUrl}/?affiliate_id=${partnerId}`;
+
+    try {
+      // Tenta copiar para a área de transferência (Aguardando a Promise)
+      await navigator.clipboard.writeText(trackingUrl);
+      
+      // UX Visual: Muda a cor e o texto do botão temporariamente
+      btn.innerHTML = '✅ LINK COPIADO!';
+      btn.classList.replace('bg-blue-600', 'bg-green-500');
+      btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-600');
+      
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.classList.replace('bg-green-500', 'bg-blue-600');
+        btn.classList.replace('hover:bg-green-600', 'hover:bg-blue-700');
+      }, 3000);
+
+    } catch (error) {
+      // Fallback de segurança: Se o navegador (ex: modo anônimo) bloquear a cópia automática
+      prompt("O seu navegador bloqueou a cópia. Copie o link abaixo manualmente:", trackingUrl);
+    }
   };
 
   return (
@@ -396,7 +421,7 @@ export default function PartnersMarketplace() {
                       {/* BOTÃO GERADOR DE LINK (Apenas para Influenciadores) */}
                       {partner.category === 'Influenciadores' && (
                         <button
-                          onClick={() => handleCopyAffiliateLink(partner.id)}
+                          onClick={(e) => handleCopyAffiliateLink(e, partner.id)}
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
                           <Link size={18} />
