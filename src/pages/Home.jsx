@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, limit, startAfter, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
-import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare } from 'lucide-react';
+import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare, Maximize, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import useProducts from '../hooks/useProducts';
 import SEO from '../components/SEO';
@@ -278,8 +278,10 @@ export default function Home() {
   }, []);
   
   const [selectedProduct, setSelectedProduct] = useState(null); 
-  const[selectedOptions, setSelectedOptions] = useState({}); 
-  const [itemObservation, setItemObservation] = useState(''); 
+  const [isFullscreenMedia, setIsFullscreenMedia] = useState(false); // NOVO: Controle da tela cheia
+  const [selectedOptions, setSelectedOptions] = useState({}); 
+  const [itemObservation, setItemObservation] = useState('');
+
 
   // --- NOVO: Salva os favoritos no cache do navegador do cliente ---
   const [likedProducts, setLikedProducts] = useState(() => {
@@ -811,32 +813,63 @@ export default function Home() {
   const [userBadges, setUserBadges] = useState([]);
 
   // CAPTURA DO LINK DE INDICAÇÃO, INFLUENCIADORES E AUTOATENDIMENTO (MESA) NO LOAD INICIAL
-  useEffect(() => {
-      const params = new URLSearchParams(window.location.search);
-      
-      // Captura de Referral (Indique e Ganhe)
-      const refParam = params.get('ref');
-      if (refParam) {
-          localStorage.setItem('veloReferredBy', refParam);
-      }
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      
+      // Captura de Referral (Indique e Ganhe)
+      const refParam = params.get('ref');
+      if (refParam) {
+          localStorage.setItem('veloReferredBy', refParam);
+      }
 
-      // Motor de Rastreio de Influenciadores
-      const affiliateId = params.get('affiliate_id');
-      if (affiliateId) {
-          localStorage.setItem('veloAffiliateId', affiliateId);
-      }
+      // Motor de Rastreio de Influenciadores e Origem de Tráfego (UTM)
+      const affiliateId = params.get('affiliate_id');
+      const utmSource = params.get('utm_source'); // Ex: instagram, tiktok, google
+
+      if (affiliateId) {
+          localStorage.setItem('veloAffiliateId', affiliateId);
+          
+          // --- NOVO: REGISTRA O CLIQUE (TRÁFEGO) NO ANALYTICS DA LOJA ---
+          const registrarCliqueAfiliado = async () => {
+              if (!storeId) return;
+              const hoje = new Date().toISOString().split('T')[0];
+              const visitaRef = doc(db, "stores", storeId, "analytics", hoje);
+              
+              // Evita contar o mesmo clique duas vezes se o cliente recarregar a página
+              const clickSessionKey = `affiliate_click_${affiliateId}_${hoje}`;
+              if (!sessionStorage.getItem(clickSessionKey)) {
+                  try {
+                      const sourceKey = utmSource ? `sources.${utmSource}` : 'sources.direct';
+                      await updateDoc(visitaRef, { 
+                          [`affiliateClicks.${affiliateId}`]: increment(1),
+                          [sourceKey]: increment(1)
+                      });
+                      sessionStorage.setItem(clickSessionKey, 'true');
+                  } catch (error) {
+                      try {
+                          const sourceKey = utmSource ? utmSource : 'direct';
+                          await setDoc(visitaRef, { 
+                              date: hoje, 
+                              pageViews: 1,
+                              affiliateClicks: { [affiliateId]: 1 },
+                              sources: { [sourceKey]: 1 }
+                          }, { merge: true });
+                          sessionStorage.setItem(clickSessionKey, 'true');
+                      } catch(e) {}
+                  }
+              }
+          };
+          registrarCliqueAfiliado();
+      }
 
       // Motor de Autoatendimento na Mesa (QR Code) com Validade (TTL)
       const mesaParam = params.get('mesa');
       if (mesaParam) {
           const sessionData = { tableNumber: mesaParam, timestamp: Date.now() };
           localStorage.setItem('veloTableSession', JSON.stringify(sessionData));
-          
-          // Limpa a URL silenciosamente para evitar bugs em recarregamentos
           const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
           window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
       } else {
-          // Valida a sessão existente (limpa se for maior que 2 horas = 7200000 ms)
           const existingSessionStr = localStorage.getItem('veloTableSession');
           if (existingSessionStr) {
               try {
@@ -844,12 +877,10 @@ export default function Home() {
                   if (Date.now() - existingSession.timestamp > 7200000) {
                       localStorage.removeItem('veloTableSession');
                   }
-              } catch (e) {
-                  localStorage.removeItem('veloTableSession');
-              }
+              } catch (e) { localStorage.removeItem('veloTableSession'); }
           }
       }
-  }, []);
+  }, [storeId]);
 
   // --- LEITURA REAL DA CARTEIRA (WALLET) NO BANCO DE DADOS ---
   useEffect(() => {
@@ -1123,8 +1154,6 @@ export default function Home() {
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
   const [generalBanners, setGeneralBanners] = useState([]);
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const[bestsellingProducts, setBestsellingProducts] = useState([]);
 
   const [shippingRates, setShippingRates] = useState([]);
   const[shippingFee, setShippingFee] = useState(null);
@@ -1270,15 +1299,6 @@ export default function Home() {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
-    // A busca de produtos agora é gerenciada pelo useProducts hook.
-    // Para Featured e Bestselling, mantenha queries separadas limitadas para não pesar.
-    const unsubFeatured = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId), where("isFeatured", "==", true), limit(8)), (s) => {
-        setFeaturedProducts(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false));
-    });
-    const unsubBestselling = onSnapshot(query(collection(db, "products"), where("storeId", "==", storeId), where("isBestSeller", "==", true), limit(8)), (s) => {
-        setBestsellingProducts(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false));
-    });
-
     const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
 
     // NOVO: Lê o estoque de pães/carnes (Insumos) em tempo real para o app do cliente
@@ -1399,8 +1419,6 @@ export default function Home() {
     });
 
     return () => {
-        // Trocamos o unsubProducts pelos dois novos unsubs que criamos
-        unsubFeatured(); unsubBestselling(); 
         unsubCategories(); unsubIngredients(); unsubCoupons(); unsubShippingRates();
         unsubGeneralBanners(); unsubStoreSettings(); unsubMarketingSettings();
     };
@@ -3139,167 +3157,103 @@ if (window.fbq) {
         </div>
       </div>
 
-      {featuredProducts.length > 0 && (
-          <div className="px-6 mt-8">
-              <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
-                  Nossos Destaques
-              </h2>
-              <div className="columns-2 md:columns-4 gap-4">
-                  <AnimatePresence>
-                      {featuredProducts.map((p, index) => {
-                          let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
-            for (let ci of p.consumedIngredients) {
-                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
-                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
-                    hasStock = false;
-                    break;
-                }
-            }
-        }
-                          return (
-                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                      {p.videoUrl ? (
-                                          <VeloProductVideo 
-                                              videoUrl={p.videoUrl} 
-                                              thumbnailUrl={optimizeCloudinary(p.imageUrl, 300)} 
-                                              altText={p.name} 
-                                          />
-                                      ) : (
-                                          <img 
-                                              src={optimizeCloudinary(p.imageUrl, 200)} 
-                                              alt={p.name} 
-                                              width="150" 
-                                              height="150" 
-                                              loading={index < 2 ? "eager" : "lazy"} 
-                                              fetchpriority={index < 2 ? "high" : "auto"} 
-                                              decoding="async" 
-                                              className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
-                                              onError={(e) => { 
-                                                  e.target.onerror = null; 
-                                                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
-                                              }}
-                                          />
-                                      )}
-                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                                      {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
-                                          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
-                                              OFERTA 🔥
-                                          </div>
-                                      )}
-                                      {p.isChilled && (
-                                          <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">
-                                              ❄️
-                                          </div>
-                                      )}
-                                  </div>
-                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
-                                  {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
-                                  <div className="flex justify-between items-center mt-auto">
-                                      <div>
-                                          {Number(p.promotionalPrice) > 0 ? (
-                                              <>
-                                                  <span className="text-[11px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
-                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
-                                              </>
-                                          ) : (
-                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                          )}
-                                      </div>
-                                      <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} aria-hidden="true" />
-                                      </button>
-                                  </div>
-                              </motion.div>
-                          );
-                      })}
-                  </AnimatePresence>
-              </div>
-          </div>
-      )}
+      {/* --- INÍCIO: VITRINE INTELIGENTE --- */}
+      {(() => {
+          // Lógica da Vitrine Inteligente
+          let smartTitle = "Sugerido para você";
+          let smartProducts = [];
 
-      {bestsellingProducts.length > 0 && (
-          <div className="px-6 mt-8">
-              <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex justify-between items-center">
-                  Mais Vendidos
-              </h2>
-              <div className="columns-2 md:columns-4 gap-4">
-                  <AnimatePresence>
-                      {bestsellingProducts.map((p, index) => {
-                          let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
-            for (let ci of p.consumedIngredients) {
-                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
-                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
-                    hasStock = false;
-                    break;
-                }
-            }
-        }
-                          return (
-                              <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                  <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
+          if (favoriteCategory) {
+              // Se o cliente tem histórico, mostra itens da categoria favorita que ele não comprou recentemente
+              smartTitle = `Sugerido para você (${favoriteCategory})`;
+              smartProducts = products.filter(p => p.category === favoriteCategory && p.stock !== 0).slice(0, 4);
+          } else {
+              // Se for cliente novo, mostra Ofertas
+              smartTitle = "Ofertas Especiais";
+              smartProducts = products.filter(p => Number(p.promotionalPrice) > 0 && p.stock !== 0).slice(0, 4);
+          }
+
+          if (smartProducts.length === 0) return null;
+
+          return (
+              <div className="px-6 mt-8">
+                  <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex items-center gap-2">
+                      <Sparkles className="text-purple-500" size={24}/> {smartTitle}
+                  </h2>
+                  <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4 snap-x">
+                      <AnimatePresence>
+                          {smartProducts.map((p) => {
+                              return (
+                                  <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={`smart-${p.id}`} className={`min-w-[160px] md:min-w-[200px] bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col group hover:shadow-md transition-all snap-center overflow-hidden ${p.videoUrl ? 'p-0' : 'p-4'}`}>
                                       {p.videoUrl ? (
-                                          <VeloProductVideo 
-                                              videoUrl={p.videoUrl} 
-                                              thumbnailUrl={optimizeCloudinary(p.imageUrl, 300)} 
-                                              altText={p.name} 
-                                          />
+                                          // --- MODO MERCADO LIVRE (VÍDEO EDGE-TO-EDGE) ---
+                                          <>
+                                              <div className="relative w-full aspect-[9/16] bg-slate-900 cursor-pointer overflow-hidden" onClick={() => handleOpenProduct(p)}>
+                                                  {/* VÍDEO NATIVO AUTOPLAY SILENCIOSO PREENCHENDO TUDO */}
+                                                  <video 
+                                                      src={p.videoUrl} 
+                                                      autoPlay loop muted playsInline 
+                                                      className="absolute inset-0 w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-700" 
+                                                  />
+                                                  
+                                                  {/* PEQUENO BADGE DE VÍDEO NO CANTO (Bem clean) */}
+                                                  <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 z-10 shadow-lg">
+                                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="white" className="animate-pulse"><path d="M8 5v14l11-7z"/></svg>
+                                                      <span className="text-[8px] font-black text-white tracking-widest uppercase">Vídeo</span>
+                                                  </div>
+
+                                                  {p.hasDiscount && p.discountPercentage && <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md z-10">-{p.discountPercentage}%</span>}
+                                              </div>
+                                              <div className="p-4 flex flex-col flex-1 bg-white">
+                                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => handleOpenProduct(p)}>{p.name}</h3>
+                                                  <div className="flex justify-between items-center mt-auto">
+                                                      <div className="flex flex-col">
+                                                          {Number(p.promotionalPrice) > 0 ? (
+                                                              <>
+                                                                  <span className="text-[10px] font-bold text-slate-400 line-through">R$ {Number(p.price).toFixed(2)}</span>
+                                                                  <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                                              </>
+                                                          ) : (
+                                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                          )}
+                                                      </div>
+                                                      <button onClick={() => addToCart(p)} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
+                                                  </div>
+                                              </div>
+                                          </>
                                       ) : (
-                                          <img 
-                                              src={optimizeCloudinary(p.imageUrl, 300)} 
-                                              alt={p.name} 
-                                              width="150" 
-                                              height="150" 
-                                              loading={index < 2 ? "eager" : "lazy"} 
-                                              fetchpriority={index < 2 ? "high" : "auto"} 
-                                              decoding="async" 
-                                              className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
-                                              onError={(e) => { 
-                                                  e.target.onerror = null; 
-                                                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
-                                              }}
-                                          />
+                                          // --- MODO CONVENIÊNCIA ORIGINAL (IMAGEM QUADRADA) ---
+                                          <>
+                                              <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square" onClick={() => handleOpenProduct(p)}>
+                                                  <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                                  {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md">-{p.discountPercentage}%</span>}
+                                                  {Number(p.promotionalPrice) > 0 && <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">OFERTA 🔥</div>}
+                                              </div>
+                                              <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => handleOpenProduct(p)}>{p.name}</h3>
+                                              <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-50">
+                                                  <div className="flex flex-col">
+                                                      {Number(p.promotionalPrice) > 0 ? (
+                                                          <>
+                                                              <span className="text-[10px] font-bold text-slate-400 line-through">R$ {Number(p.price).toFixed(2)}</span>
+                                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                                          </>
+                                                      ) : (
+                                                          <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                      )}
+                                                  </div>
+                                                  <button onClick={() => addToCart(p)} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
+                                              </div>
+                                          </>
                                       )}
-                                      {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                                      {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                                      {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
-                                          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
-                                              OFERTA 🔥
-                                          </div>
-                                      )}
-                                      {p.isChilled && (
-                                          <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">
-                                              ❄️
-                                          </div>
-                                      )}
-                                  </div>
-                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
-                                  {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
-                                  <div className="flex justify-between items-center mt-auto">
-                                      <div>
-                                          {Number(p.promotionalPrice) > 0 ? (
-                                              <>
-                                                  <span className="text-[11px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
-                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
-                                              </>
-                                          ) : (
-                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                          )}
-                                      </div>
-                                      <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} aria-hidden="true" />
-                                      </button>
-                                  </div>
-                              </motion.div>
-                          );
-                      })}
-                  </AnimatePresence>
+                                  </motion.div>
+                              );
+                          })}
+                      </AnimatePresence>
+                  </div>
               </div>
-          </div>
-      )}
+          );
+      })()}
+      {/* --- FIM: VITRINE INTELIGENTE --- */}
 
       {/* OTIMIZAÇÃO CLS: min-h-[50vh] garante que o espaço dos produtos fique reservado, evitando que o rodapé pule na tela */}
       <main className="px-6 mb-20 mt-8 min-h-[50vh]">
@@ -3320,61 +3274,73 @@ if (window.fbq) {
             }
         }
                         return (
-                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-4 flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 ${!hasStock ? 'opacity-60 grayscale' : ''}`}>
-                                <div className={`rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer ${p.videoUrl ? 'aspect-[4/5]' : 'aspect-square'}`} onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                    {p.videoUrl ? (
-                                        <VeloProductVideo 
-                                            videoUrl={p.videoUrl} 
-                                            thumbnailUrl={optimizeCloudinary(p.imageUrl, 300)} 
-                                            altText={p.name} 
-                                        />
-                                    ) : (
-                                        <img 
-                                            src={optimizeCloudinary(p.imageUrl, 300)} 
-                                            alt={`${p.name} - ${p.category} na ${storeSettings.name}`} 
-                                            title={`${p.name} disponível para entrega na ${storeSettings.name}`}
-                                            width="150" 
-                                            height="150" 
-                                            loading={index < 4 ? "eager" : "lazy"} 
-                                            fetchpriority={index < 4 ? "high" : "auto"} 
-                                            decoding={index < 4 ? "sync" : "async"} 
-                                            className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
-                                            onError={(e) => { 
-                                                e.target.onerror = null; 
-                                                e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
-                                            }}
-                                        />
-                                    )}
-                                    {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase">Esgotado</div>}
-                                    {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md">-{p.discountPercentage}%</span>}
-                                    {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && (
-                                        <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">
-                                            OFERTA 🔥
+                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 overflow-hidden ${!hasStock ? 'opacity-60 grayscale' : ''} ${p.videoUrl ? 'p-0' : 'p-4'}`}>
+                                {p.videoUrl ? (
+                                    // --- MODO MERCADO LIVRE (VÍDEO EDGE-TO-EDGE) ---
+                                    <>
+                                        <div className="relative w-full aspect-[9/16] bg-slate-900 cursor-pointer overflow-hidden" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                            {/* VÍDEO NATIVO AUTOPLAY SILENCIOSO PREENCHENDO TUDO */}
+                                            <video 
+                                                src={p.videoUrl} 
+                                                autoPlay loop muted playsInline 
+                                                className="absolute inset-0 w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-700" 
+                                            />
+                                            
+                                            {/* PEQUENO BADGE DE VÍDEO NO CANTO (Bem clean) */}
+                                            <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 z-10 shadow-lg">
+                                                <svg width="8" height="8" viewBox="0 0 24 24" fill="white" className="animate-pulse"><path d="M8 5v14l11-7z"/></svg>
+                                                <span className="text-[8px] font-black text-white tracking-widest uppercase">Vídeo</span>
+                                            </div>
+
+                                            {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-xs uppercase backdrop-blur-sm z-20">Esgotado</div>}
+                                            {p.hasDiscount && p.discountPercentage && <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md z-10">-{p.discountPercentage}%</span>}
                                         </div>
-                                    )}
-                                    {p.isChilled && (
-                                        <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">
-                                            ❄️
+                                        <div className="p-4 flex flex-col flex-1 bg-white">
+                                            <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
+                                            <div className="flex justify-between items-center mt-auto">
+                                                <div className="flex flex-col">
+                                                    {Number(p.promotionalPrice) > 0 ? (
+                                                        <>
+                                                            <span className="text-[10px] font-bold text-slate-400 line-through">R$ {Number(p.price).toFixed(2)}</span>
+                                                            <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                    )}
+                                                </div>
+                                                <button aria-label={`Adicionar ${p.name}`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
-                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
-                                {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
-                                <div className="flex justify-between items-center mt-auto">
-                                      <div>
-                                          {Number(p.promotionalPrice) > 0 ? (
-                                              <>
-                                                  <span className="text-[11px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
-                                                  <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
-                                              </>
-                                          ) : (
-                                              <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                          )}
-                                      </div>
-                                      <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                          <ShoppingCart size={16} aria-hidden="true" />
-                                      </button>
-                                </div>
+                                    </>
+                                ) : (
+                                    // --- MODO PADRÃO (IMAGEM) ---
+                                    <>
+                                        <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                            <img src={optimizeCloudinary(p.imageUrl, 300)} alt={`${p.name} - ${p.category} na ${storeSettings.name}`} title={`${p.name} disponível para entrega na ${storeSettings.name}`} width="150" height="150" loading="lazy" decoding="async" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" onError={(e) => { e.target.onerror = null; e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; }} />
+                                            {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase backdrop-blur-sm">Esgotado</div>}
+                                            {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md">-{p.discountPercentage}%</span>}
+                                            {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">OFERTA 🔥</div>}
+                                            {p.isChilled && <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">❄️</div>}
+                                        </div>
+                                        <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
+                                        {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
+                                        <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-50">
+                                            <div>
+                                                {Number(p.promotionalPrice) > 0 ? (
+                                                    <>
+                                                        <span className="text-[10px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
+                                                        <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                                    </>
+                                                ) : (
+                                                    <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                )}
+                                            </div>
+                                            <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                                <ShoppingCart size={16} aria-hidden="true" />
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </motion.div>
                         );
                     })}
@@ -4203,24 +4169,35 @@ if (window.fbq) {
             >
               <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
                   <button 
-                    onClick={() => {
-                        setSelectedProduct(null);
-                        window.history.pushState(null, '', '/');
-                    }} 
+                    onClick={() => setIsFullscreenMedia(true)} 
                     className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
                   >
-                    <X size={20} />
+                    <Maximize size={20} />
                   </button>
                   <button 
                     onClick={() => {
                         setSelectedProduct(null);
                         window.history.pushState(null, '', '/');
                     }} 
-                    className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-black/60 transition-all shadow-lg"
+                    className="bg-black/40 text-white p-2 rounded-full backdrop-blur-md hover:bg-red-500 transition-all shadow-lg"
                   >
                     <X size={20} />
                   </button>
               </div>
+
+              {/* TELA CHEIA (OVERLAY) */}
+              <AnimatePresence>
+                  {isFullscreenMedia && (
+                      <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[999] bg-black flex items-center justify-center">
+                          <button onClick={() => setIsFullscreenMedia(false)} className="absolute top-6 right-6 text-white bg-black/50 p-3 rounded-full z-50"><X size={24}/></button>
+                          {selectedProduct.videoUrl ? (
+                              <video src={selectedProduct.videoUrl} controls autoPlay playsInline className="w-full max-h-screen object-contain" />
+                          ) : (
+                              <img src={selectedProduct.imageUrl} className="w-full max-h-screen object-contain" />
+                          )}
+                      </motion.div>
+                  )}
+              </AnimatePresence>
 
               {/* CARROSSEL HÍBRIDO: VÍDEO (PRIORIDADE) + IMAGEM */}
               <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
