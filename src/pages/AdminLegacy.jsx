@@ -675,7 +675,8 @@ export default function Admin() {
     const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
     const[selectedIntegration, setSelectedIntegration] = useState(null);
     const [integrationForm, setIntegrationForm] = useState({});
-    // --- ESTADOS DO PLANO B (EVOLUTION QR CODE) ---
+   // --- ESTADOS DO PLANO B (EVOLUTION QR CODE) ---
+    const [isEvoModalOpen, setIsEvoModalOpen] = useState(false); // NOVO ESTADO
     const [evoQrCode, setEvoQrCode] = useState(null);
     const [evoStatus, setEvoStatus] = useState('offline');
     const [isLoadingEvo, setIsLoadingEvo] = useState(false);
@@ -12305,6 +12306,63 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             {/* --- FIM: MODAL DE GESTÃO VIP --- */}
+
+            {/* --- INÍCIO: MODAL DE QR CODE (PLANO B / EVOLUTION) --- */}
+            <AnimatePresence>
+                {isEvoModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[500] p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-800 w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-slate-600 text-center">
+                            <button 
+                                onClick={async () => {
+                                    setIsEvoModalOpen(false);
+                                    // Consideramos que ao fechar a tela, o cliente leu o QR Code com sucesso
+                                    await updateDoc(doc(db, "settings", storeId), {
+                                        "integrations.whatsapp.backup_active": true
+                                    });
+                                }} 
+                                className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors"
+                            >
+                                <X size={24}/>
+                            </button>
+                            
+                            <div className="bg-yellow-500/20 text-yellow-400 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Zap size={32} />
+                            </div>
+
+                            <h2 className="text-2xl font-black italic uppercase text-white mb-2">Chip de Emergência</h2>
+                            <p className="text-slate-400 font-bold text-xs mb-6 px-2 leading-relaxed">
+                                Pegue o aparelho secundário da sua loja e aponte a câmera do WhatsApp para este código.
+                            </p>
+
+                            <div className="bg-white p-4 rounded-2xl flex flex-col items-center justify-center min-h-[250px] shadow-inner mb-4">
+                                {isLoadingEvo ? (
+                                    <div className="flex flex-col items-center gap-3 text-slate-400">
+                                        <Loader2 className="animate-spin" size={32} />
+                                        <span className="font-black uppercase tracking-widest text-[10px]">Acessando VPS...</span>
+                                    </div>
+                                ) : evoQrCode ? (
+                                    <img src={evoQrCode} alt="Evolution QR Code" className="w-48 h-48 rounded-xl" />
+                                ) : (
+                                    <p className="text-red-500 font-bold text-xs">Erro ao gerar imagem.</p>
+                                )}
+                            </div>
+
+                            <button 
+                                onClick={async () => {
+                                    setIsEvoModalOpen(false);
+                                    await updateDoc(doc(db, "settings", storeId), {
+                                        "integrations.whatsapp.backup_active": true
+                                    });
+                                }}
+                                className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all border border-slate-700"
+                            >
+                                Já Escaneei! Fechar
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE QR CODE (PLANO B) --- */}
 
             <VeloSupportWidget />
         </div>

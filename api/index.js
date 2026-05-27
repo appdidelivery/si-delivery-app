@@ -79,6 +79,44 @@ async function getRawBody(req) {
 }
 
 // Inicializa a Stripe
+// --- 🛡️ FUNÇÃO DE DISPARO PLANO B (EVOLUTION API) ---
+const sendViaEvolutionAPI = async (config, phone, text) => {
+    try {
+        // Puxa as credenciais exclusivas deste tenant (Lojista)
+        const { fallbackInstanceUrl, backup_instance_token, backup_instance_name } = config;
+        
+        if (!fallbackInstanceUrl || !backup_instance_token || !backup_instance_name) {
+            throw new Error("Credenciais da VPS incompletas no painel do lojista.");
+        }
+
+        let cleanPhone = String(phone).replace(/\D/g, '');
+        if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
+        cleanPhone = `55${cleanPhone}`; // Formato BR
+
+        const response = await fetch(`${fallbackInstanceUrl}/message/sendText/${backup_instance_name}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': backup_instance_token
+            },
+            body: JSON.stringify({
+                number: cleanPhone,
+                options: { delay: 1200, presence: "composing" },
+                textMessage: { text: text }
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(JSON.stringify(data));
+        
+        return { ok: true, data };
+    } catch (error) {
+        console.error("🚨 Erro Crítico no Disparo da Evolution (Plano B):", error.message);
+        return { ok: false, error: error.message };
+    }
+};
+
+// Inicializa a Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Inicializa o Firebase Admin (Singleton para não dar erro de limite de conexões)
@@ -988,40 +1026,14 @@ export default async function handler(req, res) {
             const { phoneNumberId, apiToken } = waConfig;
             const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
-            // --- 🛡️ MOTOR DE FAILOVER MULTI-TENANT (META -> EVOLUTION) ---
+            // --- 🛡️ MOTOR DE FAILOVER INTELIGENTE ---
             const triggerFailover = async (cleanPhone, messageText, metaErrorDetails) => {
-                console.warn(`⚠️ [Gateway Failover] Acionando Evolution API para loja: ${storeId}`);
-                try {
-                    const backupInstance = waConfig.backup_instance_name;
-                    const backupToken = waConfig.backup_instance_token;
-                    const evoBaseUrl = process.env.EVOLUTION_API_URL;
+                console.warn(`⚠️ [Gateway Failover] Roteando para o Plano B (Loja: ${storeId})`);
+                
+                // Dispara pela Evolution usando a função global
+                const evoResult = await sendViaEvolutionAPI(waConfig, cleanPhone, messageText);
 
-                    if (!backupInstance || !backupToken || !evoBaseUrl) {
-                        throw new Error("Instância de backup não configurada para este Tenant.");
-                    }
-
-                    const payload = {
-                        number: cleanPhone,
-                        options: { delay: 1200, presence: "composing" },
-                        textMessage: { text: messageText }
-                    };
-
-                    // Disparo isolado para a instância específica do cliente
-                    const evoRes = await fetch(`${evoBaseUrl}/message/sendText/${backupInstance}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'apikey': backupToken
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!evoRes.ok) {
-                        const evoErrorData = await evoRes.json();
-                        throw new Error(`Evolution Error: ${JSON.stringify(evoErrorData)}`);
-                    }
-
-                    // Notifica a loja no Firebase (Degraded Mode)
+                if (evoResult.ok) {
                     await db.collection('settings').doc(storeId).set({
                         integrations: {
                             whatsapp: {
@@ -1031,14 +1043,12 @@ export default async function handler(req, res) {
                             }
                         }
                     }, { merge: true });
-
                     return { ok: true, fallbackUsed: true };
-                } catch (evoError) {
-                    console.error("🚨 [Double Fault] Falha na Meta e na Evolution:", evoError);
+                } else {
                     await db.collection('settings').doc(storeId).set({
                         integrations: { whatsapp: { healthStatus: 'offline' } }
                     }, { merge: true });
-                    return { ok: false, fallbackUsed: false, error: evoError.message };
+                    return { ok: false, fallbackUsed: false, error: evoResult.error };
                 }
             };
 
@@ -1262,12 +1272,81 @@ export default async function handler(req, res) {
         }
     }
 
-  // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
     // ------------------------------------------------------------------------
+    // ROTA PLANO B: GERAÇÃO MULTI-TENANT DE INSTÂNCIA E QR CODE
     // ------------------------------------------------------------------------
-    // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
-    // ------------------------------------------------------------------------
+    else if (path === '/api/evolution-qrcode') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeId } = req.body;
+        if (!storeId) return res.status(400).json({ error: 'storeId obrigatório.' });
+
+        try {
+            const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
+            const waConfig = storeSettingsDoc.data()?.integrations?.whatsapp || {};
+            
+            const fallbackInstanceUrl = waConfig.fallbackInstanceUrl;
+            const globalApiKey = waConfig.fallbackInstanceKey; // Master Key inserida pelo lojista
+            
+            if (!fallbackInstanceUrl || !globalApiKey) {
+                return res.status(400).json({ error: 'Configure a URL da VPS e a Global API Key primeiro.' });
+            }
+
+            // Garante unicidade e rastreabilidade da instância
+            const instanceName = `backup_${storeId}`;
+
+            // 1. Cria a Instância na VPS (Contabo)
+            const createRes = await fetch(`${fallbackInstanceUrl}/instance/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
+                body: JSON.stringify({
+                    instanceName: instanceName,
+                    qrcode: true,
+                    integration: "WHATSAPP-BAILEYS"
+                })
+            });
+            const createData = await createRes.json();
+            if (!createRes.ok) throw new Error(createData.message?.[0] || createData.error || 'Erro ao criar instância na VPS.');
+
+            // 2. Configura o Webhook da Evolution para apontar pro nosso sistema Velo
+            const webhookUrl = `https://${req.headers.host}/api/whatsapp-webhook`;
+            await fetch(`${fallbackInstanceUrl}/webhook/set/${instanceName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
+                body: JSON.stringify({
+                    webhook: {
+                        enabled: true,
+                        url: webhookUrl,
+                        byEvents: false,
+                        base64: false,
+                        events: ["MESSAGES_UPSERT"]
+                    }
+                })
+            });
+
+            // 3. Salva a Hash/Token de Segurança da Instância na loja (Firestore)
+            const instanceToken = createData.hash?.apikey || createData.instance?.token || globalApiKey;
+            
+            await db.collection('settings').doc(storeId).set({
+                integrations: {
+                    whatsapp: {
+                        backup_instance_name: instanceName,
+                        backup_instance_token: instanceToken,
+                        backup_active: true
+                    }
+                }
+            }, { merge: true });
+
+            // 4. Devolve o QR Code para a Interface
+            let base64Image = createData.qrcode?.base64 || createData.base64 || null;
+            return res.status(200).json({ success: true, base64: base64Image, instanceName });
+
+        } catch (error) {
+            console.error("🚨 Erro na criação de QR Evolution:", error);
+            return res.status(500).json({ error: error.message || 'Erro de comunicação com a VPS.' });
+        }
+    }
+
     // ------------------------------------------------------------------------
     // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
     // ------------------------------------------------------------------------
