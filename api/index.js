@@ -684,28 +684,29 @@ export default async function handler(req, res) {
 // ------------------------------------------------------------------------
     // 5.5 EVOLUTION API MANAGER (GERAÇÃO DE INSTÂNCIAS MULTI-TENANT)
     // ------------------------------------------------------------------------
-    else if (path === '/api/evolution-manager') {
+   else if (path === '/api/evolution-manager') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
         
         const { storeId, action } = req.body;
         if (!storeId || !action) return res.status(400).json({ error: 'Parâmetros inválidos' });
 
-        let EVO_URL = process.env.EVOLUTION_API_URL;
+        // BLINDAGEM DE URL E KEY
+        let EVO_URL = process.env.EVOLUTION_API_URL?.trim().replace(/\/+$/, '');
         const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
 
-        // DEBUG: Isso vai aparecer nos seus Logs da Vercel 
-        console.log("DEBUG - EVO_URL carregada:", EVO_URL);
+        if (EVO_URL && !EVO_URL.includes(':8080')) {
+            EVO_URL += ':8080';
+        }
+
+        console.log("DEBUG - URL Final:", EVO_URL);
 
         if (!EVO_URL || !GLOBAL_API_KEY) {
-    EVO_URL = EVO_URL.replace(/\/+$/, '') + ':8080';
-}
-
-        if (!EVO_URL || !GLOBAL_API_KEY) {
-            return res.status(500).json({ error: 'Servidor VPS da Evolution não configurado no backend.' });
+            return res.status(500).json({ error: 'Configuração da Evolution (URL ou Key) ausente na Vercel.' });
         }
 
         try {
             const instanceName = `velo_${storeId}`;
+            // ... (restante do código original começa aqui)
 
             if (action === 'create_instance') {
                 const createRes = await fetch(`${EVO_URL}/instance/create`, {
