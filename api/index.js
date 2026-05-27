@@ -1306,21 +1306,26 @@ if (fallbackInstanceUrl && !fallbackInstanceUrl.includes(':8080')) {
             // Garante unicidade e rastreabilidade da instância
             const instanceName = `backup_${storeId}`;
 
-            // 1. Cria a Instância na VPS (Contabo)
-            const createRes = await fetch(`${fallbackInstanceUrl}/instance/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
-                body: JSON.stringify({
-                    instanceName: instanceName,
-                    qrcode: true,
-                    integration: "WHATSAPP-BAILEYS"
-                })
-            });
-            // CÓDIGO NOVO
-const responseText = await createRes.text(); // Captura a resposta como texto bruto
-let createData;
-try {
-    createData = JSON.parse(responseText);
+            // ... dentro da rota /api/evolution-qrcode
+// 1. Cria a Instância na VPS
+const createRes = await fetch(`${fallbackInstanceUrl}/instance/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
+    body: JSON.stringify({
+        instanceName: instanceName,
+        qrcode: true,
+        integration: "WHATSAPP-BAILEYS"
+    })
+});
+
+const responseText = await createRes.text(); // Lê como texto bruto
+console.log("DEBUG - Resposta da Evolution:", responseText); // MOSTRA O ERRO REAL
+
+if (!createRes.ok) {
+    throw new Error(`Erro na VPS (${createRes.status}): ${responseText}`);
+}
+
+const createData = JSON.parse(responseText);
 } catch (e) {
     throw new Error(`Resposta inválida da VPS: ${responseText.substring(0, 100)}`);
 }
