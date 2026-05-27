@@ -721,21 +721,9 @@ export default async function handler(req, res) {
                         integration: "WHATSAPP-BAILEYS"
                     })
                 });
-
-                const responseText = await createRes.text();
-                console.log("[EVO API - CRIAR] Resposta RAW da VPS:", responseText);
-
-                let createData;
-                try {
-                    createData = JSON.parse(responseText);
-                } catch (e) {
-                    throw new Error(`A VPS não retornou um JSON válido. Resposta: ${responseText.substring(0, 100)}`);
-                }
-
-                if (!createRes.ok) {
-                    throw new Error(createData.message?.[0] || createData.error || `Erro VPS HTTP ${createRes.status}`);
-                }
-
+                const createData = await createRes.json();
+                
+                // Usa o token gerado ou a Master Key de fallback para evitar erros de autenticação depois
                 const instanceToken = createData.hash?.apikey || createData.instance?.token || GLOBAL_API_KEY;
 
                 await db.collection('settings').doc(storeId).set({
@@ -751,66 +739,50 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true, instance: instanceName, token: instanceToken });
             }
 
-            // =======================================================
-            // AÇÃO 2: PEGAR QR CODE (ONDE ESTAVA DANDO ERRO)
-            // =======================================================
             if (action === 'get_qr') {
-                try {
-                    // Passo 1: Verifica o status atual
-                    const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
-                        method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
-                    });
-                    
-                    const statText = await statusRes.text();
-                    let stat = {};
-                    try { stat = JSON.parse(statText); } catch (e) { /* ignora se falhar */ }
-                    
-                    // Se estiver travado no "connecting", desloga para forçar um QR novo
-                    if (stat?.instance?.state === 'connecting') {
-                        console.log(`[EVO API] Instância ${instanceName} travada em connecting. Forçando logout...`);
-                        await fetch(`${EVO_URL}/instance/logout/${instanceName}`, {
-                            method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY }
-                        });
-                    }
+                // 1. Checa o status atual
+                const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
+                    method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
+                });
 
-                    // Passo 2: Busca o QR Code
-                    console.log(`[EVO API] Solicitando QR Code para ${instanceName}...`);
-                    const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
-                        method: 'GET', 
-                        headers: { 'apikey': GLOBAL_API_KEY }
-                    });
-                    
-                    const qrText = await qrRes.text();
-                    
-                    if (!qrRes.ok) {
-                        console.error(`[EVO API - ERRO FATAL QR] Status: ${qrRes.status} | Resposta:`, qrText);
-                        // AQUI É A MÁGICA: Em vez de quebrar genérico, devolvemos o erro exato
-                        return res.status(400).json({ error: `A VPS recusou gerar o QR Code. Motivo: ${qrText.substring(0, 100)}` });
-                    }
-                    
-                    let qrData;
-                    try {
-                        qrData = JSON.parse(qrText);
-                    } catch(e) {
-                        return res.status(500).json({ error: `Resposta QR inválida da VPS: ${qrText.substring(0, 100)}` });
-                    }
-                    
-                    // Varredura completa para extrair a imagem
-                    let base64Image = qrData.base64 || qrData.qrcode || qrData.code;
-                    if (!base64Image && qrData.instance) {
-                        base64Image = qrData.instance.qrcode || qrData.instance.base64;
-                    }
+                // Se a instância foi deletada ou não existe (404), manda o painel criar de novo
+                if (statusRes.status === 404) {
+                    return res.status(200).json({ error: "Instância não encontrada", mustCreate: true });
+                }
 
-                    if (base64Image) {
-                        return res.status(200).json({ base64: base64Image, raw: qrData });
-                    } else {
-                        // 🚨 ADICIONAMOS ESTE LOG AQUI PARA VER O QUE A VPS ESTÁ MANDANDO
-                        console.log("[EVO API] QR Code ainda não gerado. Resposta atual da VPS:", JSON.stringify(qrData));
-                        return res.status(200).json({ error: "O QR Code não veio na resposta.", raw: qrData });
-                    }
-                } catch (e) {
-                    console.error("[EVO API] Erro try-catch Get QR:", e);
-                    return res.status(500).json({ error: `Falha na comunicação com a VPS: ${e.message}` });
+                const stat = await statusRes.json();
+                const state = stat?.instance?.state || stat?.state;
+
+                // Se já conectou, avisa o painel para fechar o modal
+                if (state === 'open') {
+                    return res.status(200).json({ connected: true, state: 'open' });
+                }
+
+                // 2. Desengasga a instância se estiver travada e ESPERA
+                if (state === 'connecting') {
+                    console.log(`[EVO API] Instância travada em connecting. Forçando logout...`);
+                    await fetch(`${EVO_URL}/instance/logout/${instanceName}`, { method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY } });
+                    
+                    // A MÁGICA ESTÁ AQUI: Espera 2 segundos (2000ms) para o servidor da Contabo respirar
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+
+                // 3. Pede o QR Code
+                const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
+                    method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
+                });
+                
+                if (!qrRes.ok) throw new Error(`A VPS retornou status ${qrRes.status}`);
+                
+                const qrData = await qrRes.json();
+                
+                // Varredura completa nos padrões da v1 e v2 da Evolution
+                let base64Image = qrData.base64 || qrData.qrcode || qrData.code || qrData.instance?.qrcode || qrData.instance?.base64;
+                
+                if (base64Image) {
+                    return res.status(200).json({ base64: base64Image, raw: qrData });
+                } else {
+                    return res.status(200).json({ error: "O QR Code está sendo gerado...", raw: qrData });
                 }
             }
 
