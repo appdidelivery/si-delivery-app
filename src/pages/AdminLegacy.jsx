@@ -2286,7 +2286,7 @@ const handleGenerateProductCopy = async () => {
         const primeiroNome = order.customerName ? order.customerName.split(' ')[0] : 'Cliente';
         const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; 
         
-        // --- 🤖 GERADOR DE COPY SEO (GAMIFICADO) ---
+       // --- 🤖 GERADOR DE COPY SEO (GAMIFICADO) ---
         let seoItem = "o meu pedido";
         let seoAdjetivo = "rápido e com muita qualidade";
         
@@ -2299,13 +2299,18 @@ const handleGenerateProductCopy = async () => {
         const seoCopyText = `⭐⭐⭐⭐⭐\n"Pedi ${seoItem} na ${lojaNome} e estava incrível! Chegou ${seoAdjetivo}. Fui super bem atendido(a). Recomendo muito!"`;
         
         // --- ⚖️ MOTOR DE TESTE A/B (50% / 50%) ---
-        let msgCompleted = "";
+        // AGORA É UM ARRAY: Para enviar balões separados e facilitar a cópia (UX)
+        let msgCompleted = []; 
         
         // Math.random() gera um número entre 0 e 1. Menor que 0.5 = 50% de chance.
         if (Math.random() < 0.5) {
             
             // 🔴 OPÇÃO A: Copy Focada no Clube VIP (Gamificação Suave)
-            msgCompleted = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\nBasta *copiar o texto abaixo* e colar na nossa avaliação do Google:\n\n👇 *Copie este texto:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`;
+            msgCompleted = [
+                `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie a mensagem abaixo* e cole na nossa avaliação do Google:`,
+                seoCopyText, // <--- BALÃO ISOLADO PARA CÓPIA RÁPIDA
+                `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
+            ];
             
         } else {
             
@@ -2315,10 +2320,18 @@ const handleGenerateProductCopy = async () => {
             
             // Trava de Segurança: Só manda a copy B se houver valor real a receber
             if (Number(valorEmReais) > 0) {
-                msgCompleted = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado! ❤️ \n\n💸 *QUER R$ ${valorEmReais.replace('.', ',')} DE VOLTA NA SUA CARTEIRA DIGITAL AGORA?*\n\nNós liberamos esse saldo de Cashback para o seu próximo pedido, basta nos dar uma força no Google!\n\n👇 *Copie o texto abaixo:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Mandou o print, o saldo de R$ ${valorEmReais.replace('.', ',')} cai na sua conta do App na mesma hora!_`;
+                msgCompleted = [
+                    `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado! ❤️ \n\n💸 *QUER R$ ${valorEmReais.replace('.', ',')} DE VOLTA NA SUA CARTEIRA DIGITAL AGORA?*\n\nNós liberamos esse saldo de Cashback para o seu próximo pedido, basta nos dar uma força no Google!\n\n👇 *Copie a mensagem abaixo:*`,
+                    seoCopyText, // <--- BALÃO ISOLADO PARA CÓPIA RÁPIDA
+                    `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Mandou o print, o saldo de R$ ${valorEmReais.replace('.', ',')} cai na sua conta do App na mesma hora!_`
+                ];
             } else {
                 // Fallback para a opção A
-                msgCompleted = `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\nBasta *copiar o texto abaixo* e colar na nossa avaliação do Google:\n\n👇 *Copie este texto:*\n${seoCopyText}\n\n👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`;
+                msgCompleted = [
+                    `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie a mensagem abaixo* e cole na nossa avaliação do Google:`,
+                    seoCopyText, // <--- BALÃO ISOLADO PARA CÓPIA RÁPIDA
+                    `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
+                ];
             }
         }
         // ------------------------------------------
@@ -2329,7 +2342,7 @@ const handleGenerateProductCopy = async () => {
         const messages = {
             preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${primeiroNome}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
             delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n🎉 Que legal! Vimos aqui que este já é o seu *${qtdPedidosFeitos}º pedido* com a gente. Muito obrigado pela preferência!\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
-            completed: msgCompleted,
+            completed: msgCompleted, // Array de mensagens
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
 
@@ -2340,27 +2353,37 @@ const handleGenerateProductCopy = async () => {
             // DISPARO 100% PELA API OFICIAL E SALVAMENTO NO CHAT
             if (settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoOrderStatus) {
                 try {
-                    const res = await fetch('/api/whatsapp-send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'chat_reply',
-                            storeId: storeId,
-                            toPhone: cleanPhone,
-                            dynamicParams: { text: messages[newStatus] }
-                        })
-                    });
+                    // Normaliza para array para conseguirmos processar tanto Strings (Em Preparo) quanto Arrays (Entregue)
+                    const messagesToSend = Array.isArray(messages[newStatus]) ? messages[newStatus] : [messages[newStatus]];
 
-                    // SE A API ENVIOU COM SUCESSO, SALVA NA TELA DE CHAT DO ADMIN
-                    if (res.ok) {
-                        await addDoc(collection(db, 'whatsapp_inbound'), {
-                            storeId: storeId,
-                            to: cleanPhone,
-                            text: messages[newStatus],
-                            receivedAt: serverTimestamp(),
-                            status: 'read',
-                            direction: 'outbound' // Isso faz o balão ficar verde (enviado por você)
+                    for (const textMsg of messagesToSend) {
+                        const res = await fetch('/api/whatsapp-send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'chat_reply',
+                                storeId: storeId,
+                                toPhone: cleanPhone,
+                                dynamicParams: { text: textMsg }
+                            })
                         });
+
+                        // SE A API ENVIOU COM SUCESSO, SALVA NA TELA DE CHAT DO ADMIN
+                        if (res.ok) {
+                            await addDoc(collection(db, 'whatsapp_inbound'), {
+                                storeId: storeId,
+                                to: cleanPhone,
+                                text: textMsg,
+                                receivedAt: serverTimestamp(),
+                                status: 'read',
+                                direction: 'outbound' // Isso faz o balão ficar verde (enviado por você)
+                            });
+                        }
+                        
+                        // Adiciona um pequeno delay de 500ms entre as mensagens para garantir a ordem de chegada no WhatsApp
+                        if (messagesToSend.length > 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
                     }
                 } catch (e) {
                     console.error("Erro na API WA", e);
