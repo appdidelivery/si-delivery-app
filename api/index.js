@@ -1285,7 +1285,11 @@ export default async function handler(req, res) {
             const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
             const waConfig = storeSettingsDoc.data()?.integrations?.whatsapp || {};
             
-            const fallbackInstanceUrl = waConfig.fallbackInstanceUrl;
+            let fallbackInstanceUrl = waConfig.fallbackInstanceUrl;
+// Garante que a porta 8080 esteja presente se o usuário esquecer de colocar
+if (fallbackInstanceUrl && !fallbackInstanceUrl.includes(':8080')) {
+    fallbackInstanceUrl = fallbackInstanceUrl.replace(/\/+$/, '') + ':8080';
+}
             const globalApiKey = waConfig.fallbackInstanceKey; // Master Key inserida pelo lojista
             
             if (!fallbackInstanceUrl || !globalApiKey) {
