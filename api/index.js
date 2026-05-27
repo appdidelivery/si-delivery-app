@@ -721,10 +721,20 @@ export default async function handler(req, res) {
                         integration: "WHATSAPP-BAILEYS"
                     })
                 });
-                const createData = await createRes.json();
                 
-                // Usa o token gerado ou a Master Key de fallback para evitar erros de autenticação depois
+                const responseText = await createRes.text();
+                let createData = {};
+                try { createData = JSON.parse(responseText); } catch(e){}
+
+                // Se já existe, ignora o erro e avança para não travar o frontend
+                if (!createRes.ok && !responseText.includes('already exists')) {
+                    throw new Error(createData.message?.[0] || createData.error || 'Erro ao criar instância na VPS.');
+                }
+
                 const instanceToken = createData.hash?.apikey || createData.instance?.token || GLOBAL_API_KEY;
+                
+                // 🔥 MÁGICA: Extrai o QR Code que a Evolution já envia na criação!
+                const base64Image = createData.qrcode?.base64 || createData.base64 || null;
 
                 await db.collection('settings').doc(storeId).set({
                     integrations: {
@@ -736,53 +746,36 @@ export default async function handler(req, res) {
                     }
                 }, { merge: true });
 
-                return res.status(200).json({ success: true, instance: instanceName, token: instanceToken });
+                // Retorna o Base64 diretamente para o painel abrir na mesma hora
+                return res.status(200).json({ success: true, instance: instanceName, token: instanceToken, base64: base64Image });
             }
 
             if (action === 'get_qr') {
-                // 1. Checa o status atual
                 const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
                     method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                 });
-
-                // Se a instância foi deletada ou não existe (404), manda o painel criar de novo
-                if (statusRes.status === 404) {
-                    return res.status(200).json({ error: "Instância não encontrada", mustCreate: true });
-                }
-
                 const stat = await statusRes.json();
-                const state = stat?.instance?.state || stat?.state;
-
-                // Se já conectou, avisa o painel para fechar o modal
-                if (state === 'open') {
+                
+                // Se o WhatsApp já estiver conectado, avisa o painel
+                if (stat?.instance?.state === 'open' || stat?.state === 'open') {
                     return res.status(200).json({ connected: true, state: 'open' });
                 }
 
-                // 2. Desengasga a instância se estiver travada e ESPERA
-                if (state === 'connecting') {
-                    console.log(`[EVO API] Instância travada em connecting. Forçando logout...`);
-                    await fetch(`${EVO_URL}/instance/logout/${instanceName}`, { method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY } });
-                    
-                    // A MÁGICA ESTÁ AQUI: Espera 2 segundos (2000ms) para o servidor da Contabo respirar
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-
-                // 3. Pede o QR Code
+                // 🛑 REMOVIDO O LOGOUT: Agora deixamos o motor em paz pedindo o QR Code.
                 const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
                     method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                 });
                 
-                if (!qrRes.ok) throw new Error(`A VPS retornou status ${qrRes.status}`);
+                const qrText = await qrRes.text();
+                let qrData = {};
+                try { qrData = JSON.parse(qrText); } catch(e){}
                 
-                const qrData = await qrRes.json();
-                
-                // Varredura completa nos padrões da v1 e v2 da Evolution
                 let base64Image = qrData.base64 || qrData.qrcode || qrData.code || qrData.instance?.qrcode || qrData.instance?.base64;
                 
                 if (base64Image) {
                     return res.status(200).json({ base64: base64Image, raw: qrData });
                 } else {
-                    return res.status(200).json({ error: "O QR Code está sendo gerado...", raw: qrData });
+                    return res.status(200).json({ error: "QR não gerado ainda", raw: qrData });
                 }
             }
 
