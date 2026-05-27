@@ -1309,8 +1309,18 @@ if (fallbackInstanceUrl && !fallbackInstanceUrl.includes(':8080')) {
                     integration: "WHATSAPP-BAILEYS"
                 })
             });
-            const createData = await createRes.json();
-            if (!createRes.ok) throw new Error(createData.message?.[0] || createData.error || 'Erro ao criar instância na VPS.');
+            // CÓDIGO NOVO
+const responseText = await createRes.text(); // Captura a resposta como texto bruto
+let createData;
+try {
+    createData = JSON.parse(responseText);
+} catch (e) {
+    throw new Error(`Resposta inválida da VPS: ${responseText.substring(0, 100)}`);
+}
+
+if (!createRes.ok) {
+    throw new Error(createData.message?.[0] || createData.error || 'Erro ao criar instância na VPS.');
+}
 
             // 2. Configura o Webhook da Evolution para apontar pro nosso sistema Velo
             const webhookUrl = `https://${req.headers.host}/api/whatsapp-webhook`;
