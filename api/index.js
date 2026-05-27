@@ -684,29 +684,28 @@ export default async function handler(req, res) {
 // ------------------------------------------------------------------------
     // 5.5 EVOLUTION API MANAGER (GERAÇÃO DE INSTÂNCIAS MULTI-TENANT)
     // ------------------------------------------------------------------------
-   else if (path === '/api/evolution-manager') {
+    else if (path === '/api/evolution-manager') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
         
         const { storeId, action } = req.body;
         if (!storeId || !action) return res.status(400).json({ error: 'Parâmetros inválidos' });
 
-        // BLINDAGEM DE URL E KEY
-        let EVO_URL = process.env.EVOLUTION_API_URL?.trim().replace(/\/+$/, '');
+        let EVO_URL = process.env.EVOLUTION_API_URL;
         const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
 
-        if (EVO_URL && !EVO_URL.includes(':8080')) {
-            EVO_URL += ':8080';
-        }
-
-        console.log("DEBUG - URL Final:", EVO_URL);
+        // DEBUG: Isso vai aparecer nos seus Logs da Vercel 
+        console.log("DEBUG - EVO_URL carregada:", EVO_URL);
 
         if (!EVO_URL || !GLOBAL_API_KEY) {
-            return res.status(500).json({ error: 'Configuração da Evolution (URL ou Key) ausente na Vercel.' });
+    EVO_URL = EVO_URL.replace(/\/+$/, '') + ':8080';
+}
+
+        if (!EVO_URL || !GLOBAL_API_KEY) {
+            return res.status(500).json({ error: 'Servidor VPS da Evolution não configurado no backend.' });
         }
 
         try {
             const instanceName = `velo_${storeId}`;
-            // ... (restante do código original começa aqui)
 
             if (action === 'create_instance') {
                 const createRes = await fetch(`${EVO_URL}/instance/create`, {
@@ -1307,26 +1306,21 @@ if (fallbackInstanceUrl && !fallbackInstanceUrl.includes(':8080')) {
             // Garante unicidade e rastreabilidade da instância
             const instanceName = `backup_${storeId}`;
 
-            // ... dentro da rota /api/evolution-qrcode
-// 1. Cria a Instância na VPS
-const createRes = await fetch(`${fallbackInstanceUrl}/instance/create`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
-    body: JSON.stringify({
-        instanceName: instanceName,
-        qrcode: true,
-        integration: "WHATSAPP-BAILEYS"
-    })
-});
-
-const responseText = await createRes.text(); // Lê como texto bruto
-console.log("DEBUG - Resposta da Evolution:", responseText); // MOSTRA O ERRO REAL
-
-if (!createRes.ok) {
-    throw new Error(`Erro na VPS (${createRes.status}): ${responseText}`);
-}
-
-const createData = JSON.parse(responseText);
+            // 1. Cria a Instância na VPS (Contabo)
+            const createRes = await fetch(`${fallbackInstanceUrl}/instance/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
+                body: JSON.stringify({
+                    instanceName: instanceName,
+                    qrcode: true,
+                    integration: "WHATSAPP-BAILEYS"
+                })
+            });
+            // CÓDIGO NOVO
+const responseText = await createRes.text(); // Captura a resposta como texto bruto
+let createData;
+try {
+    createData = JSON.parse(responseText);
 } catch (e) {
     throw new Error(`Resposta inválida da VPS: ${responseText.substring(0, 100)}`);
 }
