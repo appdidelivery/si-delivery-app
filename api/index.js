@@ -690,8 +690,13 @@ export default async function handler(req, res) {
         const { storeId, action } = req.body;
         if (!storeId || !action) return res.status(400).json({ error: 'Parâmetros inválidos' });
 
-        const EVO_URL = process.env.EVOLUTION_API_URL;
-        const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
+        let EVO_URL = process.env.EVOLUTION_API_URL;
+const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
+
+// Blindagem: força a inclusão da porta 8080 se esquecida
+if (EVO_URL && !EVO_URL.includes(':8080')) {
+    EVO_URL = EVO_URL.replace(/\/+$/, '') + ':8080';
+}
 
         if (!EVO_URL || !GLOBAL_API_KEY) {
             return res.status(500).json({ error: 'Servidor VPS da Evolution não configurado no backend.' });
