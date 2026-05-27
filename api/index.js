@@ -693,20 +693,24 @@ export default async function handler(req, res) {
         let EVO_URL = process.env.EVOLUTION_API_URL;
         const GLOBAL_API_KEY = process.env.EVOLUTION_GLOBAL_API_KEY;
 
-        // DEBUG: Isso vai aparecer nos seus Logs da Vercel 
-        console.log("DEBUG - EVO_URL carregada:", EVO_URL);
+        console.log(`[EVO API] Iniciando ação: ${action} para loja: ${storeId}`);
+        console.log(`[EVO API] URL carregada: ${EVO_URL}`);
+
+        // Garante a formatação correta da URL (remove barra final e adiciona porta se faltar)
+        if (EVO_URL && !EVO_URL.includes(':8080')) {
+            EVO_URL = EVO_URL.replace(/\/+$/, '') + ':8080';
+        }
 
         if (!EVO_URL || !GLOBAL_API_KEY) {
-    EVO_URL = EVO_URL.replace(/\/+$/, '') + ':8080';
-}
-
-        if (!EVO_URL || !GLOBAL_API_KEY) {
-            return res.status(500).json({ error: 'Servidor VPS da Evolution não configurado no backend.' });
+            return res.status(500).json({ error: 'Servidor VPS ou Global API Key não configurados nas Variáveis de Ambiente da Vercel.' });
         }
 
         try {
             const instanceName = `velo_${storeId}`;
 
+            // =======================================================
+            // AÇÃO 1: CRIAR INSTÂNCIA
+            // =======================================================
             if (action === 'create_instance') {
                 const createRes = await fetch(`${EVO_URL}/instance/create`, {
                     method: 'POST',
@@ -717,9 +721,22 @@ export default async function handler(req, res) {
                         integration: "WHATSAPP-BAILEYS"
                     })
                 });
-                const createData = await createRes.json();
 
-                const instanceToken = createData.hash?.apikey || createData.instance?.token || "TOKEN_NAO_ENCONTRADO";
+                const responseText = await createRes.text();
+                console.log("[EVO API - CRIAR] Resposta RAW da VPS:", responseText);
+
+                let createData;
+                try {
+                    createData = JSON.parse(responseText);
+                } catch (e) {
+                    throw new Error(`A VPS não retornou um JSON válido. Resposta: ${responseText.substring(0, 100)}`);
+                }
+
+                if (!createRes.ok) {
+                    throw new Error(createData.message?.[0] || createData.error || `Erro VPS HTTP ${createRes.status}`);
+                }
+
+                const instanceToken = createData.hash?.apikey || createData.instance?.token || GLOBAL_API_KEY;
 
                 await db.collection('settings').doc(storeId).set({
                     integrations: {
@@ -734,33 +751,52 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true, instance: instanceName, token: instanceToken });
             }
 
+            // =======================================================
+            // AÇÃO 2: PEGAR QR CODE (ONDE ESTAVA DANDO ERRO)
+            // =======================================================
             if (action === 'get_qr') {
                 try {
-                    // Passo 1: Forçamos o Logout se a sessão travou como 'connecting'
+                    // Passo 1: Verifica o status atual
                     const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
                         method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                     });
-                    const stat = await statusRes.json();
                     
+                    const statText = await statusRes.text();
+                    let stat = {};
+                    try { stat = JSON.parse(statText); } catch (e) { /* ignora se falhar */ }
+                    
+                    // Se estiver travado no "connecting", desloga para forçar um QR novo
                     if (stat?.instance?.state === 'connecting') {
+                        console.log(`[EVO API] Instância ${instanceName} travada em connecting. Forçando logout...`);
                         await fetch(`${EVO_URL}/instance/logout/${instanceName}`, {
                             method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY }
                         });
                     }
 
-                    // Passo 2: Busca agressiva do QR Code na V2
+                    // Passo 2: Busca o QR Code
+                    console.log(`[EVO API] Solicitando QR Code para ${instanceName}...`);
                     const qrRes = await fetch(`${EVO_URL}/instance/connect/${instanceName}`, {
                         method: 'GET', 
                         headers: { 'apikey': GLOBAL_API_KEY }
                     });
                     
-                    if (!qrRes.ok) throw new Error("A VPS recusou a conexão.");
+                    const qrText = await qrRes.text();
                     
-                    const qrData = await qrRes.json();
+                    if (!qrRes.ok) {
+                        console.error(`[EVO API - ERRO FATAL QR] Status: ${qrRes.status} | Resposta:`, qrText);
+                        // AQUI É A MÁGICA: Em vez de quebrar genérico, devolvemos o erro exato
+                        return res.status(400).json({ error: `A VPS recusou gerar o QR Code. Motivo: ${qrText.substring(0, 100)}` });
+                    }
+                    
+                    let qrData;
+                    try {
+                        qrData = JSON.parse(qrText);
+                    } catch(e) {
+                        return res.status(500).json({ error: `Resposta QR inválida da VPS: ${qrText.substring(0, 100)}` });
+                    }
                     
                     // Varredura completa para extrair a imagem
                     let base64Image = qrData.base64 || qrData.qrcode || qrData.code;
-                    
                     if (!base64Image && qrData.instance) {
                         base64Image = qrData.instance.qrcode || qrData.instance.base64;
                     }
@@ -768,37 +804,58 @@ export default async function handler(req, res) {
                     if (base64Image) {
                         return res.status(200).json({ base64: base64Image, raw: qrData });
                     } else {
-                        return res.status(200).json({ error: "QR não gerado ainda", raw: qrData });
+                        // Se retornou 200 OK mas veio sem imagem (já conectado, por exemplo)
+                        return res.status(200).json({ error: "O QR Code não veio na resposta.", raw: qrData });
                     }
                 } catch (e) {
-                    console.error("Erro Get QR:", e);
-                    return res.status(500).json({ error: "Falha na comunicação com a VPS" });
+                    console.error("[EVO API] Erro try-catch Get QR:", e);
+                    return res.status(500).json({ error: `Falha na comunicação com a VPS: ${e.message}` });
                 }
             }
 
+            // =======================================================
+            // AÇÃO 3: VERIFICAR STATUS
+            // =======================================================
             if (action === 'get_status') {
                 const statusRes = await fetch(`${EVO_URL}/instance/connectionState/${instanceName}`, {
                     method: 'GET', headers: { 'apikey': GLOBAL_API_KEY }
                 });
-                const statData = await statusRes.json();
                 
-                // Trata erro 404 se a instância não existir
-                if (!statusRes.ok) return res.status(200).json({ instance: { state: 'offline' } });
+                const statText = await statusRes.text();
+                
+                if (!statusRes.ok) {
+                    console.log(`[EVO API] Instância ${instanceName} offline ou inexistente.`);
+                    return res.status(200).json({ instance: { state: 'offline' } });
+                }
+
+                let statData;
+                try {
+                    statData = JSON.parse(statText);
+                } catch(e) {
+                    return res.status(500).json({ error: "Resposta inválida ao checar status" });
+                }
                 
                 return res.status(200).json(statData);
             }
 
+            // =======================================================
+            // AÇÃO 4: DELETAR INSTÂNCIA
+            // =======================================================
             if (action === 'delete_instance') {
                 await fetch(`${EVO_URL}/instance/logout/${instanceName}`, { method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY } });
                 await fetch(`${EVO_URL}/instance/delete/${instanceName}`, { method: 'DELETE', headers: { 'apikey': GLOBAL_API_KEY } });
+                
                 await db.collection('settings').doc(storeId).set({
                     integrations: { whatsapp: { backup_instance_name: null, backup_instance_token: null, backup_active: false } }
                 }, { merge: true });
+                
                 return res.status(200).json({ success: true });
             }
 
+            return res.status(400).json({ error: 'Ação não reconhecida.' });
+
         } catch (error) {
-            console.error('Evolution Manager Error:', error);
+            console.error('[EVO API] Evolution Manager Error:', error);
             return res.status(500).json({ error: error.message });
         }
     }
