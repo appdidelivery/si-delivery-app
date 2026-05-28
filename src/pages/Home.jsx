@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, limit, startAfter, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
-import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare, Maximize, Sparkles } from 'lucide-react';
+import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare, Maximize, Sparkles, Camera } from 'lucide-react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import useProducts from '../hooks/useProducts';
 import SEO from '../components/SEO';
@@ -3727,13 +3727,25 @@ if (window.fbq) {
         </motion.button>
 
         <motion.button
-          aria-label="Acessar Clube VIP"
+          aria-label="Acessar Recompensas"
           onClick={() => setShowVipArea(true)}
-          className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-slate-900 rounded-full p-4 shadow-xl hover:from-yellow-300 hover:to-yellow-500 active:scale-90 flex items-center gap-2 border-2 border-yellow-300"
+          className="relative bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-600 text-white rounded-full p-4 shadow-[0_8px_15px_rgb(147,51,234,0.3)] hover:shadow-[0_8px_20px_rgb(147,51,234,0.5)] active:scale-95 flex items-center justify-center gap-2 border-2 border-fuchsia-400/50 transition-all z-50 flex-shrink-0"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
         >
-          <Crown size={24} fill="currentColor" /> <span className="font-black text-sm pr-2">VIP</span>
+          {/* Ícone de Presente pulsando */}
+          <Gift size={24} className="animate-pulse" /> 
+          <span className="font-black text-sm hidden md:inline">Prêmios</span>
+          
+          {/* BOLINHA DE NOTIFICAÇÃO PERFEITAMENTE ALINHADA */}
+          {marketingSettings?.influencerTiers?.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border border-white text-white text-[9px] items-center justify-center font-black shadow-md">
+                      1
+                  </span>
+              </span>
+          )}
         </motion.button>
       </div>
 
@@ -4522,6 +4534,62 @@ if (window.fbq) {
                   )}
               </div>
 
+              {/* MÓDULO: PAGUE COM SEGUIDORES (INSTAGRAM/TIKTOK) */}
+              {marketingSettings?.influencerTiers && marketingSettings.influencerTiers.length > 0 && (
+                  <div className="mb-6 bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-700 p-6 rounded-[2rem] shadow-xl text-white relative overflow-hidden animate-in fade-in zoom-in-95">
+                      <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
+                          <Camera size={150} />
+                      </div>
+
+                      <div className="relative z-10">
+                          <h3 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 mb-1">
+                              <Camera size={24} className="text-pink-300" />
+                              Poste e Ganhe!
+                          </h3>
+                          <p className="text-xs font-medium text-purple-100 mb-6 leading-relaxed">
+                              Troque sua influência por mimos. Poste um Story instagram ou TikTok marcando <b>{storeSettings.instagramUrl ? storeSettings.instagramUrl.split('.com/')[1] : "nossa loja"}</b> e resgate na hora!
+                          </p>
+
+                          <div className="space-y-3 mb-6">
+                              {marketingSettings.influencerTiers
+                                  .sort((a, b) => a.followers - b.followers)
+                                  .map((tier, idx) => (
+                                  <div key={idx} className="flex items-center justify-between bg-white/10 border border-white/20 backdrop-blur-sm p-3 rounded-2xl">
+                                      <div className="flex flex-col">
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-pink-300">
+                                              + de {tier.followers.toLocaleString('pt-BR')} seguidores
+                                          </span>
+                                          <span className="font-bold text-sm">🎁 {tier.reward}</span>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+
+                          {/* BOTÃO QUE ABRE O MODAL PARA ENVIAR O PRINT */}
+                          <button 
+                              onClick={() => {
+                                  // Reutilizamos a estrutura de modal das outras missões!
+                                  setMissionModal({ 
+                                      isOpen: true, 
+                                      type: 'post_influencer', 
+                                      title: 'Print do Story / TikTok', 
+                                      points: 0, // Zero porque o prêmio não é pontos, é o brinde físico
+                                      customReward: true // Flag para o modal saber que a mensagem muda
+                                  });
+                                  setShowVipArea(false); // Fecha a área VIP para abrir o modal
+                              }}
+                              className="w-full bg-white text-purple-700 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                          >
+                              Enviar Meu Print <UploadCloud size={16} />
+                          </button>
+                          
+                          <p className="text-[9px] text-center text-purple-200 mt-3 font-medium">
+                              *Seu perfil precisa ser aberto. Nossa equipe verificará o print para liberar o brinde!
+                          </p>
+                      </div>
+                  </div>
+              )}
+
               <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4 pl-2">Missões Disponíveis (Ganhe Pontos)</h3>
               
               <div className="space-y-4">
@@ -4585,9 +4653,15 @@ if (window.fbq) {
               <button onClick={() => { setMissionModal({ isOpen: false }); setProofFile(null); }} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24} /></button>
               
               <h2 className="text-2xl font-black italic tracking-tighter uppercase text-slate-900 mb-2">{missionModal.title}</h2>
-              <p className="text-xs font-bold text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  Para ganhar os <strong className="text-yellow-600">{missionModal.points} pontos</strong>, clique no botão abaixo para ir até a página, faça a ação, tire um Print (Screenshot) e envie aqui para validação.
-              </p>
+              {missionModal.customReward ? (
+                  <p className="text-xs font-bold text-slate-500 mb-6 bg-purple-50 p-3 rounded-xl border border-purple-100">
+                      Tire um Print (Screenshot) do seu <b>Story ou TikTok</b> onde você marcou a nossa loja e mostre também a quantidade de seguidores que você tem. Anexe a imagem abaixo para a equipe validar seu brinde!
+                  </p>
+              ) : (
+                  <p className="text-xs font-bold text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      Para ganhar os <strong className="text-yellow-600">{missionModal.points} pontos</strong>, clique no botão abaixo para ir até a página, faça a ação, tire um Print (Screenshot) e envie aqui para validação.
+                  </p>
+              )}
 
               <div className="space-y-3 mb-6">
                   {storeSettings.googleReviewUrl && missionModal.type.includes('google') && (

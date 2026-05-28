@@ -7277,7 +7277,77 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             )}
                                         </div>
+{/* --- INÍCIO: PAGUE COM SEGUIDORES (TIERS) --- */}
+                                            <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div>
+                                                        <h4 className="text-xs font-black uppercase text-indigo-400 flex items-center gap-2">
+                                                            📸 Pague com Seguidores
+                                                        </h4>
+                                                        <p className="text-[9px] font-bold text-slate-400 mt-1">
+                                                            Ofereça brindes para clientes que postarem a loja no Instagram/TikTok.
+                                                        </p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const currentTiers = settings.influencerTiers || [];
+                                                            const newTiers = [...currentTiers, { followers: 1000, reward: '' }];
+                                                            await setDoc(doc(db, "settings", storeId), { influencerTiers: newTiers }, { merge: true });
+                                                        }}
+                                                        className="bg-indigo-500/20 text-indigo-300 hover:text-white hover:bg-indigo-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all"
+                                                    >
+                                                        + Nova Meta
+                                                    </button>
+                                                </div>
 
+                                                <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                                                    {(settings.influencerTiers || []).map((tier, index) => (
+                                                        <div key={index} className="flex items-center gap-2 bg-slate-900 p-2 rounded-xl border border-slate-600">
+                                                            <div className="flex flex-col w-24">
+                                                                <span className="text-[8px] font-black text-slate-400 uppercase ml-1">Seguidores</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={tier.followers}
+                                                                    onChange={async (e) => {
+                                                                        const newTiers = [...settings.influencerTiers];
+                                                                        newTiers[index].followers = Number(e.target.value);
+                                                                        await setDoc(doc(db, "settings", storeId), { influencerTiers: newTiers }, { merge: true });
+                                                                    }}
+                                                                    className="w-full bg-slate-800 text-white p-2 rounded-lg text-xs font-bold outline-none focus:ring-2 ring-indigo-500"
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col flex-1">
+                                                                <span className="text-[8px] font-black text-slate-400 uppercase ml-1">Ganha o quê?</span>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="Ex: 1 Cerveja ou Chocolate"
+                                                                    value={tier.reward}
+                                                                    onChange={async (e) => {
+                                                                        const newTiers = [...settings.influencerTiers];
+                                                                        newTiers[index].reward = e.target.value;
+                                                                        await setDoc(doc(db, "settings", storeId), { influencerTiers: newTiers }, { merge: true });
+                                                                    }}
+                                                                    className="w-full bg-slate-800 text-white p-2 rounded-lg text-xs font-bold outline-none focus:ring-2 ring-indigo-500"
+                                                                />
+                                                            </div>
+                                                            <button 
+                                                                onClick={async () => {
+                                                                    const newTiers = [...settings.influencerTiers];
+                                                                    newTiers.splice(index, 1);
+                                                                    await setDoc(doc(db, "settings", storeId), { influencerTiers: newTiers }, { merge: true });
+                                                                }}
+                                                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg mt-3 transition-colors"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    {(settings.influencerTiers || []).length === 0 && (
+                                                        <p className="text-center text-xs text-slate-500 italic py-2">Nenhuma meta configurada.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {/* --- FIM: PAGUE COM SEGUIDORES --- */}
                                         {/* Selos (Badges) */}
                                         <div className="flex items-center justify-between bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
                                             <div className="flex items-center gap-3">
