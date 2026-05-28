@@ -303,14 +303,14 @@ export default function WppWebview() {
           if(proms.length) await Promise.all(proms).catch(()=>{});
           // =========================================================
 
-          // Offline
-          if (['dinheiro', 'cardDelivery', 'cashDelivery', 'cardPickup', 'cashPickup'].includes(customer.payment)) {
-              await setDoc(orderRef, { ...oData, paymentStatus: 'pending_on_delivery' });
-              setCart([]); localStorage.removeItem(`veloCart_${slug}`);
-              return window.location.href = `/track/${orderRef.id}`;
+          // Trava de segurança: somente métodos online permitidos no Webview WPP
+          if (!['velopay_pix', 'mercadopago_pix', 'mercadopago_link'].includes(customer.payment)) {
+              setIsSubmitting(false);
+              submitLock.current = false;
+              return alert("Esta forma de pagamento não é permitida neste canal. Escolha PIX ou Cartão Online.");
           }
 
-          // VeloPay Pix
+          // VeloPay Pix Nativo
           if (customer.payment === 'velopay_pix') {
               await setDoc(orderRef, { ...oData, paymentStatus: 'processing' });
               const res = await fetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
@@ -319,8 +319,8 @@ export default function WppWebview() {
               return window.location.href = `/track/${orderRef.id}?payment=pix_pending`;
           }
 
-          // Fluxo de Pagamento Online (PIX Transparente Direto)
-          if (customer.payment === 'mercadopago_link') {
+          // Mercado Pago Pix (Transparente Direto)
+          if (customer.payment === 'mercadopago_pix') {
               try {
                   const res = await fetch('/api/processar-pagamento-transparente-velo', {
                       method: 'POST',
@@ -346,7 +346,7 @@ export default function WppWebview() {
                       localStorage.removeItem(`veloCart_${slug}`);
                       return window.location.href = `/track/${orderRef.id}?payment=pix_generated`;
                   } else {
-                      throw new Error(data.error || "Falha ao gerar PIX Automático.");
+                      throw new Error(data.error || "Falha ao gerar PIX Mercado Pago.");
                   }
               } catch (e) {
                   alert("Erro ao gerar PIX: " + e.message);
@@ -354,13 +354,20 @@ export default function WppWebview() {
                   return;
               }
           }
+
+          // Cartão de Crédito Mercado Pago (Link / Checkout Pro)
+          if (customer.payment === 'mercadopago_link') {
+              await setDoc(orderRef, oData);
+              setCart([]); 
+              localStorage.removeItem(`veloCart_${slug}`);
+              return window.location.href = `/track/${orderRef.id}?payment=mp_link`;
+          }
+
       } catch (e) { alert(`Erro: ${e.message}`); submitLock.current = false; setIsSubmitting(false); }
   };
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-[#0F172A] text-white font-bold animate-pulse">Carregando Velo Delivery...</div>;
   if (!store) return <div className="h-screen flex items-center justify-center bg-[#0F172A] text-white font-bold">Loja não encontrada.</div>;
-
-  const pmConfig = store?.acceptedPayments || { online: true, pix: true, cardDelivery: true, cashDelivery: true, cardPickup: true, cashPickup: true };
 
   return (
     <div className="min-h-screen bg-[#0F172A] font-sans">
@@ -548,7 +555,7 @@ export default function WppWebview() {
                   )}
                 </div>
 
-                {/* FORMA DE PAGAMENTO BLINDADA */}
+                {/* FORMA DE PAGAMENTO BLINDADA - SOMENTE ONLINE */}
                 <div className="mb-6">
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Como deseja pagar?</label>
                     <div className="grid grid-cols-1 gap-2">
@@ -559,17 +566,19 @@ export default function WppWebview() {
 
                             let methods = [];
 
-                            // REGRA DE NEGÓCIO: Webview do WhatsApp exige pagamento online obrigatório
-                            if (pmConf.online !== false || pmConf.pix !== false) {
-                                if (pmConf.pix !== false) {
-                                    methods.push({ id: hasVeloPix ? 'velopay_pix' : 'mercadopago_link', label: '⚡ PIX Automático' });
+                            // REGRAS ESTRITAS PARA WEBVIEW DO WHATSAPP:
+                            // APENAS PAGAMENTOS ONLINE. NENHUM PAGAMENTO OFFLINE (NA ENTREGA/RETIRADA).
+
+                            if (hasVeloPix) {
+                                methods.push({ id: 'velopay_pix', label: '⚡ PIX (Velo Nativo)' });
+                            }
+
+                            if (hasMP) {
+                                if (!hasVeloPix && pmConf.pix !== false) {
+                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX (Mercado Pago)' });
                                 }
-                                if (pmConf.online !== false && hasMP) {
-                                    if (!methods.some(m => m.id === 'mercadopago_link')) {
-                                        methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito (Online)' });
-                                    } else {
-                                        methods.find(m => m.id === 'mercadopago_link').label = '💳 Cartão / Pix (Online)';
-                                    }
+                                if (pmConf.online !== false) {
+                                    methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito (Mercado Pago)' });
                                 }
                             }
 
