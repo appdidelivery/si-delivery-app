@@ -430,7 +430,153 @@ export default function Admin() {
     const [currentTime, setCurrentTime] = useState(new Date()); // <-- ADICIONADO PARA CORRIGIR A TELA BRANCA
     const [orderFilterStatus, setOrderFilterStatus] = useState('all'); // NOVO: Filtro de Status
     const [orderFilterSource, setOrderFilterSource] = useState('all'); // NOVO: Filtro de Canal (App, PDV, Wpp)
+// Controle do Banner Educacional da Dashboard
+const [showEduBanner, setShowEduBanner] = useState(true);
+const [currentEduBanner, setCurrentEduBanner] = useState(0);
+// --- BUSCA GLOBAL DO SISTEMA (COMMAND PALETTE) ---
+    const [globalSearchText, setGlobalSearchText] = useState('');
+    const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
 
+    // Dicionário de termos para a busca inteligente
+    const systemFeatures = [
+        { keywords: ['cupom', 'desconto', 'voucher', 'promoção'], tab: 'marketing', label: 'Criar Cupom de Desconto', icon: <Tags size={16}/> },
+        { keywords: ['banner', 'imagem', 'fachada', 'carrossel', 'foto'], tab: 'banners', label: 'Gerenciar Banners da Loja', icon: <Image size={16}/> },
+        { keywords: ['produto', 'lanche', 'pizza', 'bebida', 'estoque', 'adicionar item', 'novo item', 'preço'], tab: 'products', label: 'Gerenciar Produtos e Estoque', icon: <Package size={16}/> },
+        { keywords: ['categoria', 'seção', 'menu', 'cardápio'], tab: 'categories', label: 'Gerenciar Categorias', icon: <List size={16}/> },
+        { keywords: ['entregador', 'motoboy', 'mapa', 'radar', 'rastreio', 'frota', 'gps'], tab: 'fleet', label: 'Monitor de Frota (Motoboys)', icon: <Truck size={16}/> },
+        { keywords: ['fatura', 'pagar', 'cartão', 'pix', 'velopay', 'banco', 'receber', 'financeiro', 'taxa'], tab: 'finance', label: 'Financeiro e Recebimentos', icon: <Wallet size={16}/> },
+        { keywords: ['pdv', 'balcão', 'mesa', 'caixa', 'lançar pedido', 'comanda', 'manual'], tab: 'manual', label: 'Frente de Caixa (PDV / Balcão)', icon: <Store size={16}/> },
+        { keywords: ['frete', 'taxa de entrega', 'raio', 'km', 'bairro', 'mapa de entrega', 'zona', 'localização'], tab: 'store_settings', label: 'Configurar Frete e Zonas', icon: <MapPin size={16}/> },
+        { keywords: ['horário', 'abrir loja', 'fechar loja', 'funcionamento', 'turno', 'feriado', 'férias'], tab: 'store_settings', label: 'Horários e Férias', icon: <Clock size={16}/> },
+        { keywords: ['whatsapp', 'bot', 'mensagem automatica', 'atendimento', 'meta', 'api'], tab: 'integrations', label: 'Configurar WhatsApp API', icon: <FaWhatsapp size={16}/> },
+        { keywords: ['chat', 'conversas', 'mensagens', 'clientes', 'suporte'], tab: 'chat', label: 'Chat do WhatsApp', icon: <MessageCircle size={16}/> },
+        { keywords: ['influenciador', 'parceiro', 'afiliado', 'comissão', 'indicação', 'instagram', 'tiktok'], tab: 'partners', label: 'Hub Parceiros (Influenciadores)', icon: <Megaphone size={16}/> },
+        { keywords: ['roleta', 'cashback', 'fidelidade', 'pontos', 'gamificação', 'vip', 'prêmio'], tab: 'marketing', label: 'Clube VIP / Roleta / Cashback', icon: <Trophy size={16}/> },
+        { keywords: ['relatório', 'fechamento', 'caixa', 'resumo', 'imprimir'], tab: 'dashboard', label: 'Fechamento de Caixa', icon: <Printer size={16}/> },
+        { keywords: ['equipe', 'funcionário', 'acesso', 'senha', 'permissão', 'garçom'], tab: 'team', label: 'Gerenciar Equipe e Acessos', icon: <Users size={16}/> },
+        { keywords: ['ia', 'inteligência artificial', 'dicas', 'crescimento', 'consultoria', 'insights'], tab: 'insights', label: 'Velo Insights (Consultoria IA)', icon: <Sparkles size={16}/> },
+        { keywords: ['domínio', 'site próprio', 'www', 'link', 'endereço'], tab: 'store_settings', label: 'Configurar Domínio Próprio', icon: <Globe size={16}/> },
+        { keywords: ['abandonado', 'carrinho', 'recuperar venda', 'perdido', 'remarketing'], tab: 'abandoned', label: 'Carrinhos Abandonados', icon: <ShoppingCart size={16}/> },
+        { keywords: ['fiado', 'caderneta', 'pendente', 'dívida', 'cobrar', 'limite'], tab: 'customers', label: 'Gestão de Fiado (Caderneta)', icon: <Banknote size={16}/> },
+        { keywords: ['insumo', 'ficha técnica', 'ingrediente', 'estoque base', 'receita', 'pão', 'carne'], tab: 'ingredients', label: 'Insumos e Ficha Técnica', icon: <Database size={16}/> },
+        { keywords: ['qr code', 'mesa', 'autoatendimento', 'placa'], tab: 'store_settings', label: 'Gerar QR Code de Mesas', icon: <QrCode size={16}/> },
+        { keywords: ['pixel', 'google analytics', 'ga4', 'gtm', 'facebook', 'ads'], tab: 'integrations', label: 'Pixel e Google Analytics', icon: <FaTags size={16}/> }
+    ];
+
+    const filteredGlobalFeatures = globalSearchText.trim() === '' ? [] : systemFeatures.filter(f => 
+        f.label.toLowerCase().includes(globalSearchText.toLowerCase()) || 
+        f.keywords.some(k => k.includes(globalSearchText.toLowerCase()))
+    );
+// Lista de Banners Educacionais (Focados em Google Meu Negócio / Marketing)
+const educationalBanners = [
+        // ... (Seus 4 banners anteriores de Google Meu Negócio e SEO continuam aqui em cima)
+        {
+            icon: <FaGoogle size={32} className="text-blue-600" />,
+            badge: "Dica de Crescimento",
+            title: "Apareça de graça para quem tem fome na sua cidade",
+            text: "Lojas que publicam fotos e ofertas diariamente no Google Meu Negócio recebem até 5x mais cliques orgânicos. A Velo tem uma IA que cria e posta essas ofertas para você em segundos.",
+            ctaText: "Gerar Postagem IA Agora",
+            bgColor: "bg-blue-50",
+            borderColor: "border-blue-200",
+            titleColor: "text-blue-900",
+            btnColor: "bg-blue-600 hover:bg-blue-700 text-white",
+            action: () => {
+                setActiveTab('products');
+                alert("💡 Dica: Escolha o produto que deseja divulgar no Google e clique no ícone Roxo de IA (✨) para criar a postagem!");
+            }
+        },
+        {
+            icon: <FaStar size={32} className="text-yellow-500" />,
+            badge: "SEO Local",
+            title: "O Segredo para o Topo do Google Maps",
+            text: "O Google prioriza deliverys que atualizam o perfil constantemente. Use nossa ferramenta para postar o 'Prato do Dia' direto no seu Perfil do Google e passe na frente dos concorrentes.",
+            ctaText: "Criar Oferta do Dia",
+            bgColor: "bg-yellow-50",
+            borderColor: "border-yellow-200",
+            titleColor: "text-yellow-900",
+            btnColor: "bg-yellow-500 hover:bg-yellow-600 text-white",
+            action: () => {
+                setActiveTab('products');
+                alert("💡 Dica: Escolha um produto do seu estoque e clique no ícone Roxo de IA (✨) para mandar pro Google!");
+            }
+        },
+        {
+            icon: <Package size={32} className="text-purple-600" />,
+            badge: "Cardápio Magnético",
+            title: "Seus produtos estão invisíveis para o Google?",
+            text: "Cadastros apenas com 'Coca-Cola' não vendem. Use a Assistente Velo IA (✨) para criar descrições magnéticas. Adicione Vídeos, GTIN e as Tags Semânticas (Vegano, Sem Glúten) para dominar as buscas.",
+            ctaText: "Otimizar Meu Cardápio",
+            bgColor: "bg-purple-50",
+            borderColor: "border-purple-200",
+            titleColor: "text-purple-900",
+            btnColor: "bg-purple-600 hover:bg-purple-700 text-white",
+            action: () => {
+                setActiveTab('products');
+                alert("🎯 Passo a Passo:\n\n1. Clique em 'Novo Item' ou Editar (✏️)\n2. Digite o nome básico do produto e clique em 'Gerar IA'\n3. Role para baixo e preencha as Tags Semânticas e suba um Vídeo!");
+            }
+        },
+        {
+            icon: <Globe size={32} className="text-emerald-600" />,
+            badge: "Autoridade Digital",
+            title: "Transforme sua loja na Nº 1 da região",
+            text: "IAs e buscadores precisam de dados para recomendar seu delivery. Preencha seu Endereço completo, Slogan, FAQ e a História da Loja para construir sua autoridade local.",
+            ctaText: "Completar Perfil da Loja",
+            bgColor: "bg-emerald-50",
+            borderColor: "border-emerald-200",
+            titleColor: "text-emerald-900",
+            btnColor: "bg-emerald-600 hover:bg-emerald-700 text-white",
+            action: () => {
+                setActiveTab('store_settings');
+                alert("🌐 Missão SEO Local:\n\nRole a tela de Configurações e procure por:\n1. 'Saúde de Busca da Loja'\n2. 'FAQ e SEO (Perguntas)'\n3. 'Treinamento de IA e Autoridade'.\n\nPreencha tudo para rankear mais rápido!");
+            }
+        },
+        // 👇 AQUI COMEÇAM OS NOVOS BANNERS DE INFLUENCIADORES 👇
+        {
+            icon: <Megaphone size={32} className="text-pink-600" />,
+            badge: "Marketing Viral",
+            title: "O novo boca a boca é digital e local",
+            text: "71% dos brasileiros compram delivery por indicação no Instagram e TikTok. Transforme os criadores de conteúdo do seu bairro nos maiores vendedores da sua loja.",
+            ctaText: "Descobrir Hub Parceiros",
+            bgColor: "bg-pink-50",
+            borderColor: "border-pink-200",
+            titleColor: "text-pink-900",
+            btnColor: "bg-pink-600 hover:bg-pink-700 text-white",
+            action: () => {
+                setActiveTab('partners');
+                alert("🚀 Dica de Ouro:\n\nUse o Hub Parceiros para cadastrar influencers locais. Eles divulgam seu link e o sistema rastreia as vendas automaticamente!");
+            }
+        },
+        {
+            icon: <Handshake size={32} className="text-indigo-600" />,
+            badge: "Custo Zero (Permuta)",
+            title: "Venda primeiro, pague depois",
+            text: "Acha influencer caro? Esqueça! Crie links de afiliados para parceiros locais. Eles divulgam sua loja de graça e você só paga comissão pelas vendas reais que eles trouxerem no sistema.",
+            ctaText: "Criar Link de Afiliado",
+            bgColor: "bg-indigo-50",
+            borderColor: "border-indigo-200",
+            titleColor: "text-indigo-900",
+            btnColor: "bg-indigo-600 hover:bg-indigo-700 text-white",
+            action: () => {
+                setActiveTab('partners');
+                alert("💸 Quebrando Objeções:\n\nNo Hub Parceiros você define uma comissão (Ex: 10%). O influencer ganha um link único, você não gasta um centavo antes de vender, e o painel calcula o repasse sozinho!");
+            }
+        },
+        {
+            icon: <TrendingUp size={32} className="text-rose-600" />,
+            badge: "Ação Rápida",
+            title: "Domine o fim de semana antes do concorrente",
+            text: "As agendas dos perfis de 'Dicas de Gastronomia' da sua cidade lotam rápido de quinta a domingo. Cadastre seu primeiro parceiro em 3 cliques agora mesmo e lote sua cozinha.",
+            ctaText: "Cadastrar Parceiro Agora",
+            bgColor: "bg-rose-50",
+            borderColor: "border-rose-200",
+            titleColor: "text-rose-900",
+            btnColor: "bg-rose-600 hover:bg-rose-700 text-white",
+            action: () => {
+                setActiveTab('partners');
+                alert("🎯 Ação:\n\n1. Clique em 'Novo Parceiro'.\n2. Gere o link e cupom dele.\n3. Mande um direct no Instagram do influencer convidando-o para provar seu lanche de graça em troca de divulgação!");
+            }
+        }
+    ];
    // NOVO: Reseta a página para 1 sempre que a busca, filtros, a aba ou a quantidade mudar
     useEffect(() => {
         setCurrentPage(1);
@@ -3169,11 +3315,67 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
-                <div className="flex flex-col items-center mb-10">
+                <div className="flex flex-col items-center mb-6">
                     <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
                     <p className="text-[10px] font-bold text-blue-600 uppercase text-center">{storeStatus.name}</p>
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
+
+                {/* --- BARRA DE BUSCA GLOBAL (MENU LATERAL) --- */}
+                <div className="relative mb-6 z-[100]">
+                    <div className={`flex items-center bg-slate-50 rounded-xl border transition-all ${isGlobalSearchFocused ? 'border-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.1)]' : 'border-slate-200 hover:border-slate-300'}`}>
+                        <Search className={`ml-3 flex-shrink-0 ${isGlobalSearchFocused ? 'text-blue-500' : 'text-slate-400'}`} size={16} />
+                        <input 
+                            type="text" 
+                            placeholder="Buscar funcionalidade..." 
+                            className="w-full py-3 pl-2 pr-8 bg-transparent text-xs font-bold text-slate-700 outline-none placeholder-slate-400"
+                            value={globalSearchText}
+                            onChange={(e) => setGlobalSearchText(e.target.value)}
+                            onFocus={() => setIsGlobalSearchFocused(true)}
+                            onBlur={() => setTimeout(() => setIsGlobalSearchFocused(false), 200)}
+                        />
+                        {globalSearchText && (
+                            <button onClick={() => setGlobalSearchText('')} className="absolute right-2 text-slate-400 hover:text-red-500 p-1">
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* DROPDOWN DE RESULTADOS (FLUTUANTE) */}
+                    {globalSearchText.trim() !== '' && isGlobalSearchFocused && (
+                        <div className="absolute top-full left-0 w-[280px] mt-2 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden max-h-[50vh] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                            {filteredGlobalFeatures.length > 0 ? (
+                                <div className="p-2">
+                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-3 py-2">Sugestões Velo</p>
+                                    {filteredGlobalFeatures.map((feat, idx) => (
+                                        <button 
+                                            key={idx}
+                                            onClick={() => {
+                                                setActiveTab(feat.tab);
+                                                setGlobalSearchText('');
+                                                setIsGlobalSearchFocused(false);
+                                            }}
+                                            className="w-full flex items-center justify-between p-2.5 hover:bg-blue-50 rounded-xl transition-all group text-left"
+                                        >
+                                            <div className="flex items-center gap-3 truncate">
+                                                <div className="bg-slate-100 text-slate-500 group-hover:bg-blue-600 group-hover:text-white p-1.5 rounded-lg transition-colors flex-shrink-0">
+                                                    {feat.icon}
+                                                </div>
+                                                <span className="font-bold text-xs text-slate-700 group-hover:text-blue-900 truncate">{feat.label}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-6 text-center flex flex-col items-center">
+                                    <Search size={24} className="text-slate-200 mb-2" />
+                                    <p className="text-xs font-bold text-slate-500">Nada encontrado.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
                <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
     {allNavItems
         .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
@@ -3352,7 +3554,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </button>
                                 </div>
                             )}
+{/* ========================================================= */}
+{/* --- BANNER EDUCACIONAL (ESTILO LOJA INTEGRADA / SHOPIFY) --- */}
+{/* ========================================================= */}
+{showEduBanner && (
+    <div className={`relative ${educationalBanners[currentEduBanner].bgColor} border ${educationalBanners[currentEduBanner].borderColor} p-6 md:p-8 rounded-[2.5rem] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4`}>
+        
+        {/* Botão de Fechar */}
+        <button 
+            onClick={() => setShowEduBanner(false)} 
+            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2"
+            title="Ocultar dica"
+        >
+            <X size={16} />
+        </button>
 
+        <div className="flex items-start gap-5 pr-8">
+            <div className="bg-white p-4 rounded-full shadow-sm flex-shrink-0 mt-1">
+                {educationalBanners[currentEduBanner].icon}
+            </div>
+            <div>
+                <span className="inline-block px-3 py-1 bg-white/60 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 mb-2 border border-black/5">
+                    {educationalBanners[currentEduBanner].badge}
+                </span>
+                <h3 className={`text-xl md:text-2xl font-black uppercase tracking-tighter leading-none mb-2 ${educationalBanners[currentEduBanner].titleColor}`}>
+                    {educationalBanners[currentEduBanner].title}
+                </h3>
+                <p className="text-sm font-medium text-slate-600 max-w-2xl leading-relaxed">
+                    {educationalBanners[currentEduBanner].text}
+                </p>
+            </div>
+        </div>
+
+        <div className="w-full md:w-auto flex-shrink-0 flex flex-col gap-2">
+            <button 
+                onClick={educationalBanners[currentEduBanner].action}
+                className={`w-full ${educationalBanners[currentEduBanner].btnColor} px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2`}
+            >
+                <Sparkles size={16}/> {educationalBanners[currentEduBanner].ctaText}
+            </button>
+            
+            {/* Botão para trocar a dica manualmente */}
+            <button 
+                onClick={() => setCurrentEduBanner((prev) => (prev + 1) % educationalBanners.length)}
+                className="text-[10px] font-bold text-slate-500 uppercase hover:text-slate-800 text-center flex items-center justify-center gap-1"
+            >
+                <RefreshCw size={10}/> Ver outra dica
+            </button>
+        </div>
+    </div>
+)}
+{/* ========================================================= */}
                            {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
                             {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
                                 <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
