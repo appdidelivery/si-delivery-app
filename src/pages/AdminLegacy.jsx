@@ -12329,8 +12329,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 if (!settings?.integrations?.google_my_business?.locationId) {
                                                                     return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
                                                                 }
-                                                                if (!promoCopyProduct?.imageUrl) {
-                                                                    return alert("⚠️ O produto precisa ter uma imagem cadastrada para ser postado no Google.");
+                                                                // 1. Correção: Verifica se tem IMAGEM OU VÍDEO
+                                                                if (!promoCopyProduct?.imageUrl && !promoCopyProduct?.videoUrl) {
+                                                                    return alert("⚠️ O produto precisa ter uma imagem ou vídeo cadastrado para ser postado no Google.");
                                                                 }
                                                                 if ((promoCopyResult.gmbType === 'OFFER' || promoCopyResult.gmbType === 'EVENT') && (!promoCopyResult.gmbStartDate || !promoCopyResult.gmbEndDate)) {
                                                                     return alert("⚠️ Para Ofertas e Eventos, as datas de Início e Fim são obrigatórias.");
@@ -12359,6 +12360,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                             locationId: settings.integrations.google_my_business.locationId,
                                                                             summary: promoCopyResult.instagram, 
                                                                             imageUrl: promoCopyProduct.imageUrl,
+                                                                            videoUrl: promoCopyProduct.videoUrl, // 2. Correção: Envia o Vídeo para o Backend!
                                                                             productUrl: `${baseUrl}/p/${safeSlug}`,
                                                                             topicType: promoCopyResult.gmbType || 'STANDARD',
                                                                             startDate: promoCopyResult.gmbStartDate,

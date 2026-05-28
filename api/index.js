@@ -3744,10 +3744,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeId, locationId, summary, imageUrl, productUrl, productId, topicType, startDate, endDate, couponCode } = req.body;
+            // 1. Inserido o 'videoUrl' na extração de dados
+            const { storeId, locationId, summary, imageUrl, videoUrl, productUrl, productId, topicType, startDate, endDate, couponCode } = req.body;
 
-            if (!storeId || !locationId || !summary || !imageUrl) {
-                return res.status(400).json({ error: 'Dados incompletos para a postagem no Google.' });
+            // 2. A trava agora verifica se tem IMAGEM OU VÍDEO
+            if (!storeId || !locationId || !summary || (!imageUrl && !videoUrl)) {
+                return res.status(400).json({ error: 'Dados incompletos ou falta de mídia (Imagem/Vídeo) para a postagem no Google.' });
             }
 
             const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
@@ -3755,19 +3757,32 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const exactLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
 
             const safeProductUrl = productUrl ? (productUrl.startsWith('http') ? productUrl : `https://${productUrl}`) : exactLink;
-            let safeImageUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
+            
+            // =========================================================
+            // 🚨 LÓGICA DE PRIORIDADE DE MÍDIA (VÍDEO > FOTO)
+            // =========================================================
+            let finalMediaUrl = '';
+            let mediaFormatType = 'PHOTO';
 
-            const isVideo = safeImageUrl.toLowerCase().match(/\.(mp4|webm|mov|avi)$/i) || safeImageUrl.includes('/video/upload/');
-            const mediaFormatType = isVideo ? 'VIDEO' : 'PHOTO';
+            if (videoUrl && typeof videoUrl === 'string' && videoUrl.length > 5) {
+                // PRIORIDADE 1: Se tem vídeo, usa o vídeo!
+                finalMediaUrl = videoUrl.startsWith('http') ? videoUrl : `https://${videoUrl}`;
+                mediaFormatType = 'VIDEO';
+            } else if (imageUrl && typeof imageUrl === 'string') {
+                // PRIORIDADE 2: Fallback para a Imagem
+                finalMediaUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
+                mediaFormatType = 'PHOTO';
 
-            if (!isVideo && safeImageUrl.includes('cloudinary.com')) {
-                safeImageUrl = safeImageUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
-                if (!safeImageUrl.includes('/upload/w_')) {
-                    safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
+                // Otimização do Cloudinary APENAS para fotos
+                if (finalMediaUrl.includes('cloudinary.com')) {
+                    finalMediaUrl = finalMediaUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
+                    if (!finalMediaUrl.includes('/upload/w_')) {
+                        finalMediaUrl = finalMediaUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
+                    }
                 }
             }
 
-const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').substring(0, 1400);
+            const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').substring(0, 1400);
             
             // 🚨 DEFINIÇÃO DO TIPO DE POSTAGEM
             const finalTopicType = topicType || 'STANDARD';
@@ -3776,7 +3791,8 @@ const cleanSummary = summary.replace(/[^\p{L}\p{N}\p{P}\p{Z}\p{S}\n\r]/gu, '').s
                 languageCode: 'pt-BR',
                 topicType: finalTopicType,
                 summary: cleanSummary || "Confira nossa oferta especial!",
-                media: [{ mediaFormat: mediaFormatType, sourceUrl: safeImageUrl }]
+                // 3. Insere a mídia final resolvida na inteligência acima
+                media: [{ mediaFormat: mediaFormatType, sourceUrl: finalMediaUrl }]
             };
 
             // 🚨 SEGREDO DO GOOGLE: Call To Action genérico só é aceito em STANDARD ou EVENT.
