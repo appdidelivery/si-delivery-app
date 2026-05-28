@@ -4177,16 +4177,28 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 // 4. Define o Preço Final (Garante que é Número)
                 const finalPrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price || 0);
 
-                // 5. Monta o Payload oficial do Google
+                // 5. Monta o Payload oficial do Google (Formatado como Oferta Vitrine)
+                const startOffer = new Date();
+                const endOffer = new Date();
+                endOffer.setDate(startOffer.getDate() + 30); // Oferta dura 30 dias na vitrine
+
                 const googlePayload = {
-                    topicType: "PRODUCT",
-                    summary: p.description ? p.description.substring(0, 1400) : p.name,
+                    languageCode: "pt-BR",
+                    topicType: "OFFER",
+                    summary: p.description ? `${p.name}\n\n${p.description.substring(0, 1000)}` : p.name,
                     media: [{ mediaFormat: mediaFormatType, sourceUrl: finalMediaUrl }],
-                    product: {
-                        productName: p.name,
-                        lowerPrice: { currencyCode: "BRL", units: Math.floor(finalPrice), nanos: Math.round((finalPrice % 1) * 1e9) }
+                    event: {
+                        title: p.name.substring(0, 58),
+                        schedule: {
+                            startDate: { year: startOffer.getFullYear(), month: startOffer.getMonth() + 1, day: startOffer.getDate() },
+                            startTime: { hours: 0, minutes: 0, seconds: 0 },
+                            endDate: { year: endOffer.getFullYear(), month: endOffer.getMonth() + 1, day: endOffer.getDate() },
+                            endTime: { hours: 23, minutes: 59, seconds: 59 }
+                        }
                     },
-                    callToAction: { actionType: "ORDER", url: productUrl }
+                    offer: {
+                        redeemOnlineUrl: productUrl
+                    }
                 };
 
                 const gRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
