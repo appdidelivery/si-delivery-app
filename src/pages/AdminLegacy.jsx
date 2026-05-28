@@ -434,6 +434,9 @@ export default function Admin() {
 const [showEduBanner, setShowEduBanner] = useState(true);
 const [currentEduBanner, setCurrentEduBanner] = useState(0);
 // --- BUSCA GLOBAL DO SISTEMA (COMMAND PALETTE) ---
+    // --- ESTADOS DO GOOGLE MEU NEGÓCIO ---
+    const [googleMetrics, setGoogleMetrics] = useState(null);
+    const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
     const [globalSearchText, setGlobalSearchText] = useState('');
     const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
 
@@ -3529,7 +3532,54 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <Printer size={20}/> Fechar Caixa / Relatório
                                 </button>
                             </div>
+{/* --- PAINEL DE TRÁFEGO DO GOOGLE MEU NEGÓCIO --- */}
+                            {settings?.integrations?.google_my_business?.locationId && (
+                                <div className="bg-white p-6 rounded-[2.5rem] border border-blue-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-blue-50 text-blue-600 p-4 rounded-full">
+                                            <FaGoogle size={32} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-2">Tráfego do Google Maps</h3>
+                                            <p className="text-xs font-bold text-slate-400">Visibilidade da sua loja nos últimos 30 dias.</p>
+                                        </div>
+                                    </div>
 
+                                    {googleMetrics ? (
+                                        <div className="flex gap-4 md:gap-8 w-full md:w-auto">
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-blue-600 italic leading-none">{googleMetrics.views}</p>
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Viram a Loja</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-green-500 italic leading-none">{googleMetrics.clicks}</p>
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Acessaram o Site</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-orange-500 italic leading-none">{googleMetrics.calls}</p>
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Ligações</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button 
+                                            onClick={async () => {
+                                                try {
+                                                    const res = await fetch('/api/google-metrics', {
+                                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId })
+                                                    });
+                                                    const data = await res.json();
+                                                    if(res.ok && data.success) setGoogleMetrics(data.metrics);
+                                                    else alert("Aguarde. O Google demora alguns dias para liberar estatísticas de integrações novas.");
+                                                } catch(e) { alert("Erro de conexão."); }
+                                            }}
+                                            className="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-200"
+                                        >
+                                            Puxar Métricas Agora
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             {/* --- BANNER DE AVISO: TESTE OU FATURA --- */}
                             {trialInfo.isTrial && storeStatus.paymentStatus !== 'paid' && (
                                 <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
@@ -5077,6 +5127,40 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             <div className="flex gap-4">
+                                {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE */}
+                                {settings?.integrations?.google_my_business?.locationId && (
+                                    <button 
+                                        disabled={isSyncingGoogle}
+                                        onClick={async (e) => {
+                                            if(!window.confirm("Deseja enviar todo o seu cardápio ativo para a vitrine do Google Meu Negócio agora?")) return;
+                                            setIsSyncingGoogle(true);
+                                            try {
+                                                const activeProducts = products.filter(p => p.isActive !== false && p.price > 0 && p.imageUrl);
+                                                const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                
+                                                const res = await fetch('/api/sync-google-catalog', {
+                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ 
+                                                        storeId, 
+                                                        locationId: settings.integrations.google_my_business.locationId,
+                                                        productsList: activeProducts,
+                                                        storeDomain: baseUrl
+                                                    })
+                                                });
+                                                const data = await res.json();
+                                                if(res.ok) alert(`✅ Vitrine Sincronizada! ${data.syncedCount} produtos enviados ao Google.`);
+                                                else alert(`❌ Erro do Google: ${data.error}`);
+                                            } catch(err) {
+                                                alert("Erro de conexão com a API.");
+                                            }
+                                            setIsSyncingGoogle(false);
+                                        }} 
+                                        className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                                    >
+                                        {isSyncingGoogle ? <Loader2 size={18} className="animate-spin"/> : <FaGoogle size={18}/>}
+                                        {isSyncingGoogle ? 'Enviando...' : 'Sincronizar Vitrine no Google'}
+                                    </button>
+                                )}
                                 {/* BOTÃO DE SINCRONIZAÇÃO RETROATIVA DE AVALIAÇÕES REAIS */}
                                 <button onClick={async () => {
                                     if(!window.confirm("Deseja recalcular as notas de todos os produtos com base no histórico de avaliações reais recebidas?")) return;
@@ -8594,10 +8678,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     {isGeneratingFaq ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                                     Gerar com IA
                                 </button>
+                                
+                                {/* NOVO BOTÃO DE INJETAR FAQ NO GOOGLE */}
+                                {settings?.integrations?.google_my_business?.locationId && storeStatus.faq?.length > 0 && (
+                                    <button 
+                                        type="button"
+                                        disabled={isSyncingGoogle}
+                                        onClick={async () => {
+                                            if(!window.confirm("Isso injetará suas perguntas e respostas públicas no Google Maps da sua loja. Continuar?")) return;
+                                            setIsSyncingGoogle(true);
+                                            try {
+                                                const res = await fetch('/api/sync-google-faq', {
+                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId, faqList: storeStatus.faq })
+                                                });
+                                                if(res.ok) alert("✅ Perguntas publicadas com sucesso no Google Maps!");
+                                                else alert("❌ Falha na API do Google.");
+                                            } catch(err) { alert("Erro de conexão."); }
+                                            setIsSyncingGoogle(false);
+                                        }}
+                                        className="flex-1 lg:flex-none bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <FaGoogle size={14}/> Injetar no Google Q&A
+                                    </button>
+                                )}
+
                                 <button 
                                     type="button"
                                     onClick={handleAddFaq} 
-                                    className="flex-1 lg:flex-none bg-blue-600 text-white px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all shadow-blue-200"
+                                    className="flex-1 lg:flex-none bg-slate-900 text-white px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all"
                                 >
                                     + Nova Pergunta
                                 </button>
@@ -9363,6 +9472,34 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         />
                                     </div>
                                     <div className="md:col-span-2 mt-2">
+                                        {/* BOTÃO PARA FECHAR NO GOOGLE AUTOMATICAMENTE */}
+                                        {settings?.integrations?.google_my_business?.locationId && (
+                                            <button 
+                                                type="button"
+                                                disabled={isSyncingGoogle}
+                                                onClick={async () => {
+                                                    setIsSyncingGoogle(true);
+                                                    try {
+                                                        const res = await fetch('/api/sync-google-hours', {
+                                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ 
+                                                                storeId, 
+                                                                locationId: settings.integrations.google_my_business.locationId, 
+                                                                isClosed: true, 
+                                                                startDate: storeStatus.vacationMode.start, 
+                                                                endDate: storeStatus.vacationMode.end 
+                                                            })
+                                                        });
+                                                        if(res.ok) alert("✅ Avisamos ao Google Maps que você estará fechado nestes dias!");
+                                                        else alert("❌ Erro na API do Google.");
+                                                    } catch(err) { alert("Erro de conexão."); }
+                                                    setIsSyncingGoogle(false);
+                                                }}
+                                                className="w-full bg-white border border-emerald-300 text-emerald-700 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 mb-3 shadow-sm"
+                                            >
+                                                <FaGoogle size={14}/> Sincronizar Feriado com o Google Maps
+                                            </button>
+                                        )}
                                         <p className="text-[10px] text-emerald-700 font-bold bg-emerald-100 p-3 rounded-xl border border-emerald-200">
                                             💡 O Robô do WhatsApp enviará a sua mensagem de "Loja Fechada" automaticamente para qualquer cliente que mandar mensagem entre o Início e o Retorno configurados acima.
                                         </p>

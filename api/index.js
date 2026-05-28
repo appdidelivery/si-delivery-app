@@ -4014,6 +4014,171 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
+    // ------------------------------------------------------------------------
+    // 26.1 GOOGLE MEU NEGÓCIO: MÉTRICAS DE TRÁFEGO (INSIGHTS)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/google-metrics') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+        try {
+            const { storeId, locationId } = req.body;
+            if (!storeId || !locationId) return res.status(400).json({ error: 'Faltam dados.' });
+
+            const activeToken = await getGoogleAuthToken(storeId);
+            const stdLocation = `locations/${locationId.split('/').pop()}`;
+
+            const end = new Date();
+            const start = new Date();
+            start.setDate(start.getDate() - 30); // Últimos 30 dias
+
+            const url = `https://businessprofileperformance.googleapis.com/v1/${stdLocation}:fetchMultiDailyMetricsTimeSeries?dailyMetrics=BUSINESS_IMPRESSIONS&dailyMetrics=WEBSITE_CLICKS&dailyMetrics=CALL_CLICKS&dailyRange.startDate.year=${start.getFullYear()}&dailyRange.startDate.month=${start.getMonth()+1}&dailyRange.startDate.day=${start.getDate()}&dailyRange.endDate.year=${end.getFullYear()}&dailyRange.endDate.month=${end.getMonth()+1}&dailyRange.endDate.day=${end.getDate()}`;
+
+            const resGoogle = await fetch(url, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+            const data = await resGoogle.json();
+
+            if (!resGoogle.ok) throw new Error(data.error?.message || 'Erro ao buscar métricas.');
+
+            let views = 0, clicks = 0, calls = 0;
+            (data.multiDailyMetricTimeSeries || []).forEach(metric => {
+                const total = (metric.dailyMetricTimeSeries || []).reduce((acc, day) => acc + (day.timeSeries?.timeSeriesValues?.[0]?.value || 0), 0);
+                if (metric.dailyMetric === 'BUSINESS_IMPRESSIONS') views = total;
+                if (metric.dailyMetric === 'WEBSITE_CLICKS') clicks = total;
+                if (metric.dailyMetric === 'CALL_CLICKS') calls = total;
+            });
+
+            return res.status(200).json({ success: true, metrics: { views, clicks, calls } });
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 26.2 GOOGLE MEU NEGÓCIO: SINCRONIZAR FAQ (Q&A SEEDING)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/sync-google-faq') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+        try {
+            const { storeId, locationId, faqList } = req.body;
+            if (!storeId || !locationId || !faqList || !faqList.length) return res.status(400).json({ error: 'Lista de FAQ vazia.' });
+
+            const activeToken = await getGoogleAuthToken(storeId);
+            const stdLocation = `locations/${locationId.split('/').pop()}`;
+
+            let syncedCount = 0;
+            for (const item of faqList) {
+                if (!item.question || !item.answer) continue;
+
+                // 1. Posta a Pergunta (O lojista pergunta)
+                const qRes = await fetch(`https://mybusinessqanda.googleapis.com/v1/${stdLocation}/questions`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: item.question })
+                });
+                
+                const qData = await qRes.json();
+                if (qRes.ok && qData.name) {
+                    // 2. Posta a Resposta (O lojista responde)
+                    await fetch(`https://mybusinessqanda.googleapis.com/v1/${qData.name}/answers`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: item.answer })
+                    });
+                    syncedCount++;
+                }
+            }
+            return res.status(200).json({ success: true, syncedCount });
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 26.3 GOOGLE MEU NEGÓCIO: SINCRONIZAR MODO FÉRIAS (SPECIAL HOURS)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/sync-google-hours') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+        try {
+            const { storeId, locationId, isClosed, startDate, endDate } = req.body;
+            const activeToken = await getGoogleAuthToken(storeId);
+            const stdLocation = `locations/${locationId.split('/').pop()}`;
+
+            let specialHours = { specialHourPeriods: [] };
+
+            if (isClosed && startDate && endDate) {
+                const s = new Date(startDate);
+                const e = new Date(endDate);
+                specialHours.specialHourPeriods.push({
+                    startDate: { year: s.getFullYear(), month: s.getMonth() + 1, day: s.getDate() },
+                    endDate: { year: e.getFullYear(), month: e.getMonth() + 1, day: e.getDate() },
+                    closed: true
+                });
+            }
+
+            const resGoogle = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${stdLocation}?updateMask=specialHours`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ specialHours: specialHours.specialHourPeriods.length > 0 ? specialHours : null })
+            });
+
+            if (!resGoogle.ok) throw new Error('Falha ao atualizar horários no Google.');
+            return res.status(200).json({ success: true });
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 26.4 GOOGLE MEU NEGÓCIO: SINCRONIZAR VITRINE DE PRODUTOS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/sync-google-catalog') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+        try {
+            const { storeId, locationId, productsList, storeDomain } = req.body;
+            if (!storeId || !locationId || !productsList) return res.status(400).json({ error: 'Faltam dados.' });
+
+            const activeToken = await getGoogleAuthToken(storeId);
+            const parentName = `accounts/-/locations/${locationId.split('/').pop()}`;
+            
+            let syncedCount = 0;
+            const batchPromises = productsList.map(async (p) => {
+                if (!p.imageUrl) return; // Google exige foto para produto
+                
+                // Trata a URL da imagem para o Google
+                let safeImageUrl = p.imageUrl.startsWith('http') ? p.imageUrl : `https://${p.imageUrl}`;
+                if (safeImageUrl.includes('cloudinary.com')) {
+                    safeImageUrl = safeImageUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
+                    if (!safeImageUrl.includes('/upload/w_')) safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
+                }
+
+                // Cria o link direto
+                const safeSlug = p.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
+                const productUrl = `${storeDomain}/p/${safeSlug}`;
+
+                const googlePayload = {
+                    topicType: "PRODUCT",
+                    summary: p.description ? p.description.substring(0, 1400) : p.name,
+                    media: [{ mediaFormat: "PHOTO", sourceUrl: safeImageUrl }],
+                    product: {
+                        productName: p.name,
+                        lowerPrice: { currencyCode: "BRL", units: Math.floor(p.price), nanos: Math.round((p.price % 1) * 1e9) }
+                    },
+                    callToAction: { actionType: "ORDER", url: productUrl }
+                };
+
+                const gRes = await fetch(`https://mybusiness.googleapis.com/v4/${parentName}/localPosts`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(googlePayload)
+                });
+                if (gRes.ok) syncedCount++;
+            });
+
+            await Promise.all(batchPromises);
+            return res.status(200).json({ success: true, syncedCount });
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
     // 27. GOOGLE MEU NEGÓCIO: SINCRONIZAÇÃO (SUPORTA FILTRO POR STOREID)
     // ------------------------------------------------------------------------
     else if (path === '/api/sync-google-reviews') {
