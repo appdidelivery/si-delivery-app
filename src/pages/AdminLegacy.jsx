@@ -5127,12 +5127,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             <div className="flex flex-col md:flex-row gap-3">
-                                {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE */}
+                                {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE (COM TRAVA DE 24H) */}
                                 {settings?.integrations?.google_my_business?.locationId && (
                                     <button 
-                                        disabled={isSyncingGoogle}
+                                        disabled={isSyncingGoogle || storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0]}
                                         onClick={async (e) => {
+                                            const hoje = new Date().toISOString().split('T')[0];
+                                            if (storeStatus?.lastGoogleSync === hoje) {
+                                                return alert("⚠️ A sua vitrine já foi atualizada hoje! Para evitar bloqueios por SPAM no Google e manter seu ranqueamento alto, o sistema permite uma sincronização em massa por dia. Tente novamente amanhã.");
+                                            }
+
                                             if(!window.confirm("Deseja enviar todo o seu cardápio ativo para a vitrine do Google Meu Negócio agora?")) return;
+                                            
                                             setIsSyncingGoogle(true);
                                             try {
                                                 const activeProducts = products.filter(p => p.isActive !== false && (Number(p.price) > 0 || Number(p.promotionalPrice) > 0) && (p.imageUrl || p.videoUrl));
@@ -5148,18 +5154,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     })
                                                 });
                                                 const data = await res.json();
-                                                if(res.ok) alert(`✅ Vitrine Sincronizada! ${data.syncedCount} produtos enviados ao Google.`);
+                                                
+                                                if(res.ok) {
+                                                    // Salva no banco de dados a data do último envio para travar até amanhã
+                                                    await updateDoc(doc(db, "stores", storeId), { lastGoogleSync: hoje }, { merge: true });
+                                                    setStoreStatus(prev => ({...prev, lastGoogleSync: hoje}));
+                                                    alert(`✅ Vitrine Sincronizada! ${data.syncedCount} produtos enviados ao Google. Eles aparecerão no seu perfil nos próximos minutos.`);
+                                                }
                                                 else alert(`❌ Erro do Google: ${data.error}`);
                                             } catch(err) {
                                                 alert("Erro de conexão com a API.");
                                             }
                                             setIsSyncingGoogle(false);
                                         }} 
-                                        className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 hover:bg-blue-100 active:scale-95 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50"
+                                        className={`px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 active:scale-95 transition-all uppercase tracking-widest text-[10px] ${storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0] ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50'}`}
                                     >
-                                        {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : <FaGoogle size={14}/>}
-                                        <span className="hidden md:inline">{isSyncingGoogle ? 'Enviando...' : 'Sincronizar no Google'}</span>
-                                        <span className="md:hidden">Sincronizar Google</span>
+                                        {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : (storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0] ? <CheckCircle size={14}/> : <FaGoogle size={14}/>)}
+                                        <span className="hidden md:inline">
+                                            {isSyncingGoogle ? 'Enviando...' : (storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0] ? 'Sincronizado Hoje' : 'Sincronizar no Google')}
+                                        </span>
+                                        <span className="md:hidden">Google</span>
                                     </button>
                                 )}
                                 
