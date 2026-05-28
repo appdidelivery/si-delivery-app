@@ -5126,7 +5126,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <div className="space-y-8">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <div className="flex gap-4">
+                            <div className="flex flex-col md:flex-row gap-3">
                                 {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE */}
                                 {settings?.integrations?.google_my_business?.locationId && (
                                     <button 
@@ -5155,29 +5155,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             }
                                             setIsSyncingGoogle(false);
                                         }} 
-                                        className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black shadow-xl shadow-blue-100 flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+                                        className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 hover:bg-blue-100 active:scale-95 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50"
                                     >
-                                        {isSyncingGoogle ? <Loader2 size={18} className="animate-spin"/> : <FaGoogle size={18}/>}
-                                        {isSyncingGoogle ? 'Enviando...' : 'Sincronizar Vitrine no Google'}
+                                        {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : <FaGoogle size={14}/>}
+                                        <span className="hidden md:inline">{isSyncingGoogle ? 'Enviando...' : 'Sincronizar no Google'}</span>
+                                        <span className="md:hidden">Sincronizar Google</span>
                                     </button>
                                 )}
+                                
                                 {/* BOTÃO DE SINCRONIZAÇÃO RETROATIVA DE AVALIAÇÕES REAIS */}
                                 <button onClick={async () => {
                                     if(!window.confirm("Deseja recalcular as notas de todos os produtos com base no histórico de avaliações reais recebidas?")) return;
                                     try {
                                         const ratingsMap = {};
-                                        
-                                        // Varre todas as avaliações já feitas na loja
                                         reviewsList.forEach(r => {
                                             let pId = r.productId;
-                                            
-                                            // Fallback: se a avaliação antiga não salvou o ID, tenta achar pelo Nome exato
                                             if(!pId && r.productName) {
                                                 const found = products.find(p => p.name === r.productName);
                                                 if(found) pId = found.id;
                                             }
-                                            
-                                            // Agrupa as notas e conta quantas vezes o produto foi avaliado
                                             if(pId && r.rating) {
                                                 if(!ratingsMap[pId]) ratingsMap[pId] = { sum: 0, count: 0 };
                                                 ratingsMap[pId].sum += Number(r.rating);
@@ -5185,7 +5181,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             }
                                         });
 
-                                        // Atualiza o banco de dados (Firebase) com a média real de cada produto
                                         const batchPromises = Object.keys(ratingsMap).map(pId => {
                                             const avg = ratingsMap[pId].sum / ratingsMap[pId].count;
                                             return updateDoc(doc(db, "products", pId), {
@@ -5195,16 +5190,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         });
 
                                         await Promise.all(batchPromises);
-                                        alert(`✅ Mágica Feita! ${batchPromises.length} produtos foram atualizados com as notas e históricos reais para o Google.`);
+                                        alert(`✅ Mágica Feita! ${batchPromises.length} produtos atualizados.`);
                                     } catch(e) {
                                         alert("Erro ao sincronizar notas: " + e.message);
                                     }
-                                }} className="bg-green-500 text-white px-6 py-4 rounded-2xl font-black shadow-xl shadow-green-100 flex items-center gap-2 hover:bg-green-600 active:scale-95 transition-all uppercase tracking-widest text-sm">
-                                    ⭐ Puxar Notas Antigas
+                                }} className="bg-green-50 text-green-700 px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 hover:bg-green-100 active:scale-95 transition-all uppercase tracking-widest text-[10px]">
+                                    ⭐ <span className="hidden md:inline">Puxar Notas Antigas</span>
+                                    <span className="md:hidden">Notas Antigas</span>
                                 </button>
 
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-blue-100">+ NOVO ITEM</button>
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs">
+                                   + Novo Item
+                               </button>
                             </div>
                         </div>
                         {/* --- BARRA DE FILTROS E BUSCA (ESTOQUE) --- */}
@@ -8668,15 +8666,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     Adicione perguntas personalizadas. Elas se juntarão às perguntas padrão de Horário, Pagamento e Entrega para ajudar o Google a trazer mais clientes orgânicos para sua loja.
                                 </p>
                             </div>
-                            <div className="flex gap-2 w-full lg:w-auto">
+                            <div className="flex flex-wrap gap-2 w-full lg:w-auto mt-4 lg:mt-0">
                                 <button 
                                     type="button"
                                     onClick={handleGenerateFaqIA}
                                     disabled={isGeneratingFaq}
-                                    className="flex-1 lg:flex-none bg-purple-100 text-purple-700 hover:bg-purple-200 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className="flex-1 lg:flex-none bg-purple-100 text-purple-700 hover:bg-purple-200 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
-                                    {isGeneratingFaq ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                                    Gerar com IA
+                                    {isGeneratingFaq ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                    <span className="hidden sm:inline">Gerar com IA</span>
                                 </button>
                                 
                                 {/* NOVO BOTÃO DE INJETAR FAQ NO GOOGLE */}
@@ -8697,16 +8695,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             } catch(err) { alert("Erro de conexão."); }
                                             setIsSyncingGoogle(false);
                                         }}
-                                        className="flex-1 lg:flex-none bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                        className="flex-1 lg:flex-none bg-blue-50 text-blue-600 hover:bg-blue-100 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                                     >
-                                        <FaGoogle size={14}/> Injetar no Google Q&A
+                                        <FaGoogle size={14}/> <span className="hidden sm:inline">Injetar no Google Q&A</span>
                                     </button>
                                 )}
 
                                 <button 
                                     type="button"
                                     onClick={handleAddFaq} 
-                                    className="flex-1 lg:flex-none bg-slate-900 text-white px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all"
+                                    className="flex-1 lg:flex-none bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all whitespace-nowrap"
                                 >
                                     + Nova Pergunta
                                 </button>
