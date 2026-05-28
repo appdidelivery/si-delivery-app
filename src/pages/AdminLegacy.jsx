@@ -5135,7 +5135,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             if(!window.confirm("Deseja enviar todo o seu cardápio ativo para a vitrine do Google Meu Negócio agora?")) return;
                                             setIsSyncingGoogle(true);
                                             try {
-                                                const activeProducts = products.filter(p => p.isActive !== false && p.price > 0 && p.imageUrl);
+                                                const activeProducts = products.filter(p => p.isActive !== false && (Number(p.price) > 0 || Number(p.promotionalPrice) > 0) && (p.imageUrl || p.videoUrl));
                                                 const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
                                                 
                                                 const res = await fetch('/api/sync-google-catalog', {
