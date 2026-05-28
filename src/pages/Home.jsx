@@ -1230,19 +1230,6 @@ export default function Home() {
               script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
               document.head.appendChild(script);
           }
-          // 2.5 Verificação de Domínio do Facebook (Meta)
-          if (integrations?.meta?.domainVerification && !document.querySelector('meta[name="facebook-domain-verification"]')) {
-              const meta = document.createElement('meta');
-              meta.name = "facebook-domain-verification";
-              // Remove espaços acidentais e pega só o código se o cliente colar a tag inteira por engano
-              let cleanCode = integrations.meta.domainVerification.trim();
-              if (cleanCode.includes('content="')) {
-                  cleanCode = cleanCode.split('content="')[1].split('"')[0];
-              }
-              meta.content = cleanCode;
-              document.head.appendChild(meta);
-              console.log("🔵 Meta Tag de Verificação de Domínio inserida!");
-          }
 
           // 3. Google Analytics 4 (GA4) e Google Ads
           const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 

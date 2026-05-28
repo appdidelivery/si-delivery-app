@@ -9793,22 +9793,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {/* --- ABA DE INTEGRAÇÕES --- */}
                 {activeTab === 'integrations' && (() => {
                     // Dicionário das integrações com Links Oficiais de Ajuda
-                    const integrationList = [
-    { 
-        id: 'meta', 
-        name: 'Meta Ads', 
-        desc: 'Pixel de Rastreamento, API de Conversões e Verificação de Domínio.', 
-        icon: <FaFacebook className="text-blue-600" size={40}/>, 
-        fields:[
-            {key: 'pixelId', label: 'ID do Pixel (Dataset ID)'}, 
-            {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'},
-            // 👇 ESTA É A LINHA NOVA 👇
-            {key: 'domainVerification', label: 'Código de Verificação de Domínio (Ex: pob6zz...)'}
-        ],
-        helpUrl: 'https://business.facebook.com/settings/pixels',
-        helpText: 'Descobrir meu ID do Meta Pixel'
-    },
-                            { 
+                    const integrationList =[
+                        { 
+                            id: 'meta', 
+                            name: 'Meta Ads', 
+                            desc: 'Pixel de Rastreamento e Conversions API (CAPI).', 
+                            icon: <FaFacebook className="text-blue-600" size={40}/>, 
+                            fields:[
+                                {key: 'pixelId', label: 'ID do Pixel (Dataset ID)'}, 
+                                {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'}
+                            ],
+                            helpUrl: 'https://business.facebook.com/settings/pixels',
+
+                            helpText: 'Descobrir meu ID do Meta Pixel'
+                        },
+                        { 
                             id: 'ga4', 
                             name: 'Google Analytics 4', 
                             desc: 'Métricas avançadas de tráfego e funil.', 
