@@ -4135,31 +4135,56 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const { storeId, locationId, productsList, storeDomain } = req.body;
             if (!storeId || !locationId || !productsList) return res.status(400).json({ error: 'Faltam dados.' });
 
-            const activeToken = await getGoogleAuthToken(storeId);
+            let activeToken;
+            try {
+                activeToken = await getGoogleAuthToken(storeId);
+            } catch (err) {
+                return res.status(500).json({ error: 'Falha ao autenticar com o Google Meu Negócio.' });
+            }
+
             const parentName = `accounts/-/locations/${locationId.split('/').pop()}`;
             
             let syncedCount = 0;
             const batchPromises = productsList.map(async (p) => {
-                if (!p.imageUrl) return; // Google exige foto para produto
                 
-                // Trata a URL da imagem para o Google
-                let safeImageUrl = p.imageUrl.startsWith('http') ? p.imageUrl : `https://${p.imageUrl}`;
-                if (safeImageUrl.includes('cloudinary.com')) {
-                    safeImageUrl = safeImageUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
-                    if (!safeImageUrl.includes('/upload/w_')) safeImageUrl = safeImageUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
+                // 1. BLINDAGEM MESTRA: Aceita imagem ou vídeo. Se não tiver nenhum, aí sim ignora.
+                if (!p.imageUrl && !p.videoUrl) return; 
+                
+                // 2. Resolve qual mídia usar (Prioriza Vídeo, se não tiver, usa Imagem)
+                let finalMediaUrl = '';
+                let mediaFormatType = 'PHOTO';
+
+                if (p.videoUrl && typeof p.videoUrl === 'string' && p.videoUrl.length > 5) {
+                    finalMediaUrl = p.videoUrl.startsWith('http') ? p.videoUrl : `https://${p.videoUrl}`;
+                    mediaFormatType = 'VIDEO';
+                } else if (p.imageUrl && typeof p.imageUrl === 'string') {
+                    finalMediaUrl = p.imageUrl.startsWith('http') ? p.imageUrl : `https://${p.imageUrl}`;
+                    mediaFormatType = 'PHOTO';
+
+                    // Otimização do Cloudinary APENAS para fotos
+                    if (finalMediaUrl.includes('cloudinary.com')) {
+                        finalMediaUrl = finalMediaUrl.replace(/\.webp$/i, '.jpg').replace(/\.svg$/i, '.png');
+                        if (!finalMediaUrl.includes('/upload/w_')) {
+                            finalMediaUrl = finalMediaUrl.replace('/upload/', '/upload/w_1080,q_100,f_jpg/');
+                        }
+                    }
                 }
 
-                // Cria o link direto
+                // 3. Cria o link direto para o produto
                 const safeSlug = p.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
                 const productUrl = `${storeDomain}/p/${safeSlug}`;
 
+                // 4. Define o Preço Final (Garante que é Número)
+                const finalPrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price || 0);
+
+                // 5. Monta o Payload oficial do Google
                 const googlePayload = {
                     topicType: "PRODUCT",
                     summary: p.description ? p.description.substring(0, 1400) : p.name,
-                    media: [{ mediaFormat: "PHOTO", sourceUrl: safeImageUrl }],
+                    media: [{ mediaFormat: mediaFormatType, sourceUrl: finalMediaUrl }],
                     product: {
                         productName: p.name,
-                        lowerPrice: { currencyCode: "BRL", units: Math.floor(p.price), nanos: Math.round((p.price % 1) * 1e9) }
+                        lowerPrice: { currencyCode: "BRL", units: Math.floor(finalPrice), nanos: Math.round((finalPrice % 1) * 1e9) }
                     },
                     callToAction: { actionType: "ORDER", url: productUrl }
                 };
@@ -4169,12 +4194,19 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(googlePayload)
                 });
-                if (gRes.ok) syncedCount++;
+                
+                if (gRes.ok) {
+                    syncedCount++;
+                } else {
+                    const errData = await gRes.json();
+                    console.error(`❌ Erro ao sincronizar produto "${p.name}" no Google:`, JSON.stringify(errData));
+                }
             });
 
             await Promise.all(batchPromises);
             return res.status(200).json({ success: true, syncedCount });
         } catch (error) {
+            console.error('❌ Erro Crítico na Rota de Catálogo:', error);
             return res.status(500).json({ error: error.message });
         }
     }
