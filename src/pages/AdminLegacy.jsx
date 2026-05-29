@@ -1734,11 +1734,24 @@ const educationalBanners = [
                         // DISPARA NOTIFICAÇÃO DO SISTEMA
                         if ("Notification" in window) {
                             if (Notification.permission === "granted") {
-                                new Notification(isHandoffAlert ? "🚨 ATENDIMENTO HUMANO" : "💬 Nova Mensagem", {
+                                const browserNotification = new Notification(isHandoffAlert ? "🚨 ATENDIMENTO HUMANO" : "💬 Nova Mensagem", {
                                     body: isHandoffAlert ? `${senderName} quer falar com você. Assuma o chat!` : `${senderName} enviou uma mensagem!`,
                                     icon: storeStatus?.storeLogoUrl || "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
                                     requireInteraction: isHandoffAlert // Trava a notificação na tela até o lojista fechar
                                 });
+                                
+                                // Interrompe o som cirurgicamente apenas desta notificação
+                                const stopRingtone = () => {
+                                    ringtone.pause();
+                                    ringtone.currentTime = 0;
+                                };
+                                
+                                browserNotification.onclick = () => {
+                                    stopRingtone();
+                                    window.focus(); // Foca na aba do painel
+                                };
+                                
+                                browserNotification.onclose = stopRingtone;
                             } else if (Notification.permission !== "denied") {
                                 Notification.requestPermission();
                             }
