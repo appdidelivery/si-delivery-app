@@ -2368,6 +2368,13 @@ const handleGenerateProductCopy = async () => {
             velopay_credit: 'CARTÃO (ONLINE)', 
             link_mp: 'LINK MERCADO PAGO' 
         }[o.paymentMethod] || o.paymentMethod || 'PIX';
+
+        // Tradução do Status do Pagamento para o Ticket
+        const isPaid = ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(o.paymentStatus);
+        const statusPagtoStr = isPaid ? '✅ PAGO' : 
+                               o.paymentStatus === 'pending_on_delivery' ? '🏠 P/ PAGAR NA ENTREGA' :
+                               ['failed', 'rejected'].includes(o.paymentStatus) ? '❌ RECUSADO' : 
+                               '⏳ AGUARDANDO PAGTO';
         
         // Formata a data
         const dataPedido = o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
@@ -2385,6 +2392,7 @@ const handleGenerateProductCopy = async () => {
                 <strong>CLIENTE:</strong> ${o.customerName}<br>
                 ${o.tipo === 'local' ? `<strong>MESA:</strong> ${o.mesa}<br><strong>GARÇOM:</strong> ${o.waiterName || 'Não identificado'}<br>` : `<strong>TEL:</strong> ${o.customerPhone || o.phone || ''}<br><strong>ENDEREÇO:</strong> ${o.address || o.customerAddress || 'Retirada'}<br>`}
                 <strong>PAGTO:</strong> ${pagto}<br>
+                <strong>STATUS:</strong> ${statusPagtoStr}<br>
                 ${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}
                 <hr>
                 <ul style="list-style:none; padding:0;">${itemsHtml}</ul>
