@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -473,6 +473,23 @@ const [currentEduBanner, setCurrentEduBanner] = useState(0);
     );
 // Lista de Banners Educacionais (Focados em Google Meu Negócio / Marketing)
 const educationalBanners = [
+        {
+            icon: <Camera size={32} className="text-fuchsia-600" />,
+            badge: "Escola Velo: Viralização",
+            title: "Use os seguidores dos clientes para vender mais",
+            text: "Configure a função 'Seguidores Valem Prêmios'. Você oferece um brinde (ex: Refrigerante) e o cliente divulga sua loja no Instagram ou TikTok para resgatar. É marketing local e totalmente gratuito!",
+            ctaText: "Ativar Prêmios Agora",
+            bgColor: "bg-fuchsia-50",
+            borderColor: "border-fuchsia-300",
+            titleColor: "text-fuchsia-900",
+            btnColor: "bg-fuchsia-600 hover:bg-fuchsia-700 text-white shadow-lg shadow-fuchsia-200",
+            action: () => {
+                setActiveTab('marketing');
+                setTimeout(() => {
+                    alert("🚀 Escola Velo: Role a tela de Marketing até encontrar a seção '📸 SEGUIDORES VALEM PRÊMIOS' e adicione sua primeira meta (Ex: 1000 seguidores = 1 Coca-Cola).");
+                }, 500);
+            }
+        },
         // ... (Seus 4 banners anteriores de Google Meu Negócio e SEO continuam aqui em cima)
         {
             icon: <FaGoogle size={32} className="text-blue-600" />,
@@ -1688,9 +1705,9 @@ const educationalBanners = [
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
         let initialChat = true;
-        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), (s) => {
+        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), async (s) => {
             let shouldPlaySound = false;
-            let isHandoffAlert = false; // <-- NOVO: Flag de alerta crítico
+            let isHandoffAlert = false; 
             let senderName = "Cliente";
             let handoffMessageText = "";
 
@@ -1701,26 +1718,41 @@ const educationalBanners = [
             const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
 
             if (!initialChat) {
-                s.docChanges().forEach((change) => {
+                // Como precisamos checar as sessões no banco para saber se o bot tá pausado, 
+                // mapeamos as mudanças de forma assíncrona
+                for (const change of s.docChanges()) {
                     const data = change.doc.data();
                     if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
                         // Normaliza o número
                         let senderPhone = String(data.from || '').replace(/\D/g, '');
                         if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
 
+                        // VERIFICA SE O BOT ESTÁ PAUSADO PARA ESSE CLIENTE ESPECÍFICO
+                        let isBotPaused = false;
+                        try {
+                            const sessionSnap = await getDoc(doc(db, "whatsapp_sessions", `${storeId}_${senderPhone}`));
+                            if (sessionSnap.exists() && sessionSnap.data().botPaused === true) {
+                                isBotPaused = true;
+                            }
+                        } catch (e) {}
+
                         // VERIFICAÇÃO DE TRANSBORDO: Se a mensagem contiver a palavra-chave configurada
                         if (data.text && String(data.text).toLowerCase().includes(handoffTriggerText.toLowerCase())) {
                             isHandoffAlert = true;
                             handoffMessageText = data.text;
-                            shouldPlaySound = true; // Força o som mesmo se a tela já estiver aberta!
+                            shouldPlaySound = true; // O Alerta de Handoff SEMPRE toca
                             senderName = data.pushName || data.name || "Cliente";
+                            
                         } else if (senderPhone !== activeChatInScreen) {
-                            // REGRA MÁGICA NORMAL: Só toca o som se a mensagem for de ALGUÉM DIFERENTE da tela aberta
-                            shouldPlaySound = true; 
-                            senderName = data.pushName || data.name || "Cliente";
+                            // REGRA DE SILÊNCIO: Só toca se não for transbordo E se o bot estiver PAUSADO (Humano atendendo).
+                            // Se o bot estiver ativo respondendo cardápio, a loja fica em silêncio.
+                            if (isBotPaused) {
+                                shouldPlaySound = true; 
+                                senderName = data.pushName || data.name || "Cliente";
+                            }
                         }
                     }
-                });
+                }
 
                 // Toca o som APENAS UMA VEZ
                 if (shouldPlaySound) {
@@ -3581,52 +3613,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             )}
 {/* ========================================================= */}
-{/* --- BANNER EDUCACIONAL (ESTILO LOJA INTEGRADA / SHOPIFY) --- */}
+{/* --- BANNER EDUCACIONAL (ESCOLA VELO DELIVERY) --- */}
 {/* ========================================================= */}
 {showEduBanner && (
-    <div className={`relative ${educationalBanners[currentEduBanner].bgColor} border ${educationalBanners[currentEduBanner].borderColor} p-6 md:p-8 rounded-[2.5rem] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4`}>
-        
-        {/* Botão de Fechar */}
-        <button 
-            onClick={() => setShowEduBanner(false)} 
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2"
-            title="Ocultar dica"
-        >
-            <X size={16} />
-        </button>
-
-        <div className="flex items-start gap-5 pr-8">
-            <div className="bg-white p-4 rounded-full shadow-sm flex-shrink-0 mt-1">
-                {educationalBanners[currentEduBanner].icon}
+    <div className="mb-8 animate-in fade-in slide-in-from-top-4">
+        {/* TÍTULO DA SEÇÃO EDUCACIONAL */}
+        <div className="flex items-center gap-2 mb-3 px-4">
+            <div className="bg-blue-600 text-white p-1.5 rounded-lg shadow-sm">
+                <Sparkles size={16} />
             </div>
-            <div>
-                <span className="inline-block px-3 py-1 bg-white/60 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 mb-2 border border-black/5">
-                    {educationalBanners[currentEduBanner].badge}
-                </span>
-                <h3 className={`text-xl md:text-2xl font-black uppercase tracking-tighter leading-none mb-2 ${educationalBanners[currentEduBanner].titleColor}`}>
-                    {educationalBanners[currentEduBanner].title}
-                </h3>
-                <p className="text-sm font-medium text-slate-600 max-w-2xl leading-relaxed">
-                    {educationalBanners[currentEduBanner].text}
-                </p>
-            </div>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">
+                Escola Velo Delivery <span className="text-slate-400 font-bold normal-case tracking-normal ml-1">| Dicas para vender mais</span>
+            </h2>
         </div>
 
-        <div className="w-full md:w-auto flex-shrink-0 flex flex-col gap-2">
-            <button 
-                onClick={educationalBanners[currentEduBanner].action}
-                className={`w-full ${educationalBanners[currentEduBanner].btnColor} px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2`}
-            >
-                <Sparkles size={16}/> {educationalBanners[currentEduBanner].ctaText}
-            </button>
+        <div className={`relative ${educationalBanners[currentEduBanner].bgColor} border-2 ${educationalBanners[currentEduBanner].borderColor} p-6 md:p-8 rounded-[2.5rem] shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-6 hover:shadow-lg transition-all`}>
             
-            {/* Botão para trocar a dica manualmente */}
+            {/* Botão de Fechar */}
             <button 
-                onClick={() => setCurrentEduBanner((prev) => (prev + 1) % educationalBanners.length)}
-                className="text-[10px] font-bold text-slate-500 uppercase hover:text-slate-800 text-center flex items-center justify-center gap-1"
+                onClick={() => setShowEduBanner(false)} 
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 bg-white/50 rounded-full transition-colors"
+                title="Ocultar aula"
             >
-                <RefreshCw size={10}/> Ver outra dica
+                <X size={16} />
             </button>
+
+            <div className="flex items-start gap-5 pr-8">
+                <div className="bg-white p-4 rounded-2xl shadow-sm flex-shrink-0 mt-1 border border-white/50">
+                    {educationalBanners[currentEduBanner].icon}
+                </div>
+                <div>
+                    <span className="inline-block px-3 py-1 bg-white/80 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 mb-3 border border-black/5 shadow-sm">
+                        {educationalBanners[currentEduBanner].badge}
+                    </span>
+                    <h3 className={`text-xl md:text-2xl font-black uppercase tracking-tighter leading-none mb-2 ${educationalBanners[currentEduBanner].titleColor}`}>
+                        {educationalBanners[currentEduBanner].title}
+                    </h3>
+                    <p className="text-sm font-medium text-slate-600 max-w-2xl leading-relaxed">
+                        {educationalBanners[currentEduBanner].text}
+                    </p>
+                </div>
+            </div>
+
+            <div className="w-full md:w-auto flex-shrink-0 flex flex-col gap-2">
+                <button 
+                    onClick={educationalBanners[currentEduBanner].action}
+                    className={`w-full ${educationalBanners[currentEduBanner].btnColor} px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2`}
+                >
+                    <Sparkles size={16}/> {educationalBanners[currentEduBanner].ctaText}
+                </button>
+                
+                {/* Botão para trocar a dica manualmente */}
+                <button 
+                    onClick={() => setCurrentEduBanner((prev) => (prev + 1) % educationalBanners.length)}
+                    className="text-[10px] font-bold text-slate-500 uppercase hover:text-slate-800 text-center flex items-center justify-center gap-1 mt-2 bg-white/50 py-2 rounded-xl border border-slate-200/50 transition-colors"
+                >
+                    <RefreshCw size={10}/> Ver próxima aula
+                </button>
+            </div>
         </div>
     </div>
 )}
@@ -5207,55 +5251,76 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             <div className="flex flex-col md:flex-row gap-3">
-                                {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE (COM TRAVA DE 24H) */}
-                                {settings?.integrations?.google_my_business?.locationId && (
-                                    <button 
-                                        disabled={isSyncingGoogle || storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0]}
-                                        onClick={async (e) => {
-                                            const hoje = new Date().toISOString().split('T')[0];
-                                            if (storeStatus?.lastGoogleSync === hoje) {
-                                                return alert("⚠️ A sua vitrine já foi atualizada hoje! Para evitar bloqueios por SPAM no Google e manter seu ranqueamento alto, o sistema permite uma sincronização em massa por dia. Tente novamente amanhã.");
-                                            }
+                                {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE (TRAVA DE 30 DIAS ANTISPAM) */}
+                                {settings?.integrations?.google_my_business?.locationId && (() => {
+                                    const hoje = new Date().toISOString().split('T')[0];
+                                    let diasFaltantes = 0;
+                                    let isSincronizacaoBloqueada = false;
 
-                                            if(!window.confirm("Deseja enviar todo o seu cardápio ativo para a vitrine do Google Meu Negócio agora?")) return;
-                                            
-                                            setIsSyncingGoogle(true);
-                                            try {
-                                                const activeProducts = products.filter(p => p.isActive !== false && (Number(p.price) > 0 || Number(p.promotionalPrice) > 0) && (p.imageUrl || p.videoUrl));
-                                                const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
-                                                
-                                                const res = await fetch('/api/sync-google-catalog', {
-                                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ 
-                                                        storeId, 
-                                                        locationId: settings.integrations.google_my_business.locationId,
-                                                        productsList: activeProducts,
-                                                        storeDomain: baseUrl
-                                                    })
-                                                });
-                                                const data = await res.json();
-                                                
-                                                if(res.ok) {
-                                                    // Salva no banco de dados a data do último envio para travar até amanhã
-                                                    await updateDoc(doc(db, "stores", storeId), { lastGoogleSync: hoje }, { merge: true });
-                                                    setStoreStatus(prev => ({...prev, lastGoogleSync: hoje}));
-                                                    alert(`✅ Vitrine Sincronizada! ${data.syncedCount} produtos enviados ao Google. Eles aparecerão no seu perfil nos próximos minutos.`);
-                                                }
-                                                else alert(`❌ Erro do Google: ${data.error}`);
-                                            } catch(err) {
-                                                alert("Erro de conexão com a API.");
-                                            }
-                                            setIsSyncingGoogle(false);
-                                        }} 
-                                        className={`px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 active:scale-95 transition-all uppercase tracking-widest text-[10px] ${storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0] ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50'}`}
-                                    >
-                                        {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : (storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0] ? <CheckCircle size={14}/> : <FaGoogle size={14}/>)}
-                                        <span className="hidden md:inline">
-                                            {isSyncingGoogle ? 'Enviando...' : (storeStatus?.lastGoogleSync === new Date().toISOString().split('T')[0] ? 'Sincronizado Hoje' : 'Sincronizar no Google')}
-                                        </span>
-                                        <span className="md:hidden">Google</span>
-                                    </button>
-                                )}
+                                    if (storeStatus?.lastGoogleSync) {
+                                        const dataUltima = new Date(storeStatus.lastGoogleSync);
+                                        const dataHoje = new Date(hoje);
+                                        const diffTempo = Math.abs(dataHoje - dataUltima);
+                                        const diffDias = Math.ceil(diffTempo / (1000 * 60 * 60 * 24));
+                                        
+                                        if (diffDias < 30) {
+                                            isSincronizacaoBloqueada = true;
+                                            diasFaltantes = 30 - diffDias;
+                                        }
+                                    }
+
+                                    return (
+                                        <div className="flex flex-col items-end group relative">
+                                            <button 
+                                                disabled={isSyncingGoogle || isSincronizacaoBloqueada}
+                                                onClick={async (e) => {
+                                                    if(!window.confirm("Deseja enviar todo o seu cardápio ativo para a vitrine do Google Meu Negócio agora?")) return;
+                                                    
+                                                    setIsSyncingGoogle(true);
+                                                    try {
+                                                        const activeProducts = products.filter(p => p.isActive !== false && (Number(p.price) > 0 || Number(p.promotionalPrice) > 0) && (p.imageUrl || p.videoUrl));
+                                                        const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                        
+                                                        const res = await fetch('/api/sync-google-catalog', {
+                                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ 
+                                                                storeId, 
+                                                                locationId: settings.integrations.google_my_business.locationId,
+                                                                productsList: activeProducts,
+                                                                storeDomain: baseUrl
+                                                            })
+                                                        });
+                                                        const data = await res.json();
+                                                        
+                                                        if(res.ok) {
+                                                            await updateDoc(doc(db, "stores", storeId), { lastGoogleSync: hoje }, { merge: true });
+                                                            setStoreStatus(prev => ({...prev, lastGoogleSync: hoje}));
+                                                            alert(`✅ Vitrine Sincronizada! ${data.syncedCount} produtos enviados ao Google. Eles aparecerão no seu perfil nos próximos minutos.`);
+                                                        }
+                                                        else alert(`❌ Erro do Google: ${data.error}`);
+                                                    } catch(err) {
+                                                        alert("Erro de conexão com a API.");
+                                                    }
+                                                    setIsSyncingGoogle(false);
+                                                }} 
+                                                className={`px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 active:scale-95 transition-all uppercase tracking-widest text-[10px] ${isSincronizacaoBloqueada ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50'}`}
+                                            >
+                                                {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : (isSincronizacaoBloqueada ? <Clock size={14}/> : <FaGoogle size={14}/>)}
+                                                <span className="hidden md:inline">
+                                                    {isSyncingGoogle ? 'Enviando...' : (isSincronizacaoBloqueada ? `Liberado em ${diasFaltantes} dias` : 'Sincronizar no Google')}
+                                                </span>
+                                                <span className="md:hidden">Google</span>
+                                            </button>
+
+                                            {/* Tooltip Educativo (Aparece no Hover) */}
+                                            <div className="absolute top-full right-0 mt-2 w-64 bg-slate-900 text-white p-3 rounded-xl text-[10px] font-bold shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                                <p className="text-blue-300 font-black mb-1 uppercase tracking-widest">Proteção Anti-Spam Ativa</p>
+                                                O Google pune lojas que enviam o cardápio inteiro repetidas vezes. A sincronização em massa só é permitida a cada 30 dias. <br/><br/>
+                                                Última vez: <b>{storeStatus?.lastGoogleSync ? new Date(storeStatus.lastGoogleSync).toLocaleDateString('pt-BR') : 'Nunca'}</b>.
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 
                                 {/* BOTÃO DE SINCRONIZAÇÃO RETROATIVA DE AVALIAÇÕES REAIS */}
                                 <button onClick={async () => {
@@ -5376,9 +5441,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             const filteredProductsList = products.filter(p => {
                                 const matchesSearch = !productSearch || 
                                     (p?.name || '').toLowerCase().includes(productSearch.toLowerCase()) || 
-                                    (p?.category || '').toLowerCase().includes(productSearch.toLowerCase());
+                                    (p?.category || '').toLowerCase().includes(productSearch.toLowerCase()) ||
+                                    (p?.categories && p.categories.some(cat => cat.toLowerCase().includes(productSearch.toLowerCase())));
                                 
-                                const matchesCategory = productFilterCategory === 'all' || p.category === productFilterCategory;
+                                const matchesCategory = productFilterCategory === 'all' || p.category === productFilterCategory || (p.categories && p.categories.includes(productFilterCategory));
                                 const matchesStatus = productFilterStatus === 'all' || (productFilterStatus === 'active' ? p.isActive !== false : p.isActive === false);
                                 
                                 return matchesSearch && matchesCategory && matchesStatus;
@@ -7371,6 +7437,34 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* --- NOVO: CONFIGURAÇÃO DE UPSELL (COMPRE JUNTO) --- */}
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-orange-500/20 p-2 rounded-xl text-orange-400 mt-1"><Flame size={20}/></div>
+                                                    <div className="pr-4">
+                                                        <p className="font-black text-white text-sm uppercase">Upsell (Compre Junto)</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Sugerir produtos extras antes de finalizar a compra.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 pt-4 border-t border-slate-700">
+                                                <select 
+                                                    value={settings.gamification?.upsellMode || 'smart'} 
+                                                    onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, upsellMode: e.target.value } }, { merge: true })}
+                                                    className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-orange-500 text-sm cursor-pointer"
+                                                >
+                                                    <option value="smart">🤖 Inteligente (Manual + Sugestões IA)</option>
+                                                    <option value="manual">✍️ Apenas Manual (Aba Estoque)</option>
+                                                    <option value="off">🚫 Desativado (Ocultar vitrine)</option>
+                                                </select>
+                                                <p className="text-[10px] text-slate-400 font-bold mt-2 leading-relaxed">
+                                                    {settings.gamification?.upsellMode === 'manual' ? 'Mostra apenas os itens que você vinculou manualmente na aba Estoque.' : settings.gamification?.upsellMode === 'off' ? 'A vitrine de sugestões ("Que tal pedir também?") NÃO aparecerá no carrinho.' : 'Mistura suas sugestões manuais com o algoritmo que analisa o que os clientes mais compram.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
 {/* --- INÍCIO: PAGUE COM SEGUIDORES (TIERS) --- */}
                                             <div className="mt-6 bg-gradient-to-r from-fuchsia-600/20 to-indigo-600/20 p-5 rounded-2xl border border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.1)] animate-in fade-in hover:border-fuchsia-400/50 transition-all">
                                                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-4">
@@ -10194,7 +10288,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     isActive: form.isActive !== false,
                                     storeId: storeId
                                 };
-                                if (editingId) { await updateDoc(doc(db, "products", editingId), data); } else { await addDoc(collection(db, "products"), data); }
+                                
+                                let savedProductId = editingId;
+                                if (editingId) { 
+                                    await updateDoc(doc(db, "products", editingId), data); 
+                                } else { 
+                                    const newDocRef = await addDoc(collection(db, "products"), data); 
+                                    savedProductId = newDocRef.id;
+                                }
                                 
                                 // --- NOVO: INDEXAÇÃO PROATIVA NO GOOGLE (ASSÍNCRONO E BLINDADO) ---
                                 try {
@@ -10204,7 +10305,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
                                             storeId: storeId,
-                                            productId: editingId || 'novo',
+                                            productId: savedProductId || 'novo',
                                             action: 'update'
                                         })
                                     }).catch(err => console.warn("Aviso proativo ao Google silenciado:", err));
@@ -10214,6 +10315,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 // -------------------------------------------------------------------
 
                                 setIsModalOpen(false); setImageFile(null);
+
+                                // 🚀 MÁGICA: Oferece a publicação inteligente no Google logo após salvar
+                                if (settings?.integrations?.google_my_business?.locationId) {
+                                    setTimeout(() => {
+                                        if (window.confirm("✅ Produto salvo com sucesso!\n\nDeseja publicar esta novidade agora mesmo no seu Perfil do Google Maps para atrair clientes orgânicos?")) {
+                                            handleGeneratePromoCopy({ id: savedProductId, ...data });
+                                        }
+                                    }, 400); // Pequeno delay para a tela de trás renderizar suavemente
+                                } else {
+                                    alert("✅ Produto salvo com sucesso!");
+                                }
+
                             }} className="space-y-6">
                                 {/* --- INÍCIO: CAMPOS COM NUDGES DE SEO E EXEMPLO VISUAL --- */}
                                 <div className="space-y-4">
@@ -10405,9 +10518,39 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     )}
                                 </div>
 
-                               <select className="w-full p-6 bg-slate-50 rounded-3xl outline-none font-bold border-none cursor-pointer" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                                    <option value="">Selecione a Categoria</option>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                </select>
+                               <div className="pt-4 border-t border-slate-100 mt-4">
+                                    <label className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-3 ml-2">
+                                        <List size={14} className="text-blue-500"/> Categorias do Produto
+                                    </label>
+                                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {categories.map(c => {
+                                            // Lógica inteligente para retrocompatibilidade: Lê o array novo ou a string antiga
+                                            const isSelected = form.categories?.includes(c.name) || (!form.categories && form.category === c.name);
+                                            return (
+                                                <label key={c.id} className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 transition-all select-none ${isSelected ? 'bg-blue-100 border-blue-400 text-blue-800 font-black shadow-sm' : 'bg-white border-transparent text-slate-600 font-bold hover:border-blue-200'}`}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="hidden"
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            let currentCats = form.categories || (form.category ? [form.category] : []);
+                                                            if (e.target.checked) {
+                                                                if (!currentCats.includes(c.name)) currentCats.push(c.name);
+                                                            } else {
+                                                                currentCats = currentCats.filter(name => name !== c.name);
+                                                            }
+                                                            // Salva tanto no array novo quanto na string principal
+                                                            setForm({ ...form, categories: currentCats, category: currentCats.length > 0 ? currentCats[0] : '' });
+                                                        }}
+                                                    />
+                                                    {isSelected && <CheckCircle size={14} className="text-blue-600" />}
+                                                    {c.name}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-4">Selecione uma ou mais categorias. A primeira marcada será a principal.</p>
+                                </div>
 
                                 <div>
                                     <label className="text-xs font-black uppercase tracking-widest text-blue-600 ml-2 flex items-center gap-2">

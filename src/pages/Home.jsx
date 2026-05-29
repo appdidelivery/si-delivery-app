@@ -2556,46 +2556,55 @@ if (window.fbq) {
   }, [categories, favoriteCategory, storeSettings?.storeNiche]);
   // --- FIM: IA DE MENU DE ENGENHARIA ---
 
-  const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds || []);
-  
-  // Filtro base de segurança: Só itens com estoque e que NÃO estão no carrinho
-  const availableForUpsell = products.filter(p => 
-      !cart.some(item => item.id === p.id) && 
-      ((p.stock && parseInt(p.stock) > 0) || !p.stock)
-  );
+  // Lógica controlada de Upsell (Compre Junto)
+  const upsellMode = marketingSettings?.gamification?.upsellMode || 'smart';
+  let finalUpsell = [];
 
-  // Nível 0: Configuração Manual do Lojista (Respeitamos se ele fez o trabalho)
-  let finalUpsell = availableForUpsell.filter(p => recommendedIdsInCart.includes(p.id));
-
-  // Nível 1: A Inteligência Pessoal (A categoria que este cliente mais compra)
-  if (finalUpsell.length < 5 && favoriteCategory) {
-      const favProducts = availableForUpsell.filter(p => 
-          p.category === favoriteCategory && !finalUpsell.some(u => u.id === p.id)
+  if (upsellMode !== 'off') {
+      const recommendedIdsInCart = cart.flatMap(item => item.recommendedIds || []);
+      
+      // Filtro base de segurança: Só itens com estoque e que NÃO estão no carrinho
+      const availableForUpsell = products.filter(p => 
+          !cart.some(item => item.id === p.id) && 
+          ((p.stock && parseInt(p.stock) > 0) || !p.stock)
       );
-      finalUpsell = [...finalUpsell, ...favProducts];
-  }
 
-  // Nível 2: Busca Semântica (Bebidas, Doces, Combos - blindado contra erros de digitação do lojista)
-  if (finalUpsell.length < 5) {
-      const semanticKeywords = ['bebida', 'refri', 'adicion', 'acompanha', 'doce', 'sobremesa', 'combo', 'porç', 'porc', 'gelad'];
-      const semanticProducts = availableForUpsell.filter(p => {
-          if (finalUpsell.some(u => u.id === p.id)) return false; // Evita duplicatas
-          const catName = (p.category || '').toLowerCase();
-          return semanticKeywords.some(keyword => catName.includes(keyword));
-      });
-      finalUpsell = [...finalUpsell, ...semanticProducts];
-  }
+      // Nível 0: Configuração Manual do Lojista (Respeitamos se ele fez o trabalho)
+      finalUpsell = availableForUpsell.filter(p => recommendedIdsInCart.includes(p.id));
 
-  // Nível 3: Bala de Prata (Impulso por Preço Baixo - Puxa os itens mais baratos da loja para fechar as 5 vagas)
-  if (finalUpsell.length < 5) {
-      const impulseProducts = availableForUpsell
-          .filter(p => !finalUpsell.some(u => u.id === p.id))
-          .sort((a, b) => {
-              const priceA = Number(a.promotionalPrice) > 0 ? Number(a.promotionalPrice) : Number(a.price);
-              const priceB = Number(b.promotionalPrice) > 0 ? Number(b.promotionalPrice) : Number(b.price);
-              return priceA - priceB; // Ordena do mais barato pro mais caro
-          });
-      finalUpsell = [...finalUpsell, ...impulseProducts];
+      // Se o modo for inteligente, o algoritmo preenche as vagas que faltam
+      if (upsellMode === 'smart') {
+          // Nível 1: A Inteligência Pessoal (A categoria que este cliente mais compra)
+          if (finalUpsell.length < 5 && favoriteCategory) {
+              const favProducts = availableForUpsell.filter(p => 
+                  p.category === favoriteCategory && !finalUpsell.some(u => u.id === p.id)
+              );
+              finalUpsell = [...finalUpsell, ...favProducts];
+          }
+
+          // Nível 2: Busca Semântica (Bebidas, Doces, Combos)
+          if (finalUpsell.length < 5) {
+              const semanticKeywords = ['bebida', 'refri', 'adicion', 'acompanha', 'doce', 'sobremesa', 'combo', 'porç', 'porc', 'gelad'];
+              const semanticProducts = availableForUpsell.filter(p => {
+                  if (finalUpsell.some(u => u.id === p.id)) return false; 
+                  const catName = (p.category || '').toLowerCase();
+                  return semanticKeywords.some(keyword => catName.includes(keyword));
+              });
+              finalUpsell = [...finalUpsell, ...semanticProducts];
+          }
+
+          // Nível 3: Bala de Prata (Impulso por Preço Baixo)
+          if (finalUpsell.length < 5) {
+              const impulseProducts = availableForUpsell
+                  .filter(p => !finalUpsell.some(u => u.id === p.id))
+                  .sort((a, b) => {
+                      const priceA = Number(a.promotionalPrice) > 0 ? Number(a.promotionalPrice) : Number(a.price);
+                      const priceB = Number(b.promotionalPrice) > 0 ? Number(b.promotionalPrice) : Number(b.price);
+                      return priceA - priceB; 
+                  });
+              finalUpsell = [...finalUpsell, ...impulseProducts];
+          }
+      }
   }
 
   // Garante que o layout não quebre entregando exatamente os 5 primeiros
@@ -3352,7 +3361,7 @@ if (window.fbq) {
                     .filter(c => c.id !== 'all') 
                     .map(cat => {
                         const categoryProducts = products.filter(p => 
-                            p.category === cat.name && 
+                            (p.category === cat.name || (p.categories && p.categories.includes(cat.name))) && 
                             p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
                             ((p.stock && parseInt(p.stock) > 0) || !p.stock)
                         );
