@@ -24,6 +24,7 @@ export default function WppWebview() {
 
   // Estados Base
   const [store, setStore] = useState(null);
+  const [settings, setSettings] = useState(null);
   const [menu, setMenu] = useState([]);
   const [shippingRates, setShippingRates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,8 +77,15 @@ export default function WppWebview() {
   const fetchStoreData = async () => {
     try {
       const storeSnap = await getDoc(doc(db, "stores", slug));
+      const settingsSnap = await getDoc(doc(db, "settings", slug));
+      
       if (storeSnap.exists()) {
         setStore({ id: storeSnap.id, ...storeSnap.data() });
+        
+        if (settingsSnap.exists()) {
+            setSettings(settingsSnap.data());
+        }
+
         const q = query(collection(db, "products"), where("storeId", "==", storeSnap.id), where("isActive", "==", true));
         const snap = await getDocs(q);
         setMenu(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -562,7 +570,7 @@ export default function WppWebview() {
                         {(() => {
                             const pmConf = store?.acceptedPayments || {};
                             const hasVeloPix = store?.velopayStatus === 'active';
-                            const hasMP = store?.integrations?.mercadopago?.accessToken;
+                            const hasMP = settings?.integrations?.mercadopago?.accessToken || store?.integrations?.mercadopago?.accessToken;
 
                             let methods = [];
 
