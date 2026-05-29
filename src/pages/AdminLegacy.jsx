@@ -9766,10 +9766,51 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         {/* --- FIM: MODO FÉRIAS / FERIADO --- */}
 
                         {/* 3. Horários da Semana (NOVO!) */}
-                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                            <h2 className="text-2xl font-black text-slate-800 uppercase mb-6 flex items-center gap-2">
-                                <Calendar size={24}/> Horários de Funcionamento
-                            </h2>
+                        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 mt-6">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800 uppercase flex items-center gap-2">
+                                        <Calendar size={24}/> Horários de Funcionamento
+                                    </h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">
+                                        Defina quando a sua loja abre e fecha em cada dia da semana.
+                                    </p>
+                                </div>
+                                
+                                {/* BOTÃO DE SINCRONIZAÇÃO COM O GOOGLE */}
+                                {settings?.integrations?.google_my_business?.locationId && (
+                                    <button 
+                                        type="button"
+                                        disabled={isSyncingGoogle}
+                                        onClick={async () => {
+                                            if(!window.confirm("Deseja enviar esses horários e substituir os horários atuais da sua loja lá no Google Meu Negócio?")) return;
+                                            
+                                            setIsSyncingGoogle(true);
+                                            try {
+                                                const res = await fetch('/api/sync-google-regular-hours', {
+                                                    method: 'POST', 
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ 
+                                                        storeId, 
+                                                        locationId: settings.integrations.google_my_business.locationId, 
+                                                        schedule: storeStatus.schedule 
+                                                    })
+                                                });
+                                                if(res.ok) alert("✅ Horários atualizados com sucesso no Google Maps!");
+                                                else alert("❌ Erro ao sincronizar. Verifique se sua loja está verificada no Google.");
+                                            } catch(err) { 
+                                                alert("Erro de conexão com o servidor."); 
+                                            }
+                                            setIsSyncingGoogle(false);
+                                        }}
+                                        className="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 py-3 px-5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm w-full md:w-auto active:scale-95 disabled:opacity-50"
+                                    >
+                                        {isSyncingGoogle ? <Loader2 size={16} className="animate-spin" /> : <FaGoogle size={16} />}
+                                        Sincronizar com o Google
+                                    </button>
+                                )}
+                            </div>
+
                             <div className="space-y-3">
                                 {DAYS_OF_WEEK.map(day => {
                                     const dayConfig = (storeStatus.schedule && storeStatus.schedule[day.id]) || { open: false, start: '08:00', end: '23:00' };
