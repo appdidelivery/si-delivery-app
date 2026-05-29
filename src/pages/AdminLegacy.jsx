@@ -159,24 +159,25 @@ const DAYS_OF_WEEK =[
 
 // --- ITENS DE NAVEGAÇÃO COMPLETA (USADO PARA DESKTOP E MOBILE) ---
 const allNavItems =[
-    { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
-    { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
-    { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
-    { id: 'fleet', name: 'Monitor de Frota', icon: <Truck size={18} />, mobileIcon: <Truck size={22} /> }, // <-- NOVA ABA
-    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
-    { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
-    { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
-    { id: 'ingredients', name: 'Insumos (Pães)', icon: <Database size={18} />, mobileIcon: <Database size={22} /> },
-    { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
-    { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
-    { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
-    { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
-    { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
-    { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
-    { id: 'partners', name: 'Hub Parceiros', icon: <Handshake size={18} />, mobileIcon: <Handshake size={22} /> },
-    { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
-    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
-    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
+    { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
+    { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
+    { id: 'datafuel', name: 'Velo Data Fuel', icon: <TrendingUp size={18} className="text-blue-500" />, mobileIcon: <TrendingUp size={22} className="text-blue-500" /> },
+    { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
+    { id: 'fleet', name: 'Monitor de Frota', icon: <Truck size={18} />, mobileIcon: <Truck size={22} /> }, // <-- NOVA ABA
+    { id: 'manual', name: 'Lançar Pedido', icon: <PlusCircle size={18} />, mobileIcon: <PlusCircle size={22} /> },
+    { id: 'abandoned', name: 'Carrinhos (Perdidos)', icon: <ShoppingCart size={18} />, mobileIcon: <ShoppingCart size={22} /> },
+    { id: 'products', name: 'Estoque', icon: <Package size={18} />, mobileIcon: <Package size={22} /> },
+    { id: 'ingredients', name: 'Insumos (Pães)', icon: <Database size={18} />, mobileIcon: <Database size={22} /> },
+    { id: 'categories', name: 'Categorias', icon: <List size={18} />, mobileIcon: <List size={22} /> },
+    { id: 'banners', name: 'Banners', icon: <Image size={18} />, mobileIcon: <Image size={22} /> },
+    { id: 'customers', name: 'Clientes VIP', icon: <Users size={18} />, mobileIcon: <Users size={22} /> },
+    { id: 'marketing', name: 'Marketing', icon: <Trophy size={18} />, mobileIcon: <Trophy size={22} /> },
+    { id: 'store_settings', name: 'Loja', icon: <Bell size={18} />, mobileIcon: <Bell size={22} /> },
+    { id: 'integrations', name: 'Integrações', icon: <LinkIcon size={18} />, mobileIcon: <LinkIcon size={22} /> },
+    { id: 'partners', name: 'Hub Parceiros', icon: <Handshake size={18} />, mobileIcon: <Handshake size={22} /> },
+    { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
+    { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
+    { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
 ];
 
 // FEATURE FLAG: Controla a exibição da Stripe como "Plano B"
@@ -746,7 +747,8 @@ const educationalBanners = [
             case 'banners': 
             case 'marketing': 
             case 'partners': 
-            case 'insights': return userPermissions.marketing === true; // <-- CORREÇÃO: Insights e Parceiros liberados junto com Marketing
+            case 'datafuel':
+            case 'insights': return userPermissions.marketing === true; // <-- CORREÇÃO: Insights, Parceiros e DataFuel liberados junto com Marketing
             
             case 'finance': return userPermissions.finance === true;
             
@@ -4106,6 +4108,61 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </p>
                                 </div>
                             )}
+                        </div>
+                    );
+                })()}
+
+                {/* --- ABA VELO DATA FUEL (INTELIGÊNCIA AUTOMÁTICA) --- */}
+                {activeTab === 'datafuel' && (() => {
+                    // MÁGICA MULTI-TENANT: A URL Mestre do seu painel Looker Studio da Velo.
+                    // O parâmetro ?params={"ds0.storeId":"x"} filtra o painel inteiro apenas para a loja atual silenciosamente.
+                    const MASTER_LOOKER_URL = import.meta.env.VITE_LOOKER_MASTER_URL || "https://lookerstudio.google.com/embed/reporting/SEU_ID_MESTRE_AQUI/page/p_padrao";
+                    
+                    const lookerFilterParams = encodeURIComponent(JSON.stringify({
+                        "ds0.storeId": storeId
+                    }));
+                    
+                    const dynamicDataFuelUrl = `${MASTER_LOOKER_URL}?params=${lookerFilterParams}`;
+
+                    return (
+                        <div className="space-y-6 h-[calc(100vh-150px)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                    <h1 className="text-4xl font-black italic uppercase text-slate-900 leading-none flex items-center gap-3">
+                                        <TrendingUp className="text-blue-600" size={36}/> Velo Data Fuel
+                                    </h1>
+                                    <p className="text-slate-500 font-bold mt-2 text-sm">Inteligência de Dados e Analytics em Tempo Real.</p>
+                                </div>
+                                <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-blue-100 shadow-sm">
+                                    <Database size={14}/> Fonte: GA4 & Firestore
+                                </div>
+                            </div>
+
+                            <div className="flex-1 bg-white rounded-[3rem] border-4 border-slate-100 shadow-xl overflow-hidden relative min-h-[500px] flex flex-col group">
+                                {/* OVERLAY DE CARREGAMENTO PARA DEIXAR A EXPERIÊNCIA FLUIDA */}
+                                <div className="absolute inset-0 bg-slate-50 z-0 flex flex-col items-center justify-center gap-4 transition-opacity duration-1000 peer-loaded:opacity-0 pointer-events-none">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-blue-400 blur-xl opacity-50 rounded-full animate-pulse"></div>
+                                        <TrendingUp size={48} className="text-blue-500 relative z-10 animate-bounce" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-sm font-black uppercase tracking-widest text-slate-700">Minerando Dados...</p>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1">Conectando ao Data Lake da Velo.</p>
+                                    </div>
+                                </div>
+
+                                <iframe 
+                                    src={dynamicDataFuelUrl}
+                                    className="w-full h-full border-0 relative z-10 peer"
+                                    allowFullScreen
+                                    title="Velo Data Fuel Analytics"
+                                    sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                                    onLoad={(e) => {
+                                        // Esconde o loader quando o Looker Studio terminar de renderizar
+                                        e.target.previousElementSibling.style.opacity = '0';
+                                    }}
+                                ></iframe>
+                            </div>
                         </div>
                     );
                 })()}
