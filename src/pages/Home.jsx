@@ -3234,7 +3234,23 @@ if (window.fbq) {
                                           // --- MODO CONVENIÊNCIA ORIGINAL (IMAGEM QUADRADA) ---
                                           <>
                                               <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square" onClick={() => handleOpenProduct(p)}>
-                                                  <img src={optimizeCloudinary(p.imageUrl, 200)} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" />
+                                                  {p.imageUrl ? (
+                                                      <img 
+                                                          src={optimizeCloudinary(p.imageUrl, 200)} 
+                                                          alt={p.name} 
+                                                          loading="lazy" 
+                                                          decoding="async" 
+                                                          className="h-full w-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                                          onError={(e) => { 
+                                                              e.target.onerror = null; 
+                                                              e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
+                                                          }}
+                                                      />
+                                                  ) : (
+                                                      <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                          <Camera size={40} />
+                                                      </div>
+                                                  )}
                                                   {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md">-{p.discountPercentage}%</span>}
                                                   {Number(p.promotionalPrice) > 0 && <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">OFERTA 🔥</div>}
                                               </div>
@@ -3325,7 +3341,26 @@ if (window.fbq) {
                                     // --- MODO PADRÃO (IMAGEM) ---
                                     <>
                                         <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                            <img src={optimizeCloudinary(p.imageUrl, 300)} alt={`${p.name} - ${p.category} na ${storeSettings.name}`} title={`${p.name} disponível para entrega na ${storeSettings.name}`} width="150" height="150" loading="lazy" decoding="async" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" onError={(e) => { e.target.onerror = null; e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; }} />
+                                            {p.imageUrl ? (
+                                                <img 
+                                                    src={optimizeCloudinary(p.imageUrl, 300)} 
+                                                    alt={`${p.name} - ${p.category} na ${storeSettings.name}`} 
+                                                    title={`${p.name} disponível para entrega na ${storeSettings.name}`} 
+                                                    width="150" 
+                                                    height="150" 
+                                                    loading="lazy" 
+                                                    decoding="async" 
+                                                    className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" 
+                                                    onError={(e) => { 
+                                                        e.target.onerror = null; 
+                                                        e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23f8fafc'/%3E%3Cpath d='M150 120a30 30 0 1 0 0 60 30 30 0 0 0 0-60zm0 45a15 15 0 1 1 0-30 15 15 0 0 1 0 30zM120 105h60l15 15h30v75H75v-75h30l15-15z' fill='%23cbd5e1'/%3E%3C/svg%3E"; 
+                                                    }} 
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                                                    <Camera size={40} />
+                                                </div>
+                                            )}
                                             {!hasStock && <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center font-black text-white text-xs uppercase backdrop-blur-sm">Esgotado</div>}
                                             {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md">-{p.discountPercentage}%</span>}
                                             {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">OFERTA 🔥</div>}
