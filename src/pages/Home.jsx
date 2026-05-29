@@ -4544,11 +4544,15 @@ if (window.fbq) {
                       <div className="relative z-10">
                           <h3 className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 mb-1">
                               <Camera size={24} className="text-pink-300" />
-                              Poste e Ganhe!
+                              Sua audiência vale prêmios!
                           </h3>
-                          <p className="text-xs font-medium text-purple-100 mb-6 leading-relaxed">
-                              Troque sua influência por mimos. Poste um Story instagram ou TikTok marcando <b>{storeSettings.instagramUrl ? storeSettings.instagramUrl.split('.com/')[1] : "nossa loja"}</b> e resgate na hora!
-                          </p>
+                          <div className="text-xs font-medium text-purple-100 mb-6 leading-relaxed">
+                              Troque sua influência por mimos. Poste um Story no Instagram ou TikTok marcando <b>{storeSettings.instagramUrl ? storeSettings.instagramUrl.split('.com/')[1] : "nossa loja"}</b> e resgate na hora!
+                              <div className="mt-3 bg-purple-900/40 p-2 rounded-lg border border-purple-500/30">
+                                  <span className="text-[10px] font-black uppercase text-pink-300">⚠️ Regra:</span>
+                                  <span className="text-[10px] font-bold ml-1">O post precisa ser referente ao seu pedido atual.</span>
+                              </div>
+                          </div>
 
                           <div className="space-y-3 mb-6">
                               {marketingSettings.influencerTiers
@@ -4583,9 +4587,14 @@ if (window.fbq) {
                               Enviar Meu Print <UploadCloud size={16} />
                           </button>
                           
-                          <p className="text-[9px] text-center text-purple-200 mt-3 font-medium">
-                              *Seu perfil precisa ser aberto. Nossa equipe verificará o print para liberar o brinde!
-                          </p>
+                          <div className="mt-4 p-3 bg-white/10 rounded-xl border border-white/20 text-center">
+                              <p className="text-[10px] text-white font-bold leading-relaxed">
+                                  Após enviar o print, retire seu brinde no balcão da loja ou resgate no seu próximo pedido.
+                              </p>
+                              <p className="text-[8px] text-purple-200 mt-1 uppercase tracking-widest">
+                                  *Seu perfil precisa ser aberto para verificação.
+                              </p>
+                          </div>
                       </div>
                   </div>
               )}

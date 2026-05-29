@@ -3555,54 +3555,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <Printer size={20}/> Fechar Caixa / Relatório
                                 </button>
                             </div>
-{/* --- PAINEL DE TRÁFEGO DO GOOGLE MEU NEGÓCIO --- */}
-                            {settings?.integrations?.google_my_business?.locationId && (
-                                <div className="bg-white p-6 rounded-[2.5rem] border border-blue-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-blue-50 text-blue-600 p-4 rounded-full">
-                                            <FaGoogle size={32} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-2">Tráfego do Google Maps</h3>
-                                            <p className="text-xs font-bold text-slate-400">Visibilidade da sua loja nos últimos 30 dias.</p>
-                                        </div>
-                                    </div>
 
-                                    {googleMetrics ? (
-                                        <div className="flex gap-4 md:gap-8 w-full md:w-auto">
-                                            <div className="text-center">
-                                                <p className="text-3xl font-black text-blue-600 italic leading-none">{googleMetrics.views}</p>
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Viram a Loja</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-3xl font-black text-green-500 italic leading-none">{googleMetrics.clicks}</p>
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Acessaram o Site</p>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-3xl font-black text-orange-500 italic leading-none">{googleMetrics.calls}</p>
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Ligações</p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button 
-                                            onClick={async () => {
-                                                try {
-                                                    const res = await fetch('/api/google-metrics', {
-                                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId })
-                                                    });
-                                                    const data = await res.json();
-                                                    if(res.ok && data.success) setGoogleMetrics(data.metrics);
-                                                    else alert("Aguarde. O Google demora alguns dias para liberar estatísticas de integrações novas.");
-                                                } catch(e) { alert("Erro de conexão."); }
-                                            }}
-                                            className="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-200"
-                                        >
-                                            Puxar Métricas Agora
-                                        </button>
-                                    )}
-                                </div>
-                            )}
                             {/* --- BANNER DE AVISO: TESTE OU FATURA --- */}
                             {trialInfo.isTrial && storeStatus.paymentStatus !== 'paid' && (
                                 <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
@@ -4134,11 +4087,60 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-slate-500 font-bold mt-2 text-sm">Inteligência de Dados e Analytics em Tempo Real.</p>
                                 </div>
                                 <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-blue-100 shadow-sm">
-                                    <Database size={14}/> Fonte: GA4 & Firestore
-                                </div>
-                            </div>
+                                            <Database size={14}/> Fonte: GA4 & Firestore
+                                        </div>
+                                    </div>
 
-                            <div className="flex-1 bg-white rounded-[3rem] border-4 border-slate-100 shadow-xl overflow-hidden relative min-h-[500px] flex flex-col group">
+                                    {/* --- PAINEL DE TRÁFEGO DO GOOGLE MEU NEGÓCIO --- */}
+                                    {settings?.integrations?.google_my_business?.locationId && (
+                                        <div className="bg-white p-6 rounded-[2.5rem] border border-blue-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-blue-50 text-blue-600 p-4 rounded-full">
+                                                    <FaGoogle size={32} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-2">Tráfego do Google Maps</h3>
+                                                    <p className="text-xs font-bold text-slate-400">Visibilidade da sua loja nos últimos 30 dias.</p>
+                                                </div>
+                                            </div>
+
+                                            {googleMetrics ? (
+                                                <div className="flex gap-4 md:gap-8 w-full md:w-auto">
+                                                    <div className="text-center">
+                                                        <p className="text-3xl font-black text-blue-600 italic leading-none">{googleMetrics.views}</p>
+                                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Viram a Loja</p>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-3xl font-black text-green-500 italic leading-none">{googleMetrics.clicks}</p>
+                                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Acessaram o Site</p>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-3xl font-black text-orange-500 italic leading-none">{googleMetrics.calls}</p>
+                                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Ligações</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={async () => {
+                                                        try {
+                                                            const res = await fetch('/api/google-metrics', {
+                                                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId })
+                                                            });
+                                                            const data = await res.json();
+                                                            if(res.ok && data.success) setGoogleMetrics(data.metrics);
+                                                            else alert("Aguarde. O Google demora alguns dias para liberar estatísticas de integrações novas.");
+                                                        } catch(e) { alert("Erro de conexão."); }
+                                                    }}
+                                                    className="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-200"
+                                                >
+                                                    Puxar Métricas Agora
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex-1 bg-white rounded-[3rem] border-4 border-slate-100 shadow-xl overflow-hidden relative min-h-[500px] flex flex-col group">
                                 {/* OVERLAY DE CARREGAMENTO PARA DEIXAR A EXPERIÊNCIA FLUIDA */}
                                 <div className="absolute inset-0 bg-slate-50 z-0 flex flex-col items-center justify-center gap-4 transition-opacity duration-1000 peer-loaded:opacity-0 pointer-events-none">
                                     <div className="relative">
@@ -7370,13 +7372,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             )}
                                         </div>
 {/* --- INÍCIO: PAGUE COM SEGUIDORES (TIERS) --- */}
-                                            <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in">
-                                                <div className="flex items-center justify-between mb-3">
+                                            <div className="mt-6 bg-gradient-to-r from-fuchsia-600/20 to-indigo-600/20 p-5 rounded-2xl border border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.1)] animate-in fade-in hover:border-fuchsia-400/50 transition-all">
+                                                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-4">
                                                     <div>
-                                                        <h4 className="text-xs font-black uppercase text-indigo-400 flex items-center gap-2">
-                                                            📸 Pague com Seguidores
+                                                        <h4 className="text-sm font-black uppercase text-fuchsia-400 flex items-center gap-2 drop-shadow-sm">
+                                                            📸 Seguidores valem prêmios
                                                         </h4>
-                                                        <p className="text-[9px] font-bold text-slate-400 mt-1">
+                                                        <p className="text-[10px] font-bold text-slate-300 mt-1">
                                                             Ofereça brindes para clientes que postarem a loja no Instagram/TikTok.
                                                         </p>
                                                     </div>
@@ -7386,7 +7388,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             const newTiers = [...currentTiers, { followers: 1000, reward: '' }];
                                                             await setDoc(doc(db, "settings", storeId), { influencerTiers: newTiers }, { merge: true });
                                                         }}
-                                                        className="bg-indigo-500/20 text-indigo-300 hover:text-white hover:bg-indigo-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all"
+                                                        className="w-full lg:w-auto bg-fuchsia-500 hover:bg-fuchsia-400 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-fuchsia-500/30 transition-all active:scale-95 flex items-center justify-center gap-1"
                                                     >
                                                         + Nova Meta
                                                     </button>
