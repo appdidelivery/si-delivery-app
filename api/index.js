@@ -3,7 +3,6 @@ import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
-import { BetaAnalyticsDataClient } from '@google-analytics/data'; // <-- ADICIONADO API GA4
 
 const STRIPE_ENABLED = false;
 // Ajuste o caminho se a pasta lib for diferente!
@@ -1852,58 +1851,9 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 }
                                             }
                                             else if (isFaqEndereco) {
-                                                // 1. DADOS DE ENDEREÇO E MAPS
-                                                const addressText = storeDynamicData.address || "Endereço não cadastrado.";
-                                                // Se for um objeto (como no painel do lojista novo), pega a rua, senão pega a string direto
-                                                const addressString = typeof addressText === 'object' ? `${addressText.street || ''}, ${addressText.city || ''}` : addressText;
-                                                
-                                                let mapsLink = "";
-                                                if (addressString && addressString.length > 5) {
-                                                    mapsLink = `https://maps.google.com/?q=${encodeURIComponent(addressString)}`;
-                                                }
-
-                                                // 2. LÓGICA INTELIGENTE DE HORÁRIO (Dia Atual)
-                                                const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-                                                
-                                                const nowTz = new Date();
-                                                const utc = nowTz.getTime() + (nowTz.getTimezoneOffset() * 60000);
-                                                const brazilTime = new Date(utc - (3600000 * 3)); 
-                                                const hojeId = brazilTime.getDay(); // 0 = Domingo, 1 = Segunda...
-                                                const nomeDiaHoje = diasSemana[hojeId];
-
-                                                let horarioTexto = `Hoje (${nomeDiaHoje}) estamos fechados.`;
-
-                                                // Verifica Modo Férias primeiro
-                                                if (storeDynamicData.vacationMode && storeDynamicData.vacationMode.active) {
-                                                    horarioTexto = "🌴 *Modo Férias:* Estamos em recesso no momento. Voltaremos em breve!";
-                                                } 
-                                                // Verifica a agenda normal configurada
-                                                else if (storeDynamicData.schedule && storeDynamicData.schedule[hojeId] && storeDynamicData.schedule[hojeId].open) {
-                                                    const configDeHoje = storeDynamicData.schedule[hojeId];
-                                                    horarioTexto = `Hoje (${nomeDiaHoje}) abrimos das *${configDeHoje.start} às ${configDeHoje.end}*`;
-                                                    
-                                                    // Suporte para turnos divididos (Almoço / Janta)
-                                                    if (configDeHoje.splitShift && configDeHoje.start2 && configDeHoje.end2) {
-                                                        horarioTexto += ` e depois das *${configDeHoje.start2} às ${configDeHoje.end2}*`;
-                                                    }
-                                                    horarioTexto += `.`;
-                                                }
-
-                                                // 3. MONTA A MENSAGEM FINAL
-                                                let faqMsg = `📍 *Nossa Localização e Horário, ${firstName || 'amigo(a)'}!* \n\n`;
-                                                
-                                                faqMsg += `🏠 *Endereço Principal:*\n${addressString}\n`;
-                                                if (mapsLink) {
-                                                    faqMsg += `🗺️ *Ver no Mapa:* ${mapsLink}\n\n`;
-                                                } else {
-                                                    faqMsg += `\n`;
-                                                }
-                                                
-                                                faqMsg += `⏰ *Nosso Horário de Funcionamento:*\n${horarioTexto}\n\n`;
-                                                faqMsg += `Lembrando que você pode pedir para entrega ou retirada direto no nosso cardápio digital:\n👉 ${storeDomain}`;
-
+                                                const faqMsg = `📍 *Nossa Localização e Horário${nomeOuVazio}:*\n${storeAddressStr}\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site:\n👉 ${storeDomain}`;
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Endereço Master] ${faqMsg}`;
+                                                logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
                                             }
                                             else if (isFaqPagamento) {
                                                 const faqMsg = `💳 *Formas de Pagamento Aceitas${nomeOuVazio}:*\n\n${paymentsStr}\n\nVocê seleciona a melhor opção no final do pedido pelo site!\n👉 ${storeDomain}`;
@@ -3931,8 +3881,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
         const isLocal = req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1');
         const redirectUri = isLocal ? 'http://localhost:3000/api/google-callback' : 'https://app.velodelivery.com.br/api/google-callback';
 
-       // Escopos combinados: Google Meu Negócio + Google Analytics (Leitura)
-        const scope = encodeURIComponent('https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/analytics.readonly');
+        // Escopo oficial para gerenciar as postagens e dados do Meu Negócio
+        const scope = encodeURIComponent('https://www.googleapis.com/auth/business.manage');
         
         // prompt=consent e access_type=offline são CRÍTICOS para recebermos o Refresh Token
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${storeId}`;
@@ -4101,116 +4051,6 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
-   // ------------------------------------------------------------------------
-    // 26.1.5 GOOGLE ANALYTICS 4: MÉTRICAS DE TRÁFEGO E ENGAJAMENTO (OAUTH)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/ga4-metrics') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
-
-        try {
-            const { storeId, measurementId } = req.body;
-            if (!storeId || !measurementId) return res.status(400).json({ error: 'Faltam dados (storeId ou measurementId).' });
-
-            // 1. Pega o Token OAuth Seguro do Lojista
-            const activeToken = await getGoogleAuthToken(storeId);
-
-            // 2. Faz a requisição nativa para a API REST do GA4 (SEM PACOTES EXTERNOS!)
-            const ga4Response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${measurementId}:runReport`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${activeToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-                    dimensions: [{ name: 'sessionDefaultChannelGroup' }],
-                    metrics: [
-                        { name: 'sessions' },
-                        { name: 'averageSessionDuration' },
-                        { name: 'bounceRate' }
-                    ]
-                })
-            });
-
-            const response = await ga4Response.json();
-
-            if (!ga4Response.ok) {
-                console.error("Erro GA4 REST API:", response);
-                throw new Error(response.error?.message || 'Erro ao consultar o Google Analytics.');
-            }
-
-            let totalSessions = 0;
-            let totalDuration = 0;
-            let totalBounceRate = 0;
-            let validRows = 0;
-            const channelData = {};
-
-            (response.rows || []).forEach(row => {
-                const channel = row.dimensionValues[0].value;
-                const sessions = parseInt(row.metricValues[0].value);
-                const avgDuration = parseFloat(row.metricValues[1].value);
-                const bounceRate = parseFloat(row.metricValues[2].value);
-
-                totalSessions += sessions;
-                
-                if (sessions > 0) {
-                    totalDuration += avgDuration;
-                    totalBounceRate += bounceRate;
-                    validRows++;
-                }
-
-                channelData[channel] = (channelData[channel] || 0) + sessions;
-            });
-
-            const finalAvgDuration = validRows > 0 ? (totalDuration / validRows) : 0;
-            const finalBounceRate = validRows > 0 ? (totalBounceRate / validRows) : 0;
-
-            const minutes = Math.floor(finalAvgDuration / 60);
-            const seconds = Math.floor(finalAvgDuration % 60);
-            const timeString = `${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
-
-            const trafficSources = [];
-            const colorMap = {
-                'Organic Social': { name: 'Instagram/Facebook (Orgânico)', color: 'bg-pink-500' },
-                'Direct': { name: 'Direct (Link Direto/WhatsApp)', color: 'bg-slate-700' },
-                'Organic Search': { name: 'Google (Busca Orgânica)', color: 'bg-blue-500' },
-                'Referral': { name: 'Referral (Hub Parceiros/Links)', color: 'bg-indigo-500' },
-                'Paid Social': { name: 'Tráfego Pago (Meta Ads)', color: 'bg-orange-500' },
-                'Paid Search': { name: 'Tráfego Pago (Google Ads)', color: 'bg-emerald-500' }
-            };
-
-            Object.keys(channelData).forEach(channel => {
-                const percent = totalSessions > 0 ? ((channelData[channel] / totalSessions) * 100) : 0;
-                if (percent > 0) {
-                    const config = colorMap[channel] || { name: channel, color: 'bg-slate-400' };
-                    trafficSources.push({
-                        channel: config.name,
-                        percent: Math.round(percent),
-                        color: config.color
-                    });
-                }
-            });
-
-            trafficSources.sort((a, b) => b.percent - a.percent);
-
-            return res.status(200).json({
-                success: true,
-                metrics: {
-                    averageSessionDuration: timeString,
-                    ctr: 'N/A', 
-                    bounceRate: (finalBounceRate * 100).toFixed(1),
-                    trafficSources: trafficSources.slice(0, 5) 
-                }
-            });
-
-        } catch (error) {
-            console.error("Erro GA4 API (OAuth):", error);
-            return res.status(500).json({ 
-                success: false, 
-                error: error.message || 'Falha ao processar dados do Google Analytics.' 
-            });
-        }
-    }
     // ------------------------------------------------------------------------
     // 26.2 GOOGLE MEU NEGÓCIO: SINCRONIZAR FAQ (Q&A SEEDING)
     // ------------------------------------------------------------------------
@@ -4236,7 +4076,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 
                 const qData = await qRes.json();
                 if (qRes.ok && qData.name) {
-                    // 2. Posta a Resposta (O lojista responde)att  
+                    // 2. Posta a Resposta (O lojista responde)
                     await fetch(`https://mybusinessqanda.googleapis.com/v1/${qData.name}/answers`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
@@ -4594,67 +4434,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(200).send('EVENT_RECEIVED_WITH_ERROR');
         }
     }
-// ------------------------------------------------------------------------
-    // 21.6 GERADOR DE FAQ COM IA (GEMINI)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/generate-faq-copy') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        try {
-            const { storeName, storeNiche, categories } = req.body;
-
-            const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) return res.status(400).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
-
-            const catList = Array.isArray(categories) ? categories.join(', ') : 'Geral';
-
-            const prompt = `Atue como um Especialista em SEO e Experiência do Cliente. Crie 3 perguntas e respostas frequentes (FAQ) para uma loja de delivery. 
-            Loja: ${storeName || 'Delivery'}
-            Nicho: ${storeNiche || 'Geral'}
-            Principais Categorias vendidas: ${catList}
-
-            Atenção: Não crie perguntas sobre "Horário de Funcionamento", "Formas de Pagamento" ou "Área de Entrega", pois o sistema já tem isso por padrão.
-            Crie perguntas focadas em qualidade, tempo de preparo, ingredientes, contato, ou dúvidas sobre o nicho específico.
-
-            Retorne APENAS um JSON válido no seguinte formato de array, sem markdown ou blocos de código em volta:
-            [
-              {"question": "Pergunta 1?", "answer": "Resposta 1."},
-              {"question": "Pergunta 2?", "answer": "Resposta 2."}
-            ]`;
-
-            // Chama a API do Gemini forçando a devolução em formato JSON
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
-                })
-            });
-
-            const aiData = await response.json();
-
-            if (!response.ok) {
-                console.error("Erro Google API (FAQ):", aiData);
-                // Retornar 500 aqui é proposital para ativar o "Fallback Inteligente" do Frontend
-                return res.status(500).json({ success: false, error: "Erro na API do Google" });
-            }
-
-            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!rawJsonText) {
-                return res.status(500).json({ success: false, error: "Resposta vazia da IA" });
-            }
-            
-            const parsedResult = JSON.parse(rawJsonText);
-            return res.status(200).json({ success: true, faqList: parsedResult });
-
-        } catch (error) {
-            console.error("Erro Crítico IA FAQ:", error);
-            // Retornar 500 ativa as "Perguntas de Backup" que você já tem prontas no Admin.jsx
-            return res.status(500).json({ success: false, error: `Falha técnica: ${error.message}` });
-        }
-    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================
