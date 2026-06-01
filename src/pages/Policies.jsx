@@ -41,7 +41,7 @@ export default function Policies() {
                     <li><strong>Coleta de Dados:</strong> Coletamos apenas os dados essenciais para o processamento e entrega do seu pedido (Nome, Endereço, Telefone).</li>
                     <li><strong>Uso das Informações:</strong> Seus dados não são vendidos ou compartilhados com terceiros. Eles são utilizados estritamente pelo ecossistema do Velo Delivery e pela <strong>{storeName}</strong> para garantir que o produto chegue até você e para envio de atualizações do status do pedido.</li>
                     <li><strong>Segurança:</strong> Utilizamos criptografia e os mais altos padrões de segurança em nossos servidores para proteger suas informações pessoais.</li>
-                    <li><strong>Contato DPO:</strong> Para solicitar a exclusão dos seus dados, entre em contato via e-mail: <strong>{storeEmail}</strong>.</li>
+                    <li><strong>Contato DPO:</strong> Para solicitar a exclusão dos seus dados, entre em contato através do nosso WhatsApp: <strong>{storePhone}</strong>.</li>
                 </ul>
             </section>
         </div>
