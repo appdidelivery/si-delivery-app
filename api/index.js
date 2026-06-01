@@ -3,6 +3,7 @@ import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
+import { BetaAnalyticsDataClient } from '@google-analytics/data'; // <-- ADICIONADO API GA4
 
 const STRIPE_ENABLED = false;
 // Ajuste o caminho se a pasta lib for diferente!
@@ -4097,6 +4098,113 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(200).json({ success: true, metrics: { views, clicks, calls } });
         } catch (error) {
             return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 26.1.5 GOOGLE ANALYTICS 4: MÉTRICAS DE TRÁFEGO E ENGAJAMENTO
+    // ------------------------------------------------------------------------
+    else if (path === '/api/ga4-metrics') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, measurementId } = req.body;
+            if (!storeId || !measurementId) return res.status(400).json({ error: 'Faltam dados (storeId ou measurementId).' });
+
+            // Inicia o cliente do Google lendo a variável de ambiente da Vercel
+            if (!process.env.GOOGLE_GA4_CREDENTIALS) {
+                throw new Error("Variável GOOGLE_GA4_CREDENTIALS não configurada no servidor.");
+            }
+
+            const credentials = JSON.parse(process.env.GOOGLE_GA4_CREDENTIALS);
+            const analyticsDataClient = new BetaAnalyticsDataClient({ credentials });
+
+            // Faz a consulta na API do GA4 buscando os últimos 30 dias
+            const [response] = await analyticsDataClient.runReport({
+                property: `properties/${measurementId}`,
+                dateRanges: [
+                    { startDate: '30daysAgo', endDate: 'today' },
+                ],
+                dimensions: [
+                    { name: 'sessionDefaultChannelGroup' }
+                ],
+                metrics: [
+                    { name: 'sessions' },
+                    { name: 'averageSessionDuration' },
+                    { name: 'bounceRate' }
+                ],
+            });
+
+            let totalSessions = 0;
+            let totalDuration = 0;
+            let totalBounceRate = 0;
+            let validRows = 0;
+            const channelData = {};
+
+            response.rows.forEach(row => {
+                const channel = row.dimensionValues[0].value;
+                const sessions = parseInt(row.metricValues[0].value);
+                const avgDuration = parseFloat(row.metricValues[1].value);
+                const bounceRate = parseFloat(row.metricValues[2].value);
+
+                totalSessions += sessions;
+                
+                if (sessions > 0) {
+                    totalDuration += avgDuration;
+                    totalBounceRate += bounceRate;
+                    validRows++;
+                }
+
+                channelData[channel] = (channelData[channel] || 0) + sessions;
+            });
+
+            const finalAvgDuration = validRows > 0 ? (totalDuration / validRows) : 0;
+            const finalBounceRate = validRows > 0 ? (totalBounceRate / validRows) : 0;
+
+            const minutes = Math.floor(finalAvgDuration / 60);
+            const seconds = Math.floor(finalAvgDuration % 60);
+            const timeString = `${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+
+            const trafficSources = [];
+            const colorMap = {
+                'Organic Social': { name: 'Instagram/Facebook (Orgânico)', color: 'bg-pink-500' },
+                'Direct': { name: 'Direct (Link Direto/WhatsApp)', color: 'bg-slate-700' },
+                'Organic Search': { name: 'Google (Busca Orgânica)', color: 'bg-blue-500' },
+                'Referral': { name: 'Referral (Hub Parceiros/Links)', color: 'bg-indigo-500' },
+                'Paid Social': { name: 'Tráfego Pago (Meta Ads)', color: 'bg-orange-500' },
+                'Paid Search': { name: 'Tráfego Pago (Google Ads)', color: 'bg-emerald-500' }
+            };
+
+            Object.keys(channelData).forEach(channel => {
+                const percent = totalSessions > 0 ? ((channelData[channel] / totalSessions) * 100) : 0;
+                if (percent > 0) {
+                    const config = colorMap[channel] || { name: channel, color: 'bg-slate-400' };
+                    trafficSources.push({
+                        channel: config.name,
+                        percent: Math.round(percent),
+                        color: config.color
+                    });
+                }
+            });
+
+            trafficSources.sort((a, b) => b.percent - a.percent);
+
+            return res.status(200).json({
+                success: true,
+                metrics: {
+                    averageSessionDuration: timeString,
+                    ctr: 'N/A', // O CTR de e-commerce real precisa ser calculado via compras, deixamos N/A por enquanto
+                    bounceRate: (finalBounceRate * 100).toFixed(1),
+                    trafficSources: trafficSources.slice(0, 5) 
+                }
+            });
+
+        } catch (error) {
+            console.error("Erro GA4 API:", error);
+            return res.status(500).json({ 
+                success: false, 
+                error: error.message || 'Falha ao processar dados do Google Analytics.' 
+            });
         }
     }
 
