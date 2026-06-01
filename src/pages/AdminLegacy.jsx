@@ -10268,10 +10268,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             desc: 'Métricas avançadas de tráfego e funil.', 
                             icon: <FaGoogle className="text-orange-500" size={40}/>, 
                             fields:[
-                                {key: 'measurementId', label: 'Measurement ID (Ex: G-XXXXX)'}
+                                {key: 'measurementId', label: 'Property ID (Apenas Números. Ex: 31234567)'}
                             ],
                             helpUrl: 'https://analytics.google.com/analytics/web/',
-                            helpText: 'Encontrar meu ID (G-XXXX)'
+                            helpText: 'Encontrar o Property ID em Configurações'
                         },
                         { 
                             id: 'gads', 
