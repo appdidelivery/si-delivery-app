@@ -4118,11 +4118,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {/* --- ABA VELO DATA FUEL (INTELIGÊNCIA AUTOMÁTICA) --- */}
                 {activeTab === 'datafuel' && (() => {
                     // MÁGICA MULTI-TENANT: A URL Mestre do seu painel Looker Studio da Velo.
-                    // O parâmetro ?params={"ds0.storeId":"x"} filtra o painel inteiro apenas para a loja atual silenciosamente.
+                    // O parâmetro ?params={"ds0":{"store_id":"x"}} filtra o painel inteiro apenas para a loja atual silenciosamente.
                     const MASTER_LOOKER_URL = import.meta.env.VITE_LOOKER_MASTER_URL || "https://lookerstudio.google.com/embed/reporting/SEU_ID_MESTRE_AQUI/page/p_padrao";
                     
                     const lookerFilterParams = encodeURIComponent(JSON.stringify({
-                        "ds0.storeId": storeId
+                        "ds0": {
+                            "store_id": storeId
+                        }
                     }));
                     
                     const dynamicDataFuelUrl = `${MASTER_LOOKER_URL}?params=${lookerFilterParams}`;
