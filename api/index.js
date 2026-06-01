@@ -4483,67 +4483,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(200).send('EVENT_RECEIVED_WITH_ERROR');
         }
     }
-// ------------------------------------------------------------------------
-    // 21.6 GERADOR DE FAQ COM IA (GEMINI)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/generate-faq-copy') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        try {
-            const { storeName, storeNiche, categories } = req.body;
-
-            const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) return res.status(400).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
-
-            const catList = Array.isArray(categories) ? categories.join(', ') : 'Geral';
-
-            const prompt = `Atue como um Especialista em SEO e Experiência do Cliente. Crie 3 perguntas e respostas frequentes (FAQ) para uma loja de delivery. 
-            Loja: ${storeName || 'Delivery'}
-            Nicho: ${storeNiche || 'Geral'}
-            Principais Categorias vendidas: ${catList}
-
-            Atenção: Não crie perguntas sobre "Horário de Funcionamento", "Formas de Pagamento" ou "Área de Entrega", pois o sistema já tem isso por padrão.
-            Crie perguntas focadas em qualidade, tempo de preparo, ingredientes, contato, ou dúvidas sobre o nicho específico.
-
-            Retorne APENAS um JSON válido no seguinte formato de array, sem markdown ou blocos de código em volta:
-            [
-              {"question": "Pergunta 1?", "answer": "Resposta 1."},
-              {"question": "Pergunta 2?", "answer": "Resposta 2."}
-            ]`;
-
-            // Chama a API do Gemini forçando a devolução em formato JSON
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
-                })
-            });
-
-            const aiData = await response.json();
-
-            if (!response.ok) {
-                console.error("Erro Google API (FAQ):", aiData);
-                // Retornar 500 aqui é proposital para ativar o "Fallback Inteligente" do Frontend
-                return res.status(500).json({ success: false, error: "Erro na API do Google" });
-            }
-
-            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!rawJsonText) {
-                return res.status(500).json({ success: false, error: "Resposta vazia da IA" });
-            }
-            
-            const parsedResult = JSON.parse(rawJsonText);
-            return res.status(200).json({ success: true, faqList: parsedResult });
-
-        } catch (error) {
-            console.error("Erro Crítico IA FAQ:", error);
-            // Retornar 500 ativa as "Perguntas de Backup" que você já tem prontas no Admin.jsx
-            return res.status(500).json({ success: false, error: `Falha técnica: ${error.message}` });
-        }
-    }
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================
