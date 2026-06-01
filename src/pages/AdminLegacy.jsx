@@ -4339,9 +4339,23 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         {/* EFEITO DE BLUR SE OS DADOS FOREM MOCKADOS (AINDA NÃO SINCRONIZADOS) */}
                                         {!ga4Metrics && (
                                             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
-                                                <p className="text-xs font-black text-indigo-800 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 text-center leading-relaxed">
-                                                    Clique em "Sync GA4 API"<br/>para baixar os dados reais.
-                                                </p>
+                                                {!settings?.integrations?.ga4?.measurementId ? (
+                                                    <div className="bg-indigo-50 px-6 py-4 rounded-2xl border border-indigo-100 text-center shadow-sm flex flex-col items-center gap-3">
+                                                        <p className="text-xs font-black text-indigo-800 uppercase tracking-widest">
+                                                            Analytics Desconectado
+                                                        </p>
+                                                        <button 
+                                                            onClick={() => setActiveTab('integrations')}
+                                                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                                                        >
+                                                            Configurar GA4 Agora
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs font-black text-indigo-800 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 text-center leading-relaxed shadow-sm">
+                                                        Clique em "Sync GA4 API"<br/>para baixar os dados reais.
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
 
