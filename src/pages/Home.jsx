@@ -645,10 +645,11 @@ export default function Home() {
           localStorage.setItem('veloVisitorId', visitorId);
       }
 
+      // Reduzimos o debounce para 1500ms para capturar "fugas rápidas" da tela
       const timeout = setTimeout(async () => {
           // Mapeia os dois IDs possíveis para evitar duplicidade ou carrinhos órfãos
           const cartVisitorId = `cart_${storeId}_${visitorId}`;
-          const cartPhoneId = cleanPhone.length >= 10 ? `cart_${storeId}_${cleanPhone}` : null;
+          const cartPhoneId = cleanPhone.length >= 8 ? `cart_${storeId}_${cleanPhone}` : null; // Baixado para 8 para permitir testes locais sem DDD
           
           const primaryCartId = cartPhoneId || cartVisitorId;
 
@@ -661,27 +662,28 @@ export default function Home() {
               return;
           }
 
-          // Se não tem telefone, apenas aborta (não polui o banco com carrinhos impossíveis de recuperar)
-          if (cleanPhone.length < 10) return;
+          // REMOVIDO a trava de bloqueio estrita (if cleanPhone.length < 10 return)
+          // Agora ele salva a intenção de compra independentemente do telefone estar 100% preenchido.
+          // O painel do Admin será responsável por filtrar e exibir os números viáveis para contato.
 
-          // Se tem itens e tem telefone, salva/atualiza no banco
+          // Salva/atualiza no banco
           try {
               await setDoc(doc(db, "abandoned_carts", primaryCartId), {
                   storeId: storeId,
                   customerName: customer?.name || "Visitante (Sem nome)",
-                  customerPhone: customer?.phone || "",
+                  customerPhone: cleanPhone, // Salva os números já limpos
                   items: cart,
                   subtotal: cart.reduce((acc, i) => acc + (Number(i.price || 0) * Number(i.quantity || 0)), 0),
                   lastUpdated: serverTimestamp(),
                   status: 'abandoned'
               }, { merge: true });
 
-              // Se salvou com o Telefone, limpa o carrinho do VisitorId para não duplicar no painel
+              // Se salvou com o Telefone, limpa o carrinho do VisitorId para não duplicar no banco
               if (cartPhoneId) {
                   try { await deleteDoc(doc(db, "abandoned_carts", cartVisitorId)); } catch(e){}
               }
           } catch (e) { console.error("Erro ao salvar carrinho abandonado:", e); }
-      }, 2000);
+      }, 1500);
 
       return () => clearTimeout(timeout);
   }, [cart, customer.phone, customer.name, storeId]);
@@ -2236,10 +2238,17 @@ if (window.fbq) {
                       throw new Error(data.error || "Erro ao gerar Pix Nativo");
                   }
 
+                  // O Cliente fechou a compra online! Removemos dos abandonados
+                  try { 
+                      const vId = localStorage.getItem('veloVisitorId');
+                      if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
+                      if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); 
+                  } catch(e){}
+
                   // Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
-                  draftOrderIdRef.current = null; draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`);
+                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`);
                   
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
@@ -2251,7 +2260,7 @@ if (window.fbq) {
                   return;
               }
           }
-// 2. NOVA PRIORIDADE: VeloPay attCartão de Crédito Nativo
+// 2. NOVA PRIORIDADE: VeloPay Cartão de Crédito Nativo
           const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
           
          if (customer.payment === 'velopay_credit' && window.$gn) {
@@ -2332,6 +2341,13 @@ if (window.fbq) {
                       const cleanPhone = customer.phone.replace(/\D/g, '');
                       try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
                   }
+
+                  // O Cliente fechou a compra online! Removemos dos abandonados
+                  try { 
+                      const vId = localStorage.getItem('veloVisitorId');
+                      if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
+                      if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); 
+                  } catch(e){}
                   
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);

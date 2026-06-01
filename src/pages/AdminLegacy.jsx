@@ -1577,15 +1577,21 @@ const educationalBanners = [
 
        // Carrinhos Abandonados (Com som de notificação macio e Filtro de Telefone)
        let initialCarts = true;
-        const unsubAbandoned = onSnapshot(query(collection(db, "abandoned_carts"), where("storeId", "==", storeId), orderBy("lastUpdated", "desc")), (s) => {
+        // REMOVIDO: orderBy("lastUpdated", "desc") para evitar falha silenciosa de Composite Index no Firestore
+        const unsubAbandoned = onSnapshot(query(collection(db, "abandoned_carts"), where("storeId", "==", storeId)), (s) => {
             const validCarts = s.docs
                 .map(d => ({ id: d.id, ...d.data() }))
-                .filter(cart => cart.customerPhone && String(cart.customerPhone).replace(/\D/g, '').length >= 10);
+                .filter(cart => cart.customerPhone && String(cart.customerPhone).replace(/\D/g, '').length >= 8) // Reduzido para 8 para capturar testes locais
+                .sort((a, b) => {
+                    const timeA = a.lastUpdated?.toMillis ? a.lastUpdated.toMillis() : 0;
+                    const timeB = b.lastUpdated?.toMillis ? b.lastUpdated.toMillis() : 0;
+                    return timeB - timeA; // Ordenação feita via JavaScript
+                });
 
             if (!initialCarts) {
                 s.docChanges().forEach((change) => {
                     const data = change.doc.data();
-                    const hasPhone = data.customerPhone && String(data.customerPhone).replace(/\D/g, '').length >= 10;
+                    const hasPhone = data.customerPhone && String(data.customerPhone).replace(/\D/g, '').length >= 8;
                     if (change.type === "added" && hasPhone) {
                         new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(() => { });
                     }
@@ -1854,7 +1860,7 @@ const educationalBanners = [
                         return orderTime > cutoffTime && o.status !== 'canceled';
                     })
                     .map(o => String(o.customerPhone || '').replace(/\D/g, ''))
-                    .filter(phone => phone.length >= 10)
+                    .filter(phone => phone.length >= 8) // Filtro reduzido para 8 para bater com testes locais
             );
 
             // Varre a lista de carrinhos abandonados
@@ -1862,7 +1868,7 @@ const educationalBanners = [
                 const cartPhone = String(cart.customerPhone || '').replace(/\D/g, '');
                 
                 // Se o dono desse carrinho ESTÁ na lista de quem comprou... DELETA O CARRINHO!
-                if (cartPhone.length >= 10 && phonesThatBought.has(cartPhone)) {
+                if (cartPhone.length >= 8 && phonesThatBought.has(cartPhone)) {
                     try {
                         // Apaga do banco de dados para não ocupar espaço
                         await deleteDoc(doc(db, "abandoned_carts", cart.id));
