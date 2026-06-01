@@ -59,6 +59,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
     return R * c; 
 };
+const [ga4Metrics, setGa4Metrics] = useState(null);
+const [isLoadingGa4, setIsLoadingGa4] = useState(false);
 // --- BIBLIOTECA DE ÍCONES PARA CATEGORIAS (TURBINADA - SUPER CATÁLOGO) ---
 const AVAILABLE_ICONS = [
   { id: 'List', label: 'Padrão', component: <List size={24} /> },
@@ -184,10 +186,6 @@ const allNavItems =[
 const STRIPE_ENABLED = false;
 
 export default function Admin() {
-    // --- ESTADOS DO GA4 (VELO DATA FUEL) ---
-    const [ga4Metrics, setGa4Metrics] = useState(null);
-    const [isLoadingGa4, setIsLoadingGa4] = useState(false);
-
     const navigate = useNavigate();
     
     // Estados do VeloPay
@@ -4163,7 +4161,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         { channel: 'Referral (Parceiros)', percent: 5, color: 'bg-indigo-500' }
                     ];
 
-                   const handleFetchGa4 = async () => {
+                    const handleFetchGa4 = async () => {
                         if (!settings?.integrations?.ga4?.measurementId) {
                             alert("Por favor, configure o ID do Google Analytics 4 (G-XXXX) na aba de Integrações primeiro.");
                             setActiveTab('integrations');
@@ -4171,43 +4169,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         }
                         setIsLoadingGa4(true);
                         try {
-                            // 1. Blindagem: Cria um cronômetro de 8 segundos para não travar a tela
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 8000);
-
+                            // Este endpoint será criado no backend (Node.js) para bater na GA4 Data API via Service Account
                             const res = await fetch('/api/ga4-metrics', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ storeId, measurementId: settings.integrations.ga4.measurementId }),
-                                signal: controller.signal // Injeta o controle de timeout
+                                body: JSON.stringify({ storeId, measurementId: settings.integrations.ga4.measurementId })
                             });
-                            
-                            clearTimeout(timeoutId); // Cancela o cronômetro se respondeu rápido
                             const data = await res.json();
-                            
                             if (res.ok && data.success) {
                                 setGa4Metrics(data.metrics);
                             } else {
-                                throw new Error(data.error || "Servidor não retornou os dados da API.");
+                                alert(`Aviso GA4: ${data.error || 'Ainda coletando dados. Tente novamente amanhã.'}`);
                             }
                         } catch (error) {
-                            console.warn("Aviso: Falha na comunicação com GA4, ativando Fallback visual.", error);
-                            
-                            // 2. Fallback Inteligente: O backend falhou ou deu timeout.
-                            // Injetamos dados realistas para o lojista não ficar com a tela travada/borrada.
-                            setGa4Metrics({
-                                averageSessionDuration: '01m 24s',
-                                ctr: '6.8',
-                                bounceRate: '38.5',
-                                trafficSources: [
-                                    { channel: 'Instagram (Social Orgânico)', percent: 55, color: 'bg-pink-500' },
-                                    { channel: 'Direct (Link Direto/WhatsApp)', percent: 30, color: 'bg-slate-700' },
-                                    { channel: 'Google (Busca Orgânica)', percent: 10, color: 'bg-blue-500' },
-                                    { channel: 'Referral (Hub Parceiros)', percent: 5, color: 'bg-indigo-500' }
-                                ]
-                            });
+                            alert("Falha ao conectar com o Google Analytics. Tente novamente mais tarde.");
                         } finally {
-                            setIsLoadingGa4(false); // Sempre desliga o "loading" no final
+                            setIsLoadingGa4(false);
                         }
                     };
 
@@ -4359,38 +4336,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="space-y-4 flex-1 relative">
                                         {/* EFEITO DE BLUR SE OS DADOS FOREM MOCKADOS (AINDA NÃO SINCRONIZADOS) */}
                                         {!ga4Metrics && (
-                                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-[3rem]">
-                                                {!settings?.integrations?.ga4?.measurementId ? (
-                                                    <div className="bg-white px-8 py-6 rounded-3xl border border-red-100 text-center shadow-xl flex flex-col items-center gap-4">
-                                                        <div className="bg-red-50 text-red-500 p-3 rounded-full"><Globe size={24}/></div>
-                                                        <div>
-                                                            <p className="text-sm font-black text-slate-800 uppercase tracking-widest">Analytics Desconectado</p>
-                                                            <p className="text-xs font-bold text-slate-500 mt-1">Conecte o GA4 para ver a origem do tráfego.</p>
-                                                        </div>
-                                                        <button 
-                                                            onClick={() => setActiveTab('integrations')}
-                                                            className="bg-blue-600 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-blue-700 transition-all active:scale-95 w-full"
-                                                        >
-                                                            Configurar GA4
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="bg-white px-8 py-6 rounded-3xl border border-indigo-100 text-center shadow-xl flex flex-col items-center gap-4">
-                                                        <div className="bg-green-50 text-green-500 p-3 rounded-full"><CheckCircle size={24}/></div>
-                                                        <div>
-                                                            <p className="text-sm font-black text-slate-800 uppercase tracking-widest">GA4 Conectado</p>
-                                                            <p className="text-xs font-bold text-slate-500 mt-1">ID: <span className="text-blue-600">{settings.integrations.ga4.measurementId}</span></p>
-                                                        </div>
-                                                        <button 
-                                                            onClick={handleFetchGa4}
-                                                            disabled={isLoadingGa4}
-                                                            className="bg-indigo-600 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 w-full disabled:opacity-50"
-                                                        >
-                                                            {isLoadingGa4 ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>}
-                                                            {isLoadingGa4 ? 'Baixando Dados...' : 'Puxar Dados Reais Agora'}
-                                                        </button>
-                                                    </div>
-                                                )}
+                                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
+                                                <p className="text-xs font-black text-indigo-800 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 text-center leading-relaxed">
+                                                    Clique em "Sync GA4 API"<br/>para baixar os dados reais.
+                                                </p>
                                             </div>
                                         )}
 
@@ -10268,10 +10217,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             desc: 'Métricas avançadas de tráfego e funil.', 
                             icon: <FaGoogle className="text-orange-500" size={40}/>, 
                             fields:[
-                                {key: 'measurementId', label: 'ID da Propriedade (Apenas números. Ex: 31234567)'}
+                                {key: 'measurementId', label: 'Measurement ID (Ex: G-XXXXX)'}
                             ],
                             helpUrl: 'https://analytics.google.com/analytics/web/',
-                            helpText: 'Como achar meu ID da Propriedade'
+                            helpText: 'Encontrar meu ID (G-XXXX)'
                         },
                         { 
                             id: 'gads', 
