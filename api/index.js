@@ -1851,9 +1851,58 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 }
                                             }
                                             else if (isFaqEndereco) {
-                                                const faqMsg = `📍 *Nossa Localização e Horário${nomeOuVazio}:*\n${storeAddressStr}\n\nLembrando que você pode fazer seu pedido para entrega ou retirada direto pelo nosso site:\n👉 ${storeDomain}`;
+                                                // 1. DADOS DE ENDEREÇO E MAPS
+                                                const addressText = storeDynamicData.address || "Endereço não cadastrado.";
+                                                // Se for um objeto (como no painel do lojista novo), pega a rua, senão pega a string direto
+                                                const addressString = typeof addressText === 'object' ? `${addressText.street || ''}, ${addressText.city || ''}` : addressText;
+                                                
+                                                let mapsLink = "";
+                                                if (addressString && addressString.length > 5) {
+                                                    mapsLink = `https://maps.google.com/?q=${encodeURIComponent(addressString)}`;
+                                                }
+
+                                                // 2. LÓGICA INTELIGENTE DE HORÁRIO (Dia Atual)
+                                                const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                                                
+                                                const nowTz = new Date();
+                                                const utc = nowTz.getTime() + (nowTz.getTimezoneOffset() * 60000);
+                                                const brazilTime = new Date(utc - (3600000 * 3)); 
+                                                const hojeId = brazilTime.getDay(); // 0 = Domingo, 1 = Segunda...
+                                                const nomeDiaHoje = diasSemana[hojeId];
+
+                                                let horarioTexto = `Hoje (${nomeDiaHoje}) estamos fechados.`;
+
+                                                // Verifica Modo Férias primeiro
+                                                if (storeDynamicData.vacationMode && storeDynamicData.vacationMode.active) {
+                                                    horarioTexto = "🌴 *Modo Férias:* Estamos em recesso no momento. Voltaremos em breve!";
+                                                } 
+                                                // Verifica a agenda normal configurada
+                                                else if (storeDynamicData.schedule && storeDynamicData.schedule[hojeId] && storeDynamicData.schedule[hojeId].open) {
+                                                    const configDeHoje = storeDynamicData.schedule[hojeId];
+                                                    horarioTexto = `Hoje (${nomeDiaHoje}) abrimos das *${configDeHoje.start} às ${configDeHoje.end}*`;
+                                                    
+                                                    // Suporte para turnos divididos (Almoço / Janta)
+                                                    if (configDeHoje.splitShift && configDeHoje.start2 && configDeHoje.end2) {
+                                                        horarioTexto += ` e depois das *${configDeHoje.start2} às ${configDeHoje.end2}*`;
+                                                    }
+                                                    horarioTexto += `.`;
+                                                }
+
+                                                // 3. MONTA A MENSAGEM FINAL
+                                                let faqMsg = `📍 *Nossa Localização e Horário, ${firstName || 'amigo(a)'}!* \n\n`;
+                                                
+                                                faqMsg += `🏠 *Endereço Principal:*\n${addressString}\n`;
+                                                if (mapsLink) {
+                                                    faqMsg += `🗺️ *Ver no Mapa:* ${mapsLink}\n\n`;
+                                                } else {
+                                                    faqMsg += `\n`;
+                                                }
+                                                
+                                                faqMsg += `⏰ *Nosso Horário de Funcionamento:*\n${horarioTexto}\n\n`;
+                                                faqMsg += `Lembrando que você pode pedir para entrega ou retirada direto no nosso cardápio digital:\n👉 ${storeDomain}`;
+
                                                 replyPayload = { type: "text", text: { body: faqMsg } };
-                                                logTextForPanel = `🤖 [FAQ Endereço] ${faqMsg}`;
+                                                logTextForPanel = `🤖 [FAQ Endereço Master] ${faqMsg}`;
                                             }
                                             else if (isFaqPagamento) {
                                                 const faqMsg = `💳 *Formas de Pagamento Aceitas${nomeOuVazio}:*\n\n${paymentsStr}\n\nVocê seleciona a melhor opção no final do pedido pelo site!\n👉 ${storeDomain}`;
