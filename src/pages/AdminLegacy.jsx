@@ -4338,23 +4338,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="space-y-4 flex-1 relative">
                                         {/* EFEITO DE BLUR SE OS DADOS FOREM MOCKADOS (AINDA NÃO SINCRONIZADOS) */}
                                         {!ga4Metrics && (
-                                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
+                                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-[3rem]">
                                                 {!settings?.integrations?.ga4?.measurementId ? (
-                                                    <div className="bg-indigo-50 px-6 py-4 rounded-2xl border border-indigo-100 text-center shadow-sm flex flex-col items-center gap-3">
-                                                        <p className="text-xs font-black text-indigo-800 uppercase tracking-widest">
-                                                            Analytics Desconectado
-                                                        </p>
+                                                    <div className="bg-white px-8 py-6 rounded-3xl border border-red-100 text-center shadow-xl flex flex-col items-center gap-4">
+                                                        <div className="bg-red-50 text-red-500 p-3 rounded-full"><Globe size={24}/></div>
+                                                        <div>
+                                                            <p className="text-sm font-black text-slate-800 uppercase tracking-widest">Analytics Desconectado</p>
+                                                            <p className="text-xs font-bold text-slate-500 mt-1">Conecte o GA4 para ver a origem do tráfego.</p>
+                                                        </div>
                                                         <button 
                                                             onClick={() => setActiveTab('integrations')}
-                                                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                                                            className="bg-blue-600 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-blue-700 transition-all active:scale-95 w-full"
                                                         >
-                                                            Configurar GA4 Agora
+                                                            Configurar GA4
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <p className="text-xs font-black text-indigo-800 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 text-center leading-relaxed shadow-sm">
-                                                        Clique em "Sync GA4 API"<br/>para baixar os dados reais.
-                                                    </p>
+                                                    <div className="bg-white px-8 py-6 rounded-3xl border border-indigo-100 text-center shadow-xl flex flex-col items-center gap-4">
+                                                        <div className="bg-green-50 text-green-500 p-3 rounded-full"><CheckCircle size={24}/></div>
+                                                        <div>
+                                                            <p className="text-sm font-black text-slate-800 uppercase tracking-widest">GA4 Conectado</p>
+                                                            <p className="text-xs font-bold text-slate-500 mt-1">ID: <span className="text-blue-600">{settings.integrations.ga4.measurementId}</span></p>
+                                                        </div>
+                                                        <button 
+                                                            onClick={handleFetchGa4}
+                                                            disabled={isLoadingGa4}
+                                                            className="bg-indigo-600 text-white px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 w-full disabled:opacity-50"
+                                                        >
+                                                            {isLoadingGa4 ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>}
+                                                            {isLoadingGa4 ? 'Baixando Dados...' : 'Puxar Dados Reais Agora'}
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
