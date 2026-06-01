@@ -4101,7 +4101,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
 
-    // ------------------------------------------------------------------------
+   // ------------------------------------------------------------------------
     // 26.1.5 GOOGLE ANALYTICS 4: MÉTRICAS DE TRÁFEGO E ENGAJAMENTO (OAUTH)
     // ------------------------------------------------------------------------
     else if (path === '/api/ga4-metrics') {
@@ -4114,7 +4114,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             // 1. Pega o Token OAuth Seguro do Lojista
             const activeToken = await getGoogleAuthToken(storeId);
 
-            // 2. Faz a requisição nativa para a API REST do GA4
+            // 2. Faz a requisição nativa para a API REST do GA4 (SEM PACOTES EXTERNOS!)
             const ga4Response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${measurementId}:runReport`, {
                 method: 'POST',
                 headers: {
@@ -4211,7 +4211,6 @@ Retorne APENAS um JSON com 3 chaves curtas:
             });
         }
     }
-
     // ------------------------------------------------------------------------
     // 26.2 GOOGLE MEU NEGÓCIO: SINCRONIZAR FAQ (Q&A SEEDING)
     // ------------------------------------------------------------------------
