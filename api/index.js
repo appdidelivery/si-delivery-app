@@ -3931,8 +3931,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
         const isLocal = req.headers.host.includes('localhost') || req.headers.host.includes('127.0.0.1');
         const redirectUri = isLocal ? 'http://localhost:3000/api/google-callback' : 'https://app.velodelivery.com.br/api/google-callback';
 
-        // Escopo oficial para gerenciar as postagens e dados do Meu Negócio
-        const scope = encodeURIComponent('https://www.googleapis.com/auth/business.manage');
+       // Escopos combinados: Google Meu Negócio + Google Analytics (Leitura)
+        const scope = encodeURIComponent('https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/analytics.readonly');
         
         // prompt=consent e access_type=offline são CRÍTICOS para recebermos o Refresh Token
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${storeId}`;
@@ -4102,7 +4102,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
     }
 
     // ------------------------------------------------------------------------
-    // 26.1.5 GOOGLE ANALYTICS 4: MÉTRICAS DE TRÁFEGO E ENGAJAMENTO
+    // 26.1.5 GOOGLE ANALYTICS 4: MÉTRICAS DE TRÁFEGO E ENGAJAMENTO (OAUTH)
     // ------------------------------------------------------------------------
     else if (path === '/api/ga4-metrics') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -4111,29 +4111,33 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const { storeId, measurementId } = req.body;
             if (!storeId || !measurementId) return res.status(400).json({ error: 'Faltam dados (storeId ou measurementId).' });
 
-            // Inicia o cliente do Google lendo a variável de ambiente da Vercel
-            if (!process.env.GOOGLE_GA4_CREDENTIALS) {
-                throw new Error("Variável GOOGLE_GA4_CREDENTIALS não configurada no servidor.");
-            }
+            // 1. Pega o Token OAuth Seguro do Lojista
+            const activeToken = await getGoogleAuthToken(storeId);
 
-            const credentials = JSON.parse(process.env.GOOGLE_GA4_CREDENTIALS);
-            const analyticsDataClient = new BetaAnalyticsDataClient({ credentials });
-
-            // Faz a consulta na API do GA4 buscando os últimos 30 dias
-            const [response] = await analyticsDataClient.runReport({
-                property: `properties/${measurementId}`,
-                dateRanges: [
-                    { startDate: '30daysAgo', endDate: 'today' },
-                ],
-                dimensions: [
-                    { name: 'sessionDefaultChannelGroup' }
-                ],
-                metrics: [
-                    { name: 'sessions' },
-                    { name: 'averageSessionDuration' },
-                    { name: 'bounceRate' }
-                ],
+            // 2. Faz a requisição nativa para a API REST do GA4
+            const ga4Response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${measurementId}:runReport`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${activeToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+                    dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+                    metrics: [
+                        { name: 'sessions' },
+                        { name: 'averageSessionDuration' },
+                        { name: 'bounceRate' }
+                    ]
+                })
             });
+
+            const response = await ga4Response.json();
+
+            if (!ga4Response.ok) {
+                console.error("Erro GA4 REST API:", response);
+                throw new Error(response.error?.message || 'Erro ao consultar o Google Analytics.');
+            }
 
             let totalSessions = 0;
             let totalDuration = 0;
@@ -4141,7 +4145,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
             let validRows = 0;
             const channelData = {};
 
-            response.rows.forEach(row => {
+            (response.rows || []).forEach(row => {
                 const channel = row.dimensionValues[0].value;
                 const sessions = parseInt(row.metricValues[0].value);
                 const avgDuration = parseFloat(row.metricValues[1].value);
@@ -4193,14 +4197,14 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 success: true,
                 metrics: {
                     averageSessionDuration: timeString,
-                    ctr: 'N/A', // O CTR de e-commerce real precisa ser calculado via compras, deixamos N/A por enquanto
+                    ctr: 'N/A', 
                     bounceRate: (finalBounceRate * 100).toFixed(1),
                     trafficSources: trafficSources.slice(0, 5) 
                 }
             });
 
         } catch (error) {
-            console.error("Erro GA4 API:", error);
+            console.error("Erro GA4 API (OAuth):", error);
             return res.status(500).json({ 
                 success: false, 
                 error: error.message || 'Falha ao processar dados do Google Analytics.' 
