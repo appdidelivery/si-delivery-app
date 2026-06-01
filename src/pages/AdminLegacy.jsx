@@ -4122,7 +4122,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     
                     const lookerFilterParams = encodeURIComponent(JSON.stringify({
                         "ds0": {
-                            "store_id": storeId
+                            "storeId": storeId
                         }
                     }));
                     
