@@ -4236,7 +4236,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 
                 const qData = await qRes.json();
                 if (qRes.ok && qData.name) {
-                    // 2. Posta a Resposta (O lojista responde)
+                    // 2. Posta a Resposta (O lojista responde)att  
                     await fetch(`https://mybusinessqanda.googleapis.com/v1/${qData.name}/answers`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' },
