@@ -4084,15 +4084,17 @@ Retorne APENAS um JSON com 3 chaves curtas:
     else if (path === '/api/google-metrics') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
         try {
-            const { storeId, locationId } = req.body;
+            const { storeId, locationId, days } = req.body;
             if (!storeId || !locationId) return res.status(400).json({ error: 'Faltam dados.' });
+
+            const periodDays = days ? Number(days) : 30; // 30 dias é o padrão se não enviar nada
 
             const activeToken = await getGoogleAuthToken(storeId);
             const stdLocation = `locations/${locationId.split('/').pop()}`;
 
             const end = new Date();
             const start = new Date();
-            start.setDate(start.getDate() - 30); // Últimos 30 dias
+            start.setDate(start.getDate() - periodDays);
 
             const url = `https://businessprofileperformance.googleapis.com/v1/${stdLocation}:fetchMultiDailyMetricsTimeSeries?dailyMetrics=BUSINESS_IMPRESSIONS&dailyMetrics=WEBSITE_CLICKS&dailyMetrics=CALL_CLICKS&dailyRange.startDate.year=${start.getFullYear()}&dailyRange.startDate.month=${start.getMonth()+1}&dailyRange.startDate.day=${start.getDate()}&dailyRange.endDate.year=${end.getFullYear()}&dailyRange.endDate.month=${end.getMonth()+1}&dailyRange.endDate.day=${end.getDate()}`;
 
@@ -4122,8 +4124,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeId, measurementId } = req.body;
+            const { storeId, measurementId, days } = req.body;
             if (!storeId || !measurementId) return res.status(400).json({ error: 'Faltam dados (storeId ou measurementId).' });
+
+            const periodDays = days ? Number(days) : 30;
+            const startDateStr = `${periodDays}daysAgo`;
 
             // 1. Pega o Token OAuth Seguro do Lojista
             const activeToken = await getGoogleAuthToken(storeId);
@@ -4136,7 +4141,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+                    dateRanges: [{ startDate: startDateStr, endDate: 'today' }],
                     dimensions: [{ name: 'sessionDefaultChannelGroup' }],
                     metrics: [
                         { name: 'sessions' },

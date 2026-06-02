@@ -439,8 +439,9 @@ export default function Admin() {
 const [showEduBanner, setShowEduBanner] = useState(true);
 const [currentEduBanner, setCurrentEduBanner] = useState(0);
 // --- BUSCA GLOBAL DO SISTEMA (COMMAND PALETTE) ---
-    // --- ESTADOS DO GOOGLE MEU NEGÓCIO ---
+    // --- ESTADOS DO GOOGLE MEU NEGÓCIO E GA4 ---
     const [googleMetrics, setGoogleMetrics] = useState(null);
+    const [dataFuelPeriod, setDataFuelPeriod] = useState(30); // <-- NOVO ESTADO DE FILTRO DE DATA
     const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
     const [globalSearchText, setGlobalSearchText] = useState('');
     const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
@@ -4175,11 +4176,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             const timeoutId = setTimeout(() => controller.abort(), 8000);
 
                             const res = await fetch('/api/ga4-metrics', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ storeId, measurementId: settings.integrations.ga4.measurementId }),
-                                signal: controller.signal // Injeta o controle de timeout
-                            });
+                                                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ storeId, measurementId: settings.integrations.ga4.measurementId, days: dataFuelPeriod })
+                                                            });
                             
                             clearTimeout(timeoutId); // Cancela o cronômetro se respondeu rápido
                             const data = await res.json();
@@ -4214,10 +4213,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                 <div>
-                                    <h1 className="text-4xl font-black italic uppercase text-slate-900 leading-none flex items-center gap-3">
-                                        <TrendingUp className="text-blue-600" size={36}/> Velo Data Fuel
-                                    </h1>
-                                    <p className="text-slate-500 font-bold mt-2 text-sm">Dashboard Analítico Nativo (Seguro e em Tempo Real).</p>
+                                    <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                                        <h1 className="text-4xl font-black italic uppercase text-slate-900 leading-none flex items-center gap-3">
+                                            <TrendingUp className="text-blue-600" size={36}/> Velo Data Fuel
+                                        </h1>
+                                        <select 
+                                            value={dataFuelPeriod} 
+                                            onChange={(e) => setDataFuelPeriod(Number(e.target.value))}
+                                            className="bg-white border border-slate-200 text-blue-600 font-black text-[10px] uppercase tracking-widest px-4 py-2.5 rounded-xl outline-none shadow-sm cursor-pointer hover:bg-slate-50 transition-all"
+                                        >
+                                            <option value={7}>Últimos 7 dias</option>
+                                            <option value={14}>Últimos 14 dias</option>
+                                            <option value={30}>Últimos 30 dias</option>
+                                            <option value={90}>Últimos 90 dias</option>
+                                        </select>
+                                    </div>
+                                    <p className="text-slate-500 font-bold mt-2 text-sm">Inteligência de Dados e Analytics em Tempo Real.</p>
                                 </div>
                                 <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-emerald-100 shadow-sm">
                                     <Database size={14}/> Fonte: Firestore + API GA4
@@ -4276,9 +4287,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             onClick={async () => {
                                                 try {
                                                     const res = await fetch('/api/google-metrics', {
-                                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId })
-                                                    });
+                                                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId, days: dataFuelPeriod })
+                                                            });
                                                     const data = await res.json();
                                                     if(res.ok && data.success) setGoogleMetrics(data.metrics);
                                                     else alert("Aguarde. O Google demora alguns dias para liberar estatísticas de integrações novas.");
