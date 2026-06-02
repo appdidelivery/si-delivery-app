@@ -1,12 +1,12 @@
-import Stripe from 'stripe';
-import admin from 'firebase-admin';
-import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
-import pathModule from 'path';
-import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
+const Stripe = require('stripe');
+const admin = require('firebase-admin');
+const Gerencianet = require('gn-api-sdk-node'); // <-- ADICIONADO AQUI
+const pathModule = require('path');
+const { GoogleAuth } = require('google-auth-library'); // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 
 const STRIPE_ENABLED = false;
 // Ajuste o caminho se a pasta lib for diferente!
-import { sendWhatsAppNotification } from '../lib/evolution.js';
+const { sendWhatsAppNotification } = require('../lib/evolution.js');
 
 // Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
 async function getGoogleAuthToken(storeId = null) {
@@ -64,9 +64,10 @@ async function getGoogleAuthToken(storeId = null) {
 // CONFIGURAÇÃO GLOBAL (NECESSÁRIA PARA O STRIPE WEBHOOK FUNCIONAR)
 // Desativa o body parser automático do Vercel/Next.js para lermos os dados "crus"
 // ============================================================================
-export const config = {
+const config = {
     api: { bodyParser: false },
 };
+module.exports.config = config;
 
 // Função para ler os dados crus (Raw Body)
 async function getRawBody(req) {
@@ -148,7 +149,7 @@ const generateSlug = (text) => {
 // ============================================================================
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // 1. Identifica a loja de forma Híbrida (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');

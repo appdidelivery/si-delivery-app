@@ -1953,7 +1953,6 @@ const handleGenerateProductCopy = async () => {
                     storeNiche: storeStatus.storeNiche,
                     productName: product.name,
                     productDesc: product.description || '',
-                    productDesc: product.description || '',
                     productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price,
                     productId: product.id
                 })
@@ -11650,8 +11649,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
-            <AnimatePresence>
-                {/* MODAL DE CONFIGURAÇÃO DA ROLETA (LOJISTA) */}
+
+            {/* MODAL DE CONFIGURAÇÃO DA ROLETA (LOJISTA) */}
             <AnimatePresence>
                 {isRouletteModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
@@ -11734,6 +11733,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <AnimatePresence>
                {showPixModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[300] flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center shadow-2xl">
