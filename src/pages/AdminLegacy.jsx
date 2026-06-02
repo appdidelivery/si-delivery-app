@@ -446,6 +446,16 @@ const [currentEduBanner, setCurrentEduBanner] = useState(0);
     const [globalSearchText, setGlobalSearchText] = useState('');
     const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
 
+    // Faz os botões do GA4 e GMB serem clicados sozinhos quando a data mudar
+    useEffect(() => {
+        if (activeTab === 'datafuel') {
+            const btnGa4 = document.getElementById('btn-sync-ga4');
+            const btnGmb = document.getElementById('btn-sync-gmb');
+            if (btnGa4) btnGa4.click();
+            if (btnGmb) btnGmb.click();
+        }
+    }, [dataFuelPeriod, activeTab]);
+
     // Dicionário de termos para a busca inteligente
     const systemFeatures = [
         { keywords: ['cupom', 'desconto', 'voucher', 'promoção'], tab: 'marketing', label: 'Criar Cupom de Desconto', icon: <Tags size={16}/> },
@@ -4122,7 +4132,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {/* --- ABA VELO DATA FUEL (INTELIGÊNCIA AUTOMÁTICA NATIVA) --- */}
                 {activeTab === 'datafuel' && (() => {
                     // MÁGICA: CÁLCULOS NATIVOS EM TEMPO REAL (Sem depender de Iframes)
-                    const dataDeCorte = Date.now() - (30 * 24 * 60 * 60 * 1000); // Últimos 30 dias
+                    const dataDeCorte = Date.now() - (dataFuelPeriod * 24 * 60 * 60 * 1000); // Dinâmico pelo filtro
 
                     // 1. Produtos Mais Vendidos por Receita (100% Real - Firebase)
                     const productRevenue = {};
@@ -4284,6 +4294,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     ) : (
                                         <button 
+                                            id="btn-sync-gmb"
                                             onClick={async () => {
                                                 try {
                                                     const res = await fetch('/api/google-metrics', {
@@ -4309,7 +4320,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* CARD 1: FUNIL DE VENDAS */}
                                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                                     <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-2 mb-6">
-                                        <TrendingUp className="text-blue-500"/> Funil de Vendas (30 Dias)
+                                        <TrendingUp className="text-blue-500"/> FUNIL DE VENDAS ({dataFuelPeriod} DIAS)
+
                                     </h3>
                                     
                                     <div className="space-y-5 flex-1">
@@ -4421,7 +4433,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* CARD 3: PRODUTOS CAMPEÕES DE RECEITA */}
                                 <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm lg:col-span-2 hover:shadow-md transition-all">
                                     <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-2 mb-6">
-                                        <Award className="text-amber-500"/> Produtos por Receita (Top 5 Últimos 30 Dias)
+                                        <Award className="text-amber-500"/> PRODUTOS POR RECEITA (TOP 5 ÚLTIMOS {dataFuelPeriod} DIAS)
+
                                     </h3>
                                     
                                     <div className="overflow-x-auto custom-scrollbar">
