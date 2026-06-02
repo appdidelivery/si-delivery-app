@@ -4,6 +4,13 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: '/',
+  
+  // 👇 A MÁGICA ENTRA AQUI: Força o Vite a usar apenas UMA versão do React
+  // e resolve a Tela Branca (ReactCurrentBatchConfig undefined)
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
+
   plugins: [
     react(),
     VitePWA({
