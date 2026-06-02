@@ -6,7 +6,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 
 const STRIPE_ENABLED = false;
 // Ajuste o caminho se a pasta lib for diferente!
-const { sendWhatsAppNotification } = require('../lib/evolution.js');
+import { sendWhatsAppNotification } from '../lib/evolution.js';
 
 // Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
 async function getGoogleAuthToken(storeId = null) {
@@ -64,10 +64,9 @@ async function getGoogleAuthToken(storeId = null) {
 // CONFIGURAÇÃO GLOBAL (NECESSÁRIA PARA O STRIPE WEBHOOK FUNCIONAR)
 // Desativa o body parser automático do Vercel/Next.js para lermos os dados "crus"
 // ============================================================================
-const config = {
+export const config = {
     api: { bodyParser: false },
 };
-module.exports.config = config;
 
 // Função para ler os dados crus (Raw Body)
 async function getRawBody(req) {
@@ -146,10 +145,10 @@ const generateSlug = (text) => {
         .replace(/^-+/, '').replace(/-+$/, ''); 
 };
 
-// ============================================================================
+/// ============================================================================
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
     // 1. Identifica a loja de forma Híbrida (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
