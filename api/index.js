@@ -10,54 +10,68 @@ import { sendWhatsAppNotification } from '../lib/evolution.js';
 
 // Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
 async function getGoogleAuthToken(storeId = null) {
-    // 1. Se informou storeId, tenta buscar o token específico do lojista no Firebase
-    if (storeId) {
-        const storeSnap = await db.collection('settings').doc(storeId).get();
-        const googleConfig = storeSnap.data()?.integrations?.google_my_business;
+    try {
+        if (storeId) {
+            const storeSnap = await db.collection('settings').doc(storeId).get();
+            const googleConfig = storeSnap.data()?.integrations?.google_my_business;
 
-        if (googleConfig?.accessToken) {
-            // Verifica se o token precisa de refresh (Google dura 3600s)
-            const isExpired = (Date.now() - (googleConfig.connectedAt?.toMillis() || 0)) > 3500000;
-            
-            if (isExpired && googleConfig.refreshToken) {
-                console.log(`🔄 Refreshing Google Token para loja: ${storeId}`);
-                const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        client_id: process.env.GOOGLE_CLIENT_ID,
-                        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-                        refresh_token: googleConfig.refreshToken,
-                        grant_type: 'refresh_token'
-                    })
-                });
-                const refreshData = await refreshRes.json();
-                if (refreshRes.ok) {
-                    await db.collection('settings').doc(storeId).set({
-                        integrations: { google_my_business: { 
-                            accessToken: refreshData.access_token, 
-                            connectedAt: admin.firestore.FieldValue.serverTimestamp() 
-                        }}
-                    }, { merge: true });
-                    return refreshData.access_token;
+            if (googleConfig?.accessToken) {
+                const isExpired = (Date.now() - (googleConfig.connectedAt?.toMillis() || 0)) > 3500000;
+                
+                if (isExpired && googleConfig.refreshToken) {
+                    console.log(`🔄 Atualizando Token do Google para a loja: ${storeId}`);
+                    const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            client_id: process.env.GOOGLE_CLIENT_ID,
+                            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                            refresh_token: googleConfig.refreshToken,
+                            grant_type: 'refresh_token'
+                        })
+                    });
+                    const refreshData = await refreshRes.json();
+                    
+                    if (refreshRes.ok) {
+                        await db.collection('settings').doc(storeId).set({
+                            integrations: { google_my_business: { 
+                                accessToken: refreshData.access_token, 
+                                connectedAt: admin.firestore.FieldValue.serverTimestamp() 
+                            }}
+                        }, { merge: true });
+                        return refreshData.access_token;
+                    } else {
+                        console.error("❌ Erro ao atualizar Token Google:", refreshData);
+                        throw new Error("O Token do Google expirou e o Google bloqueou a renovação (Conta pode ter sido suspensa). Desconecte e conecte novamente a conta Google no painel de integrações.");
+                    }
                 }
+                return googleConfig.accessToken;
             }
-            return googleConfig.accessToken;
         }
-    }
 
-    // 2. Fallback para o Robô (Service Account) se não houver OAuth do lojista
-    if (!process.env.GCP_SERVICE_ACCOUNT) {
-        throw new Error("Credenciais do Google não encontradas (OAuth ou Service Account).");
+        if (!process.env.GCP_SERVICE_ACCOUNT) {
+            throw new Error("A loja não possui Token e a variável GCP_SERVICE_ACCOUNT está ausente na Vercel.");
+        }
+        
+        let credentials;
+        try {
+            credentials = JSON.parse(process.env.GCP_SERVICE_ACCOUNT);
+        } catch (e) {
+            throw new Error("A variável GCP_SERVICE_ACCOUNT na Vercel está com erro de formatação (JSON Inválido).");
+        }
+
+        const auth = new GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/business.manage']
+        });
+        const client = await auth.getClient();
+        const token = await client.getAccessToken();
+        return token.token;
+        
+    } catch (error) {
+        console.error("🚨 Erro Crítico em getGoogleAuthToken:", error);
+        throw error;
     }
-    const credentials = JSON.parse(process.env.GCP_SERVICE_ACCOUNT);
-    const auth = new GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/business.manage']
-    });
-    const client = await auth.getClient();
-    const token = await client.getAccessToken();
-    return token.token;
 }
 
 // ============================================================================
@@ -3887,7 +3901,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
             try {
                 activeToken = await getGoogleAuthToken(storeId);
             } catch (err) {
-                return res.status(500).json({ error: 'Falha ao autenticar com o Google Meu Negócio. Verifique a conexão da loja.' });
+                console.error("❌ Falha na Autenticação GMB:", err);
+                return res.status(500).json({ error: err.message || 'Falha ao autenticar com o Google Meu Negócio.' });
             }
 
             const cleanLocationId = locationId.replace('locations/', '');
