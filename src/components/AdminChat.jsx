@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
@@ -25,6 +25,45 @@ export default function AdminChat() {
     const [showMiniPdv, setShowMiniPdv] = useState(false); // <-- ESTADO DO MINI PDV ADICIONADO
     const [customersData, setCustomersData] = useState({});
     const [contactForm, setContactForm] = useState({ name: '', email: '', notes: '' });
+
+    // --- LÓGICA DE BLOQUEIO DE CONTATOS (BLACKLIST) ---
+    const [blockedContacts, setBlockedContacts] = useState([]);
+
+    useEffect(() => {
+        if (!storeId) return;
+        // Escuta em tempo real os números bloqueados pela loja
+        const q = query(collection(db, 'blocked_contacts'), where('storeId', '==', storeId));
+        const unsub = onSnapshot(q, (snapshot) => {
+            setBlockedContacts(snapshot.docs.map(doc => doc.data().phone));
+        });
+        return () => unsub();
+    }, [storeId]);
+
+    const handleToggleBlockContact = async () => {
+        if (!activeChat || !storeId) return;
+
+        const isBlocked = blockedContacts.includes(activeChat);
+        const docRef = doc(db, 'blocked_contacts', `${storeId}_${activeChat}`);
+
+        try {
+            if (isBlocked) {
+                if (window.confirm("Deseja DESBLOQUEAR este contato? Ele poderá mandar mensagens e o robô voltará a atendê-lo.")) {
+                    await deleteDoc(docRef);
+                }
+            } else {
+                if (window.confirm("🚫 BLOQUEAR CONTATO?\n\nEste número será silenciado no seu painel. Opcionalmente, você pode configurar o Backend/Webhook para ignorar totalmente as mensagens dele.\n\nDeseja confirmar o bloqueio?")) {
+                    await setDoc(docRef, {
+                        storeId: storeId,
+                        phone: activeChat,
+                        blockedAt: serverTimestamp()
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao alterar bloqueio:", error);
+            alert("Erro de conexão ao tentar bloquear/desbloquear o contato.");
+        }
+    };
 
     // --- ESTADOS DO PERFIL DA LOJA (ESTILO WPP WEB) ---
     const [showStoreProfile, setShowStoreProfile] = useState(false);
@@ -1273,7 +1312,7 @@ export default function AdminChat() {
                                     </div>
                                 </div>
                             
-                            <div className="flex items-center gap-2 shrink-0">
+                           <div className="flex items-center gap-2 shrink-0">
                                 {/* NOVO BOTÃO: GATILHO DO MINI PDV */}
                                 <button 
                                     onClick={() => {
@@ -1284,6 +1323,15 @@ export default function AdminChat() {
                                     title="Lançar Pedido Rápido"
                                 >
                                     <ShoppingCart size={16} /> Lançar Pedido
+                                </button>
+                                
+                                {/* BOTÃO DE BLOQUEIO DE CONTATO */}
+                                <button 
+                                    onClick={handleToggleBlockContact}
+                                    className={`border px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 ${blockedContacts.includes(activeChat) ? 'bg-slate-800 text-white border-slate-900 hover:bg-slate-700' : 'bg-white text-slate-500 border-gray-200 hover:bg-slate-100 hover:text-slate-800'}`}
+                                    title={blockedContacts.includes(activeChat) ? "Desbloquear Contato" : "Bloquear Contato"}
+                                >
+                                    <Ban size={16} /> {blockedContacts.includes(activeChat) ? 'Desbloquear' : 'Bloquear'}
                                 </button>
 
                                 <button 
@@ -1417,17 +1465,28 @@ export default function AdminChat() {
                             </div>
                         )}
 
-                       {/* Input de Resposta */}
-                        <div className={`px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0 ${replyingTo ? 'pt-0' : ''}`}>
-                            
-                            {/* Input Escondido para upload de arquivo */}
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                ref={fileInputRef} 
-                                onChange={handleFileSelect} 
-                                className="hidden" 
-                            />
+                       {/* Input de Resposta / Aviso de Bloqueio */}
+                       {blockedContacts.includes(activeChat) ? (
+                            <div className="px-4 py-4 bg-red-50 flex items-center justify-center gap-2 z-10 shrink-0 border-t border-red-100">
+                                <Ban size={18} className="text-red-500" />
+                                <span className="text-sm font-bold text-red-600 uppercase tracking-widest">
+                                    Este contato está bloqueado.
+                                </span>
+                                <button onClick={handleToggleBlockContact} className="ml-2 text-xs font-black text-red-500 underline hover:text-red-700">
+                                    Desbloquear
+                                </button>
+                            </div>
+                        ) : (
+                            <div className={`px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0 ${replyingTo ? 'pt-0' : ''}`}>
+                                
+                                {/* Input Escondido para upload de arquivo */}
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFileSelect} 
+                                    className="hidden" 
+                                />  
 
                             {isRecording ? (
                                 /* --- UI DE GRAVAÇÃO DE ÁUDIO --- */
@@ -1495,6 +1554,7 @@ export default function AdminChat() {
                                </button>
                             )}
                         </div>
+                        )}
                         </div>
 
                         {/* --- COLUNA DE INFORMAÇÕES DO CONTATO (SIDEBAR DIREITA CRM) --- */}
