@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
@@ -22,6 +22,7 @@ export default function AdminChat() {
     
     // --- NOVO: ESTADOS DO PERFIL DO CLIENTE (CRM) ---
     const [showContactInfo, setShowContactInfo] = useState(false);
+    const [showMiniPdv, setShowMiniPdv] = useState(false); // <-- ESTADO DO MINI PDV ADICIONADO
     const [customersData, setCustomersData] = useState({});
     const [contactForm, setContactForm] = useState({ name: '', email: '', notes: '' });
 
@@ -308,6 +309,145 @@ export default function AdminChat() {
             alert("Erro ao salvar os dados do contato. Verifique sua conexão.");
         }
     };
+
+    // --- ESTADOS E LÓGICA DO MINI PDV ---
+    const [miniPdvCart, setMiniPdvCart] = useState([]);
+    const [miniPdvSearch, setMiniPdvSearch] = useState('');
+    const [miniPdvCustomer, setMiniPdvCustomer] = useState({ payment: 'pix', changeFor: '' });
+    const [isSubmittingMiniPdv, setIsSubmittingMiniPdv] = useState(false);
+
+    const handleLaunchMiniPdvOrder = async () => {
+        if (miniPdvCart.length === 0) return alert("Adicione produtos ao carrinho!");
+        setIsSubmittingMiniPdv(true);
+
+        try {
+            const cartTotal = miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+            let cleanPhone = String(activeChat).replace(/\D/g, '');
+            let phoneForMeta = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+            const customerName = getDisplayName(activeChat);
+
+            // 1. Salva o pedido inicial no banco de dados
+            const newOrderRef = await addDoc(collection(db, "orders"), {
+                storeId: storeId,
+                customerName: customerName,
+                customerPhone: cleanPhone,
+                items: miniPdvCart,
+                subtotal: cartTotal,
+                shippingFee: 0,
+                total: cartTotal,
+                paymentMethod: miniPdvCustomer.payment,
+                status: 'preparing',
+                paymentStatus: 'pending',
+                changeFor: miniPdvCustomer.payment === 'dinheiro' ? miniPdvCustomer.changeFor : null,
+                tipo: 'delivery',
+                source: 'whatsapp_pdv',
+                createdAt: serverTimestamp()
+            });
+
+            const orderId = newOrderRef.id;
+            const resumoItens = miniPdvCart.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
+            let msgConfirmacao = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Lançado!*\n\n*Resumo:*\n${resumoItens}\n\n*Total a pagar: R$ ${cartTotal.toFixed(2)}*\n`;
+
+            let pixCodeToShare = null;
+
+            // 2. SE FOR PIX: Chama o backend para gerar a cobrança no Mercado Pago
+            if (miniPdvCustomer.payment === 'pix') {
+                const protocol = window.location.hostname.includes('localhost') ? 'http' : 'https';
+                const apiUrl = `${protocol}://${window.location.host}/api/processar-pagamento-transparente-velo`;
+                
+                try {
+                    const pixRes = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            storeId: storeId,
+                            orderId: orderId,
+                            transaction_amount: cartTotal,
+                            payment_method_id: 'pix',
+                            payer: {
+                                email: 'cliente@velodelivery.com.br',
+                                first_name: customerName.split(' ')[0]
+                                // Omitimos o telefone intencionalmente para o backend NÃO disparar a msg sozinho, pois controlaremos a UI visual aqui.
+                            }
+                        })
+                    });
+
+                    const pixData = await pixRes.json();
+
+                    if (pixRes.ok && pixData.success) {
+                        // Busca o pedido atualizado do Firebase para pegar o código Copia e Cola gerado
+                        const updatedOrderSnap = await getDoc(doc(db, "orders", orderId));
+                        if (updatedOrderSnap.exists()) {
+                            pixCodeToShare = updatedOrderSnap.data().pixCopiaECola;
+                        }
+                    } else {
+                        console.warn("Falha ao gerar PIX MP:", pixData);
+                    }
+                } catch (err) {
+                    console.error("Erro na requisição de PIX:", err);
+                }
+            }
+
+            // 3. Montagem e Disparo das Mensagens no WhatsApp
+            if (miniPdvCustomer.payment === 'pix') {
+                if (pixCodeToShare) {
+                    msgConfirmacao += `*Pagamento:* 💠 PIX\n\nCopie o código na mensagem abaixo e pague no seu app do banco. 👇\n\n*A cozinha já foi avisada e começará a preparar assim que o pagamento for confirmado!* 🚀`;
+                    
+                    // Dispara a Mensagem 1 (Instruções e Resumo)
+                    await fetch('/api/whatsapp-send', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
+                    });
+                    await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+
+                    // Dispara a Mensagem 2 (Código PIX Isolado para o botão de copiar nativo funcionar)
+                    await fetch('/api/whatsapp-send', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: pixCodeToShare } })
+                    });
+                    await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: pixCodeToShare, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+
+                } else {
+                    // Fallback de segurança caso a API do Mercado Pago esteja instável
+                    msgConfirmacao += `*Pagamento:* 💠 PIX\n\n_Ocorreu uma falha ao gerar o código automático. O atendente enviará a Chave PIX da loja em instantes._`;
+                    await fetch('/api/whatsapp-send', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
+                    });
+                    await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+                }
+            } else {
+                // Fluxo Normal (Dinheiro ou Cartão Físico)
+                const formaPagtoTxt = miniPdvCustomer.payment === 'cartao' ? '💳 Cartão na Entrega' : '💵 Dinheiro';
+                const trocoTxt = miniPdvCustomer.payment === 'dinheiro' && miniPdvCustomer.changeFor ? `\n*Troco para:* R$ ${miniPdvCustomer.changeFor}` : '';
+                msgConfirmacao += `*Pagamento:* ${formaPagtoTxt}${trocoTxt}\n\nSeu pedido já foi enviado para a cozinha! 👨‍🍳`;
+
+                await fetch('/api/whatsapp-send', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
+                });
+                await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+            }
+
+            // 4. Limpa o carrinho e fecha o Mini PDV
+            setMiniPdvCart([]);
+            setMiniPdvSearch('');
+            setMiniPdvCustomer({ payment: 'pix', changeFor: '' });
+            setShowMiniPdv(false);
+            
+            // Pausa o bot automaticamente para o humano continuar se precisar
+            await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${cleanPhone}`), {
+                storeId: storeId, phone: cleanPhone, botPaused: true, updatedAt: serverTimestamp()
+            }, { merge: true });
+
+        } catch (error) {
+            console.error("Erro ao lançar pedido PDV:", error);
+            alert("Erro ao lançar o pedido.");
+        } finally {
+            setIsSubmittingMiniPdv(false);
+        }
+    };
+
 // --- FUNÇÕES DE MÍDIA (ÁUDIO E IMAGEM) ---
     const uploadToCloudinary = async (file, resourceType = 'auto') => {
         const formData = new FormData();
@@ -994,6 +1134,7 @@ export default function AdminChat() {
                                             email: customersData[activeChat]?.email || '',
                                             notes: customersData[activeChat]?.notes || ''
                                         });
+                                        setShowMiniPdv(false); // Fecha o PDV se abrir o CRM
                                         setShowContactInfo(!showContactInfo);
                                     }}
                                     title="Ver dados do contato"
@@ -1012,6 +1153,18 @@ export default function AdminChat() {
                                 </div>
                             
                             <div className="flex items-center gap-2 shrink-0">
+                                {/* NOVO BOTÃO: GATILHO DO MINI PDV */}
+                                <button 
+                                    onClick={() => {
+                                        setShowContactInfo(false); // Fecha o CRM se abrir o PDV
+                                        setShowMiniPdv(!showMiniPdv);
+                                    }}
+                                    className={`border px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all shadow-sm flex items-center gap-2 ${showMiniPdv ? 'bg-blue-700 text-white border-blue-700' : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'}`}
+                                    title="Lançar Pedido Rápido"
+                                >
+                                    <ShoppingCart size={16} /> Lançar Pedido
+                                </button>
+
                                 <button 
                                     onClick={handleDeleteEntireChat}
                                     className="bg-white hover:bg-red-50 text-red-500 border border-gray-200 hover:border-red-500 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
@@ -1225,10 +1378,10 @@ export default function AdminChat() {
 
                         {/* --- COLUNA DE INFORMAÇÕES DO CONTATO (SIDEBAR DIREITA CRM) --- */}
                         {showContactInfo && (
-                            <div className="w-[320px] bg-white border-l border-gray-200 flex flex-col z-20 shrink-0 shadow-2xl animate-in slide-in-from-right-8">
+                            <div className="absolute right-0 top-0 h-full z-40 w-full sm:w-[320px] bg-white border-l border-gray-200 flex flex-col shadow-[-15px_0_30px_-5px_rgba(0,0,0,0.1)] animate-in slide-in-from-right-8">
                                 <div className="h-16 px-4 bg-[#f0f2f5] flex items-center gap-4 border-b border-gray-200 shrink-0">
-                                    <button onClick={() => setShowContactInfo(false)} className="text-gray-500 hover:text-gray-700">
-                                        <X size={20} />
+                                    <button onClick={() => setShowContactInfo(false)} className="text-gray-500 hover:text-red-500 transition-colors bg-white p-1.5 rounded-full shadow-sm border border-gray-200">
+                                        <X size={18} />
                                     </button>
                                     <span className="font-bold text-gray-700">Dados do Contato</span>
                                 </div>
@@ -1286,6 +1439,158 @@ export default function AdminChat() {
                                             <Save size={16}/> Salvar Contato
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- NOVA COLUNA: MINI PDV (SIDEBAR DIREITA) --- */}
+                        {showMiniPdv && (
+                            <div className="absolute right-0 top-0 h-full z-40 w-full sm:w-[380px] md:w-[420px] bg-white border-l border-gray-200 flex flex-col shadow-[-15px_0_30px_-5px_rgba(0,0,0,0.1)] animate-in slide-in-from-right-8">
+                                <div className="h-16 px-4 bg-[#f0f2f5] flex items-center justify-between border-b border-gray-200 shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <ShoppingCart size={20} className="text-blue-600" />
+                                        <span className="font-black italic uppercase text-slate-800">Lançamento Rápido</span>
+                                    </div>
+                                    <button onClick={() => setShowMiniPdv(false)} className="text-gray-500 hover:text-red-500 transition-colors bg-white p-1.5 rounded-full shadow-sm border border-gray-200">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                
+                                {/* BUSCA RÁPIDA DE PRODUTOS */}
+                                <div className="p-3 border-b border-slate-100 bg-white shrink-0">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input 
+                                            type="text" 
+                                            value={miniPdvSearch}
+                                            onChange={(e) => setMiniPdvSearch(e.target.value)}
+                                            placeholder="Buscar produto por nome..." 
+                                            className="w-full pl-9 pr-4 py-2 bg-[#f0f2f5] border-none rounded-xl text-sm font-bold outline-none focus:ring-2 ring-[#008069] transition-all text-slate-700"
+                                        />
+                                        {miniPdvSearch && (
+                                            <button onClick={() => setMiniPdvSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"><X size={16}/></button>
+                                        )}
+                                    </div>
+                                    
+                                    {/* RESULTADO DA BUSCA (Aparece ao digitar) */}
+                                    {miniPdvSearch && (
+                                        <div className="mt-2 max-h-48 overflow-y-auto custom-scrollbar border border-slate-200 rounded-xl bg-slate-50 shadow-inner flex flex-col gap-1 p-1">
+                                            {products.filter(p => p.isActive !== false && p.name.toLowerCase().includes(miniPdvSearch.toLowerCase())).map(p => {
+                                                const price = p.promotionalPrice > 0 ? p.promotionalPrice : p.price;
+                                                const isOutOfStock = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
+                                                return (
+                                                    <div 
+                                                        key={p.id}
+                                                        onClick={() => {
+                                                            if (isOutOfStock) return;
+                                                            const ex = miniPdvCart.find(it => it.id === p.id);
+                                                            if (ex) {
+                                                                setMiniPdvCart(miniPdvCart.map(it => it.id === p.id ? { ...it, quantity: it.quantity + 1 } : it));
+                                                            } else {
+                                                                setMiniPdvCart([...miniPdvCart, { ...p, quantity: 1, price: price }]);
+                                                            }
+                                                            setMiniPdvSearch(''); // Limpa busca após adicionar
+                                                        }}
+                                                        className={`flex justify-between items-center p-2 rounded-lg transition-all ${isOutOfStock ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'cursor-pointer bg-white hover:bg-blue-50 border border-transparent hover:border-blue-200'}`}
+                                                    >
+                                                        <div className="flex flex-col truncate pr-2">
+                                                            <span className="font-bold text-xs text-slate-700 truncate">{p.name}</span>
+                                                            <span className="text-[10px] text-slate-400 font-bold">{isOutOfStock ? 'Esgotado' : `Estoque: ${p.stock || '∞'}`}</span>
+                                                        </div>
+                                                        <span className="font-black text-blue-600 text-sm whitespace-nowrap">R$ {Number(price).toFixed(2)}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {products.filter(p => p.name.toLowerCase().includes(miniPdvSearch.toLowerCase())).length === 0 && (
+                                                <p className="text-xs text-center text-slate-400 font-bold p-2">Nenhum produto encontrado.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* CARRINHO DE COMPRAS */}
+                                <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 p-3">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center justify-between">
+                                        Itens Adicionados
+                                        <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md">{miniPdvCart.reduce((a,b)=>a+b.quantity,0)}</span>
+                                    </h4>
+
+                                    {miniPdvCart.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-2 opacity-60">
+                                            <Package size={48} />
+                                            <p className="text-xs font-bold uppercase tracking-widest text-center">Carrinho Vazio<br/>Busque acima.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {miniPdvCart.map(item => (
+                                                <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className="font-bold text-slate-700 text-xs leading-tight pr-2">{item.name}</span>
+                                                        <span className="font-black text-blue-600 text-sm whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center mt-1">
+                                                        <div className="flex items-center gap-3 bg-[#f0f2f5] p-1 rounded-lg">
+                                                            <button onClick={() => {
+                                                                if (item.quantity <= 1) setMiniPdvCart(miniPdvCart.filter(i => i.id !== item.id));
+                                                                else setMiniPdvCart(miniPdvCart.map(i => i.id === item.id ? { ...i, quantity: i.quantity - 1 } : i));
+                                                            }} className="w-5 h-5 flex items-center justify-center bg-white rounded text-slate-600 hover:text-red-500 font-black text-xs shadow-sm">-</button>
+                                                            
+                                                            <span className="font-black text-slate-800 text-xs w-3 text-center">{item.quantity}</span>
+                                                            
+                                                            <button onClick={() => {
+                                                                if (item.stock && item.quantity >= Number(item.stock)) return alert('Estoque máximo!');
+                                                                setMiniPdvCart(miniPdvCart.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
+                                                            }} className="w-5 h-5 flex items-center justify-center bg-white rounded text-slate-600 hover:text-blue-600 font-black text-xs shadow-sm">+</button>
+                                                        </div>
+                                                        <button onClick={() => setMiniPdvCart(miniPdvCart.filter(i => i.id !== item.id))} className="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-md transition-colors">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ÁREA DE PAGAMENTO E CHECKOUT */}
+                                <div className="p-4 bg-white border-t border-slate-200 shrink-0 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] flex flex-col gap-3">
+                                    <div className="flex gap-2">
+                                        <select 
+                                            className="flex-1 p-3 bg-blue-50 text-blue-800 rounded-xl font-black text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-blue-100" 
+                                            value={miniPdvCustomer.payment} 
+                                            onChange={e => setMiniPdvCustomer({ ...miniPdvCustomer, payment: e.target.value, changeFor: e.target.value === 'dinheiro' ? miniPdvCustomer.changeFor : '' })}
+                                        >
+                                            <option value="pix">💠 PIX</option>
+                                            <option value="cartao">💳 Cartão</option>
+                                            <option value="dinheiro">💵 Dinheiro</option>
+                                        </select>
+
+                                        {miniPdvCustomer.payment === 'dinheiro' && (
+                                            <input 
+                                                type="number" 
+                                                placeholder="Troco para?" 
+                                                className="w-28 p-3 bg-green-50 text-green-800 rounded-xl font-black text-xs outline-none focus:ring-2 ring-green-500 text-center border border-green-100 placeholder:text-green-300" 
+                                                value={miniPdvCustomer.changeFor || ''} 
+                                                onChange={e => setMiniPdvCustomer({ ...miniPdvCustomer, changeFor: e.target.value })} 
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-between items-end border-t border-dashed border-slate-200 pt-3">
+                                        <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Total</span>
+                                        <span className="text-3xl font-black italic text-slate-900 leading-none">
+                                            R$ {miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0).toFixed(2)}
+                                        </span>
+                                    </div>
+
+                                    <button 
+                                        disabled={miniPdvCart.length === 0 || isSubmittingMiniPdv}
+                                        onClick={handleLaunchMiniPdvOrder}
+                                        className="w-full mt-2 bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-lg hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                                    >
+                                        {isSubmittingMiniPdv ? <Loader2 className="animate-spin" size={18} /> : <CheckCheck size={18} />}
+                                        {isSubmittingMiniPdv ? 'Lançando...' : 'Finalizar e Enviar'}
+                                    </button>
                                 </div>
                             </div>
                         )}
