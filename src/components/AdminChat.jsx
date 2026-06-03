@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
@@ -313,15 +313,121 @@ export default function AdminChat() {
     // --- ESTADOS E LÓGICA DO MINI PDV ---
     const [miniPdvCart, setMiniPdvCart] = useState([]);
     const [miniPdvSearch, setMiniPdvSearch] = useState('');
-    const [miniPdvCustomer, setMiniPdvCustomer] = useState({ payment: 'pix', changeFor: '' });
+    const [miniPdvCustomer, setMiniPdvCustomer] = useState({ payment: 'pix', changeFor: '', deliveryMethod: 'delivery', address: '' });
+    const [miniPdvShippingFee, setMiniPdvShippingFee] = useState(0);
     const [isSubmittingMiniPdv, setIsSubmittingMiniPdv] = useState(false);
+    const [isCalculatingFreight, setIsCalculatingFreight] = useState(false);
 
-   const handleLaunchMiniPdvOrder = async () => {
+    // Fórmula para calcular distância em linha reta caso a API de rotas falhe
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))); 
+    };
+
+    const handleMiniPdvCepSearch = async () => {
+        const addressQuery = miniPdvCustomer.address;
+        if (!addressQuery || addressQuery.length < 5) return alert("Digite um endereço válido ou CEP.");
+        
+        setIsCalculatingFreight(true);
+        try {
+            // 1. Puxa os dados atualizados da loja (Mapas e Zonas) do banco
+            const storeSnap = await getDoc(doc(db, "stores", storeId));
+            const storeData = storeSnap.exists() ? storeSnap.data() : {};
+            const zones = storeData.delivery_zones || [];
+            const storeLat = storeData.lat;
+            const storeLng = storeData.lng;
+            const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+            let logradouro = addressQuery;
+            let bairro = "";
+
+            // 2. Se for CEP (só números), busca no ViaCEP primeiro para pegar a rua
+            const cleanCep = addressQuery.replace(/\D/g, '');
+            if (cleanCep.length === 8) {
+                const viaCepRes = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+                const viaCepData = await viaCepRes.json();
+                if (!viaCepData.erro) {
+                    logradouro = `${viaCepData.logradouro}, ${viaCepData.bairro}, ${viaCepData.localidade} - ${viaCepData.uf}`;
+                    bairro = viaCepData.bairro;
+                    setMiniPdvCustomer(prev => ({ ...prev, address: logradouro }));
+                }
+            }
+
+            // 3. Tenta calcular pelo Mapa (Google Geocoding)
+            if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
+                try {
+                    const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(logradouro + ', Brasil')}&key=${GOOGLE_API_KEY}`);
+                    const geoData = await geoRes.json();
+
+                    if (geoData.status === "OK" && geoData.results[0]) {
+                        const customerLat = geoData.results[0].geometry.location.lat;
+                        const customerLng = geoData.results[0].geometry.location.lng;
+
+                        let distanceKm = null;
+                        try {
+                            if (window.google && window.google.maps) {
+                                const service = new window.google.maps.DistanceMatrixService();
+                                distanceKm = await new Promise((resolve, reject) => {
+                                    service.getDistanceMatrix({
+                                        origins: [{ lat: Number(storeLat), lng: Number(storeLng) }],
+                                        destinations: [{ lat: customerLat, lng: customerLng }],
+                                        travelMode: 'DRIVING'
+                                    }, (res, status) => {
+                                        if (status === 'OK' && res.rows[0].elements[0].status === 'OK') resolve(res.rows[0].elements[0].distance.value / 1000);
+                                        else reject('Falha Matrix');
+                                    });
+                                });
+                            } else { throw new Error("Sem SDK"); }
+                        } catch (err) {
+                            const straightLine = calculateDistance(Number(storeLat), Number(storeLng), customerLat, customerLng);
+                            if (straightLine !== null) distanceKm = straightLine * 1.3;
+                        }
+
+                        if (distanceKm !== null) {
+                            const matchedZone = [...zones].sort((a, b) => a.radius_km - b.radius_km).find(z => distanceKm <= z.radius_km);
+                            if (matchedZone) {
+                                setMiniPdvShippingFee(Number(matchedZone.fee));
+                                alert(`🗺️ Frete calculado: R$ ${Number(matchedZone.fee).toFixed(2)} (Distância: ${distanceKm.toFixed(1)}km)`);
+                                return setIsCalculatingFreight(false);
+                            } else {
+                                setMiniPdvShippingFee(0);
+                                alert(`⚠️ Cliente a ${distanceKm.toFixed(1)}km. Fora da área de entrega mapeada.`);
+                                return setIsCalculatingFreight(false);
+                            }
+                        }
+                    }
+                } catch (geoError) { console.warn("Google Maps falhou, indo para Fallback"); }
+            }
+
+            // 4. Fallback (Tabela de CEPs antiga)
+            alert("⚠️ Não foi possível calcular pelo mapa. Insira o valor do frete manualmente.");
+        } catch (error) {
+            console.error("Erro no cálculo:", error);
+            alert("Erro ao calcular frete.");
+        } finally {
+            setIsCalculatingFreight(false);
+        }
+    };
+
+    const handleLaunchMiniPdvOrder = async () => {
         if (miniPdvCart.length === 0) return alert("Adicione produtos ao carrinho!");
+        
+        // Verifica se é delivery mas o endereço está vazio
+        if (miniPdvCustomer.deliveryMethod === 'delivery' && (!miniPdvCustomer.address || miniPdvCustomer.address.length < 5)) {
+            return alert("Digite o endereço de entrega do cliente!");
+        }
+        
         setIsSubmittingMiniPdv(true);
 
         try {
-            const cartTotal = miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+            const subtotal = miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+            const frete = miniPdvCustomer.deliveryMethod === 'delivery' ? Number(miniPdvShippingFee || 0) : 0;
+            const cartTotal = subtotal + frete;
+            
             let cleanPhone = String(activeChat).replace(/\D/g, '');
             let phoneForMeta = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
             const customerName = getDisplayName(activeChat);
@@ -331,9 +437,10 @@ export default function AdminChat() {
                 storeId: storeId,
                 customerName: customerName,
                 customerPhone: cleanPhone,
+                customerAddress: miniPdvCustomer.deliveryMethod === 'delivery' ? miniPdvCustomer.address : 'Retirada no Balcão',
                 items: miniPdvCart,
-                subtotal: cartTotal,
-                shippingFee: 0,
+                subtotal: subtotal,
+                shippingFee: frete,
                 total: cartTotal,
                 paymentMethod: miniPdvCustomer.payment,
                 status: 'preparing',
@@ -357,8 +464,12 @@ export default function AdminChat() {
                     const storeSnap = await getDoc(doc(db, "stores", storeId));
                     const isVeloPay = storeSnap.exists() && storeSnap.data().velopayStatus === 'active';
 
-                    // Usa rota relativa para evitar bloqueios do Vite Proxy no Localhost
-                    const endpoint = isVeloPay ? '/api/velopay-pix' : '/api/processar-pagamento-transparente-velo';
+                    // Em ambiente local, se o Vite não estiver fazendo proxy, forçamos a porta 3000 (padrão de backends Next/Node)
+                    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                    const baseUrl = isLocal ? 'http://localhost:3000' : '';
+                    
+                    const endpoint = isVeloPay ? `${baseUrl}/api/velopay-pix` : `${baseUrl}/api/processar-pagamento-transparente-velo`;
+                    
                     const payload = isVeloPay ? {
                         storeId, orderId, totalAmount: cartTotal
                     } : {
@@ -372,20 +483,26 @@ export default function AdminChat() {
                         body: JSON.stringify(payload)
                     });
 
-                    const pixData = await pixRes.json();
+                    // 🛡️ BLINDAGEM: Verifica se a resposta não é um HTML (Erro 404) antes de tentar ler como JSON
+                    const contentType = pixRes.headers.get("content-type");
+                    if (contentType && contentType.indexOf("application/json") !== -1) {
+                        const pixData = await pixRes.json();
 
-                    if (pixRes.ok && (pixData.success || pixData.txid)) {
-                        // Polling de 3 segundos: Dá tempo para o Backend salvar o código PIX no Firestore
-                        for (let i = 0; i < 3; i++) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            const updatedOrderSnap = await getDoc(doc(db, "orders", orderId));
-                            if (updatedOrderSnap.exists() && updatedOrderSnap.data().pixCopiaECola) {
-                                pixCodeToShare = updatedOrderSnap.data().pixCopiaECola;
-                                break;
+                        if (pixRes.ok && (pixData.success || pixData.txid)) {
+                            // Polling de 3 segundos: Dá tempo para o Backend salvar o código PIX no Firestore
+                            for (let i = 0; i < 3; i++) {
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                const updatedOrderSnap = await getDoc(doc(db, "orders", orderId));
+                                if (updatedOrderSnap.exists() && updatedOrderSnap.data().pixCopiaECola) {
+                                    pixCodeToShare = updatedOrderSnap.data().pixCopiaECola;
+                                    break;
+                                }
                             }
+                        } else {
+                            console.warn(`Falha ao gerar PIX (${isVeloPay ? 'VeloPay' : 'Mercado Pago'}):`, pixData);
                         }
                     } else {
-                        console.warn(`Falha ao gerar PIX (${isVeloPay ? 'VeloPay' : 'Mercado Pago'}):`, pixData);
+                        console.error(`Erro na API: O servidor retornou ${pixRes.status} (Não é um JSON). Verifique se o backend está rodando na porta correta.`);
                     }
                 } catch (err) {
                     console.error("Erro de rede na requisição de PIX:", err);
@@ -1558,6 +1675,55 @@ export default function AdminChat() {
 
                                 {/* ÁREA DE PAGAMENTO E CHECKOUT */}
                                 <div className="p-4 bg-white border-t border-slate-200 shrink-0 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] flex flex-col gap-3">
+                                    
+                                    {/* CONTROLE DE ENTREGA / RETIRADA */}
+                                    <div className="flex bg-slate-100 rounded-xl p-1">
+                                        <button 
+                                            onClick={() => setMiniPdvCustomer({ ...miniPdvCustomer, deliveryMethod: 'delivery' })}
+                                            className={`flex-1 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${miniPdvCustomer.deliveryMethod === 'delivery' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            🛵 Delivery
+                                        </button>
+                                        <button 
+                                            onClick={() => { setMiniPdvCustomer({ ...miniPdvCustomer, deliveryMethod: 'pickup', address: '' }); setMiniPdvShippingFee(0); }}
+                                            className={`flex-1 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${miniPdvCustomer.deliveryMethod === 'pickup' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            🏪 Balcão
+                                        </button>
+                                    </div>
+
+                                    {/* ENDEREÇO E CÁLCULO DE FRETE (SÓ MOSTRA NO DELIVERY) */}
+                                    {miniPdvCustomer.deliveryMethod === 'delivery' && (
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Endereço ou CEP" 
+                                                    className="w-full p-3 pr-10 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                    value={miniPdvCustomer.address || ''} 
+                                                    onChange={e => setMiniPdvCustomer({ ...miniPdvCustomer, address: e.target.value })} 
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleMiniPdvCepSearch()}
+                                                />
+                                                <button 
+                                                    onClick={handleMiniPdvCepSearch}
+                                                    disabled={isCalculatingFreight}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+                                                    title="Calcular Distância"
+                                                >
+                                                    {isCalculatingFreight ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                                                </button>
+                                            </div>
+                                            <input 
+                                                type="number" 
+                                                placeholder="Frete R$" 
+                                                className="w-20 p-3 bg-green-50 rounded-xl font-black text-xs text-green-700 outline-none focus:ring-2 ring-green-500 text-center border border-green-100" 
+                                                value={miniPdvShippingFee || ''} 
+                                                onChange={e => setMiniPdvShippingFee(Number(e.target.value))} 
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* FORMAS DE PAGAMENTO */}
                                     <div className="flex gap-2">
                                         <select 
                                             className="flex-1 p-3 bg-blue-50 text-blue-800 rounded-xl font-black text-xs uppercase outline-none focus:ring-2 ring-blue-500 cursor-pointer border border-blue-100" 
@@ -1573,7 +1739,7 @@ export default function AdminChat() {
                                             <input 
                                                 type="number" 
                                                 placeholder="Troco para?" 
-                                                className="w-28 p-3 bg-green-50 text-green-800 rounded-xl font-black text-xs outline-none focus:ring-2 ring-green-500 text-center border border-green-100 placeholder:text-green-300" 
+                                                className="w-24 p-3 bg-green-50 text-green-800 rounded-xl font-black text-xs outline-none focus:ring-2 ring-green-500 text-center border border-green-100 placeholder:text-green-300" 
                                                 value={miniPdvCustomer.changeFor || ''} 
                                                 onChange={e => setMiniPdvCustomer({ ...miniPdvCustomer, changeFor: e.target.value })} 
                                             />
@@ -1583,7 +1749,7 @@ export default function AdminChat() {
                                     <div className="flex justify-between items-end border-t border-dashed border-slate-200 pt-3">
                                         <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Total</span>
                                         <span className="text-3xl font-black italic text-slate-900 leading-none">
-                                            R$ {miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0).toFixed(2)}
+                                            R$ {(miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0) + (miniPdvCustomer.deliveryMethod === 'delivery' ? Number(miniPdvShippingFee || 0) : 0)).toFixed(2)}
                                         </span>
                                     </div>
 
