@@ -316,7 +316,7 @@ export default function AdminChat() {
     const [miniPdvCustomer, setMiniPdvCustomer] = useState({ payment: 'pix', changeFor: '' });
     const [isSubmittingMiniPdv, setIsSubmittingMiniPdv] = useState(false);
 
-    const handleLaunchMiniPdvOrder = async () => {
+   const handleLaunchMiniPdvOrder = async () => {
         if (miniPdvCart.length === 0) return alert("Adicione produtos ao carrinho!");
         setIsSubmittingMiniPdv(true);
 
@@ -350,41 +350,45 @@ export default function AdminChat() {
 
             let pixCodeToShare = null;
 
-            // 2. SE FOR PIX: Chama o backend para gerar a cobrança no Mercado Pago
+            // 2. SE FOR PIX: Chama o backend para gerar a cobrança (VeloPay ou MP)
             if (miniPdvCustomer.payment === 'pix') {
-                const protocol = window.location.hostname.includes('localhost') ? 'http' : 'https';
-                const apiUrl = `${protocol}://${window.location.host}/api/processar-pagamento-transparente-velo`;
-                
                 try {
-                    const pixRes = await fetch(apiUrl, {
+                    // Verifica rapidamente se a loja usa VeloPay ou MP para rotear certo
+                    const storeSnap = await getDoc(doc(db, "stores", storeId));
+                    const isVeloPay = storeSnap.exists() && storeSnap.data().velopayStatus === 'active';
+
+                    // Usa rota relativa para evitar bloqueios do Vite Proxy no Localhost
+                    const endpoint = isVeloPay ? '/api/velopay-pix' : '/api/processar-pagamento-transparente-velo';
+                    const payload = isVeloPay ? {
+                        storeId, orderId, totalAmount: cartTotal
+                    } : {
+                        storeId, orderId, transaction_amount: cartTotal, payment_method_id: 'pix',
+                        payer: { email: 'cliente@velodelivery.com.br', first_name: customerName.split(' ')[0] || 'Cliente' }
+                    };
+
+                    const pixRes = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            storeId: storeId,
-                            orderId: orderId,
-                            transaction_amount: cartTotal,
-                            payment_method_id: 'pix',
-                            payer: {
-                                email: 'cliente@velodelivery.com.br',
-                                first_name: customerName.split(' ')[0]
-                                // Omitimos o telefone intencionalmente para o backend NÃO disparar a msg sozinho, pois controlaremos a UI visual aqui.
-                            }
-                        })
+                        body: JSON.stringify(payload)
                     });
 
                     const pixData = await pixRes.json();
 
-                    if (pixRes.ok && pixData.success) {
-                        // Busca o pedido atualizado do Firebase para pegar o código Copia e Cola gerado
-                        const updatedOrderSnap = await getDoc(doc(db, "orders", orderId));
-                        if (updatedOrderSnap.exists()) {
-                            pixCodeToShare = updatedOrderSnap.data().pixCopiaECola;
+                    if (pixRes.ok && (pixData.success || pixData.txid)) {
+                        // Polling de 3 segundos: Dá tempo para o Backend salvar o código PIX no Firestore
+                        for (let i = 0; i < 3; i++) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            const updatedOrderSnap = await getDoc(doc(db, "orders", orderId));
+                            if (updatedOrderSnap.exists() && updatedOrderSnap.data().pixCopiaECola) {
+                                pixCodeToShare = updatedOrderSnap.data().pixCopiaECola;
+                                break;
+                            }
                         }
                     } else {
-                        console.warn("Falha ao gerar PIX MP:", pixData);
+                        console.warn(`Falha ao gerar PIX (${isVeloPay ? 'VeloPay' : 'Mercado Pago'}):`, pixData);
                     }
                 } catch (err) {
-                    console.error("Erro na requisição de PIX:", err);
+                    console.error("Erro de rede na requisição de PIX:", err);
                 }
             }
 
@@ -408,7 +412,7 @@ export default function AdminChat() {
                     await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: pixCodeToShare, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
 
                 } else {
-                    // Fallback de segurança caso a API do Mercado Pago esteja instável
+                    // Fallback de segurança caso a API do Banco/Mercado Pago esteja instável
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\n_Ocorreu uma falha ao gerar o código automático. O atendente enviará a Chave PIX da loja em instantes._`;
                     await fetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
