@@ -110,7 +110,7 @@ const AVAILABLE_ICONS = [
   { id: 'Cupcake', label: 'Doces / Sobremesas', component: <GiCupcake size={24} /> },
   { id: 'Chocolate', label: 'Chocolates', component: <GiChocolateBar size={24} /> },
   { id: 'Cake', label: 'Bolos / Tortas', component: <FaCakeCandles size={24} /> },
-  { id: 'Bread', label: 'Padaria', component: <FaBreadSlice size={24} /> },
+  { id: 'Bread', label: 'Padaria / Artesanal', component: <FaBreadSlice size={24} /> },
   { id: 'Croissant', label: 'Café da Manhã', component: <GiCroissant size={24} /> },
   
   // Saudável, Vegano e Mercado
@@ -9514,6 +9514,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 onChange={(e) => updateDoc(doc(db, "stores", storeId), { seoCategory: e.target.value }, { merge: true })}
                                                 className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
                                             >
+                                                <option value="bakery">Padaria / Artesanal</option>
                                                 <option value="florist">Floricultura / Presentes</option>
                                                 <option value="burger">Hamburgueria / Fast Food</option>
                                                 <option value="pizza">Pizzaria / Massas</option>
