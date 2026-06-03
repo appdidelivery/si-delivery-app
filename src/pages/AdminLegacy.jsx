@@ -9057,7 +9057,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     { id: 'sweet', label: 'Doceria/Açaí', icon: '🍦', color: '#9333ea' },
                                     { id: 'burger', label: 'Hamburgueria', icon: '🍔', color: '#ea580c' },
                                     { id: 'drinks', label: 'Adega', icon: '🍷', color: '#f59e0b' },
-                                    { id: 'floricultura', label: 'Floricultura', icon: '🌸', color: '#db2777' }
+                                    { id: 'floricultura', label: 'Floricultura', icon: '🌸', color: '#db2777' },
+                                    { id: 'bakery', label: 'Padaria', icon: '🥖', color: '#d97706' }
                                 ].map(nicho => (
                                     <button
                                         key={nicho.id}
@@ -10885,7 +10886,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 mt-2 ml-4 font-bold">Opcional. Se preenchido, o cliente será obrigado a escolher uma opção.</p>
                                 </div>
 
-                               {(!storeStatus?.storeNiche || ['burger', 'pizza', 'oriental', 'restaurant', 'sweet'].includes(storeStatus?.storeNiche)) && storeStatus?.storeNiche !== 'floricultura' && (
+                               {(!storeStatus?.storeNiche || ['burger', 'pizza', 'oriental', 'restaurant', 'sweet', 'bakery'].includes(storeStatus?.storeNiche)) && storeStatus?.storeNiche !== 'floricultura' && (
                                     <div className="pt-4 border-t border-slate-100 mt-4">
                                         <label className="text-xs font-black text-red-500 uppercase tracking-widest flex items-center gap-2 mb-1 ml-2">
                                             <MinusSquare size={14}/> O que pode ser removido? (Separado por vírgula)
