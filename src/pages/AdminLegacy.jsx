@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -185,11 +185,38 @@ const STRIPE_ENABLED = false;
 
 export default function Admin() {
     // --- ESTADOS DO GA4 (VELO DATA FUEL) ---
+
     const [ga4Metrics, setGa4Metrics] = useState(null);
     const [isLoadingGa4, setIsLoadingGa4] = useState(false);
 
     const navigate = useNavigate();
-    
+    // =========================================================================
+    // 🧠 MOTOR DE PLANOS E FEATURE TOGGLING (SAAS)
+    // =========================================================================
+    // Defina aqui qual e-mail tem poder de "Deus" no sistema para ver a aba secreta
+    const adminEmails = ['appdedelivery@gmail.com', 'appdidelivery@gmail.com', 'projetosdiego.l@gmail.com', 'cowburguer@velo.com.br'];
+    const isSuperAdmin = adminEmails.includes(auth.currentUser?.email?.toLowerCase());
+
+    // Matriz de Recursos: O que cada plano tem direito de acessar
+    const PLAN_FEATURES = {
+        start: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance'],
+        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings'],
+        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners']
+    };
+
+    const [upgradeModalFeature, setUpgradeModalFeature] = useState(null);
+
+    // Função que verifica se a loja logada tem acesso a uma aba/funcionalidade
+    const hasFeatureAccess = (featureKey) => {
+        // Se a loja não tem plano definido no banco, assume o Start (Mais básico)
+        const currentPlan = storeStatus?.plan || 'start';
+        // Overrides Manuais: Se o SuperAdmin ligou/desligou algo específico para esta loja na mão
+        const customOverrides = storeStatus?.customFeatures || {};
+
+        if (customOverrides[featureKey] !== undefined) return customOverrides[featureKey];
+        return PLAN_FEATURES[currentPlan]?.includes(featureKey);
+    };
+    // =========================================================================
     // Estados do VeloPay
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
     const [withdrawPlan, setWithdrawPlan] = useState('d0');
@@ -237,32 +264,41 @@ export default function Admin() {
         return () => unsubscribeAuth();
     }, [navigate]);
 
-    const handleAssinarPro = async () => {
+    // --- NOVO: FUNÇÃO DE UPGRADE DE PLANO (COMPRA AUTOMÁTICA) ---
+    const handleUpgradePlanCheckout = async (newPlanId, planPrice) => {
+        if (!storeId) return alert("Erro: Loja não identificada.");
+        
         try {
-            if (!storeId) return alert("Erro: Loja não identificada.");
-
-            // Em localhost (desenvolvimento) bate relativo. Em produção, força o domínio principal para evitar erros de subdomínio.
+            // 1. Atualiza o plano no banco ANTES de pagar, para que as funções se liberem na hora. 
+            // O sistema automaticamente criará uma fatura pendente obrigando-o a pagar o Mercado Pago.
+            await updateDoc(doc(db, "stores", storeId), { 
+                plan: newPlanId,
+                billingBasePrice: planPrice,
+                billingStatus: 'pendente' // Marca como pendente para forçar o pagamento
+            });
+            
+            setStoreStatus(prev => ({...prev, plan: newPlanId, billingBasePrice: planPrice}));
+            
+            // 2. Chama a API do Mercado Pago para gerar a tela de pagamento
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const apiUrl = isLocal 
-                ? '/api/pay-subscription-mp' 
-                : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
+            const apiUrl = isLocal ? '/api/pay-subscription-mp' : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: storeId, amount: invoiceData.total })
+                body: JSON.stringify({ storeId: storeId, amount: planPrice })
             });
             
             const data = await response.json();
             
             if (data.url) {
-                window.location.href = data.url;
+                window.location.href = data.url; // Redireciona pro Checkout do MP na hora!
             } else {
                 alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
             }
         } catch (error) {
-            console.error("Erro na cobrança SaaS:", error);
-            alert("Erro de conexão ao tentar gerar a fatura. Tente novamente em instantes.");
+            console.error("Erro no upgrade:", error);
+            alert("Erro de conexão ao tentar gerar o pagamento do novo plano.");
         }
     };
 
@@ -902,9 +938,6 @@ const educationalBanners = [
     // --- ESTADOS FINANCEIROS (NOVO) ---
     const [invoiceData, setInvoiceData] = useState({
         basePlan: 49.90,
-        extraOrdersCost: 0,
-        storageUsage: 0,
-        dbUsage: 0,
         total: 49.90,
         status: 'open'
     });
@@ -1033,28 +1066,7 @@ const educationalBanners = [
                 endOfCycle = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento, 23, 59, 59);
             }
 
-            const franchiseLimit = 100;
-            
-            // BLINDAGEM DE DATAS: Garante que só pedidos deste ciclo exato sejam somados
-            const currentMonthOrders = orders.filter(o => {
-                if (o.status === 'canceled' || o.status === 'cancelado') return false;
-                if (!o.createdAt) return false;
-
-                let d;
-                if (typeof o.createdAt.toDate === 'function') d = o.createdAt.toDate();
-                else if (o.createdAt.seconds) d = new Date(o.createdAt.seconds * 1000);
-                else if (o.createdAt._seconds) d = new Date(o.createdAt._seconds * 1000);
-                else d = new Date(o.createdAt);
-                
-                if (isNaN(d)) return false;
-
-                return d >= startOfCycle && d <= endOfCycle;
-            }).length;
-
-           const extraOrders = Math.max(0, currentMonthOrders - franchiseLimit);
-            const extraCost = extraOrders * 0.25;
-            
-            // --- CÁLCULO DE DIAS PARA O VENCIMENTO (BASEADO NA FATURA PENDENTE OU NO CICLO) ---
+            // --- CÁLCULO DE DIAS PARA O VENCIMENTO (BASEADO NA FATURA PENDENTE OU NO CICLO) ---
             let daysUntilDue = 999;
             const faturasPendentes = (storeStatus?.faturasHistorico || []).filter(f => f.status === 'PENDENTE');
             
@@ -1093,10 +1105,16 @@ const educationalBanners = [
             // Verifica se a loja ainda possui o status de cortesia ativo NESTE EXATO MOMENTO
             const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
-            // 🚨 CORREÇÃO: Se existe fatura fechada pendente, ela DITA o valor a pagar (Puxa o excedente real salvo no banco)
-            let finalTotal = (isCortesiaAtual ? 0 : 49.90) + extraCost;
-            let finalBasePlan = isCortesiaAtual ? 0 : 49.90;
-            let finalExtraCost = extraCost;
+            const getPlanPrice = (p) => {
+                if (p === 'infinity') return 249.90;
+                if (p === 'pro') return 149.90;
+                return 49.90;
+            };
+            const currentPlanPrice = getPlanPrice(storeStatus?.plan);
+
+            // 🚨 NOVO MODELO SAAS: Valor fixo baseado no plano assinado
+            let finalTotal = isCortesiaAtual ? 0 : currentPlanPrice;
+            let finalBasePlan = isCortesiaAtual ? 0 : currentPlanPrice;
 
             if (faturasPendentes.length > 0) {
                 // Pega a fatura mais urgente
@@ -1118,18 +1136,13 @@ const educationalBanners = [
                     }
                 }
                 if (faturaAtual.breakdown) {
-                    finalBasePlan = faturaAtual.breakdown.basePlan || 49.90;
-                    finalExtraCost = faturaAtual.breakdown.extraOrdersCost || 0;
+                    finalBasePlan = faturaAtual.breakdown.basePlan || currentPlanPrice;
                 }
             }
 
             setInvoiceData({
                 basePlan: finalBasePlan, 
-                extraOrdersCost: finalExtraCost, 
-                cycleOrdersCount: currentMonthOrders, 
-                storageUsage: (products.length * 0.5) + (generalBanners.length * 2),
-                dbUsage: products.length + orders.length + 50,
-                total: finalTotal, 
+                total: finalTotal,
                 status: faturasPendentes.length > 0 ? 'overdue' : 'open',
                 cycleStartStr: startOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
                 cycleEndStr: endOfCycle.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}),
@@ -1184,25 +1197,15 @@ const educationalBanners = [
         const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
         const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
 
-        // 2. Conta rigorosamente os pedidos do ciclo (30/03 a 30/04)
-        const pastOrdersCount = orders.filter(o => {
-            if (o.status === 'canceled' || o.status === 'cancelado') return false;
-            if (!o.createdAt) return false;
-            let d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt?.seconds * 1000 || o.createdAt);
-            if (isNaN(d)) return false;
-            return d >= pastCycleStart && d <= pastCycleEnd;
-        }).length;
-
-        const franchiseLimit = 100;
-        const extraOrders = Math.max(0, pastOrdersCount - franchiseLimit);
-        const extraCost = extraOrders * 0.25;
-        const totalAmount = 49.90 + extraCost;
+        // 2. Lê o plano atual para gerar a fatura fixa
+        const getPlanPrice = (p) => { if(p === 'infinity') return 249.90; if(p === 'pro') return 149.90; return 49.90; };
+        const totalAmount = getPlanPrice(storeStatus.plan);
 
         const history = [...(storeStatus.faturasHistorico || [])];
         const faturaIndex = history.findIndex(f => f.month.toUpperCase() === pastMonthName);
         let needsUpdate = false;
 
-        // Se não achar fatura, CRIA com o valor bruto real
+        // Se não achar fatura, CRIA com o valor bruto real do plano
         if (faturaIndex === -1 && pastDueDate < now) {
             history.push({
                 id: `auto_${pastDueDate.getTime()}`,
@@ -1211,19 +1214,19 @@ const educationalBanners = [
                 status: 'PENDENTE',
                 dueDate: pastDueDate.toISOString(),
                 isAuto: true,
-                breakdown: { basePlan: 49.90, extraOrdersCost: extraCost, discount: 0 }
+                breakdown: { basePlan: totalAmount, discount: 0 }
             });
             needsUpdate = true;
         } else if (faturaIndex !== -1) {
-            // A MARRETA: Se a fatura pendente estiver com o valor travado em R$ 49.90, nós FORÇAMOS a correção no Firebase.
+            // A MARRETA: Garante que a fatura pendente reflita o plano atual caso o lojista tenha feito upgrade/downgrade
             const fatura = history[faturaIndex];
-            const isValorIncorreto = Number(fatura.amount) === 49.9 || fatura.amount === "R$ 49,90";
+            const isValorIncorreto = Number(fatura.amount) !== totalAmount;
 
-            if (fatura.status === 'PENDENTE' && isValorIncorreto && totalAmount > 50) {
+            if (fatura.status === 'PENDENTE' && isValorIncorreto) {
                 history[faturaIndex] = {
                     ...fatura,
                     amount: totalAmount,
-                    breakdown: { basePlan: 49.90, extraOrdersCost: extraCost, discount: 0 }
+                    breakdown: { basePlan: totalAmount, discount: 0 }
                 };
                 needsUpdate = true;
             }
@@ -3457,31 +3460,46 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
     {allNavItems
         .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
-        .filter(item => hasPermission(item.id)) // <--- FILTRO DE PERMISSÃO APLICADO AQUI
+        .filter(item => hasPermission(item.id)) // Filtro de permissão do funcionário
         .map(item => {
         const badgeCount = getBadgeCount(item.id);
         const isManual = item.id === 'manual';
+        const isLockedByPlan = !hasFeatureAccess(item.id); // 🔒 NOVO: Checa o Plano do SaaS
+
         return (
             <button 
                 key={item.id} 
-                onClick={() => setActiveTab(item.id)} 
+                onClick={() => {
+                    if (isLockedByPlan) {
+                        setUpgradeModalFeature(item.name); // Abre modal de Upgrade
+                    } else {
+                        setActiveTab(item.id);
+                    }
+                }} 
                 className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all relative ${
-                    isManual 
+                    isManual && !isLockedByPlan
                     ? 'bg-blue-600 text-white shadow-xl hover:bg-blue-700 hover:-translate-y-1 my-3' 
                     : activeTab === item.id 
                         ? 'bg-blue-600 text-white shadow-lg' 
-                        : 'text-slate-400 hover:bg-slate-50'
+                        : isLockedByPlan
+                            ? 'text-slate-400 bg-slate-100/50 hover:bg-slate-200 cursor-not-allowed opacity-80' // Estilo Bloqueado
+                            : 'text-slate-500 hover:bg-slate-50'
                 }`}
             >
                 <div className="flex items-center gap-3 text-left overflow-hidden w-full">
                     <div className="flex-shrink-0">{item.icon}</div>
                     <span className="truncate whitespace-nowrap">{item.name}</span>
                 </div>
-                {badgeCount > 0 && (
+                
+                {isLockedByPlan ? (
+                    <div className="bg-slate-200 text-slate-500 p-1.5 rounded-lg flex-shrink-0">
+                        <Lock size={14} />
+                    </div>
+                ) : badgeCount > 0 ? (
                     <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md flex-shrink-0">
                         {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
-                )}
+                ) : null}
             </button>
         );
     })}
@@ -8117,19 +8135,62 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Financeiro & <br/>Infraestrutura</h1>
                                 <p className="text-slate-400 font-bold mt-2">Monitore o consumo de recursos da sua loja.</p>
                             </div>
-                            <div className="text-right">
-                                <p className="text-[10px] font-black uppercase text-slate-400">Status do Plano</p>
-                                {(() => {
-                                    const status = storeStatus?.billingStatus || 'pendente';
-                                    if (status === 'pago') return <span className="bg-green-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-green-200">✅ PAGO / PRO</span>;
-                                    if (status === 'gratis_vitalicio') return <span className="bg-purple-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-purple-200">🎁 CORTESIA VIP</span>;
-                                    if (status === 'teste') return <span className="bg-blue-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-blue-200">🧪 EM TESTE</span>;
-                                    if (status === 'bloqueado') return <span className="bg-red-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-red-200 animate-pulse">🚫 BLOQUEADO</span>;
-                                    return <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">⚠️ FATURA PENDENTE</span>;
-                                })()}
-                            </div>
+                           <div className="text-right">
+                                <p className="text-[10px] font-black uppercase text-slate-400">Status do Plano</p>
+                                {(() => {
+                                    const status = storeStatus?.billingStatus || 'pendente';
+                                    const planMap = { start: 'ESSENCIAL', pro: 'CRESCIMENTO', infinity: 'LÍDER PRO' };
+                                    const currentPlanName = planMap[storeStatus?.plan] || 'ESSENCIAL';
+
+                                    if (status === 'pago') return <span className="bg-green-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-green-200">✅ PAGO / PLANO {currentPlanName}</span>;
+                                    if (status === 'gratis_vitalicio') return <span className="bg-purple-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-purple-200">🎁 CORTESIA VIP / PLANO {currentPlanName}</span>;
+                                    if (status === 'teste') return <span className="bg-blue-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-blue-200">🧪 EM TESTE / PLANO {currentPlanName}</span>;
+                                    if (status === 'bloqueado') return <span className="bg-red-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-red-200 animate-pulse">🚫 BLOQUEADO</span>;
+                                    return <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">⚠️ FATURA PENDENTE / PLANO {currentPlanName}</span>;
+                                })()}
+                            </div>
                         </div>
-{/* --- DESTAQUE: VELOPAY NATIVO --- */}
+
+                        {/* 🧠 ÁREA SECRETA DO SUPER ADMIN (Apenas donos da Velo veem isso) */}
+                        {isSuperAdmin && (
+                            <div className="bg-slate-900 border-4 border-fuchsia-500/50 p-6 rounded-[2rem] shadow-2xl relative overflow-hidden animate-in zoom-in">
+                                <div className="absolute top-0 right-0 p-4 opacity-20 pointer-events-none"><Crown size={120} className="text-fuchsia-500"/></div>
+                                <h3 className="text-2xl font-black uppercase italic text-white flex items-center gap-2 mb-2 relative z-10">
+                                    <Sparkles className="text-fuchsia-400"/> Velo Master Control
+                                </h3>
+                                <p className="text-slate-400 text-xs font-bold mb-6 relative z-10">Apenas você (Admin Velo) pode ver esta caixa. Use-a para forçar planos e liberar acessos para este cliente ({storeId}).</p>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                                    <button onClick={async () => {
+                                        await updateDoc(doc(db, "stores", storeId), { plan: 'start', customFeatures: {} });
+                                        alert("Loja rebaixada para o Plano START (Básico).");
+                                    }} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest border border-slate-700 transition-all">
+                                        Forçar Plano START
+                                    </button>
+                                    
+                                    <button onClick={async () => {
+                                        await updateDoc(doc(db, "stores", storeId), { plan: 'pro', customFeatures: {} });
+                                        alert("Loja atualizada para o Plano PRO (Intermediário).");
+                                    }} className="bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg transition-all">
+                                        Forçar Plano PRO
+                                    </button>
+
+                                    <button onClick={async () => {
+                                        await updateDoc(doc(db, "stores", storeId), { 
+                                            plan: 'infinity', 
+                                            billingStatus: 'gratis_vitalicio', // Dá a cortesia junto
+                                            customFeatures: {} 
+                                        });
+                                        alert("MÁGICA FEITA! 🪄 Loja atualizada para o Plano INFINITY (Completo) com Cortesia Vitalícia. Tudo liberado!");
+                                    }} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-fuchsia-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <Crown size={16}/> Mágica: Ativar Tudo
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {/* FIM DA ÁREA SECRETA */}
+
+                        {/* --- DESTAQUE: VELOPAY NATIVO --- */}
                         <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
                             <div className="absolute -top-24 -right-24 bg-blue-500 w-64 h-64 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
                             
@@ -8699,10 +8760,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="max-w-md mx-auto mb-8">
                             {/* Card da Fatura */}
-                            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
-                                <div className="absolute top-0 right-0 p-12 opacity-10"><Wallet size={200}/></div>
+                            <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-center text-center">
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none"><Wallet size={300}/></div>
                                 
                                 <div className="relative z-10">
                                     {(() => {
@@ -8711,111 +8772,135 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
                                             if (!isNaN(dataCriacao)) diaVencimento = dataCriacao.getDate();
                                         }
-                                        return <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">Fatura Atual (Venc. dia {diaVencimento})</p>;
+                                        return <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2">Fatura Atual (Venc. dia {diaVencimento})</p>;
                                     })()}
                                     
-                                    <h2 className="text-6xl font-black italic tracking-tighter">
+                                    <h2 className="text-6xl md:text-7xl font-black italic tracking-tighter mb-4 text-white">
                                         {storeStatus?.billingStatus === 'gratis_vitalicio' ? 'R$ 0,00' : `R$ ${invoiceData.total.toFixed(2)}`}
                                     </h2>
-                                    
-                                    <div className="mt-8 space-y-3">
-                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                            <span className="text-slate-400">Manutenção Base (SaaS)</span>
-                                            <span className="font-bold">{storeStatus?.billingStatus === 'gratis_vitalicio' ? <span className="text-purple-400">Cortesia VIP</span> : `R$ ${invoiceData.basePlan.toFixed(2)}`}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                            <span className="text-slate-400">Excedente de Processamento</span>
-                                            <span className="font-bold text-orange-400">+ R$ {invoiceData.extraOrdersCost.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm pb-2">
-                                            <span className="text-slate-400">Storage & Database</span>
-                                            <span className="font-bold text-green-400">Incluso</span>
-                                        </div>
-                                    </div>
+                                    
+                                    <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-2xl mb-8 mx-auto w-max">
+                                        <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Seu Plano</p>
+                                        <p className="text-sm font-bold text-white uppercase">
+                                            {(() => {
+                                                const planNames = { start: 'Essencial', pro: 'Crescimento', infinity: 'Líder Pro' };
+                                                return `Velo ${planNames[storeStatus?.plan] || 'Essencial'}`;
+                                            })()}
+                                        </p>
+                                    </div>
                                 </div>
 
-                                {storeStatus?.billingStatus === 'gratis_vitalicio' ? (
-                                    <div className="w-full bg-purple-600/20 text-purple-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-purple-500/30">
-                                        🎁 Plano Cortesia Ativo
-                                    </div>
-                                ) : storeStatus?.billingStatus === 'pago' ? (
-                                    <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
-                                        ✅ Fatura Paga
-                                    </div>
-                                ) : (
-                                    <button onClick={() => setShowPixModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                        <QrCode size={20}/> Pagar Fatura via PIX
-                                    </button>
-                                )}
+                                <div className="relative z-10 w-full">
+                                    {storeStatus?.billingStatus === 'gratis_vitalicio' ? (
+                                        <div className="w-full bg-purple-600/20 text-purple-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-purple-500/30">
+                                            🎁 Plano Cortesia Ativo
+                                        </div>
+                                    ) : storeStatus?.billingStatus === 'pago' ? (
+                                        <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
+                                            ✅ Fatura Paga
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => setShowPixModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                            <QrCode size={20}/> Pagar Fatura via PIX
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-
-                            {/* Monitor de Infraestrutura */}
-                            <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between">
-                                <div className="flex items-center gap-2 mb-6">
-                                    <Server size={24} className="text-slate-300"/>
-                                    <h3 className="text-2xl font-black uppercase text-slate-800 italic">Velo Data Fuel <span className="text-xs not-italic font-medium text-slate-400 normal-case ml-2">(Consumo de Recursos)</span></h3>
+                        </div>
+{/* --- SEÇÃO DE PLANOS (UPSELL INTERNO DO LOJISTA) --- */}
+                        <div id="planos-saas-section" className="pt-8 mt-8 border-t border-slate-100 mb-8">
+                            <h2 className="text-3xl font-black italic tracking-tighter uppercase text-slate-900 mb-2 flex items-center gap-2">
+                                <Crown size={28} className="text-blue-600"/> Evolua seu Delivery
+                            </h2>
+                            <p className="text-slate-500 font-bold mb-8">Escolha o plano ideal e desbloqueie novas funcionalidades na hora.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* PLANO START */}
+                                <div className={`bg-white rounded-[2.5rem] border-4 p-8 flex flex-col justify-between transition-all ${storeStatus?.plan === 'start' || !storeStatus?.plan ? 'border-slate-800 shadow-xl scale-105 z-10' : 'border-slate-100 hover:border-slate-300'}`}>
+                                    <div>
+                                        <h3 className="text-2xl font-black italic uppercase text-slate-800">Essencial</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-6">Para o primeiro cardápio</p>
+                                        <div className="mb-6 border-b border-slate-100 pb-6">
+                                            <span className="text-4xl font-black italic text-slate-900">R$ 49,90</span><span className="text-slate-500 font-bold text-sm">/mês</span>
+                                        </div>
+                                        <ul className="space-y-2.5 text-xs font-bold text-slate-600 mb-8">
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> 0% de Comissão nas Vendas</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Cardápio Digital Responsivo</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Pagamentos Online (Pix/Cartão/MP)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Frente de Caixa (PDV Balcão)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Gestão de Estoque e Categorias</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Gestão de Equipe e Permissões</li>
+                                        </ul>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleUpgradePlanCheckout('start', 49.90)}
+                                        disabled={storeStatus?.plan === 'start' || !storeStatus?.plan}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'start' || !storeStatus?.plan ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700 shadow-lg active:scale-95'}`}
+                                    >
+                                        {storeStatus?.plan === 'start' || !storeStatus?.plan ? 'Plano Atual' : 'Assinar Essencial'}
+                                    </button>
                                 </div>
 
-                                <div className="space-y-8">
-                                    {/* 1. Processamento (Pedidos) */}
+                                {/* PLANO PRO */}
+                                <div className={`bg-white rounded-[2.5rem] border-4 p-8 flex flex-col justify-between transition-all relative ${storeStatus?.plan === 'pro' ? 'border-orange-500 shadow-xl scale-105 z-20' : 'border-orange-200 hover:border-orange-400'}`}>
+                                    {storeStatus?.plan !== 'pro' && (
+                                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-orange-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md whitespace-nowrap">
+                                            Mais Escolhido
+                                        </div>
+                                    )}
                                     <div>
-                                        <div className="flex justify-between items-end mb-2">
-                                            <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><Trophy size={14}/> Franquia de Processamento</label>
-                                            <span className="text-xs font-bold text-blue-600">
-                                                {invoiceData.cycleOrdersCount || 0} / 100 Req.
-                                            </span>
+                                        <h3 className="text-2xl font-black italic uppercase text-orange-600">Crescimento</h3>
+                                        <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mt-1 mb-6">Para operações sólidas</p>
+                                        <div className="mb-6 border-b border-orange-100 pb-6">
+                                            <span className="text-4xl font-black italic text-slate-900">R$ 149,90</span><span className="text-slate-500 font-bold text-sm">/mês</span>
                                         </div>
-                                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-1000"
-                                                style={{ width: `${Math.min(100, ((invoiceData.cycleOrdersCount || 0) / 100) * 100)}%` }}
-                                            ></div>
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 mt-1">Ciclo atual ({invoiceData.cycleStartStr} a {invoiceData.cycleEndStr}). Acima de 100, custo de R$ 0,25/req.</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Tudo do Essencial, mais:</p>
+                                        <ul className="space-y-2.5 text-xs font-bold text-slate-600 mb-8">
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Sincronização Google Meu Negócio</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Domínio Próprio (Site Personalizado)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Painel Kanban, Chat e Modo Garçom</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Integrações (Meta Pixel, GA4, GTM)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Automação de WhatsApp e Carrinhos</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Banners Dinâmicos e Zonas de Frete</li>
+                                        </ul>
                                     </div>
-
-                                    {/* 2. Storage (Imagens) */}
-                                    <div>
-                                        <div className="flex justify-between items-end mb-2">
-                                            <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><HardDrive size={14}/> Storage (Imagens/Mídia)</label>
-                                            <span className="text-xs font-bold text-purple-600">{invoiceData.storageUsage.toFixed(1)} MB / 5 GB</span>
-                                        </div>
-                                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full transition-all duration-1000"
-                                                style={{ width: `${(invoiceData.storageUsage / 5000) * 100}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-
-                                    {/* 3. Database (Clientes/Produtos) */}
-                                    <div>
-                                        <div className="flex justify-between items-end mb-2">
-                                            <label className="text-xs font-black uppercase text-slate-500 flex items-center gap-2"><Database size={14}/> Banco de Dados (Registros)</label>
-                                            <span className="text-xs font-bold text-green-600">{invoiceData.dbUsage} / Ilimitado</span>
-                                        </div>
-                                        <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full w-full opacity-20"></div> {/* Ilimitado visualmente preenchido suave */}
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 mt-1">Clientes e Produtos ilimitados no plano Infinity.</p>
-                                    </div>
+                                    <button 
+                                        onClick={() => handleUpgradePlanCheckout('pro', 149.90)}
+                                        disabled={storeStatus?.plan === 'pro'}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'pro' ? 'bg-orange-100 text-orange-400 cursor-not-allowed' : 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-500/30 active:scale-95'}`}
+                                    >
+                                        {storeStatus?.plan === 'pro' ? 'Plano Atual' : 'Assinar Crescimento'}
+                                    </button>
                                 </div>
 
-                                <div className="mt-8 pt-6 border-t border-slate-100 flex gap-4">
-                                    <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Economia Gerada</p>
-                                        <p className="text-xl font-black text-slate-800">R$ 0,00 <span className="text-[10px] font-normal text-slate-400">(Zero % Comissão)</span></p>
+                                {/* PLANO INFINITY */}
+                                <div className={`bg-slate-900 rounded-[2.5rem] border-4 p-8 flex flex-col justify-between transition-all ${storeStatus?.plan === 'infinity' ? 'border-blue-500 shadow-2xl scale-105 z-10' : 'border-slate-800 hover:border-slate-600'}`}>
+                                    <div>
+                                        <h3 className="text-2xl font-black italic uppercase text-blue-400">Líder Pro</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-6">Escala e retenção total</p>
+                                        <div className="mb-6 border-b border-slate-700 pb-6">
+                                            <span className="text-4xl font-black italic text-white">R$ 249,90</span><span className="text-slate-400 font-bold text-sm">/mês</span>
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Tudo do Crescimento, mais:</p>
+                                        <ul className="space-y-2.5 text-xs font-bold text-slate-300 mb-8">
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Gamificação Total (Roleta e Cashback)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Insights (Consultoria IA)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Ficha Técnica e Controle de Insumos</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Hub Parceiros (Afiliados/Influencers)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Monitor de Frota ao Vivo (Radar GPS)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Predict (Previsão de Compras IA)</li>
+                                        </ul>
                                     </div>
-                                    <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Ciclo Atual</p>
-                                        <p className="text-lg font-black text-slate-800">
-                                            {invoiceData.cycleStartStr || '--/--'} a {invoiceData.cycleEndStr || '--/--'}
-                                        </p>
-                                    </div>
+                                    <button 
+                                        onClick={() => handleUpgradePlanCheckout('infinity', 249.90)}
+                                        disabled={storeStatus?.plan === 'infinity'}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'infinity' ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/50 active:scale-95'}`}
+                                    >
+                                        {storeStatus?.plan === 'infinity' ? 'Plano Atual' : 'Assinar Líder Pro'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
                         {/* Histórico de Faturas (Gerado Dinamicamente) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
                             <h3 className="text-xl font-black uppercase text-slate-800 mb-6 flex items-center gap-2"><FileText size={20}/> Histórico de Faturas</h3>
@@ -12942,16 +13027,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             <div className="space-y-4 mb-8">
                                 <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500 font-bold">Plano Base (SaaS)</span>
-                                    <span className="font-black text-slate-800">R$ {selectedInvoice.breakdown?.basePlan?.toFixed(2) || '49.90'}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500 font-bold">Excedente de Pedidos</span>
-                                    <span className="font-black text-slate-800">R$ {selectedInvoice.breakdown?.extraOrdersCost?.toFixed(2) || '0.00'}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500 font-bold">Armazenamento (Mídia)</span>
-                                    <span className="font-black text-green-500">Incluso</span>
+                                    <span className="text-slate-500 font-bold">Plano {storeStatus?.plan ? storeStatus.plan.toUpperCase() : 'ESSENCIAL'}</span>
+                                    <span className="font-black text-slate-800">R$ {selectedInvoice.breakdown?.basePlan?.toFixed(2) || selectedInvoice.amount}</span>
                                 </div>
                                 {(selectedInvoice.breakdown?.discount > 0 || selectedInvoice.status === 'ISENTO') && (
                                     <div className="flex justify-between items-center text-sm text-purple-600 border-t border-slate-100 pt-3">
@@ -13392,6 +13469,39 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all border border-slate-700"
                             >
                                 Já Escaneei! Fechar
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- MODAL DE UPSELL (FUNCIONALIDADE BLOQUEADA PELO PLANO) --- */}
+            <AnimatePresence>
+                {upgradeModalFeature && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative text-center border-4 border-blue-500">
+                            <button onClick={() => setUpgradeModalFeature(null)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-slate-200 text-slate-400 transition-colors z-10"><X size={20}/></button>
+                            
+                            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Lock size={48} />
+                            </div>
+
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2 leading-none">Recurso Premium</h2>
+                            <p className="text-sm font-bold text-slate-500 mb-8">
+                                A função <strong className="text-blue-600">"{upgradeModalFeature}"</strong> não está inclusa no seu plano atual. Faça o upgrade agora para desbloquear o verdadeiro poder do seu delivery!
+                            </p>
+
+                            <button onClick={() => {
+                                setUpgradeModalFeature(null);
+                                setActiveTab('finance');
+                                // Pequeno delay para dar tempo da aba renderizar e rolar até a vitrine de planos
+                                setTimeout(() => {
+                                    document.getElementById('planos-saas-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 300);
+                            }} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all active:scale-95 mb-3">
+                                Ver Planos e Fazer Upgrade
+                            </button>
+                            <button onClick={() => setUpgradeModalFeature(null)} className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-all">
+                                Voltar
                             </button>
                         </motion.div>
                     </motion.div>

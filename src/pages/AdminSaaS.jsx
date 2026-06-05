@@ -132,7 +132,42 @@ export default function AdminSaaS() {
         } catch (error) { alert('Erro: ' + error.message); } 
         finally { setActionLoading(null); }
     };
+// --- NOVOS MOTORES DE PLANOS (MULTI-TENANT) ---
+    const handleUpdatePlan = async (storeId, newPlan) => {
+        if (!window.confirm(`Deseja alterar o plano desta loja para o plano ${newPlan.toUpperCase()}?`)) return;
+        setActionLoading(`plan_${storeId}`);
+        try {
+            // Define o preço base do plano para o faturamento (Rolling Billing)
+            let basePrice = 49.90;
+            if (newPlan === 'pro') basePrice = 149.90;
+            if (newPlan === 'infinity') basePrice = 249.90;
 
+            await updateDoc(doc(db, 'stores', storeId), { 
+                plan: newPlan,
+                billingBasePrice: basePrice, // Registra o valor para o robô de faturamento cobrar certo
+                customFeatures: {} // Limpa qualquer bloqueio manual antigo
+            });
+            await fetchSaaSData(); 
+            alert('Plano atualizado com sucesso! A loja foi reconfigurada.');
+        } catch (error) { alert('Erro: ' + error.message); } 
+        finally { setActionLoading(null); }
+    };
+
+    const handleMagicUnlock = async (storeId) => {
+        if (!window.confirm("🪄 ATENÇÃO: Isso ativará o plano INFINITY (Líder Pro) com acesso total e marcará a loja como CORTESIA VITALÍCIA (Isenta de faturas).\n\nDeseja continuar?")) return;
+        setActionLoading(`magic_${storeId}`);
+        try {
+            await updateDoc(doc(db, 'stores', storeId), { 
+                plan: 'infinity',
+                billingBasePrice: 249.90,
+                billingStatus: 'gratis_vitalicio',
+                customFeatures: {} 
+            });
+            await fetchSaaSData(); 
+            alert('✅ Mágica Feita! Loja liberada 100% para testes/cortesia.');
+        } catch (error) { alert('Erro: ' + error.message); } 
+        finally { setActionLoading(null); }
+    };
     // --- FUNÇÕES DO MODAL DE REPASSE VELOPAY ---
     const handleOpenPayoutModal = async (store) => {
         setSelectedStoreForPayout(store);
@@ -506,30 +541,32 @@ export default function AdminSaaS() {
                                             </div>
                                         </td>
                                         <td className="p-4">
-                                            <div className="grid grid-cols-2 gap-3 min-w-[280px]">
-                                                <button onClick={() => handleToggleModule(loja.id, 'veloGameEnabled', loja.veloGameEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
-                                                    {loja.veloGameEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
-                                                    Velo Game
-                                                </button>
-                                                <button onClick={() => handleToggleModule(loja.id, 'veloPayEnabled', loja.veloPayEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
-                                                    {loja.veloPayEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
-                                                    VeloPay
-                                                </button>
-                                                <button onClick={() => handleToggleModule(loja.id, 'pdvEnabled', loja.pdvEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
-                                                    {loja.pdvEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
-                                                    PDV (Garçom)
-                                                </button>
-                                                <button onClick={() => handleToggleModule(loja.id, 'aiCopyEnabled', loja.aiCopyEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
-                                                    {loja.aiCopyEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
-                                                    IA p/ Copy
-                                                </button>
-                                                <button onClick={() => handleToggleModule(loja.id, 'whatsappRecoveryEnabled', loja.whatsappRecoveryEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
-                                                    {loja.whatsappRecoveryEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
-                                                    Wpp Recovery
-                                                </button>
-                                                <button onClick={() => handleToggleModule(loja.id, 'dataFuelEnabled', loja.dataFuelEnabled)} disabled={actionLoading?.includes(loja.id)} className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">
-                                                    {loja.dataFuelEnabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} className="text-slate-600" />} 
-                                                    Data Fuel
+                                            <div className="flex flex-col gap-4 min-w-[280px]">
+                                                {/* SELETOR DE PLANOS */}
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Plano Ativo:</span>
+                                                    <select 
+                                                        value={loja.plan || 'start'} 
+                                                        onChange={(e) => handleUpdatePlan(loja.id, e.target.value)}
+                                                        disabled={actionLoading === `plan_${loja.id}`}
+                                                        className="bg-slate-900 border border-slate-700 text-blue-400 text-xs font-black uppercase p-2.5 rounded-lg outline-none cursor-pointer focus:border-blue-500 transition-colors"
+                                                    >
+                                                        <option value="start">Essencial (R$ 49,90)</option>
+                                                        <option value="pro">Crescimento (R$ 149,90)</option>
+                                                        <option value="infinity">Líder Pro (R$ 249,90)</option>
+                                                    </select>
+                                                    {actionLoading === `plan_${loja.id}` && <Loader2 size={16} className="animate-spin text-blue-500"/>}
+                                                </div>
+
+                                                {/* BOTÃO MÁGICO DE TESTE/LIBERAÇÃO */}
+                                                <button 
+                                                    onClick={() => handleMagicUnlock(loja.id)}
+                                                    disabled={actionLoading === `magic_${loja.id}`}
+                                                    className="w-fit flex items-center gap-2 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-400 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                                                    title="Libera o plano máximo e isenta a loja de cobrança."
+                                                >
+                                                    {actionLoading === `magic_${loja.id}` ? <Loader2 size={14} className="animate-spin"/> : <Zap size={14} className="fill-fuchsia-400" />}
+                                                    Ativar Tudo (Modo Teste VIP)
                                                 </button>
                                             </div>
                                         </td>
