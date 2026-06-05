@@ -4877,7 +4877,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
                                                                 const isFailed = o.paymentStatus === 'failed' || o.paymentStatus === 'rejected';
                                                                 // ADICIONADO mercadopago_link e mercado_pago AQUI:
-                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago'].includes(o.paymentMethod);
+                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago', 'mp_transparent', 'misto'].includes(o.paymentMethod);
                                                                 const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
 
                                                                 const handleForcePay = async (e) => {
@@ -5227,8 +5227,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                            {(() => {
                                                                 const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
                                                                 const isFailed = o.paymentStatus === 'failed' || o.paymentStatus === 'rejected';
-                                                                // ADICIONADO mercadopago_link e mercado_pago AQUI TAMBÉM:
-                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago'].includes(o.paymentMethod);
+                                                               // ADICIONADO mercadopago_link e mercado_pago AQUI TAMBÉM:
+                                                                const isOnlineMethod = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago', 'mp_transparent', 'misto'].includes(o.paymentMethod);
                                                                 const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
 
                                                                 const handleForcePay = async (e) => {
