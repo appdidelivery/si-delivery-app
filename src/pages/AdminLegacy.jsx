@@ -302,6 +302,41 @@ export default function Admin() {
         }
     };
 
+   // --- NOVO: FUNÇÃO PARA PAGAR FATURA PENDENTE / DESBLOQUEAR LOJA ---
+    const handlePayOverdueInvoice = async () => {
+        if (!storeId) return alert("Erro: Loja não identificada.");
+        try {
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const apiUrl = isLocal ? '/api/pay-subscription-mp' : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
+
+            // Pega o total atual da fatura pendente calculada pelo sistema
+            const amountToPay = invoiceData?.total || 49.90;
+
+            // Muda o texto do botão (Opcional, para UX)
+            const btn = document.activeElement;
+            const originalText = btn.innerHTML;
+            if(btn.tagName === 'BUTTON') { btn.innerHTML = 'Gerando link...'; btn.disabled = true; }
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: storeId, amount: amountToPay })
+            });
+            
+            const data = await response.json();
+            
+            if (data.url) {
+                window.location.href = data.url; // Redireciona pro Checkout do MP na hora!
+            } else {
+                alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
+                if(btn.tagName === 'BUTTON') { btn.innerHTML = originalText; btn.disabled = false; }
+            }
+        } catch (error) {
+            console.error("Erro no pagamento da fatura:", error);
+            alert("Erro de conexão ao tentar gerar o pagamento.");
+        }
+    };
+
     // --- INTEGRAÇÃO STRIPE CONNECT EXPRESS ---
     const handleConectarBanco = async () => {
         try {
@@ -12138,7 +12173,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
                             <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
                         </div>
-                        <button onClick={handleAssinarPro} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <button onClick={handlePayOverdueInvoice} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
                             <QrCode size={20}/> Pagar via Mercado Pago
                         </button>
                     </div>
@@ -13049,7 +13084,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {selectedInvoice.status === 'PENDENTE' && (
-                                <button onClick={handleAssinarPro} className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
+                                <button onClick={handlePayOverdueInvoice} className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
                                     <QrCode size={18} /> Pagar Fatura (Mercado Pago)
                                 </button>
                             )}
