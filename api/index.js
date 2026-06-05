@@ -3724,6 +3724,15 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             // 🛡️ BLINDAGEM: Verifica se o Google retornou erro antes de tentar ler o texto
             if (!response.ok) {
                 console.error("Erro Google API:", aiData);
+                
+                // INTERCEPTAÇÃO INTELIGENTE DE ERROS DE FATURAMENTO / COTA
+                const errorMsg = aiData.error?.message?.toLowerCase() || '';
+                const isBillingOrQuotaError = errorMsg.includes('credits are depleted') || errorMsg.includes('quota') || errorMsg.includes('billing') || errorMsg.includes('exhausted');
+
+                if (isBillingOrQuotaError) {
+                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O assistente de IA está em manutenção. Por favor, insira a descrição manualmente por enquanto." });
+                }
+
                 return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro na chave ou modelo'}` });
             }
 
@@ -3737,7 +3746,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
         } catch (error) {
             console.error("Erro Crítico IA Produtos:", error);
-            return res.status(200).json({ success: false, error: `Falha técnica: ${error.message}` });
+            // Em caso de falha severa na requisição, já retorna o aviso amigável ao invés do erro técnico cru
+            return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O assistente de IA está em manutenção. Por favor, insira a descrição manualmente por enquanto." });
         }
     }
     // ------------------------------------------------------------------------
