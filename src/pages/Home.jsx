@@ -2656,26 +2656,26 @@ if (window.fbq) {
  // --- INÍCIO: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS (CHECKOUT TRANSPARENTE) ---
   useEffect(() => {
       let cardPaymentBrickController;
-      let isActive = true; // Trava contra Race Condition
-      let retryCount = 0; // Trava de repetições
+      let isActive = true; 
 
       const mountMpBrick = async () => {
-          // Se o cliente mudou de aba ou fechou o modal, aborta
           if (!isActive || customer.payment !== 'mp_transparent') return;
 
-          // Se o script do Mercado Pago AINDA não baixou (Internet lenta), o sistema tenta de novo a cada meio segundo (Máx 10 tentativas)
+          // 1. ESPERA O SCRIPT BAIXAR: Se a internet piscar, ele tenta de novo a cada 300ms
           if (!window.MercadoPago) {
-              if (retryCount < 10) {
-                  retryCount++;
-                  console.warn(`[MP Brick] Aguardando script do Mercado Pago... (Tentativa ${retryCount})`);
-                  setTimeout(mountMpBrick, 500);
-              } else {
-                  alert("A conexão com o banco está muito lenta. Atualize a página e tente novamente.");
-                  const loadingDiv = document.getElementById('mp_brick_loading');
-                  if (loadingDiv) loadingDiv.innerText = "Erro de conexão. Tente novamente.";
-              }
+              setTimeout(mountMpBrick, 300);
               return;
           }
+
+          // 2. ESPERA O REACT DESENHAR A TELA: A div precisa existir antes do MP tentar injetar
+          const container = document.getElementById('cardPaymentBrick_container');
+          if (!container) {
+              setTimeout(mountMpBrick, 100);
+              return;
+          }
+
+          // 3. LIMPEZA DE CACHE DO DOM: Se o cliente fechar e abrir rápido, não duplica nem trava
+          container.innerHTML = '';
 
           if (marketingSettings?.integrations?.mercadopago?.publicKey) {
               try {
@@ -2703,13 +2703,12 @@ if (window.fbq) {
                           onSubmit: async (cardFormData) => {
                               if (!isStoreOpenNow) return alert(storeMessage);
                               if (cart.length === 0) return alert("Carrinho vazio!");
-                              if (submitLock.current) return; // 🛑 TRAVA DE TOQUE DUPLO DO MP
+                              if (submitLock.current) return; 
                               submitLock.current = true;
                               setIsFinalizing(true);
                               
                               let newOrderRef = null;
                               try {
-                                  // 1. Cria o Pedido no Firebase primeiro
                                   const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
                                   newOrderRef = doc(collection(db, "orders"));
                                   const orderId = newOrderRef.id;
@@ -2732,7 +2731,7 @@ if (window.fbq) {
                                       tipo: "delivery",
                                       usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
                                       referredBy: localStorage.getItem('veloReferredBy') || null,
-                                      affiliateId: localStorage.getItem('veloAffiliateId') || null // MOTOR DE RASTREIO INFLUENCERS
+                                      affiliateId: localStorage.getItem('veloAffiliateId') || null 
                                   };
 
                                   if (appliedCoupon) {
@@ -2742,7 +2741,6 @@ if (window.fbq) {
 
                                   await setDoc(newOrderRef, orderData);
 
-                                  // 2. Chama a nova rota do Backend
                                   const response = await fetch('/api/processar-pagamento-transparente-velo', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
@@ -2762,7 +2760,6 @@ if (window.fbq) {
                                   const result = await response.json();
 
                                   if (response.ok && result.success && (result.status === 'approved' || result.status === 'in_process')) {
-                                      // Sucesso!
                                       await updateDoc(newOrderRef, { 
                                           paymentStatus: result.status === 'approved' ? 'paid' : 'pending', 
                                           status: result.status === 'approved' ? 'preparing' : 'aguardando_pagamento' 
@@ -2785,7 +2782,6 @@ if (window.fbq) {
                                       
                                       window.location.href = `/track/${orderId}?payment=success`;
                                  } else {
-                                      // Falha no pagamento
                                       if (newOrderRef) { try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Pagamento recusado pela operadora de cartão.' }); } catch(err){} }
                                       alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + (result.error || result.status_detail));
                                       setIsFinalizing(false);
@@ -2804,8 +2800,7 @@ if (window.fbq) {
                       }
                   };
 
-                  // A MÁGICA: Só tenta injetar se a div do container existir
-                  if (isActive && document.getElementById('cardPaymentBrick_container')) {
+                  if (isActive) {
                       cardPaymentBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', settings);
                   }
               } catch(e) {
@@ -2814,13 +2809,14 @@ if (window.fbq) {
           }
       };
 
-      // Inicia a tentativa de montagem
-      if (customer.payment === 'mp_transparent') {
-          mountMpBrick();
-      }
+      // Inicia a tentativa de montagem com um milissegundo de folga para a animação do Modal
+      const initTimeout = setTimeout(() => {
+          if (customer.payment === 'mp_transparent') mountMpBrick();
+      }, 50);
 
       return () => {
           isActive = false; 
+          clearTimeout(initTimeout);
           if (cardPaymentBrickController) cardPaymentBrickController.unmount();
       };
   }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
