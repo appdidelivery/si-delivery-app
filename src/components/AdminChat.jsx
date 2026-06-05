@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary (As mesmas usadas nos produtos)
@@ -297,7 +297,60 @@ export default function AdminChat() {
             await updateDoc(doc(db, 'whatsapp_inbound', msg.id), { status: 'read' });
         }
     };
+// --- NOVO: GERADOR DE AVATAR (Contorna o bloqueio de foto da Meta) ---
+    const getAvatar = (phone, pushName) => {
+        let displayName = getDisplayName(phone) || pushName || 'C';
+        let initials = displayName.substring(0, 2).toUpperCase();
+        
+        // Se tiver espaço (ex: Claudio Boing), pega a primeira letra de cada nome
+        if (displayName.includes(' ') && displayName !== 'Cliente Google' && displayName !== 'Cliente WhatsApp') {
+            const parts = displayName.split(' ');
+            if (parts.length >= 2 && parts[1].length > 0) {
+                initials = (parts[0][0] + parts[1][0]).toUpperCase();
+            }
+        }
+        // Retorna uma imagem gerada dinamicamente com cores sorteadas
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=random&color=fff&size=128&font-size=0.4&bold=true`;
+    };
 
+    // --- NOVO: GERADOR DE BACKUP DE CONVERSA (.TXT) ---
+    const handleExportChat = () => {
+        if (!activeChat || activeMessages.length === 0) return alert("Não há mensagens para exportar.");
+
+        const clientName = getDisplayName(activeChat);
+        let chatText = `--- HISTÓRICO DE CONVERSA VELO DELIVERY ---\n`;
+        chatText += `Cliente: ${clientName} (+${activeChat})\n`;
+        chatText += `Loja: ${store?.name || 'Loja'}\n`;
+        chatText += `Exportado em: ${new Date().toLocaleString('pt-BR')}\n`;
+        chatText += `-------------------------------------------\n\n`;
+
+        // Pega as mensagens da tela na ordem correta
+        [...activeMessages].forEach(msg => {
+            const dateObj = msg.receivedAt?.toDate ? msg.receivedAt.toDate() : new Date(msg.receivedAt?.seconds * 1000 || Date.now());
+            const dateStr = dateObj.toLocaleDateString('pt-BR');
+            const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            
+            const sender = msg.direction === 'outbound' ? (store?.name || 'Loja') : clientName;
+            
+            let content = msg.text || '';
+            if (msg.mediaUrl) {
+                content += ` [Mídia Anexada: ${msg.mediaUrl}]`;
+            }
+
+            chatText += `[${dateStr} ${timeStr}] ${sender}: ${content.trim()}\n`;
+        });
+
+        // Cria o arquivo virtual e força o download
+        const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Backup_Chat_${clientName.replace(/\s+/g, '_')}_${activeChat}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
     // Helper para o nome do cliente (Blindado)
     const getDisplayName = (phone) => {
         // 1º Prioridade: O nome salvo manualmente pelo lojista no CRM
@@ -1243,8 +1296,8 @@ export default function AdminChat() {
                                 onClick={() => handleOpenChat(chat.phone)}
                                 className={`flex items-center gap-3 px-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${activeChat === chat.phone ? 'bg-[#f0f2f5]' : ''} ${isHandoffAlert ? 'bg-red-50 hover:bg-red-100' : ''}`}
                             >
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isHandoffAlert ? 'bg-red-200 text-red-600 animate-pulse' : 'bg-gray-200 text-gray-400'}`}>
-                                    <User size={28} />
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 overflow-hidden shadow-sm border border-slate-200 ${isHandoffAlert ? 'ring-2 ring-red-500 animate-pulse' : ''}`}>
+                                    <img src={getAvatar(chat.phone, chat.pushName)} alt="Avatar" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="flex justify-between items-center mb-1">
@@ -1299,8 +1352,8 @@ export default function AdminChat() {
                                     }}
                                     title="Ver dados do contato"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white shadow-sm shrink-0">
-                                        <User size={24} />
+                                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white shadow-sm shrink-0 overflow-hidden border border-slate-300">
+                                        <img src={getAvatar(activeChat, chats[activeChat]?.pushName)} alt="Avatar" className="w-full h-full object-cover" />
                                     </div>
                                     <div className="flex flex-col truncate">
                                         <span className="font-semibold text-gray-800 text-sm truncate">
@@ -1313,6 +1366,15 @@ export default function AdminChat() {
                                 </div>
                             
                            <div className="flex items-center gap-2 shrink-0">
+                                {/* BOTÃO DE BACKUP DA CONVERSA */}
+                                <button 
+                                    onClick={handleExportChat}
+                                    className="border px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 bg-white text-slate-600 border-gray-200 hover:bg-slate-100 hover:text-slate-800"
+                                    title="Baixar Histórico da Conversa (.txt)"
+                                >
+                                    <DownloadCloud size={16} /> <span className="hidden md:inline">Backup</span>
+                                </button>
+
                                 {/* NOVO BOTÃO: GATILHO DO MINI PDV */}
                                 <button 
                                     onClick={() => {
