@@ -1613,32 +1613,34 @@ if (!createRes.ok) {
 
                                     if (!messageText && !isMedia) logText = `[Formato não suportado/Ação do cliente: ${message.type}]`;
 
-                                    // 1. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA!
-                                    await db.collection('whatsapp_inbound').add({
-                                        storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
-                                        pushName: message.profile?.name || '', text: logText, 
-                                        mediaUrl: uploadedMediaUrl, // <--- URL FINAL DO CLOUDINARY
-                                        mediaType: finalMediaType,  // <--- TIPO (image, audio, video)
-                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
-                                    });
-
-                                   let normalizedPhone = String(message.from).replace(/\D/g, '');
+                                    // --- 🚨 1. BLINDAGEM DE BLACKLIST (CONTATO BLOQUEADO) ---
+                                    // Precisamos normalizar o número ANTES de tudo para checar o bloqueio
+                                    let normalizedPhone = String(message.from).replace(/\D/g, '');
                                     if (normalizedPhone.startsWith('55')) normalizedPhone = normalizedPhone.substring(2);
                                     
-                                    // CURA DO 9º DÍGITO: Garante que o Webhook e o Painel falem a mesma língua
+                                    // CURA DO 9º DÍGITO
                                     if (normalizedPhone.length === 10) {
                                         normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
                                     }
 
-                                    // 🚨 1.5 BLINDAGEM DE BLACKLIST (CONTATO BLOQUEADO)
-                                    // Verifica se o lojista bloqueou este número no painel. Se sim, ignora a mensagem 100% (não salva e o bot não responde).
+                                    // Verifica se o lojista bloqueou este número. Se sim, aborta a operação completamente.
                                     const blockedCheckSnap = await db.collection('blocked_contacts').doc(`${storeId}_${normalizedPhone}`).get();
                                     if (blockedCheckSnap.exists) {
                                         console.log(`🚫 [Webhook] Mensagem ignorada. Contato ${normalizedPhone} está BLOQUEADO na loja ${storeId}.`);
-                                        continue; // Interrompe o processamento desta mensagem e pula para a próxima
+                                        continue; // Interrompe TUDO aqui. Nem salva, nem responde.
                                     }
+                                    // -------------------------------------------------------
 
-                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO E FORÇA DE DESPERTAR)
+                                    // 2. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA! (Só chega aqui se NÃO estiver bloqueado)
+                                    await db.collection('whatsapp_inbound').add({
+                                        storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
+                                        pushName: message.profile?.name || '', text: logText, 
+                                        mediaUrl: uploadedMediaUrl, 
+                                        mediaType: finalMediaType,  
+                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
+                                    });
+
+                                    // 3. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO E FORÇA DE DESPERTAR)
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
                                                     const sessionSnap = await sessionRef.get();
                                                     let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0, updatedAt: null };
