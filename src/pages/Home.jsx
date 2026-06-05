@@ -205,42 +205,39 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 // =======================================================================
-  // SDK EFÍ PAY: Carrega o script anti-fraude (OTIMIZADO PAGESPEED)
+  // SDK EFÍ E MERCADO PAGO: CARREGAMENTO OTIMIZADO
   // =======================================================================
   useEffect(() => {
-      // Atrasamos o script pesado em 4 segundos. O cliente não fará checkout antes disso.
-      const timerEfi = setTimeout(() => {
-          if (!document.getElementById('efi-sdk')) {
-              window.$gn = {
-                  validForm: true,
-                  processed: false,
-                  done: {},
-                  ready: function(fn) { window.$gn.done = fn; }
-              };
-
-              const script = document.createElement('script');
-              script.type = 'text/javascript';
-              script.async = true;
-              script.defer = true;
-              script.id = 'efi-sdk';
-              
-              document.head.appendChild(script);
-              console.log("💳 SDK Anti-fraude da Efí carregado (Lazy Load)!");
-          }
-
-          // --- INÍCIO DA INJEÇÃO DO MERCADO PAGO SDK (TRANSPARENTE) ---
+      // 1. CARREGA O MERCADO PAGO RÁPIDO (Apenas 500ms de delay para não travar a renderização inicial do React)
+      const timerMP = setTimeout(() => {
           if (!document.getElementById('mp-sdk')) {
               const mpScript = document.createElement('script');
               mpScript.src = 'https://sdk.mercadopago.com/js/v2';
               mpScript.id = 'mp-sdk';
               mpScript.async = true;
               document.head.appendChild(mpScript);
-              console.log("💳 SDK Mercado Pago Bricks carregado (Lazy Load)!");
+              console.log("💳 SDK Mercado Pago Bricks carregado!");
           }
-          // --- FIM DA INJEÇÃO DO MERCADO PAGO SDK ---
+      }, 500);
+
+      // 2. A Efí pode continuar no delay de 4 segundos, pois é mais pesada
+      const timerEfi = setTimeout(() => {
+          if (!document.getElementById('efi-sdk')) {
+              window.$gn = {
+                  validForm: true, processed: false, done: {},
+                  ready: function(fn) { window.$gn.done = fn; }
+              };
+              const script = document.createElement('script');
+              script.type = 'text/javascript'; script.async = true; script.defer = true; script.id = 'efi-sdk';
+              document.head.appendChild(script);
+              console.log("💳 SDK Anti-fraude da Efí carregado!");
+          }
       }, 4000);
 
-      return () => clearTimeout(timerEfi);
+      return () => {
+          clearTimeout(timerMP);
+          clearTimeout(timerEfi);
+      };
   }, []);
 
   const generateSlug = (text) => {
@@ -2659,10 +2656,28 @@ if (window.fbq) {
  // --- INÍCIO: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS (CHECKOUT TRANSPARENTE) ---
   useEffect(() => {
       let cardPaymentBrickController;
-      let isActive = true; // Trava contra Race Condition (Troca rápida de abas de pagamento)
+      let isActive = true; // Trava contra Race Condition
+      let retryCount = 0; // Trava de repetições
 
       const mountMpBrick = async () => {
-          if (customer.payment === 'mp_transparent' && window.MercadoPago && marketingSettings?.integrations?.mercadopago?.publicKey) {
+          // Se o cliente mudou de aba ou fechou o modal, aborta
+          if (!isActive || customer.payment !== 'mp_transparent') return;
+
+          // Se o script do Mercado Pago AINDA não baixou (Internet lenta), o sistema tenta de novo a cada meio segundo (Máx 10 tentativas)
+          if (!window.MercadoPago) {
+              if (retryCount < 10) {
+                  retryCount++;
+                  console.warn(`[MP Brick] Aguardando script do Mercado Pago... (Tentativa ${retryCount})`);
+                  setTimeout(mountMpBrick, 500);
+              } else {
+                  alert("A conexão com o banco está muito lenta. Atualize a página e tente novamente.");
+                  const loadingDiv = document.getElementById('mp_brick_loading');
+                  if (loadingDiv) loadingDiv.innerText = "Erro de conexão. Tente novamente.";
+              }
+              return;
+          }
+
+          if (marketingSettings?.integrations?.mercadopago?.publicKey) {
               try {
                   const mp = new window.MercadoPago(marketingSettings.integrations.mercadopago.publicKey, { locale: 'pt-BR' });
                   const bricksBuilder = mp.bricks();
@@ -2714,11 +2729,11 @@ if (window.fbq) {
                                       status: 'aguardando_pagamento', 
                                       createdAt: serverTimestamp(),
                                       storeId: storeId || "",
-                                      tipo: "delivery",
-                                      usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
-                                      referredBy: localStorage.getItem('veloReferredBy') || null,
-                                      affiliateId: localStorage.getItem('veloAffiliateId') || null // MOTOR DE RASTREIO INFLUENCERS
-                                  };
+                                      tipo: "delivery",
+                                      usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+                                      referredBy: localStorage.getItem('veloReferredBy') || null,
+                                      affiliateId: localStorage.getItem('veloAffiliateId') || null // MOTOR DE RASTREIO INFLUENCERS
+                                  };
 
                                   if (appliedCoupon) {
                                       orderData.couponCode = appliedCoupon.code || "";
@@ -2789,7 +2804,7 @@ if (window.fbq) {
                       }
                   };
 
-                  // A MÁGICA: Só tenta injetar se a aba do cartão AINDA estiver ativa
+                  // A MÁGICA: Só tenta injetar se a div do container existir
                   if (isActive && document.getElementById('cardPaymentBrick_container')) {
                       cardPaymentBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', settings);
                   }
@@ -2799,18 +2814,17 @@ if (window.fbq) {
           }
       };
 
-      // Pequeno delay para garantir que a <div> teve tempo de ser desenhada no HTML
-      const renderTimer = setTimeout(() => {
-          if (isActive) mountMpBrick();
-      }, 300);
+      // Inicia a tentativa de montagem
+      if (customer.payment === 'mp_transparent') {
+          mountMpBrick();
+      }
 
       return () => {
-          isActive = false; // Se o cliente clicou em PIX, aborta e anula a trava!
-          clearTimeout(renderTimer);
-          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
-      };
-  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
-  // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
+          isActive = false; 
+          if (cardPaymentBrickController) cardPaymentBrickController.unmount();
+      };
+  }, [customer.payment, finalTotal, marketingSettings?.integrations?.mercadopago?.publicKey]);
+  // --- FIM: LÓGICA DE MONTAGEM DO MERCADO PAGO BRICKS ---
 
   // --- NOVO: MOTOR JSON-LD (RICH SNIPPETS DE AVALIAÇÃO PARA O GOOGLE) ---
   useEffect(() => {
