@@ -2930,7 +2930,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo Delivery`,
                 payment_method_id: payment_method_id,
                 payer: {
-                    email: payer.email || 'cliente@velodelivery.com.br',
+                    // Gera um e-mail único por pedido para não acionar o bloqueio de "Múltiplas tentativas do mesmo usuário"
+                    email: payer.email && payer.email.includes('@') ? payer.email : `cliente_${orderId.slice(-6)}@velodelivery.com.br`,
                     first_name: payer.first_name || 'Cliente',
                     identification: payer.identification || undefined
                 },

@@ -4795,6 +4795,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <option value="app">📱 Loja Online (App)</option>
                                         <option value="pdv">💻 PDV (Balcão/Mesa)</option>
                                         <option value="whatsapp">💬 WhatsApp / Bot</option>
+                                        <option value="whatsapp_pdv">🛒 Chat (PDV Wpp)</option>
                                         <option value="google">🌐 Google Maps</option>
                                     </select>
                                 </div>
@@ -4835,11 +4836,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
                                             const isGoogle = o.source === 'google_food_marketplace';
                                             const isWpp = o.source === 'whatsapp';
-                                            const isApp = !isPDV && !isGoogle && !isWpp; // Tudo que não é os outros, é do App nativo
+                                            const isWppPdv = o.source === 'whatsapp_pdv';
+                                            // Se não for nenhum dos 4 manuais/externos, então foi o cliente que comprou no App sozinho
+                                            const isApp = !isPDV && !isGoogle && !isWpp && !isWppPdv; 
                                             
                                             if (orderFilterSource === 'pdv') matchesSource = isPDV;
                                             else if (orderFilterSource === 'google') matchesSource = isGoogle;
                                             else if (orderFilterSource === 'whatsapp') matchesSource = isWpp;
+                                            else if (orderFilterSource === 'whatsapp_pdv') matchesSource = isWppPdv;
                                             else if (orderFilterSource === 'app') matchesSource = isApp;
                                         }
 
@@ -4959,6 +4963,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
                                                                 {o.source === 'manual' || o.source === 'manual_pdv' ? (
                                                                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>
+                                                                ) : o.source === 'whatsapp_pdv' ? (
+                                                                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200 shadow-sm flex items-center gap-1">🛒 CHAT (WPP)</span>
+                                                                ) : o.source === 'whatsapp' ? (
+                                                                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200 shadow-sm flex items-center gap-1">💬 WHATSAPP BOT</span>
                                                                 ) : o.source === 'google_food_marketplace' ? (
                                                                     <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-orange-200 shadow-sm flex items-center gap-1">🌐 GOOGLE MAPS</span>
                                                                 ) : o.orderType === 'mesa_qrcode' ? (
