@@ -8188,37 +8188,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                         {/* 🧠 ÁREA SECRETA DO SUPER ADMIN (Apenas donos da Velo veem isso) */}
                         {isSuperAdmin && (
-                            <div className="bg-slate-900 border-4 border-fuchsia-500/50 p-6 rounded-[2rem] shadow-2xl relative overflow-hidden animate-in zoom-in">
+                            <div className="bg-slate-900 border-4 border-fuchsia-500/50 p-6 rounded-[2rem] shadow-2xl relative overflow-hidden animate-in zoom-in mb-8">
                                 <div className="absolute top-0 right-0 p-4 opacity-20 pointer-events-none"><Crown size={120} className="text-fuchsia-500"/></div>
                                 <h3 className="text-2xl font-black uppercase italic text-white flex items-center gap-2 mb-2 relative z-10">
                                     <Sparkles className="text-fuchsia-400"/> Velo Master Control
                                 </h3>
-                                <p className="text-slate-400 text-xs font-bold mb-6 relative z-10">Apenas você (Admin Velo) pode ver esta caixa. Use-a para forçar planos e liberar acessos para este cliente ({storeId}).</p>
+                                <p className="text-slate-400 text-xs font-bold mb-6 relative z-10">Apenas você (Admin Velo) pode ver esta caixa. Use-a para forçar planos e liberar acessos manuais para este cliente ({storeId}).</p>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
                                     <button onClick={async () => {
+                                        if(!window.confirm("Isso mudará a fatura da loja para R$ 49,90 e bloqueará funções avançadas. Confirma?")) return;
                                         await updateDoc(doc(db, "stores", storeId), { plan: 'start', customFeatures: {} });
-                                        alert("Loja rebaixada para o Plano START (Básico).");
-                                    }} className="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest border border-slate-700 transition-all">
-                                        Forçar Plano START
+                                        alert("✅ Loja rebaixada para o Plano Essencial.");
+                                    }} className="bg-slate-800 hover:bg-slate-700 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-700 transition-all">
+                                        Forçar Essencial
                                     </button>
                                     
                                     <button onClick={async () => {
+                                        if(!window.confirm("Isso mudará a fatura da loja para R$ 149,90. Confirma?")) return;
                                         await updateDoc(doc(db, "stores", storeId), { plan: 'pro', customFeatures: {} });
-                                        alert("Loja atualizada para o Plano PRO (Intermediário).");
-                                    }} className="bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg transition-all">
-                                        Forçar Plano PRO
+                                        alert("✅ Loja atualizada para o Plano Crescimento.");
+                                    }} className="bg-orange-600 hover:bg-orange-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all">
+                                        Forçar Crescimento
                                     </button>
 
                                     <button onClick={async () => {
+                                        if(!window.confirm("Isso mudará a fatura da loja para R$ 249,90. Confirma?")) return;
+                                        // Remove qualquer traço de cortesia vitalícia se forçarmos pro plano máximo pago
+                                        const updateData = { plan: 'infinity', customFeatures: {} };
+                                        if (storeStatus?.billingStatus === 'gratis_vitalicio') updateData.billingStatus = 'pago';
+                                        await updateDoc(doc(db, "stores", storeId), updateData);
+                                        alert("✅ Loja atualizada para o Plano Líder PRO (R$ 249,90).");
+                                    }} className="bg-blue-600 hover:bg-blue-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all">
+                                        Forçar Líder PRO
+                                    </button>
+
+                                    <button onClick={async () => {
+                                        if(!window.confirm("Isto vai liberar TODAS as abas do painel sem mudar o valor da fatura atual da loja. Continuar?")) return;
+                                        
+                                        // Pega todos os recursos do plano Infinity e transforma num objeto { recurso: true }
+                                        const allFeaturesUnlocked = PLAN_FEATURES.infinity.reduce((acc, feat) => {
+                                            acc[feat] = true;
+                                            return acc;
+                                        }, {});
+
+                                        // Atualiza apenas as exceções. O plano (start) e a cobrança (R$ 49,90) continuam intactos!
                                         await updateDoc(doc(db, "stores", storeId), { 
-                                            plan: 'infinity', 
-                                            billingStatus: 'gratis_vitalicio', // Dá a cortesia junto
-                                            customFeatures: {} 
+                                            customFeatures: allFeaturesUnlocked 
                                         });
-                                        alert("MÁGICA FEITA! 🪄 Loja atualizada para o Plano INFINITY (Completo) com Cortesia Vitalícia. Tudo liberado!");
-                                    }} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-fuchsia-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                        <Crown size={16}/> Mágica: Ativar Tudo
+                                        alert("🪄 MÁGICA FEITA! Todas as abas liberadas. A fatura da loja continuará a mesma.");
+                                    }} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-fuchsia-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <Crown size={14}/> Liberar Tudo (Mantém Preço)
                                     </button>
                                 </div>
                             </div>
