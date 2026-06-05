@@ -1627,11 +1627,19 @@ if (!createRes.ok) {
                                     
                                     // CURA DO 9º DÍGITO: Garante que o Webhook e o Painel falem a mesma língua
                                     if (normalizedPhone.length === 10) {
-                                                        normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
-                                                    }
+                                        normalizedPhone = normalizedPhone.substring(0, 2) + '9' + normalizedPhone.substring(2);
+                                    }
 
-                                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO E FORÇA DE DESPERTAR)
-                                                    const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
+                                    // 🚨 1.5 BLINDAGEM DE BLACKLIST (CONTATO BLOQUEADO)
+                                    // Verifica se o lojista bloqueou este número no painel. Se sim, ignora a mensagem 100% (não salva e o bot não responde).
+                                    const blockedCheckSnap = await db.collection('blocked_contacts').doc(`${storeId}_${normalizedPhone}`).get();
+                                    if (blockedCheckSnap.exists) {
+                                        console.log(`🚫 [Webhook] Mensagem ignorada. Contato ${normalizedPhone} está BLOQUEADO na loja ${storeId}.`);
+                                        continue; // Interrompe o processamento desta mensagem e pula para a próxima
+                                    }
+
+                                    // 2. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO E FORÇA DE DESPERTAR)
+                                    const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
                                                     const sessionSnap = await sessionRef.get();
                                                     let sessionData = sessionSnap.exists ? sessionSnap.data() : { botPaused: false, lastAwaySent: 0, updatedAt: null };
 
