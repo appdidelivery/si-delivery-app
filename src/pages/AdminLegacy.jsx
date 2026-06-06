@@ -1803,13 +1803,10 @@ const educationalBanners = [
                             senderName = data.pushName || data.name || "Cliente";
                             
                         } else if (senderPhone !== activeChatInScreen) {
-                            // REGRA DE SILÊNCIO: Só toca se não for transbordo E se o bot estiver PAUSADO (Humano atendendo).
-                            // Se o bot estiver ativo respondendo cardápio, a loja fica em silêncio.
-                            if (isBotPaused) {
-                                shouldPlaySound = true; 
-                                senderName = data.pushName || data.name || "Cliente";
-                            }
-                        }
+                                    // NOVA REGRA: Toca o som para TODAS as mensagens novas
+                                    shouldPlaySound = true; 
+                                    senderName = data.pushName || data.name || "Cliente";
+                                }
                     }
                 }
 
@@ -1822,8 +1819,13 @@ const educationalBanners = [
                         const urgentSound = 'https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3';
                         const ringtone = new Audio(isHandoffAlert ? urgentSound : defaultSound);
                         
-                        ringtone.play().catch(e => console.warn("Navegador bloqueou áudio."));
-                        
+// CORREÇÃO: Tenta tocar e avisa no Console caso o navegador bloqueie
+                        ringtone.play().then(() => {
+                            console.log("🔊 Áudio do WhatsApp tocado com sucesso!");
+                        }).catch(e => {
+                            console.error("❌ Navegador bloqueou o áudio do WhatsApp. Clique em qualquer lugar da tela para liberar o som.", e.message);
+                        });
+                                                
                         // DISPARA NOTIFICAÇÃO DO SISTEMA
                         if ("Notification" in window) {
                             if (Notification.permission === "granted") {
@@ -3748,15 +3750,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     </div>
 )}
 {/* ========================================================= */}
-                           {/* --- NOVO: AVISO DE FATURA PRÓXIMA (10 DIAS) --- */}
-                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.status === 'overdue' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
-                                <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                          {/* --- AVISO DE FATURA PRÓXIMA (5 DIAS) - BLINDADO --- */}
+                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.daysUntilDue <= 5 && invoiceData.daysUntilDue >= 0 && (
+                                <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
                                     <div>
                                         <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
-                                            <Clock size={20} className="text-amber-600"/> FATURA PRÓXIMA DO VENCIMENTO
+                                            <Clock size={20} className="text-amber-600 animate-pulse"/> FATURA PRÓXIMA DO VENCIMENTO
                                         </h3>
                                         <p className="text-amber-700 font-bold text-sm">
-                                            Sua fatura da Velo Delivery vence em <span className="font-black text-amber-900">{invoiceData.daysUntilDue} {invoiceData.daysUntilDue === 1 ? 'dia' : 'dias'}</span>. Garanta o pagamento para não pausar as suas vendas!
+                                            {invoiceData.daysUntilDue === 0 
+                                                ? <span>Sua fatura da Velo Delivery vence <strong className="text-amber-900 font-black uppercase">HOJE</strong>. Garanta o pagamento para não pausar o seu sistema amanhã!</span>
+                                                : <span>Sua fatura da Velo Delivery vence em <strong className="font-black text-amber-900">{invoiceData.daysUntilDue} {invoiceData.daysUntilDue === 1 ? 'dia' : 'dias'}</strong>. Garanta o pagamento para não pausar as suas vendas!</span>
+                                            }
                                         </p>
                                     </div>
                                     <button onClick={() => setActiveTab('finance')} className="bg-amber-500 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-amber-600 transition-all active:scale-95 whitespace-nowrap">
@@ -8822,12 +8827,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 
                                 <div className="relative z-10">
                                     {(() => {
-                                        let diaVencimento = 10; 
-                                        if (storeStatus?.createdAt) {
-                                            const dataCriacao = storeStatus.createdAt.toDate ? storeStatus.createdAt.toDate() : new Date(storeStatus.createdAt);
-                                            if (!isNaN(dataCriacao)) diaVencimento = dataCriacao.getDate();
-                                        }
-                                        return <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2">Fatura Atual (Venc. dia {diaVencimento})</p>;
+                                        // Usa o mesmo motor super blindado que criamos pro useEffect!
+                                        let diaVencimento = storeStatus?.billingDay || 10; 
+                                        if (storeStatus?.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
+                                            const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
+                                            if (faturaReferencia.dueDate) {
+                                                const dataRef = new Date(faturaReferencia.dueDate);
+                                                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
+                                            }
+                                        }
+                                        return <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2">Fatura Atual (Venc. dia {String(diaVencimento).padStart(2, '0')})</p>;
                                     })()}
                                     
                                     <h2 className="text-6xl md:text-7xl font-black italic tracking-tighter mb-4 text-white">
