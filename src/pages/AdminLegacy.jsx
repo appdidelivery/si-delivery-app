@@ -264,24 +264,28 @@ export default function Admin() {
         return () => unsubscribeAuth();
     }, [navigate]);
 
-    // --- NOVO: FUNÇÃO DE UPGRADE DE PLANO (COMPRA AUTOMÁTICA) ---
-    const handleUpgradePlanCheckout = async (newPlanId, planPrice) => {
+    // --- NOVO: FUNÇÃO DE UPGRADE DE PLANO (COMPRA AUTOMÁTICA) MENSAL/SEMESTRAL ---
+    const handleUpgradePlanCheckout = async (newPlanId, planPrice, cycle = 'monthly') => {
         if (!storeId) return alert("Erro: Loja não identificada.");
         
         try {
-            // 1. Atualiza o plano no banco ANTES de pagar, para que as funções se liberem na hora. 
-            // O sistema automaticamente criará uma fatura pendente obrigando-o a pagar o Mercado Pago.
+            // Atualiza o plano e salva o ciclo escolhido (Mensal ou Semestral)
             await updateDoc(doc(db, "stores", storeId), { 
                 plan: newPlanId,
                 billingBasePrice: planPrice,
-                billingStatus: 'pendente' // Marca como pendente para forçar o pagamento
+                billingCycle: cycle, 
+                billingStatus: 'pendente' 
             });
             
-            setStoreStatus(prev => ({...prev, plan: newPlanId, billingBasePrice: planPrice}));
+            setStoreStatus(prev => ({...prev, plan: newPlanId, billingBasePrice: planPrice, billingCycle: cycle}));
             
-            // 2. Chama a API do Mercado Pago para gerar a tela de pagamento
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             const apiUrl = isLocal ? '/api/pay-subscription-mp' : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
+
+            // Muda o texto do botão clicado para dar feedback visual
+            const btn = document.activeElement;
+            const originalText = btn.innerHTML;
+            if(btn.tagName === 'BUTTON') { btn.innerHTML = '<span class="animate-pulse">Gerando Link...</span>'; btn.disabled = true; }
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -292,9 +296,10 @@ export default function Admin() {
             const data = await response.json();
             
             if (data.url) {
-                window.location.href = data.url; // Redireciona pro Checkout do MP na hora!
+                window.location.href = data.url; 
             } else {
                 alert("Erro ao gerar link de pagamento: " + (data.error || "Desconhecido"));
+                if(btn.tagName === 'BUTTON') { btn.innerHTML = originalText; btn.disabled = false; }
             }
         } catch (error) {
             console.error("Erro no upgrade:", error);
@@ -499,6 +504,7 @@ export default function Admin() {
 
     // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' ou 'semestral'
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
     const [orderSearchTerm, setOrderSearchTerm] = useState(''); // Estado para busca de pedidos
     const [ordersPerPage, setOrdersPerPage] = useState(25); // NOVO: Limite de pedidos por página
@@ -8883,36 +8889,60 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 {/* --- SEÇÃO DE PLANOS (UPSELL INTERNO DO LOJISTA) --- */}
-                        <div id="planos-saas-section" className="pt-8 mt-8 border-t border-slate-100 mb-8">
-                            <h2 className="text-3xl font-black italic tracking-tighter uppercase text-slate-900 mb-2 flex items-center gap-2">
-                                <Crown size={28} className="text-blue-600"/> Evolua seu Delivery
-                            </h2>
-                            <p className="text-slate-500 font-bold mb-8">Escolha o plano ideal e desbloqueie novas funcionalidades na hora.</p>
+                        <div id="planos-saas-section" className="pt-8 mt-8 border-t border-slate-100 mb-8 animate-in fade-in">
+                            <div className="text-center mb-10">
+                                <h2 className="text-3xl lg:text-4xl font-black italic tracking-tighter uppercase text-slate-900 mb-2 flex items-center justify-center gap-3">
+                                    <Crown size={32} className="text-blue-600"/> Evolua seu Delivery
+                                </h2>
+                                <p className="text-slate-500 font-bold mb-8">Escolha o plano ideal e desbloqueie novas funcionalidades na hora.</p>
+                                
+                                {/* RÉGUA DE CICLO DE COBRANÇA (TOGGLE) */}
+                                <div className="inline-flex bg-slate-200 p-1.5 rounded-2xl relative shadow-inner">
+                                    <button 
+                                        onClick={() => setBillingCycle('monthly')}
+                                        className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${billingCycle === 'monthly' ? 'bg-white text-slate-800 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Mensal
+                                    </button>
+                                    <button 
+                                        onClick={() => setBillingCycle('semestral')}
+                                        className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 flex items-center gap-2 ${billingCycle === 'semestral' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Semestral <span className={`px-2 py-0.5 rounded-lg text-[9px] ${billingCycle === 'semestral' ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-600'}`}>-15% OFF</span>
+                                    </button>
+                                </div>
+                            </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
                                 {/* PLANO START */}
                                 <div className={`bg-white rounded-[2.5rem] border-4 p-8 flex flex-col justify-between transition-all ${storeStatus?.plan === 'start' || !storeStatus?.plan ? 'border-slate-800 shadow-xl scale-105 z-10' : 'border-slate-100 hover:border-slate-300'}`}>
                                     <div>
                                         <h3 className="text-2xl font-black italic uppercase text-slate-800">Essencial</h3>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-6">Para o primeiro cardápio</p>
-                                        <div className="mb-6 border-b border-slate-100 pb-6">
-                                            <span className="text-4xl font-black italic text-slate-900">R$ 49,90</span><span className="text-slate-500 font-bold text-sm">/mês</span>
+                                        
+                                        <div className="mb-6 border-b border-slate-100 pb-6 relative">
+                                            {billingCycle === 'semestral' && <p className="text-xs text-slate-400 font-bold line-through absolute -top-4">De R$ 49,90</p>}
+                                            <span className="text-4xl lg:text-5xl font-black italic text-slate-900">
+                                                {billingCycle === 'semestral' ? 'R$ 42,41' : 'R$ 49,90'}
+                                            </span>
+                                            <span className="text-slate-500 font-bold text-sm">/mês</span>
+                                            {billingCycle === 'semestral' && <p className="text-[10px] font-black text-green-500 uppercase mt-1">Cobrado R$ 254,49 a cada 6 meses</p>}
                                         </div>
-                                        <ul className="space-y-2.5 text-xs font-bold text-slate-600 mb-8">
+                                        
+                                        <ul className="space-y-3 text-xs font-bold text-slate-600 mb-8">
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> 0% de Comissão nas Vendas</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Cardápio Digital Responsivo</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Pagamentos Online (Pix/Cartão/MP)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Pagamentos Online (Pix/Cartão)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Frente de Caixa (PDV Balcão)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Gestão de Estoque e Categorias</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Gestão de Equipe e Permissões</li>
                                         </ul>
                                     </div>
                                     <button 
-                                        onClick={() => handleUpgradePlanCheckout('start', 49.90)}
-                                        disabled={storeStatus?.plan === 'start' || !storeStatus?.plan}
-                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'start' || !storeStatus?.plan ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700 shadow-lg active:scale-95'}`}
+                                        onClick={() => handleUpgradePlanCheckout('start', billingCycle === 'semestral' ? 254.49 : 49.90, billingCycle)}
+                                        disabled={(storeStatus?.plan === 'start' || !storeStatus?.plan) && storeStatus?.billingCycle === billingCycle}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${(storeStatus?.plan === 'start' || !storeStatus?.plan) && storeStatus?.billingCycle === billingCycle ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700 shadow-lg active:scale-95'}`}
                                     >
-                                        {storeStatus?.plan === 'start' || !storeStatus?.plan ? 'Plano Atual' : 'Assinar Essencial'}
+                                        {(storeStatus?.plan === 'start' || !storeStatus?.plan) && storeStatus?.billingCycle === billingCycle ? 'Plano Atual' : (billingCycle === 'semestral' ? 'Assinar Semestral' : 'Assinar Mensal')}
                                     </button>
                                 </div>
 
@@ -8926,25 +8956,30 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div>
                                         <h3 className="text-2xl font-black italic uppercase text-orange-600">Crescimento</h3>
                                         <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mt-1 mb-6">Para operações sólidas</p>
-                                        <div className="mb-6 border-b border-orange-100 pb-6">
-                                            <span className="text-4xl font-black italic text-slate-900">R$ 149,90</span><span className="text-slate-500 font-bold text-sm">/mês</span>
+                                        
+                                        <div className="mb-6 border-b border-orange-100 pb-6 relative">
+                                            {billingCycle === 'semestral' && <p className="text-xs text-slate-400 font-bold line-through absolute -top-4">De R$ 149,90</p>}
+                                            <span className="text-4xl lg:text-5xl font-black italic text-slate-900">
+                                                {billingCycle === 'semestral' ? 'R$ 127,41' : 'R$ 149,90'}
+                                            </span>
+                                            <span className="text-slate-500 font-bold text-sm">/mês</span>
+                                            {billingCycle === 'semestral' && <p className="text-[10px] font-black text-green-500 uppercase mt-1">Cobrado R$ 764,49 a cada 6 meses</p>}
                                         </div>
+
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Tudo do Essencial, mais:</p>
-                                        <ul className="space-y-2.5 text-xs font-bold text-slate-600 mb-8">
+                                        <ul className="space-y-3 text-xs font-bold text-slate-600 mb-8">
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Sincronização Google Meu Negócio</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Domínio Próprio (Site Personalizado)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Painel Kanban, Chat e Modo Garçom</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Integrações (Meta Pixel, GA4, GTM)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Painel Kanban, Chat e Garçom</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Automação de WhatsApp e Carrinhos</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Banners Dinâmicos e Zonas de Frete</li>
                                         </ul>
                                     </div>
                                     <button 
-                                        onClick={() => handleUpgradePlanCheckout('pro', 149.90)}
-                                        disabled={storeStatus?.plan === 'pro'}
-                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'pro' ? 'bg-orange-100 text-orange-400 cursor-not-allowed' : 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-500/30 active:scale-95'}`}
+                                        onClick={() => handleUpgradePlanCheckout('pro', billingCycle === 'semestral' ? 764.49 : 149.90, billingCycle)}
+                                        disabled={storeStatus?.plan === 'pro' && storeStatus?.billingCycle === billingCycle}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'pro' && storeStatus?.billingCycle === billingCycle ? 'bg-orange-100 text-orange-400 cursor-not-allowed' : 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg shadow-orange-500/30 active:scale-95'}`}
                                     >
-                                        {storeStatus?.plan === 'pro' ? 'Plano Atual' : 'Assinar Crescimento'}
+                                        {storeStatus?.plan === 'pro' && storeStatus?.billingCycle === billingCycle ? 'Plano Atual' : (billingCycle === 'semestral' ? 'Assinar Semestral' : 'Assinar Mensal')}
                                     </button>
                                 </div>
 
@@ -8953,28 +8988,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div>
                                         <h3 className="text-2xl font-black italic uppercase text-blue-400">Líder Pro</h3>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-6">Escala e retenção total</p>
-                                        <div className="mb-6 border-b border-slate-700 pb-6">
-                                            <span className="text-4xl font-black italic text-white">R$ 249,90</span><span className="text-slate-400 font-bold text-sm">/mês</span>
+                                        
+                                        <div className="mb-6 border-b border-slate-700 pb-6 relative">
+                                            {billingCycle === 'semestral' && <p className="text-xs text-slate-400 font-bold line-through absolute -top-4">De R$ 249,90</p>}
+                                            <span className="text-4xl lg:text-5xl font-black italic text-white">
+                                                {billingCycle === 'semestral' ? 'R$ 212,41' : 'R$ 249,90'}
+                                            </span>
+                                            <span className="text-slate-400 font-bold text-sm">/mês</span>
+                                            {billingCycle === 'semestral' && <p className="text-[10px] font-black text-green-400 uppercase mt-1">Cobrado R$ 1.274,49 a cada 6 meses</p>}
                                         </div>
+
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Tudo do Crescimento, mais:</p>
-                                        <ul className="space-y-2.5 text-xs font-bold text-slate-300 mb-8">
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Gamificação Total (Roleta e Cashback)</li>
+                                        <ul className="space-y-3 text-xs font-bold text-slate-300 mb-8">
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Gamificação (Roleta e Cashback)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Insights (Consultoria IA)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Ficha Técnica e Controle de Insumos</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Hub Parceiros (Afiliados/Influencers)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Monitor de Frota ao Vivo (Radar GPS)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Predict (Previsão de Compras IA)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Radar GPS e Previsão IA</li>
                                         </ul>
                                     </div>
                                     <button 
-                                        onClick={() => handleUpgradePlanCheckout('infinity', 249.90)}
-                                        disabled={storeStatus?.plan === 'infinity'}
-                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'infinity' ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/50 active:scale-95'}`}
+                                        onClick={() => handleUpgradePlanCheckout('infinity', billingCycle === 'semestral' ? 1274.49 : 249.90, billingCycle)}
+                                        disabled={storeStatus?.plan === 'infinity' && storeStatus?.billingCycle === billingCycle}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${storeStatus?.plan === 'infinity' && storeStatus?.billingCycle === billingCycle ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/50 active:scale-95'}`}
                                     >
-                                        {storeStatus?.plan === 'infinity' ? 'Plano Atual' : 'Assinar Líder Pro'}
+                                        {storeStatus?.plan === 'infinity' && storeStatus?.billingCycle === billingCycle ? 'Plano Atual' : (billingCycle === 'semestral' ? 'Assinar Semestral' : 'Assinar Mensal')}
                                     </button>
                                 </div>
                             </div>
+                            
+                            <p className="text-center text-[10px] font-bold text-slate-400 mt-6">
+                                * O Checkout é gerado via Mercado Pago em ambiente seguro. A ativação das funcionalidades é imediata após a confirmação do pagamento.
+                            </p>
                         </div>
                         {/* Histórico de Faturas (Gerado Dinamicamente) */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
