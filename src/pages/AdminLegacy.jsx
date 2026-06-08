@@ -518,6 +518,9 @@ const [currentEduBanner, setCurrentEduBanner] = useState(0);
 // Controle do Modal Mágico (Google SEO Offers)
 const [isMagicPromoModalOpen, setIsMagicPromoModalOpen] = useState(false);
 const [selectedMagicPromoIndex, setSelectedMagicPromoIndex] = useState(0);
+const [magicPromoTitle, setMagicPromoTitle] = useState('');
+const [magicPromoDesc, setMagicPromoDesc] = useState('');
+
 // --- BUSCA GLOBAL DO SISTEMA (COMMAND PALETTE) ---
     // --- ESTADOS DO GOOGLE MEU NEGÓCIO E GA4 ---
     const [googleMetrics, setGoogleMetrics] = useState(null);
@@ -722,6 +725,59 @@ const educationalBanners = [
     const [insightsResponse, setInsightsResponse] = useState(null); // Resposta da IA
     const [orders, setOrders] = useState([]);
     const[abandonedCarts, setAbandonedCarts] = useState([]); // NOVO: Estado dos abandonados
+
+    // --- ESTADOS DO MODAL MÁGICO E IA (POSICIONADO AQUI PARA LER O 'orders' COM SEGURANÇA) ---
+    const [magicPromoCategory, setMagicPromoCategory] = useState('Ofertas Especiais');
+    const [magicPromos, setMagicPromos] = useState([]);
+    const [isGeneratingMagicPromos, setIsGeneratingMagicPromos] = useState(false);
+
+    // Motor que acorda a IA quando o modal abre
+    useEffect(() => {
+        if (isMagicPromoModalOpen && magicPromos.length === 0) {
+            const fetchCombos = async () => {
+                setIsGeneratingMagicPromos(true);
+                try {
+                    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+                    const productRevenue = {};
+                    orders.filter(o => o.status !== 'canceled' && o.createdAt?.toMillis() > thirtyDaysAgo).forEach(order => {
+                        (order.items || []).forEach(item => {
+                            if (!productRevenue[item.name]) productRevenue[item.name] = { qty: 0, price: item.price };
+                            productRevenue[item.name].qty += item.quantity;
+                        });
+                    });
+                    const topItems = Object.entries(productRevenue)
+                        .sort((a, b) => b[1].qty - a[1].qty)
+                        .slice(0, 5)
+                        .map(([name, data]) => `${name} (Vendido a R$ ${Number(data.price).toFixed(2)})`);
+
+                    const res = await fetch('/api/generate-magic-combos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            storeName: storeStatus?.name || 'Delivery',
+                            storeNiche: storeStatus?.storeNiche || 'default',
+                            topProducts: topItems
+                        })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success && data.combos && data.combos.length > 0) {
+                        setMagicPromos(data.combos);
+                        setMagicPromoTitle(data.combos[0].title);
+                        setMagicPromoDesc(data.combos[0].desc);
+                    } else {
+                        setMagicPromos([{title: "Combo Sugerido", desc: "A IA encontrou lentidão. Preencha manualmente.", price: "R$ 0,00"}]);
+                    }
+                } catch (e) {
+                    console.error("Erro na IA:", e);
+                    setMagicPromos([{title: "Combo de Vendas", desc: "Descreva seu combo aqui.", price: "R$ 0,00"}]);
+                } finally {
+                    setIsGeneratingMagicPromos(false);
+                }
+            };
+            fetchCombos();
+        }
+    }, [isMagicPromoModalOpen, orders, storeStatus]);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     
@@ -13671,53 +13727,80 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                            {/* Dicas de Copy / Mockadas baseadas em Fatos (Sem AI Spam) */}
-                            <div className="space-y-4 relative z-10 mb-8">
-                                {(() => {
-                                    // Dicionário de sugestões mockadas dinâmicas por nicho
-                                    const nichePromos = {
-                                        'default': [
-                                            { title: "Kit Esquenta Sextou", desc: "1x Vodka Premium (1L) + 4x Energéticos + Gelo (5kg). O combo campeão para festas.", price: "A definir por você" },
-                                            { title: "Pack Resenha Gelada", desc: "12x Cervejas Long Neck (Entregues trincando) + 2x Snacks Amendoim.", price: "A definir por você" }
-                                        ],
-                                        'drinks': [
-                                            { title: "Kit Gin Tônica Perfeito", desc: "1x Gin Artesanal + 4x Águas Tônicas + Especiarias (Anis/Alecrim) + Gelo.", price: "A definir por você" },
-                                            { title: "Combo Vinho & Frios", desc: "2x Vinhos Reservas + 1x Tábua de Queijos e Frios. Ideal para casais.", price: "A definir por você" }
-                                        ],
-                                        'burger': [
-                                            { title: "Combo Casal Smash", desc: "2x Burgers Artesanais + 1x Porção Fritas Média + 1x Refri 1L.", price: "A definir por você" },
-                                            { title: "Kit Monstro (Família)", desc: "4x Burgers Tradicionais + Fritas c/ Cheddar e Bacon + Refri 2L.", price: "A definir por você" }
-                                        ],
-                                        'pizza': [
-                                            { title: "Combo Fim de Semana", desc: "1x Pizza Grande Salgada + 1x Pizza Broto Doce + Refri 2L grátis.", price: "A definir por você" },
-                                            { title: "Dupla Perfeita", desc: "Compre 2 Pizzas Grandes e pague apenas 50% na segunda unidade.", price: "A definir por você" }
-                                        ],
-                                        'sweet': [
-                                            { title: "Barca de Açaí Casal", desc: "Barca 1L com 4 acompanhamentos (Leite Condensado, Morango, Nutella, Paçoca).", price: "A definir por você" },
-                                            { title: "Kit Sobremesa", desc: "Compre 3 Potes de Açaí 500ml e leve o 4º de graça.", price: "A definir por você" }
-                                        ]
-                                    };
-                                    
-                                    // Se o nicho da loja não estiver mapeado acima, cai pro padrão (Conveniência)
-                                    const currentNiche = storeStatus?.storeNiche || 'default';
-                                    const promosToDisplay = nichePromos[currentNiche] || nichePromos['default'];
-
-                                    return promosToDisplay;
-                                })().map((promo, idx) => (
-                                    <label key={idx} className={`flex items-start gap-4 p-5 rounded-3xl border-2 cursor-pointer transition-all ${selectedMagicPromoIndex === idx ? 'bg-purple-50 border-purple-400 shadow-md' : 'bg-white border-slate-100 hover:border-purple-200'}`}>
-                                        <input 
-                                            type="radio" 
-                                            name="magicPromo" 
-                                            checked={selectedMagicPromoIndex === idx}
-                                            onChange={() => setSelectedMagicPromoIndex(idx)}
-                                            className="w-5 h-5 mt-1 accent-purple-600"
-                                        />
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-slate-800 text-lg uppercase leading-tight">{promo.title}</span>
-                                            <span className="text-xs font-bold text-slate-500 mt-1 mb-2 leading-relaxed">{promo.desc}</span>
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 bg-purple-100 w-fit px-2 py-1 rounded-md">Valor: {promo.price}</span>
+                            <div className="space-y-6 relative z-10 mb-8">
+                                {isGeneratingMagicPromos ? (
+                                    <div className="flex flex-col items-center justify-center py-10 bg-purple-50 rounded-3xl border border-purple-100">
+                                        <Loader2 className="animate-spin text-purple-500 mb-4" size={40} />
+                                        <p className="font-black uppercase text-sm text-purple-800 tracking-widest">O Cérebro da IA está pensando...</p>
+                                        <p className="text-xs font-bold text-purple-600 mt-2 text-center max-w-sm">Analisando seus produtos mais vendidos nos últimos 30 dias para criar a combinação perfeita.</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* LISTA DE OPÇÕES DA IA (BOTÕES DE RÁDIO) */}
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                                            {magicPromos.map((promo, idx) => (
+                                                <label key={idx} className={`flex items-start gap-4 p-5 rounded-3xl border-2 cursor-pointer transition-all ${selectedMagicPromoIndex === idx ? 'bg-purple-50 border-purple-400 shadow-md' : 'bg-white border-slate-100 hover:border-purple-200'}`}>
+                                                    <input 
+                                                        type="radio" 
+                                                        name="magicPromo" 
+                                                        checked={selectedMagicPromoIndex === idx}
+                                                        onChange={() => {
+                                                            setSelectedMagicPromoIndex(idx);
+                                                            // Reseta os inputs manuais para puxar o texto da nova opção
+                                                            setMagicPromoTitle('');
+                                                            setMagicPromoDesc('');
+                                                        }}
+                                                        className="w-5 h-5 mt-1 accent-purple-600 cursor-pointer"
+                                                    />
+                                                    <div className="flex flex-col">
+                                                        <span className="font-black text-slate-800 text-lg uppercase leading-tight">{promo.title}</span>
+                                                        <span className="text-xs font-bold text-slate-500 mt-1 mb-2 leading-relaxed">{promo.desc}</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 bg-purple-100 w-fit px-2 py-1 rounded-md">
+                                                            Sugerido: {promo.price}
+                                                        </span>
+                                                    </div>
+                                                </label>
+                                            ))}
                                         </div>
-                                    </label>
-                                ))}
+
+                                        {/* ÁREA DE EDIÇÃO DO LOJISTA */}
+                                        <div className="bg-slate-50 border border-slate-200 p-6 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2">
+                                            <h3 className="text-sm font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-2">
+                                                <Edit3 size={16} className="text-purple-500"/> Ajuste a Oferta
+                                            </h3>
+                                            
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1 block ml-2">Categoria no Cardápio</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={magicPromoCategory} 
+                                                    onChange={(e) => setMagicPromoCategory(e.target.value)}
+                                                    className="w-full p-4 bg-white rounded-2xl font-bold border border-slate-200 outline-none focus:ring-2 ring-purple-400 text-slate-700 shadow-sm"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1 block ml-2">Nome do Combo</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={magicPromoTitle || (magicPromos[selectedMagicPromoIndex]?.title || '')} 
+                                                    onChange={(e) => setMagicPromoTitle(e.target.value)}
+                                                    className="w-full p-4 bg-white rounded-2xl font-black uppercase border border-slate-200 outline-none focus:ring-2 ring-purple-400 text-purple-900 shadow-sm"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1 block ml-2">Descrição Factual</label>
+                                                <textarea 
+                                                    rows="3"
+                                                    value={magicPromoDesc || (magicPromos[selectedMagicPromoIndex]?.desc || '')} 
+                                                    onChange={(e) => setMagicPromoDesc(e.target.value)}
+                                                    className="w-full p-4 bg-white rounded-2xl font-medium border border-slate-200 outline-none focus:ring-2 ring-purple-400 text-slate-600 shadow-sm resize-none custom-scrollbar"
+                                                ></textarea>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* REGRA ESTRUTURAL OBRIGATÓRIA (O Segredo da Organização) */}

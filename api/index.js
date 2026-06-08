@@ -3796,6 +3796,50 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         }
     }
     // ------------------------------------------------------------------------
+    // 21.8 GERADOR DE COMBOS MÁGICOS (GEMINI IA)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/generate-magic-combos') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeName, storeNiche, topProducts } = req.body;
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente." });
+
+            const produtosTxt = topProducts && topProducts.length > 0 ? topProducts.join(', ') : 'Lanches e Bebidas variadas';
+
+            const prompt = `Atue como um Especialista em Engenharia de Cardápio para Delivery. 
+            A loja "${storeName}" (Nicho: ${storeNiche}) tem estes produtos entre os mais vendidos: ${produtosTxt}.
+            
+            Crie 2 opções de "Combos" ou "Kits" altamente lucrativos e atrativos que juntem alguns desses itens (ou adicione refrigerante/fritas/acompanhamento genérico para completar). 
+            Retorne APENAS um JSON puro (sem markdown, sem blocos de código) no seguinte formato exato de array:
+            [
+              {"title": "Nome do Combo Criativo", "desc": "Descrição factual detalhando o que vem no combo, com gramaturas ou litros se aplicável.", "price": "Calcule um preço sugerido (ex: R$ 49,90)"}
+            ]`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+                })
+            });
+
+            const aiData = await response.json();
+            if (!response.ok) return res.status(200).json({ success: false, error: "Google API Error" });
+
+            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawJsonText) return res.status(200).json({ success: false, error: "Sem resposta." });
+            
+            const parsedResult = JSON.parse(rawJsonText);
+            return res.status(200).json({ success: true, combos: parsedResult });
+        } catch (error) {
+            return res.status(200).json({ success: false, error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
