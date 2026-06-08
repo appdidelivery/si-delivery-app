@@ -121,6 +121,7 @@ export default function AdminChat() {
     // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
     const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
     const [filterUnread, setFilterUnread] = useState(false); // <-- NOVO: ESTADO DA ABA NÃO LIDOS
+    const [chatSearchTerm, setChatSearchTerm] = useState(''); // <-- NOVO: ESTADO DA BUSCA DE CHATS
 // --- NOVO: AVISA O SISTEMA GLOBAL QUAL CHAT ESTÁ ABERTO PARA NÃO TOCAR SOM ---
     useEffect(() => {
         if (activeChat) {
@@ -266,10 +267,33 @@ export default function AdminChat() {
         }
         return acc;
     }, {});
+// Helper para o nome do cliente (Blindado)
+    const getDisplayName = (phone) => {
+        // 1º Prioridade: O nome salvo manualmente pelo lojista no CRM
+        const crmName = customersData[phone]?.name;
+        if (crmName && crmName.trim() !== '') return crmName;
+        
+        // 2º Prioridade: O nome que o cliente digitou no site ao fazer um pedido
+        const addressBookName = addressBook[phone];
+        if (addressBookName && addressBookName.trim() !== '') return addressBookName;
 
-    // Transforma em array e ordena para que o cliente com a mensagem mais recente fique no topo da lista
+        // 3º Prioridade: O nome público do perfil do WhatsApp att do cliente
+        const pushName = chats[phone]?.pushName;
+        if (pushName && pushName.trim() !== '') return pushName;
+
+        // 4º Falback: Se não tiver nada, mostra o número
+        return `+${phone}`;
+    };
+   // Transforma em array e ordena para que o cliente com a mensagem mais recente fique no topo da lista
     const chatList = Object.values(chats)
         .filter(chat => filterUnread ? chat.unreadCount > 0 : true) // <-- FILTRO APLICADO AQUI
+        .filter(chat => {
+            if (!chatSearchTerm) return true;
+            const searchLower = chatSearchTerm.toLowerCase();
+            const contactName = getDisplayName(chat.phone).toLowerCase();
+            const contactPhone = chat.phone.toLowerCase();
+            return contactName.includes(searchLower) || contactPhone.includes(searchLower);
+        })
         .sort((a, b) => {
         const lastMsgA = a.msgs[a.msgs.length - 1];
         const lastMsgB = b.msgs[b.msgs.length - 1];
@@ -351,23 +375,7 @@ export default function AdminChat() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
-    // Helper para o nome do cliente (Blindado)
-    const getDisplayName = (phone) => {
-        // 1º Prioridade: O nome salvo manualmente pelo lojista no CRM
-        const crmName = customersData[phone]?.name;
-        if (crmName && crmName.trim() !== '') return crmName;
-        
-        // 2º Prioridade: O nome que o cliente digitou no site ao fazer um pedido
-        const addressBookName = addressBook[phone];
-        if (addressBookName && addressBookName.trim() !== '') return addressBookName;
-
-        // 3º Prioridade: O nome público do perfil do WhatsApp att do cliente
-        const pushName = chats[phone]?.pushName;
-        if (pushName && pushName.trim() !== '') return pushName;
-
-        // 4º Falback: Se não tiver nada, mostra o número
-        return `+${phone}`;
-    };
+    
 
    // Função para salvar dados do cliente no banco (Com Atualização Otimista)
     const handleSaveCustomer = async () => {
@@ -996,9 +1004,16 @@ export default function AdminChat() {
                         <Search size={18} className="text-gray-500" />
                         <input 
                             type="text" 
-                            placeholder="Pesquisar..." 
+                            placeholder="Buscar nome ou número..." 
+                            value={chatSearchTerm}
+                            onChange={(e) => setChatSearchTerm(e.target.value)}
                             className="bg-transparent border-none outline-none w-full text-sm text-gray-700 placeholder-gray-500"
                         />
+                        {chatSearchTerm && (
+                            <button onClick={() => setChatSearchTerm('')} className="text-gray-400 hover:text-red-500 transition-colors">
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                     
                     <button 
