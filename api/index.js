@@ -2410,15 +2410,30 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     const searchSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
                                                     
                                                     if (!searchSnap.empty) {
-                                                        const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso'];
-                                                        const searchWords = incomingTextLower.split(' ').filter(w => w.length > 2 && !wordsToIgnore.includes(w));
+                                                        // 1. Remove pontuações malditas (vírgulas, pontos) e deixa só letras/números
+                                                        const cleanSearchText = incomingTextLower.replace(/[^\w\s]/gi, '').trim();
+                                                        
+                                                        // 2. Lista de palavras para ignorar melhorada
+                                                        const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'tres', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso', 'voces', 'vcs', 'ola', 'oi'];
+                                                        
+                                                        // 3. Só exige que a palavra tenha mais de 1 letra (para pegar "G", "M", etc)
+                                                        const searchWords = cleanSearchText.split(/\s+/).filter(w => w.length > 1 && !wordsToIgnore.includes(w));
 
                                                         const searchResults = searchSnap.docs.filter(doc => {
                                                             const pData = doc.data();
                                                             const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                                                             const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                                                            if (searchWords.length === 0) return false;
-                                                            return searchWords.some(word => pName.includes(word) || pCat.includes(word));
+                                                            
+                                                            // Fallback: se a pessoa digitou apenas 1 letra e ela não foi pro searchWords
+                                                            if (searchWords.length === 0) {
+                                                                return pName.includes(cleanSearchText) || pCat.includes(cleanSearchText);
+                                                            }
+
+                                                            // 4. MÁGICA: Checa se a frase inteira bate OU se alguma palavra bate
+                                                            const matchesFullText = pName.includes(cleanSearchText) || pCat.includes(cleanSearchText);
+                                                            const matchesAnyWord = searchWords.some(word => pName.includes(word) || pCat.includes(word));
+                                                            
+                                                            return matchesFullText || matchesAnyWord;
                                                         }).slice(0, 10); 
                                                         
                                                         if (searchResults.length > 0) {
@@ -2440,7 +2455,9 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                             };
                                                             logTextForPanel = `🤖 [Busca WhatsApp: Encontrou ${searchResults.length} produtos]`;
                                                         } else {
-                                                            replyPayload = { type: "text", text: { body: `Poxa${nomeOuVazio}, não consegui encontrar nenhum produto com esse nome no nosso estoque. 😕\n\nTente digitar apenas a palavra principal (ex: "Polar", "Bacon", "Coca").` } };
+                                                            // MENSAGEM DE ERRO MELHORADA: Já envia o link do cardápio pra salvar a venda!
+                                                            const failMsg = `Poxa${nomeOuVazio}, não encontrei nenhum item com esse nome exato no nosso sistema. 😕\n\nMas não se preocupe! Você pode ver todo o nosso estoque organizado por categorias no cardápio online:\n👉 ${storeDomain}`;
+                                                            replyPayload = { type: "text", text: { body: failMsg } };
                                                             logTextForPanel = `🤖 [Busca Falhou para: ${messageText}]`;
                                                         }
                                                     } else {
