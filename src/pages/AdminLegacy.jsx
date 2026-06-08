@@ -515,6 +515,9 @@ export default function Admin() {
 // Controle do Banner Educacional da Dashboard
 const [showEduBanner, setShowEduBanner] = useState(true);
 const [currentEduBanner, setCurrentEduBanner] = useState(0);
+// Controle do Modal Mágico (Google SEO Offers)
+const [isMagicPromoModalOpen, setIsMagicPromoModalOpen] = useState(false);
+const [selectedMagicPromoIndex, setSelectedMagicPromoIndex] = useState(0);
 // --- BUSCA GLOBAL DO SISTEMA (COMMAND PALETTE) ---
     // --- ESTADOS DO GOOGLE MEU NEGÓCIO E GA4 ---
     const [googleMetrics, setGoogleMetrics] = useState(null);
@@ -565,6 +568,20 @@ const [currentEduBanner, setCurrentEduBanner] = useState(0);
     );
 // Lista de Banners Educacionais (Focados em Google Meu Negócio / Marketing)
 const educationalBanners = [
+        {
+            icon: <Sparkles size={32} className="text-amber-500" />,
+            badge: "SEO Local & Vendas",
+            title: "Crie um Combo e apareça em destaque no Google",
+            text: "Clientes adoram ofertas combinadas! Deixe nossa Inteligência Artificial sugerir combos baseados no seu segmento. Em um clique, nós o criamos no seu cardápio e o enviamos direto para a vitrine do seu Google Meu Negócio.",
+            ctaText: "Ver Sugestões Mágicas",
+            bgColor: "bg-amber-50",
+            borderColor: "border-amber-300",
+            titleColor: "text-amber-900",
+            btnColor: "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200",
+            action: () => {
+                setIsMagicPromoModalOpen(true);
+            }
+        },
         {
             icon: <Camera size={32} className="text-fuchsia-600" />,
             badge: "Escola Velo: Viralização",
@@ -13628,6 +13645,125 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             {/* --- FIM: MODAL DE QR CODE (PLANO B) --- */}
+
+            {/* --- INÍCIO: MODAL MÁGICO DE OFERTAS GOOGLE (SEO) --- */}
+            <AnimatePresence>
+                {isMagicPromoModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] custom-scrollbar overflow-y-auto">
+                            
+                            {/* Background Elements */}
+                            <div className="absolute -top-24 -right-24 bg-purple-500 w-64 h-64 rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
+                            
+                            <button onClick={() => setIsMagicPromoModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-slate-200 text-slate-400 transition-colors z-20">
+                                <X size={20}/>
+                            </button>
+                            
+                            {/* Header */}
+                            <div className="relative z-10 mb-6">
+                                <div className="bg-purple-100 text-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-inner">
+                                    <Sparkles size={32} />
+                                </div>
+                                <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none mb-2">Sugestões de Ouro</h2>
+                                <p className="text-sm font-bold text-slate-500">
+                                    Nossa IA mapeou o seu nicho (<span className="text-purple-600 uppercase tracking-widest">{storeStatus?.storeNiche || 'Delivery'}</span>) e gerou ofertas com alta densidade factual para conversão no Google.
+                                </p>
+                            </div>
+
+                           {/* Dicas de Copy / Mockadas baseadas em Fatos (Sem AI Spam) */}
+                            <div className="space-y-4 relative z-10 mb-8">
+                                {(() => {
+                                    // Dicionário de sugestões mockadas dinâmicas por nicho
+                                    const nichePromos = {
+                                        'default': [
+                                            { title: "Kit Esquenta Sextou", desc: "1x Vodka Premium (1L) + 4x Energéticos + Gelo (5kg). O combo campeão para festas.", price: "A definir por você" },
+                                            { title: "Pack Resenha Gelada", desc: "12x Cervejas Long Neck (Entregues trincando) + 2x Snacks Amendoim.", price: "A definir por você" }
+                                        ],
+                                        'drinks': [
+                                            { title: "Kit Gin Tônica Perfeito", desc: "1x Gin Artesanal + 4x Águas Tônicas + Especiarias (Anis/Alecrim) + Gelo.", price: "A definir por você" },
+                                            { title: "Combo Vinho & Frios", desc: "2x Vinhos Reservas + 1x Tábua de Queijos e Frios. Ideal para casais.", price: "A definir por você" }
+                                        ],
+                                        'burger': [
+                                            { title: "Combo Casal Smash", desc: "2x Burgers Artesanais + 1x Porção Fritas Média + 1x Refri 1L.", price: "A definir por você" },
+                                            { title: "Kit Monstro (Família)", desc: "4x Burgers Tradicionais + Fritas c/ Cheddar e Bacon + Refri 2L.", price: "A definir por você" }
+                                        ],
+                                        'pizza': [
+                                            { title: "Combo Fim de Semana", desc: "1x Pizza Grande Salgada + 1x Pizza Broto Doce + Refri 2L grátis.", price: "A definir por você" },
+                                            { title: "Dupla Perfeita", desc: "Compre 2 Pizzas Grandes e pague apenas 50% na segunda unidade.", price: "A definir por você" }
+                                        ],
+                                        'sweet': [
+                                            { title: "Barca de Açaí Casal", desc: "Barca 1L com 4 acompanhamentos (Leite Condensado, Morango, Nutella, Paçoca).", price: "A definir por você" },
+                                            { title: "Kit Sobremesa", desc: "Compre 3 Potes de Açaí 500ml e leve o 4º de graça.", price: "A definir por você" }
+                                        ]
+                                    };
+                                    
+                                    // Se o nicho da loja não estiver mapeado acima, cai pro padrão (Conveniência)
+                                    const currentNiche = storeStatus?.storeNiche || 'default';
+                                    const promosToDisplay = nichePromos[currentNiche] || nichePromos['default'];
+
+                                    return promosToDisplay;
+                                })().map((promo, idx) => (
+                                    <label key={idx} className={`flex items-start gap-4 p-5 rounded-3xl border-2 cursor-pointer transition-all ${selectedMagicPromoIndex === idx ? 'bg-purple-50 border-purple-400 shadow-md' : 'bg-white border-slate-100 hover:border-purple-200'}`}>
+                                        <input 
+                                            type="radio" 
+                                            name="magicPromo" 
+                                            checked={selectedMagicPromoIndex === idx}
+                                            onChange={() => setSelectedMagicPromoIndex(idx)}
+                                            className="w-5 h-5 mt-1 accent-purple-600"
+                                        />
+                                        <div className="flex flex-col">
+                                            <span className="font-black text-slate-800 text-lg uppercase leading-tight">{promo.title}</span>
+                                            <span className="text-xs font-bold text-slate-500 mt-1 mb-2 leading-relaxed">{promo.desc}</span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 bg-purple-100 w-fit px-2 py-1 rounded-md">Valor: {promo.price}</span>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+
+                            {/* REGRA ESTRUTURAL OBRIGATÓRIA (O Segredo da Organização) */}
+                            <div className="bg-slate-50 border border-slate-200 p-6 rounded-3xl relative z-10 mb-8">
+                                <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-3">
+                                    <CheckCircle2 size={16} className="text-green-500"/> O que o sistema fará:
+                                </h3>
+                                <ul className="space-y-2 text-xs font-medium text-slate-600">
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-500 mt-0.5">•</span>
+                                        Criará automaticamente a categoria <strong>"Ofertas Especiais"</strong> no seu cardápio (se não existir).
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-500 mt-0.5">•</span>
+                                        Cadastrará o produto escolhido estritamente dentro desta nova categoria.
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-500 mt-0.5">•</span>
+                                        Deixará a tela de cadastro aberta para você preencher o preço exato e a foto real (Regra do Google).
+                                    </li>
+                                </ul>
+                            </div>
+
+                            {/* BOTÃO DE AÇÃO */}
+                            <button 
+                                onClick={() => {
+                                    // TODO: Integrar fluxo Categoria -> Produto -> API Google
+                                    // 1. Fechar este modal
+                                    // 2. Chamar lógica para verificar/criar a categoria 'Ofertas Especiais'
+                                    // 3. Abrir o modal de produto (isModalOpen = true) com os dados pré-preenchidos (form) e a categoria 'Ofertas Especiais' vinculada.
+                                    alert("Interface preparada! O próximo passo é injetar a criação da categoria e do produto no banco.");
+                                    setIsMagicPromoModalOpen(false);
+                                }} 
+                                className="w-full relative z-10 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl shadow-purple-200 hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <FaGoogle size={18}/> Continuar e Preparar Oferta
+                            </button>
+                            <p className="text-[10px] text-center text-slate-400 font-bold mt-4 relative z-10">
+                                O Google exige fotos autênticas e preços reais. Nós preparamos a estrutura, você finaliza os detalhes.
+                            </p>
+
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL MÁGICO DE OFERTAS GOOGLE (SEO) --- */}
 
             <VeloSupportWidget />
         </div>
