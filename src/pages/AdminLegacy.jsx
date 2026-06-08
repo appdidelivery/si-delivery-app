@@ -8202,48 +8202,59 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
                                     <button onClick={async () => {
-                                        if(!window.confirm("Isso mudará a fatura da loja para R$ 49,90 e bloqueará funções avançadas. Confirma?")) return;
-                                        await updateDoc(doc(db, "stores", storeId), { plan: 'start', customFeatures: {} });
-                                        alert("✅ Loja rebaixada para o Plano Essencial.");
+                                        if(!window.confirm("Isto vai restringir a loja APENAS aos recursos do Plano Essencial, MANTENDO o valor da fatura atual. Confirma?")) return;
+                                        
+                                        // Bloqueia tudo que for além do plano Start sem tocar na fatura
+                                        const startFeatures = PLAN_FEATURES.infinity.reduce((acc, feat) => {
+                                            acc[feat] = PLAN_FEATURES.start.includes(feat);
+                                            return acc;
+                                        }, {});
+
+                                        await updateDoc(doc(db, "stores", storeId), { customFeatures: startFeatures });
+                                        alert("✅ Funcionalidades restritas ao nível Essencial.");
                                     }} className="bg-slate-800 hover:bg-slate-700 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-700 transition-all">
-                                        Forçar Essencial
+                                        Liberar Apenas Essencial
                                     </button>
                                     
                                     <button onClick={async () => {
-                                        if(!window.confirm("Isso mudará a fatura da loja para R$ 149,90. Confirma?")) return;
-                                        await updateDoc(doc(db, "stores", storeId), { plan: 'pro', customFeatures: {} });
-                                        alert("✅ Loja atualizada para o Plano Crescimento.");
-                                    }} className="bg-orange-600 hover:bg-orange-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all">
-                                        Forçar Crescimento
-                                    </button>
-
-                                    <button onClick={async () => {
-                                        if(!window.confirm("Isso mudará a fatura da loja para R$ 249,90. Confirma?")) return;
-                                        // Remove qualquer traço de cortesia vitalícia se forçarmos pro plano máximo pago
-                                        const updateData = { plan: 'infinity', customFeatures: {} };
-                                        if (storeStatus?.billingStatus === 'gratis_vitalicio') updateData.billingStatus = 'pago';
-                                        await updateDoc(doc(db, "stores", storeId), updateData);
-                                        alert("✅ Loja atualizada para o Plano Líder PRO (R$ 249,90).");
-                                    }} className="bg-blue-600 hover:bg-blue-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all">
-                                        Forçar Líder PRO
-                                    </button>
-
-                                    <button onClick={async () => {
-                                        if(!window.confirm("Isto vai liberar TODAS as abas do painel sem mudar o valor da fatura atual da loja. Continuar?")) return;
+                                        if(!window.confirm("Isto vai liberar os recursos do Plano Crescimento, MANTENDO o valor da fatura atual. Confirma?")) return;
                                         
-                                        // Pega todos os recursos do plano Infinity e transforma num objeto { recurso: true }
+                                        // Libera as features do Pro e bloqueia o resto
+                                        const proFeatures = PLAN_FEATURES.infinity.reduce((acc, feat) => {
+                                            acc[feat] = PLAN_FEATURES.pro.includes(feat);
+                                            return acc;
+                                        }, {});
+
+                                        await updateDoc(doc(db, "stores", storeId), { customFeatures: proFeatures });
+                                        alert("✅ Funcionalidades de Crescimento liberadas na faixa!");
+                                    }} className="bg-orange-600 hover:bg-orange-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all">
+                                        Liberar Crescimento
+                                    </button>
+
+                                    <button onClick={async () => {
+                                        if(!window.confirm("Isto vai liberar TODAS as abas (Líder Pro), MANTENDO o valor da fatura atual da loja. Continuar?")) return;
+                                        
                                         const allFeaturesUnlocked = PLAN_FEATURES.infinity.reduce((acc, feat) => {
                                             acc[feat] = true;
                                             return acc;
                                         }, {});
 
-                                        // Atualiza apenas as exceções. O plano (start) e a cobrança (R$ 49,90) continuam intactos!
+                                        await updateDoc(doc(db, "stores", storeId), { customFeatures: allFeaturesUnlocked });
+                                        alert("🪄 MÁGICA FEITA! Todas as abas liberadas e a fatura não sofreu alteração.");
+                                    }} className="bg-blue-600 hover:bg-blue-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all">
+                                        Liberar Tudo (Líder Pro)
+                                    </button>
+
+                                    <button onClick={async () => {
+                                        if(!window.confirm("Deseja REMOVER as liberações manuais? A loja voltará a ter apenas os acessos do plano que ela realmente paga.")) return;
+                                        
+                                        // Limpa os overrides para a loja respeitar as regras naturais
                                         await updateDoc(doc(db, "stores", storeId), { 
-                                            customFeatures: allFeaturesUnlocked 
+                                            customFeatures: {} 
                                         });
-                                        alert("🪄 MÁGICA FEITA! Todas as abas liberadas. A fatura da loja continuará a mesma.");
-                                    }} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-fuchsia-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                        <Crown size={14}/> Liberar Tudo (Mantém Preço)
+                                        alert("🔄 Overrides limpos! O sistema voltou a ler o plano oficial da loja.");
+                                    }} className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                        <RefreshCw size={14}/> Limpar Liberações Manuais
                                     </button>
                                 </div>
                             </div>
