@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
 import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud } from 'lucide-react';
@@ -28,15 +28,30 @@ export default function AdminChat() {
 
     // --- LÓGICA DE BLOQUEIO DE CONTATOS (BLACKLIST) ---
     const [blockedContacts, setBlockedContacts] = useState([]);
+    
+    // --- LÓGICA DE ATRIBUIÇÃO (ASSUMIR CHAT) ---
+    const [chatSessions, setChatSessions] = useState({});
 
     useEffect(() => {
         if (!storeId) return;
-        // Escuta em tempo real os números bloqueados pela loja
-        const q = query(collection(db, 'blocked_contacts'), where('storeId', '==', storeId));
-        const unsub = onSnapshot(q, (snapshot) => {
+        
+        // 1. Escuta em tempo real os números bloqueados pela loja
+        const qBlocked = query(collection(db, 'blocked_contacts'), where('storeId', '==', storeId));
+        const unsubBlocked = onSnapshot(qBlocked, (snapshot) => {
             setBlockedContacts(snapshot.docs.map(doc => doc.data().phone));
         });
-        return () => unsub();
+
+        // 2. Escuta quem assumiu qual chat
+        const qSessions = query(collection(db, 'whatsapp_sessions'), where('storeId', '==', storeId));
+        const unsubSessions = onSnapshot(qSessions, (snapshot) => {
+            const sessionsObj = {};
+            snapshot.forEach(doc => {
+                sessionsObj[doc.data().phone] = doc.data();
+            });
+            setChatSessions(sessionsObj);
+        });
+
+        return () => { unsubBlocked(); unsubSessions(); };
     }, [storeId]);
 
     const handleToggleBlockContact = async () => {
@@ -532,7 +547,10 @@ export default function AdminChat() {
             let phoneForMeta = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
             const customerName = getDisplayName(activeChat);
 
-            // 1. Salva o pedido inicial no banco de dados
+            // 1. Salva o pedido inicial no banco de dados com a autoria do Vendedor
+            const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+            const sellerEmail = auth.currentUser?.email || 'owner';
+
             const newOrderRef = await addDoc(collection(db, "orders"), {
                 storeId: storeId,
                 customerName: customerName,
@@ -548,6 +566,8 @@ export default function AdminChat() {
                 changeFor: miniPdvCustomer.payment === 'dinheiro' ? miniPdvCustomer.changeFor : null,
                 tipo: 'delivery',
                 source: 'whatsapp_pdv',
+                vendedor: sellerName,      // <-- NOVO: Salva o nome para o cupom
+                sellerEmail: sellerEmail,  // <-- NOVO: Salva o email para o filtro do relatório
                 createdAt: serverTimestamp()
             });
 
@@ -1380,49 +1400,100 @@ export default function AdminChat() {
                                     </div>
                                 </div>
                             
-                           <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+                                {/* LÓGICA DE ASSUMIR ATENDIMENTO */}
+                                {(() => {
+                                    const session = chatSessions[activeChat] || {};
+                                    const isAssigned = !!session.assignedTo;
+                                    const isAssignedToMe = session.assignedTo === auth.currentUser?.email;
+
+                                    if (isAssigned && !isAssignedToMe) {
+                                        return (
+                                            <span className="bg-orange-100 text-orange-700 border border-orange-200 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center gap-1">
+                                                🔒 <span className="hidden sm:inline">{session.assignedName}</span>
+                                            </span>
+                                        );
+                                    }
+
+                                    if (isAssignedToMe) {
+                                        return (
+                                            <button 
+                                                onClick={async () => {
+                                                    await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${activeChat}`), { assignedTo: null, assignedName: null }, { merge: true });
+                                                }}
+                                                className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-200 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
+                                                title="Liberar para outros atendentes"
+                                            >
+                                                ✅ <span className="hidden xl:inline">Meu Chat (Sair)</span>
+                                            </button>
+                                        );
+                                    }
+
+                                    return (
+                                        <button 
+                                            onClick={async () => {
+                                                const myName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+                                                await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${activeChat}`), { 
+                                                    storeId, phone: activeChat,
+                                                    assignedTo: auth.currentUser?.email, 
+                                                    assignedName: myName,
+                                                    botPaused: true, 
+                                                    updatedAt: serverTimestamp() 
+                                                }, { merge: true });
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 active:scale-95"
+                                        >
+                                            🙋‍♂️ <span className="hidden xl:inline">Assumir Chat</span>
+                                        </button>
+                                    );
+                                })()}
+
                                 {/* BOTÃO DE BACKUP DA CONVERSA */}
                                 <button 
                                     onClick={handleExportChat}
-                                    className="border px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 bg-white text-slate-600 border-gray-200 hover:bg-slate-100 hover:text-slate-800"
+                                    className="border p-1.5 md:px-3 md:py-2 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 bg-white text-slate-600 border-gray-200 hover:bg-slate-100 hover:text-slate-800"
                                     title="Baixar Histórico da Conversa (.txt)"
                                 >
-                                    <DownloadCloud size={16} /> <span className="hidden md:inline">Backup</span>
+                                    <DownloadCloud size={16} /> <span className="hidden xl:inline">Backup</span>
                                 </button>
 
-                                {/* NOVO BOTÃO: GATILHO DO MINI PDV */}
+                                {/* GATILHO DO MINI PDV (IMPORTANTE - MANTÉM TEXTO) */}
                                 <button 
                                     onClick={() => {
-                                        setShowContactInfo(false); // Fecha o CRM se abrir o PDV
+                                        setShowContactInfo(false); 
                                         setShowMiniPdv(!showMiniPdv);
                                     }}
-                                    className={`border px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all shadow-sm flex items-center gap-2 ${showMiniPdv ? 'bg-blue-700 text-white border-blue-700' : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'}`}
+                                    className={`border p-1.5 md:px-3 md:py-2 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wide transition-all shadow-sm flex items-center gap-2 ${showMiniPdv ? 'bg-blue-700 text-white border-blue-700' : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'}`}
                                     title="Lançar Pedido Rápido"
                                 >
-                                    <ShoppingCart size={16} /> Lançar Pedido
+                                    <ShoppingCart size={16} /> <span className="hidden md:inline">Lançar Pedido</span>
                                 </button>
                                 
                                 {/* BOTÃO DE BLOQUEIO DE CONTATO */}
                                 <button 
                                     onClick={handleToggleBlockContact}
-                                    className={`border px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 ${blockedContacts.includes(activeChat) ? 'bg-slate-800 text-white border-slate-900 hover:bg-slate-700' : 'bg-white text-slate-500 border-gray-200 hover:bg-slate-100 hover:text-slate-800'}`}
+                                    className={`border p-1.5 md:px-3 md:py-2 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 ${blockedContacts.includes(activeChat) ? 'bg-slate-800 text-white border-slate-900 hover:bg-slate-700' : 'bg-white text-slate-500 border-gray-200 hover:bg-slate-100 hover:text-slate-800'}`}
                                     title={blockedContacts.includes(activeChat) ? "Desbloquear Contato" : "Bloquear Contato"}
                                 >
-                                    <Ban size={16} /> {blockedContacts.includes(activeChat) ? 'Desbloquear' : 'Bloquear'}
+                                    <Ban size={16} /> <span className="hidden 2xl:inline">{blockedContacts.includes(activeChat) ? 'Desbloquear' : 'Bloquear'}</span>
                                 </button>
 
+                                {/* BOTÃO DE APAGAR CONVERSA */}
                                 <button 
                                     onClick={handleDeleteEntireChat}
-                                    className="bg-white hover:bg-red-50 text-red-500 border border-gray-200 hover:border-red-500 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
+                                    className="bg-white hover:bg-red-50 text-red-500 border border-gray-200 hover:border-red-500 p-1.5 md:px-3 md:py-2 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
                                     title="Apagar Conversa Inteira"
                                 >
-                                    <Trash2 size={16} /> Apagar
+                                    <Trash2 size={16} /> <span className="hidden 2xl:inline">Apagar</span>
                                 </button>
+
+                                {/* BOTÃO DE REATIVAR BOT */}
                                 <button 
                                     onClick={handleEndSession}
-                                    className="bg-white hover:bg-green-50 text-[#008069] border border-gray-200 hover:border-[#008069] px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-2"
+                                    className="bg-white hover:bg-green-50 text-[#008069] border border-gray-200 hover:border-[#008069] p-1.5 md:px-3 md:py-2 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center gap-1"
+                                    title="Reativar Atendimento Automático (Robô)"
                                 >
-                                    🤖 Reativar Bot
+                                    🤖 <span className="hidden xl:inline">Reativar Bot</span>
                                 </button>
                             </div>
                         </div>
@@ -1552,6 +1623,12 @@ export default function AdminChat() {
                                 <button onClick={handleToggleBlockContact} className="ml-2 text-xs font-black text-red-500 underline hover:text-red-700">
                                     Desbloquear
                                 </button>
+                            </div>
+                        ) : chatSessions[activeChat]?.assignedTo && chatSessions[activeChat]?.assignedTo !== auth.currentUser?.email ? (
+                            <div className="px-4 py-4 bg-orange-50 flex items-center justify-center gap-2 z-10 shrink-0 border-t border-orange-100">
+                                <span className="text-sm font-black text-orange-700 uppercase tracking-widest">
+                                    🔒 Em atendimento por {chatSessions[activeChat].assignedName}
+                                </span>
                             </div>
                         ) : (
                             <div className={`px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0 ${replyingTo ? 'pt-0' : ''}`}>
