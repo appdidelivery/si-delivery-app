@@ -3840,6 +3840,102 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     }
 
     // ------------------------------------------------------------------------
+    // 21.9 GERADOR DE BANNERS COM IA (FOODPORN) + SISTEMA DE COTAS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/generate-ai-banner') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, productName, category, context } = req.body;
+
+            if (!storeId || !productName) {
+                return res.status(400).json({ success: false, error: 'O nome do produto e a loja são obrigatórios.' });
+            }
+
+            // 1. VALIDAÇÃO DE COTAS (TENANT USAGE STATS)
+            const currentMonth = new Date().toISOString().slice(0, 7); // Formato: YYYY-MM
+            const usageRef = db.collection('tenant_usage_stats').doc(`${storeId}_${currentMonth}`);
+            const usageSnap = await usageRef.get();
+            
+            let currentUsage = 0;
+            const FREE_LIMIT = 5; // Franquia gratuita mensal por loja
+
+            if (usageSnap.exists) {
+                currentUsage = usageSnap.data().aiBannersGenerated || 0;
+            }
+
+            if (currentUsage >= FREE_LIMIT) {
+                return res.status(403).json({ 
+                    success: false, 
+                    error: `Você atingiu o limite de ${FREE_LIMIT} gerações gratuitas de banners com IA neste mês.`,
+                    limitReached: true
+                });
+            }
+
+            // 2. ENGENHARIA DE PROMPT (ESTILO FOODPORN PROFISSIONAL)
+            // O Master Prompt força o algoritmo a criar imagens realistas, apetitosas e sem textos estranhos.
+            const masterPrompt = `Professional food photography of ${productName}, category: ${category || 'food'}, context: ${context || 'delicious and appetizing'}. Cinematic lighting, highly detailed, macro shot, shallow depth of field, bokeh, vibrant colors, 8k resolution, photorealistic, foodporn style, dark moody background to make the food pop. Absolutely NO TEXT, NO LETTERS, NO WATERMARKS in the image.`;
+
+            const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+            let imageUrl = '';
+
+            // 3. CHAMADA PARA A API DA IA (Preparado para DALL-E 3 da OpenAI)
+            if (OPENAI_API_KEY) {
+                const aiResponse = await fetch('https://api.openai.com/v1/images/generations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${OPENAI_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: "dall-e-3",
+                        prompt: masterPrompt,
+                        n: 1,
+                        size: "1024x1024",
+                        quality: "standard"
+                    })
+                });
+
+                const aiData = await aiResponse.json();
+
+                if (!aiResponse.ok) {
+                    throw new Error(aiData.error?.message || 'Falha ao comunicar com o servidor de IA.');
+                }
+
+                imageUrl = aiData.data[0].url;
+            } else {
+                // FALLBACK MOCKADO (Se não houver chave da OpenAI na Vercel, retorna uma imagem de teste)
+                // Isso permite testar o front-end imediatamente sem quebrar a tela.
+                console.warn("Aviso: OPENAI_API_KEY ausente. Usando imagem de teste.");
+                // Simula delay da IA
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                imageUrl = "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=1024&auto=format&fit=crop";
+            }
+
+            // 4. REGISTRA O CONSUMO DO CRÉDITO NO FIREBASE
+            await usageRef.set({
+                storeId: storeId,
+                month: currentMonth,
+                aiBannersGenerated: admin.firestore.FieldValue.increment(1),
+                lastGeneratedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return res.status(200).json({ 
+                success: true, 
+                imageUrl: imageUrl,
+                creditsRemaining: FREE_LIMIT - (currentUsage + 1)
+            });
+
+        } catch (error) {
+            console.error("Erro na geração de banner com IA:", error);
+            return res.status(500).json({ 
+                success: false, 
+                error: 'Nossos servidores de imagem estão sobrecarregados no momento. Tente novamente em alguns minutos.' 
+            });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
