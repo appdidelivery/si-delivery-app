@@ -1696,7 +1696,7 @@ export default function Home() {
       return isOpenToday || isOpenFromYesterday;
   };
   // --- FIM: TRAVA DE HORÁRIO EM TEMPO REAL ---
-  const addToCart = (p, quantity = 1) => {
+  const addToCart = (p, quantity = 1, isUpsell = false) => {
     // Verifica a hora EXATA do clique (Permite que o Garçom fure a regra se precisar)
     const isReallyOpen = checkRealTimeStoreStatus();
     if (!isReallyOpen && !isWaiterMode) { 
@@ -1767,11 +1767,11 @@ export default function Home() {
           window.gtag('event', 'add_to_cart', { currency: 'BRL', value: finalPricePerUnit, items:[{ item_id: p.id, item_name: p.name, price: finalPricePerUnit, quantity: quantity }] }); 
       }
 
-      // 3. TERCEIRO: Atualizamos o carrinho
+      // 3. TERCEIRO: Atualizamos o carrinho marcando a flag do Upsell
       if (existingItem) {
-          return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit } : i);
+          return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit, isUpsell: i.isUpsell || isUpsell } : i);
       } else {
-          return[...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit }];
+          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit, isUpsell }];
       }
     });
 
@@ -1995,6 +1995,9 @@ export default function Home() {
     try {
       const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
       
+      // NOVO: Extrai apenas os itens comprados pela vitrine de Upsell para o painel Financeiro
+      const upsellGenerated = sanitizedCart.filter(i => i.isUpsell).reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
+      
       // NOVO: Se o cliente estiver tentando de novo após um erro, reaproveita o mesmo ID para não duplicar!
       if (!draftOrderIdRef.current) {
           draftOrderIdRef.current = doc(collection(db, "orders")).id;
@@ -2019,6 +2022,7 @@ export default function Home() {
         status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
         createdAt: serverTimestamp(),
         storeId: storeId || "",
+        upsellAmount: upsellGenerated, // NOVO: Faturamento gerado puramente por Upsell (Compre Junto)
         // Adicionando as TAGs para o Modo Garçom e Retirada:
         tipo: (isWaiterMode || tableSession) ? "local" : (isPickup ? "retirada" : "delivery"),
         mesa: isWaiterMode ? tableNumber : (tableSession ? tableSession : null),
@@ -4098,7 +4102,7 @@ if (window.fbq) {
                                       <p className={`${currentTheme.text} font-black text-sm`}>
                                           R$ {Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice).toFixed(2) : Number(p.price).toFixed(2)}
                                       </p>
-                                      <button onClick={() => addToCart(p)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
+                                      <button onClick={() => addToCart(p, 1, true)} className={`absolute bottom-3 right-3 p-1.5 ${currentTheme.primary} text-white rounded-full`}><Plus size={16}/></button>
                                   </div>
                               ))}
                           </div>

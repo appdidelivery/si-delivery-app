@@ -4069,47 +4069,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 );
                             })()}
 
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Visitas Hoje</p>
-    <p className="text-4xl font-black text-indigo-500 italic z-10 relative">{visitasHoje}</p>
-    <div className="absolute -right-4 -bottom-4 text-indigo-50 opacity-30"><ExternalLink size={120}/></div>
-    {/* Taxa de Conversão Rápida */}
-    <p className="text-[10px] font-bold text-slate-400 mt-2">
-        Conversão: {visitasHoje > 0 ? ((orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length / visitasHoje) * 100).toFixed(1) : 0}%
-    </p>
-</div>
-                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento Hoje</p>
-                                    <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
-                                    <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
-                                </div>
-                                 {/* PASSO 5: Card de Lucro Real */}
-                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Lucro Hoje</p>
-                                    <p className="text-4xl font-black text-cyan-500 italic z-10 relative">R$ {todaysProfit.toFixed(2)}</p>
-                                    <div className="absolute -right-4 -bottom-4 text-cyan-50 opacity-20"><TrendingUp size={120}/></div>
-                                </div>
-                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
-                                    <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
-                                </div>
-                                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                    <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Ticket Médio</p>
-                                    <p className="text-4xl font-black text-purple-500 italic">R$ {(orders.filter(o => o.status !== 'canceled').reduce((a, b) => a + (Number(b.total) || 0), 0) / (orders.filter(o => o.status !== 'canceled').length || 1)).toFixed(2)}</p>
-                                </div>
-                                
-                                {/* NOVO: SUPER CARD DE RECUPERAÇÃO */}
-                                <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-8 rounded-[2.5rem] shadow-lg border border-rose-400 relative overflow-hidden md:col-span-2 xl:col-span-1">
-                                    <div className="flex justify-between items-start z-10 relative">
-                                        <p className="text-rose-100 font-black text-[10px] uppercase tracking-widest mb-1">Vendas Recuperadas</p>
-                                        <span className="bg-white text-rose-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
-                                            {carrinhosRecuperadosHoje} Carrinhos
-                                        </span>
+                            <div className="space-y-6">
+                                {/* PRIMEIRA LINHA: MÉTRICAS PADRÃO */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Visitas Hoje</p>
+                                        <p className="text-4xl font-black text-indigo-500 italic z-10 relative">{visitasHoje}</p>
+                                        <div className="absolute -right-4 -bottom-4 text-indigo-50 opacity-30"><ExternalLink size={120}/></div>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-2">
+                                            Conversão: {visitasHoje > 0 ? ((orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length / visitasHoje) * 100).toFixed(1) : 0}%
+                                        </p>
                                     </div>
-                                    <p className="text-4xl font-black text-white italic z-10 relative mt-1">R$ {carrinhosRecuperadosValorHoje.toFixed(2)}</p>
-                                    <p className="text-[9px] text-rose-200 font-bold mt-1 z-10 relative">Retorno salvo pelo robô Velo hoje.</p>
-                                    <div className="absolute -right-4 -bottom-4 text-white opacity-20"><Ghost size={100}/></div>
+                                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento</p>
+                                        <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
+                                        <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
+                                    </div>
+                                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Lucro Hoje</p>
+                                        <p className="text-4xl font-black text-cyan-500 italic z-10 relative">R$ {todaysProfit.toFixed(2)}</p>
+                                        <div className="absolute -right-4 -bottom-4 text-cyan-50 opacity-20"><TrendingUp size={120}/></div>
+                                    </div>
+                                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
+                                        <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
+                                    </div>
+                                </div>
+
+                                {/* SEGUNDA LINHA: IA E PERFORMANCE (TICKET, ABANDONOS E UPSELL) */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                        <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Ticket Médio</p>
+                                        <p className="text-4xl font-black text-purple-500 italic">R$ {(orders.filter(o => o.status !== 'canceled').reduce((a, b) => a + (Number(b.total) || 0), 0) / (orders.filter(o => o.status !== 'canceled').length || 1)).toFixed(2)}</p>
+                                    </div>
+
+                                    {/* SUPER CARD: RECUPERAÇÃO DE CARRINHOS */}
+                                    <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-rose-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
+                                        <div className="flex justify-between items-start z-10 relative mb-1">
+                                            <p className="text-rose-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Ghost size={12}/> Vendas Recuperadas</p>
+                                            <span className="bg-white text-rose-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
+                                                {carrinhosRecuperadosHoje} Carts
+                                            </span>
+                                        </div>
+                                        <p className="text-3xl lg:text-4xl font-black text-white italic z-10 relative leading-none mt-1">R$ {(carrinhosRecuperadosValorHoje || 0).toFixed(2)}</p>
+                                        <p className="text-[9px] text-rose-200 font-bold mt-1.5 z-10 relative">Salvos pelo Robô Velo hoje.</p>
+                                        <div className="absolute -right-4 -bottom-4 text-white opacity-20"><Ghost size={100}/></div>
+                                    </div>
+
+                                    {/* SUPER CARD: UPSELL INTELIGENTE */}
+                                    <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-indigo-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
+                                        <div className="flex justify-between items-start z-10 relative mb-1">
+                                            <p className="text-indigo-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Flame size={12}/> Upsell (Compre Junto)</p>
+                                        </div>
+                                        <p className="text-3xl lg:text-4xl font-black text-white italic z-10 relative leading-none mt-1">
+                                            R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}
+                                        </p>
+                                        <p className="text-[9px] text-indigo-200 font-bold mt-1.5 z-10 relative">Sugeridos no carrinho hoje.</p>
+                                        <div className="absolute -right-4 -bottom-4 text-white opacity-20"><Flame size={100}/></div>
+                                    </div>
                                 </div>
                             </div>
 
