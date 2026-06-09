@@ -720,6 +720,8 @@ const educationalBanners = [
         return () => clearInterval(interval);
     }, []);
     const [visitasHoje, setVisitasHoje] = useState(0);
+    const [carrinhosRecuperadosHoje, setCarrinhosRecuperadosHoje] = useState(0); 
+    const [carrinhosRecuperadosValorHoje, setCarrinhosRecuperadosValorHoje] = useState(0); // NOVO: Valor em R$
     const [analyticsHistory, setAnalyticsHistory] = useState([]); // <-- NOVO ESTADO HISTÓRICO PARA O VELO INSIGHTS
     const [isGeneratingInsights, setIsGeneratingInsights] = useState(false); // IA Pensando
     const [insightsResponse, setInsightsResponse] = useState(null); // Resposta da IA
@@ -1834,8 +1836,12 @@ const educationalBanners = [
         const unsubVisitas = onSnapshot(doc(db, "stores", storeId, "analytics", hojeAnalytics), (d) => {
             if (d.exists()) {
                 setVisitasHoje(d.data().pageViews || 0);
+                setCarrinhosRecuperadosHoje(d.data().recoveredCarts || 0);
+                setCarrinhosRecuperadosValorHoje(d.data().recoveredCartsValue || 0);
             } else {
                 setVisitasHoje(0);
+                setCarrinhosRecuperadosHoje(0);
+                setCarrinhosRecuperadosValorHoje(0);
             }
         });
 
@@ -2054,9 +2060,20 @@ const educationalBanners = [
                 // Se o dono desse carrinho ESTÁ na lista de quem comprou... DELETA O CARRINHO!
                 if (cartPhone.length >= 8 && phonesThatBought.has(cartPhone)) {
                     try {
+                        const valorRecuperado = Number(cart.subtotal || 0);
+                        
                         // Apaga do banco de dados para não ocupar espaço
                         await deleteDoc(doc(db, "abandoned_carts", cart.id));
                         
+                        // NOVO: Conta a conversão no painel Analytics (+1 Carrinho e soma o R$)
+                        try {
+                            const hoje = new Date().toISOString().split('T')[0];
+                            await updateDoc(doc(db, "stores", storeId, "analytics", hoje), { 
+                                recoveredCarts: increment(1),
+                                recoveredCartsValue: increment(valorRecuperado)
+                            });
+                        } catch (err) {}
+
                         // Some com ele da tela instantaneamente
                         setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
                     } catch (e) {
@@ -2479,20 +2496,27 @@ const handleGenerateProductCopy = async () => {
             alert("Erro ao salvar zonas: " + error.message);
         }
     };
-    const handleRefundMercadoPago = async (order) => {
-        if (!window.confirm(`🚨 ATENÇÃO: Deseja realmente ESTORNAR o pagamento de R$ ${Number(order.total).toFixed(2)} do pedido #${order.id.slice(-5).toUpperCase()}?\n\nO dinheiro será devolvido ao cliente no Mercado Pago e o pedido será cancelado.`)) return;
+    const handleRefundMercadoPago = async (order, e) => {
+        if (!window.confirm(`🚨 ATENÇÃO: Deseja realmente ESTORNAR o pagamento de R$ ${Number(order.total).toFixed(2)} do pedido #${order.id.slice(-5).toUpperCase()}?\n\nO dinheiro será devolvido ao cliente no Mercado Pago e o pedido será cancelado.`)) return;
 
-        try {
-            // Um toast simples para ele saber que tá carregando
-            alert("Processando estorno no Mercado Pago. Por favor aguarde...");
-            
-            const res = await fetch('/api/refund-mp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: storeId, orderId: order.id })
-            });
+        // Ativa o loading state direto no botão clicado para evitar duplo clique
+        const btn = e ? e.currentTarget : null;
+        let originalContent = '';
+        if (btn) {
+            originalContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="animate-spin h-5 w-5 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
 
-            const data = await res.json();
+        try {
+            const res = await fetch('/api/refund-mp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: storeId, orderId: order.id })
+            });
+
+            const data = await res.json();
 
             if (res.ok) {
                 // Atualiza o banco de dados marcando como estornado
@@ -2507,7 +2531,7 @@ const handleGenerateProductCopy = async () => {
                 if (settings?.integrations?.whatsapp?.apiToken && order.customerPhone) {
                     const phoneRaw = String(order.customerPhone).replace(/\D/g, '');
                     const cleanPhone = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`;
-                    const refundMsg = `❌ *PEDIDO CANCELADO E ESTORNADO*\n\nOlá ${order.customerName.split(' ')[0]}, o seu pedido #${order.id.slice(-5).toUpperCase()} foi cancelado e o valor de *R$ ${Number(order.total).toFixed(2)}* foi integralmente devolvido para a sua conta/cartão via Mercado Pago.\n\n🧾 *ID do Comprovante de Estorno:* ${data.refundId}\n\nO prazo para constar na fatura depende da operadora do seu cartão.`;
+                    const refundMsg = `❌ *PEDIDO CANCELADO E ESTORNADO*\n\nOlá ${order.customerName.split(' ')[0]}, o seu pedido #${order.id.slice(-5).toUpperCase()} foi cancelado e o valor de *R$ ${Number(order.total).toFixed(2)}* foi integralmente devolvido para a sua conta via Mercado Pago.\n\n🧾 *ID do Comprovante de Estorno:* ${data.refundId}\n\nO prazo para constar na fatura depende da operadora do seu cartão.`;
                     
                     try {
                         const waRes = await fetch('/api/whatsapp-send', {
@@ -2523,27 +2547,32 @@ const handleGenerateProductCopy = async () => {
 
                         if (waRes.ok) {
                             await addDoc(collection(db, 'whatsapp_inbound'), {
-                                storeId: storeId,
-                                to: cleanPhone,
-                                text: refundMsg,
-                                receivedAt: serverTimestamp(),
-                                status: 'read',
-                                direction: 'outbound'
+                                storeId: storeId, to: cleanPhone, text: refundMsg,
+                                receivedAt: serverTimestamp(), status: 'read', direction: 'outbound'
                             });
                         }
                     } catch (e) {
                         console.error("Erro ao enviar comprovante de estorno via WhatsApp", e);
                     }
                 }
-
             } else {
                 alert(`❌ Erro ao estornar: ${data.error || 'Erro desconhecido'}`);
+                if (btn) {
+                    btn.innerHTML = originalContent;
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
             }
         } catch (error) {
-            console.error("Erro ao estornar:", error);
-            alert("Erro de conexão ao tentar realizar o estorno.");
-        }
-    };
+            console.error("Erro ao estornar:", error);
+            alert("Erro de conexão ao tentar realizar o estorno.");
+            if (btn) {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+    };
 
     const printLabel = async (o) => {
         const w = window.open('', '_blank');
@@ -4069,6 +4098,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Ticket Médio</p>
                                     <p className="text-4xl font-black text-purple-500 italic">R$ {(orders.filter(o => o.status !== 'canceled').reduce((a, b) => a + (Number(b.total) || 0), 0) / (orders.filter(o => o.status !== 'canceled').length || 1)).toFixed(2)}</p>
                                 </div>
+                                
+                                {/* NOVO: SUPER CARD DE RECUPERAÇÃO */}
+                                <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-8 rounded-[2.5rem] shadow-lg border border-rose-400 relative overflow-hidden md:col-span-2 xl:col-span-1">
+                                    <div className="flex justify-between items-start z-10 relative">
+                                        <p className="text-rose-100 font-black text-[10px] uppercase tracking-widest mb-1">Vendas Recuperadas</p>
+                                        <span className="bg-white text-rose-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
+                                            {carrinhosRecuperadosHoje} Carrinhos
+                                        </span>
+                                    </div>
+                                    <p className="text-4xl font-black text-white italic z-10 relative mt-1">R$ {carrinhosRecuperadosValorHoje.toFixed(2)}</p>
+                                    <p className="text-[9px] text-rose-200 font-bold mt-1 z-10 relative">Retorno salvo pelo robô Velo hoje.</p>
+                                    <div className="absolute -right-4 -bottom-4 text-white opacity-20"><Ghost size={100}/></div>
+                                </div>
                             </div>
 
                             <div className="pt-8 mt-8 border-t border-slate-100">
@@ -4893,17 +4935,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <div>
                                                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 text-center">Táticas de Recuperação (WhatsApp)</p>
                                                 
-                                                {/* NOVO GRID COM APENAS 2 BOTÕES */}
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <button onClick={() => sendMsg(msgPrimeira)} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all border border-orange-100 group">
-                                                        <Flame size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Enviar Cupom<br/>(5% OFF)</span>
-                                                    </button>
-                                                    <button onClick={() => sendMsg(msgSegunda)} className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-all border border-red-100 group">
-                                                        <Tags size={18} className="mb-1 group-hover:scale-110 transition-transform" />
-                                                        <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(10% OFF)</span>
-                                                    </button>
-                                                </div>
+                                                {/* NOVO: VALIDA SE A AUTOMAÇÃO ESTÁ LIGADA PARA ESCONDER OS BOTÕES MANUAIS */}
+                                                {settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoAbandonedCart ? (
+                                                    <div className="bg-green-50 border border-green-200 p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+                                                        <div className="flex items-center gap-2 text-green-600 font-black uppercase text-xs mb-1">
+                                                            <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div> Robô IA Ativo
+                                                        </div>
+                                                        <p className="text-[9px] font-bold text-green-700">A Inteligência Artificial da Velo fará o disparo automático para recuperar este carrinho.</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <button onClick={() => sendMsg(msgPrimeira)} className="flex flex-col items-center justify-center p-3 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all border border-orange-100 group">
+                                                            <Flame size={18} className="mb-1 group-hover:scale-110 transition-transform" />
+                                                            <span className="text-[9px] font-black uppercase text-center leading-tight">Enviar Cupom<br/>(5% OFF)</span>
+                                                        </button>
+                                                        <button onClick={() => sendMsg(msgSegunda)} className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 transition-all border border-red-100 group">
+                                                            <Tags size={18} className="mb-1 group-hover:scale-110 transition-transform" />
+                                                            <span className="text-[9px] font-black uppercase text-center leading-tight">Última Chance<br/>(10% OFF)</span>
+                                                        </button>
+                                                    </div>
+                                                )}
                                                 
                                                 <button onClick={async () => {
                                                     if(window.confirm("Deseja realmente apagar este carrinho abandonado?")) {
@@ -5260,10 +5311,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 <MessageCircle size={20} />
                                                             </a>
                                                             
-                                                            {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
+                                                            {['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(o.paymentStatus) && ['mercado_pago', 'mercadopago_link', 'mp_transparent', 'cartao', 'pix', 'online', 'misto'].includes(o.paymentMethod) && settings?.integrations?.mercadopago?.accessToken && (
                                                                 <button 
-                                                                    onClick={() => handleRefundMercadoPago(o)} 
-                                                                    className="p-3 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 text-red-600 transition-colors" 
+                                                                    onClick={(e) => handleRefundMercadoPago(o, e)} 
+                                                                    className="p-3 bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 text-red-600 transition-all flex items-center justify-center" 
                                                                     title="Estornar Pagamento (Mercado Pago)"
                                                                 >
                                                                     <RefreshCw size={20} />
@@ -5543,10 +5594,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     setIsOrderEditModalOpen(true);
                                                                 }} className="p-2 bg-slate-100 rounded-lg hover:bg-orange-100 text-orange-600 transition-colors" title="Ver Detalhes/Editar"><Edit3 size={16} /></button>
                                                                 
-                                                                {o.paymentStatus === 'paid' && settings?.integrations?.mercadopago?.accessToken && (
+                                                                {['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(o.paymentStatus) && ['mercado_pago', 'mercadopago_link', 'mp_transparent', 'cartao', 'pix', 'online', 'misto'].includes(o.paymentMethod) && settings?.integrations?.mercadopago?.accessToken && (
                                                                     <button 
-                                                                        onClick={() => handleRefundMercadoPago(o)} 
-                                                                        className="p-2 bg-red-50 rounded-lg hover:bg-red-100 text-red-600 transition-colors" 
+                                                                        onClick={(e) => handleRefundMercadoPago(o, e)} 
+                                                                        className="p-2 bg-red-50 rounded-lg hover:bg-red-100 text-red-600 transition-all flex items-center justify-center" 
                                                                         title="Estornar Pix/Cartão (Mercado Pago)"
                                                                     >
                                                                         <RefreshCw size={16} />
