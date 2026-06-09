@@ -2408,28 +2408,41 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         // 1. Remove pontuações malditas (vírgulas, pontos) e deixa só letras/números
                                                         const cleanSearchText = incomingTextLower.replace(/[^\w\s]/gi, '').trim();
                                                         
-                                                        // 2. Lista de palavras para ignorar melhorada
-                                                        const wordsToIgnore = ['um', 'uma', 'dois', 'duas', 'tres', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 've', 'manda', 'veja', 'gosto', 'queria', 'preciso', 'voces', 'vcs', 'ola', 'oi'];
+                                                        // 2. Dicionário Expansivo de Stop Words para o Bot ignorar o bate-papo
+                                                        const wordsToIgnore = [
+                                                            'um', 'uma', 'dois', 'duas', 'tres', 'quero', 'tem', 'gostaria', 'de', 'do', 'da', 'por', 'favor', 
+                                                            've', 'manda', 'veja', 'gosto', 'queria', 'preciso', 'voces', 'vcs', 'ola', 'oi', 'nao', 'sim',
+                                                            'que', 'isso', 'aquilo', 'coisa', 'coisas', 'mas', 'qual', 'quais', 'como', 'onde', 'quando',
+                                                            'ate', 'loko', 'louco', 'bom', 'mal', 'bem', 'ta', 'ja', 'ai', 'aqui', 'la', 'entao', 'perguntei',
+                                                            'saber', 'vende', 'voce', 'você', 'cara', 'meu', 'minha', 'essas', 'esse', 'essa', 'este', 'esta', 'ok'
+                                                        ];
                                                         
-                                                        // 3. Só exige que a palavra tenha mais de 1 letra (para pegar "G", "M", etc)
-                                                        const searchWords = cleanSearchText.split(/\s+/).filter(w => w.length > 1 && !wordsToIgnore.includes(w));
+                                                        // 3. Exige que a palavra tenha MAIS DE 2 LETRAS (evita sílabas perdidas acionando buscas)
+                                                        const searchWords = cleanSearchText.split(/\s+/).filter(w => w.length > 2 && !wordsToIgnore.includes(w));
 
                                                         const searchResults = searchSnap.docs.filter(doc => {
                                                             const pData = doc.data();
                                                             const pName = (pData.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                                                             const pCat = (pData.category || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                                                             
-                                                            // Fallback: se a pessoa digitou apenas 1 letra e ela não foi pro searchWords
-                                                            if (searchWords.length === 0) {
+                                                            // TRAVA DE CONVERSA: Se o cliente mandou mais de 3 palavras válidas, ele provavelmente tá batendo papo.
+                                                            // Neste caso, exige que o nome do prato seja exatamente o que ele digitou.
+                                                            if (searchWords.length > 3) {
                                                                 return pName.includes(cleanSearchText) || pCat.includes(cleanSearchText);
                                                             }
 
-                                                            // 4. MÁGICA: Checa se a frase inteira bate OU se alguma palavra bate
+                                                            // Fallback: se as Stop Words eliminaram tudo (ex: digitou só "que isso")
+                                                            if (searchWords.length === 0) {
+                                                                // Só pesquisa se a frase for menor que 15 caracteres (impede falsos positivos em frases longas)
+                                                                return cleanSearchText.length < 15 && (pName.includes(cleanSearchText) || pCat.includes(cleanSearchText));
+                                                            }
+
+                                                            // 4. MÁGICA REFINADA: Checa se a frase inteira bate OU se alguma palavra válida bate
                                                             const matchesFullText = pName.includes(cleanSearchText) || pCat.includes(cleanSearchText);
                                                             const matchesAnyWord = searchWords.some(word => pName.includes(word) || pCat.includes(word));
                                                             
                                                             return matchesFullText || matchesAnyWord;
-                                                        }).slice(0, 10); 
+                                                        }).slice(0, 10);
                                                         
                                                         if (searchResults.length > 0) {
                                                             const searchRows = searchResults.map(doc => {
