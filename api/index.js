@@ -3859,12 +3859,30 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
               {"title": "Nome do Combo Criativo", "desc": "Descrição factual detalhando o que vem no combo, com gramaturas ou litros se aplicável.", "price": "Calcule um preço sugerido (ex: R$ 49,90)"}
             ]`;
 
-            // MOTOR DE AUTO-CURA: Tenta primeiro o modelo Flash, se o Google bloquear por cota, tenta o Pro.
+            // 🚀 MOTOR DE AUTO-CURA DEFINITIVO PARA OS COMBOS
+            let availableModels = ['gemini-1.5-flash', 'gemini-1.5-pro']; // Modelos modernos atualizados
+            
+            try {
+                // Pergunta pro Google quais modelos estão vivos na sua chave hoje
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
+                if (listRes.ok) {
+                    const listData = await listRes.json();
+                    if (listData.models) {
+                        const validModels = listData.models
+                            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('vision'))
+                            .map(m => m.name.replace('models/', ''));
+                        if (validModels.length > 0) availableModels = validModels;
+                    }
+                }
+            } catch (e) {
+                console.warn("Aviso: Falha ao listar modelos da chave. Usando fallback.");
+            }
+
             let aiData = null;
             let responseOk = false;
-            const modelsToTry = ['gemini-1.5-flash', 'gemini-1.0-pro'];
 
-            for (const modelName of modelsToTry) {
+            // Roda a roleta apenas com os modelos reais da sua conta
+            for (const modelName of availableModels) {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -3877,7 +3895,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
                 if (response.ok) {
                     responseOk = true;
-                    break;
+                    console.log(`✅ [IA Velo Combos] Sucesso! Modelo utilizado: ${modelName}`);
+                    break; // Sai do loop se deu certo
                 }
             }
 
