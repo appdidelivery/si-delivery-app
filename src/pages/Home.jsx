@@ -985,7 +985,9 @@ export default function Home() {
   const closeRouletteAndRedirect = () => {
       setShowRoulette(false);
       if (pendingRedirect) {
-          window.open(pendingRedirect.url, '_blank');
+          if (pendingRedirect.url) {
+              window.open(pendingRedirect.url, '_blank');
+          }
           navigate(pendingRedirect.track);
       }
   };
@@ -2199,13 +2201,19 @@ if (window.fbq) {
               alert("✅ Pedido enviado para a cozinha com sucesso!");
               return; // Para a execução aqui mesmo!
           }
+
+          // 🚨 CORREÇÃO: VERIFICA SE A LOJA TEM API DA META. SE TIVER, BLOQUEIA O POPUP!
+          const hasWhatsAppApi = !!marketingSettings?.integrations?.whatsapp?.apiToken;
+          const finalUrlToOpen = hasWhatsAppApi ? null : whatsappUrl;
           
           // GATILHO DA GAMIFICAÇÃO: Intercepta o redirecionamento se a Roleta estiver ativa
           if (marketingSettings?.gamification?.roulette) {
-              setPendingRedirect({ url: whatsappUrl, track: `/track/${orderId}` });
+              setPendingRedirect({ url: finalUrlToOpen, track: `/track/${orderId}` });
               setShowRoulette(true);
           } else {
-              window.open(whatsappUrl, '_blank');
+              if (finalUrlToOpen) {
+                  window.open(finalUrlToOpen, '_blank');
+              }
               navigate(`/track/${orderId}`);
           }
           return;

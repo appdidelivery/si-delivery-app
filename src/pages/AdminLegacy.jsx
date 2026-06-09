@@ -2068,11 +2068,14 @@ const educationalBanners = [
                         // NOVO: Conta a conversão no painel Analytics (+1 Carrinho e soma o R$)
                         try {
                             const hoje = new Date().toISOString().split('T')[0];
-                            await updateDoc(doc(db, "stores", storeId, "analytics", hoje), { 
+                            await setDoc(doc(db, "stores", storeId, "analytics", hoje), { 
                                 recoveredCarts: increment(1),
-                                recoveredCartsValue: increment(valorRecuperado)
-                            });
-                        } catch (err) {}
+                                recoveredCartsValue: increment(valorRecuperado),
+                                date: hoje
+                            }, { merge: true });
+                        } catch (err) {
+                            console.error("Erro ao salvar contabilidade do carrinho:", err);
+                        }
 
                         // Some com ele da tela instantaneamente
                         setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
@@ -4107,13 +4110,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-rose-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
                                         <div className="flex justify-between items-start z-10 relative mb-1">
                                             <p className="text-rose-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Ghost size={12}/> Vendas Recuperadas</p>
-                                            <span className="bg-white text-rose-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
-                                                {carrinhosRecuperadosHoje} Carts
-                                            </span>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="bg-white text-rose-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
+                                                    Hoje: {carrinhosRecuperadosHoje} Carts
+                                                </span>
+                                            </div>
                                         </div>
-                                        <p className="text-3xl lg:text-4xl font-black text-white italic z-10 relative leading-none mt-1">R$ {(carrinhosRecuperadosValorHoje || 0).toFixed(2)}</p>
-                                        <p className="text-[9px] text-rose-200 font-bold mt-1.5 z-10 relative">Salvos pelo Robô Velo hoje.</p>
-                                        <div className="absolute -right-4 -bottom-4 text-white opacity-20"><Ghost size={100}/></div>
+                                        <div className="mt-1 z-10 relative">
+                                            <p className="text-[10px] text-rose-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
+                                            <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">R$ {(carrinhosRecuperadosValorHoje || 0).toFixed(2)}</p>
+                                            
+                                            <div className="mt-3 pt-3 border-t border-rose-400/50 flex justify-between items-end">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-rose-200 font-bold uppercase tracking-widest">Últimos 30 Dias</span>
+                                                    <span className="text-[9px] text-rose-300 font-medium">({analyticsHistory.reduce((acc, d) => acc + (d.recoveredCarts || 0), 0)} Carts salvos)</span>
+                                                </div>
+                                                <span className="text-lg font-black text-white italic">R$ {analyticsHistory.reduce((acc, d) => acc + (Number(d.recoveredCartsValue) || 0), 0).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="absolute -left-4 -bottom-4 text-white opacity-10"><Ghost size={120}/></div>
                                     </div>
 
                                     {/* SUPER CARD: UPSELL INTELIGENTE */}
@@ -4121,11 +4136,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="flex justify-between items-start z-10 relative mb-1">
                                             <p className="text-indigo-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Flame size={12}/> Upsell (Compre Junto)</p>
                                         </div>
-                                        <p className="text-3xl lg:text-4xl font-black text-white italic z-10 relative leading-none mt-1">
-                                            R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}
-                                        </p>
-                                        <p className="text-[9px] text-indigo-200 font-bold mt-1.5 z-10 relative">Sugeridos no carrinho hoje.</p>
-                                        <div className="absolute -right-4 -bottom-4 text-white opacity-20"><Flame size={100}/></div>
+                                        <div className="mt-1 z-10 relative">
+                                            <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
+                                            <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
+                                                R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}
+                                            </p>
+                                            
+                                            <div className="mt-3 pt-3 border-t border-indigo-400/50 flex justify-between items-end">
+                                                <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest">Histórico Total</span>
+                                                <span className="text-lg font-black text-white italic">R$ {orders.filter(o => o.status !== 'canceled').reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="absolute -left-4 -bottom-4 text-white opacity-10"><Flame size={120}/></div>
                                     </div>
                                 </div>
                             </div>
