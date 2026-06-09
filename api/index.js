@@ -3754,67 +3754,47 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro, sem blocos de código: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
 
-            // 🚀 MOTOR DE RESGATE DEFINITIVO (Usando V1 Estável em vez de V1Beta)
-            // O Google removeu os modelos do v1beta, então agora chamamos direto a API de Produção (v1)
-            const endpointsToTry = [
-                `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-                `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${GEMINI_KEY}`,
-                `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_KEY}`
-            ];
+            // RESTAURADO PARA A VERSÃO NATIVA MAIS ESTÁVEL (Sem configurações que causam conflito 400/404)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
 
-            let aiData = null;
-            let responseOk = false;
+            const aiData = await response.json();
 
-            for (const endpoint of endpointsToTry) {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                aiData = await response.json();
-
-                if (response.ok) {
-                    responseOk = true;
-                    console.log(`✅ [IA Velo] Copy gerada com sucesso na API Estável do Google! Endpoint: ${endpoint.split('models/')[1].split(':')[0]}`);
-                    break; 
-                } else {
-                    console.warn(`⚠️ [IA Velo] Rota rejeitada:`, aiData?.error?.message);
-                    const errorMsg = aiData.error?.message?.toLowerCase() || '';
-                    if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota')) {
-                        return res.status(200).json({ success: false, error: "Aviso: A cota gratuita da sua chave Google Gemini foi atingida. Use a descrição manual." });
-                    }
+            if (!response.ok) {
+                console.error("Erro Google API:", aiData);
+                const errorMsg = aiData.error?.message?.toLowerCase() || '';
+                
+                if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
+                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: Cota da IA excedida. Insira a descrição manualmente." });
                 }
-            }
 
-            if (!responseOk) {
-                console.error("❌ Erro Google API Fatal:", aiData);
-                return res.status(200).json({ success: false, error: "As rotas do Google rejeitaram a requisição. Verifique a chave no Google Cloud Console." });
+                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro na chave ou modelo'}` });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
             
             if (!rawJsonText) {
-                return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
+                return res.status(200).json({ success: false, error: "A IA não conseguiu processar este produto agora." });
             }
             
-            // 🛡️ BLINDAGEM ANTI-MARKDOWN
+            // BLINDAGEM DE PARSING (Remove blocos markdown ```json que o gemini-pro costuma mandar)
             let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBrace = cleanJsonText.indexOf('{');
             const lastBrace = cleanJsonText.lastIndexOf('}');
-            
             if (firstBrace !== -1 && lastBrace !== -1) {
                 cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
             }
             
             const parsedResult = JSON.parse(cleanJsonText);
             return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
-            
         } catch (error) {
-            console.error("❌ Erro de Parsing (IA Produtos):", error);
-            return res.status(200).json({ success: false, error: "O assistente falhou ao formatar o texto. Tente novamente." });
+            console.error("Erro Crítico IA Produtos:", error);
+            return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O assistente de IA está em manutenção. Por favor, insira a descrição manualmente por enquanto." });
         }
     }
     // ------------------------------------------------------------------------
