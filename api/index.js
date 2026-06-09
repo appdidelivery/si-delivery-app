@@ -3746,7 +3746,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            // EXTRAINDO A LOCALIZAÇÃO QUE O FRONTEND JÁ MANDA
             const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
             if (!termoRaw) return res.status(400).json({ error: 'O termo do produto é obrigatório.' });
 
@@ -3769,56 +3768,26 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             Retorne APENAS um JSON puro, sem blocos de código em volta: 
             {"nome": "Nome Otimizado", "descricao": "Descrição factual, humana e com SEO local."}`;
 
-            // 🚀 MOTOR DE RESGATE DEFINITIVO (Usando V1 Estável em vez de V1Beta)
-            
-            // 1. TENTATIVA PADRÃO
-            let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${GEMINI_KEY}`, {
+            // 🚀 CHAMADA LIMPA E ESTÁVEL (Sem variáveis órfãs)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
             });
-
-            // 2. MOTOR DE AUTO-CURA (AUTO-HEALING)
-            // Se o Google der 404, o código faz exatamente o que o erro pede: Consulta a lista de modelos da SUA chave!
-            if (response.status === 404) {
-                console.warn("⚠️ [IA Velo] Modelo 404. Iniciando Auto-Healing (ListModels)...");
-                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
-                const listData = await listRes.json();
-                
-                if (listData.models) {
-                    // Busca o primeiro modelo disponível na SUA chave que suporta geração de texto
-                    const validModel = listData.models.find(m => 
-                        m.supportedGenerationMethods?.includes('generateContent') && 
-                        m.name.includes('gemini') && 
-                        !m.name.includes('vision')
-                    );
-                    
-                    if (validModel) {
-                        targetModel = validModel.name.replace('models/', '');
-                        console.log(`✅ [IA Velo] Auto-Healing encontrou modelo compatível com sua chave: ${targetModel}`);
-                        
-                        // Refaz a requisição com o modelo correto encontrado
-                        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${GEMINI_KEY}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                    }
-                }
-            }
 
             const aiData = await response.json();
 
-            // 3. TRATAMENTO DE ERROS DE COTA/FATURAMENTO
             if (!response.ok) {
                 console.error("❌ Erro Google API:", aiData);
                 const errorMsg = aiData.error?.message?.toLowerCase() || '';
                 
                 if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
-                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O limite gratuito da IA do Google foi excedido neste mês. Insira a descrição manualmente." });
+                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: Cota da IA excedida. Insira a descrição manualmente." });
                 }
-                
-                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro de conexão'}` });
+
+                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro na chave ou modelo'}` });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -3827,7 +3796,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
             }
             
-            // 🛡️ 4. BLINDAGEM ANTI-MARKDOWN EXTREMA
+            // 🛡️ BLINDAGEM ANTI-MARKDOWN
             let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBrace = cleanJsonText.indexOf('{');
             const lastBrace = cleanJsonText.lastIndexOf('}');
