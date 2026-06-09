@@ -3754,49 +3754,57 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro, sem blocos de código: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
 
-            // 🚀 ROLETA INVENCÍVEL DE MODELOS (Na rota v1beta)
-            // Como sua chave rejeitou o 'gemini-pro' e o '1.5-flash', ela DEVE usar o '1.0-pro' original.
-            const modelsToTry = [
-                'gemini-1.0-pro',          // <-- O SALVA-VIDAS (Testado primeiro)
-                'gemini-1.0-pro-latest', 
-                'gemini-1.5-flash', 
-                'gemini-1.5-flash-latest', 
-                'gemini-pro'
-            ];
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            let targetModel = 'gemini-1.5-flash'; // Modelo Padrão Inicial
+            
+            // 1. TENTATIVA PADRÃO
+            let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-            let aiData = null;
-            let responseOk = false;
-            let modeloQueFuncionou = '';
-
-            for (const model of modelsToTry) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                aiData = await response.json();
-
-                if (response.ok) {
-                    responseOk = true;
-                    modeloQueFuncionou = model;
-                    console.log(`✅ [IA Velo] SUCESSO ABSOLUTO! O modelo que a sua chave aceitou foi: ${modeloQueFuncionou}`);
-                    break; 
-                } else {
-                    console.warn(`⚠️ [IA Velo] Modelo ${model} rejeitado. Motivo:`, aiData?.error?.message);
+            // 2. MOTOR DE AUTO-CURA (AUTO-HEALING)
+            // Se o Google der 404, o código faz exatamente o que o erro pede: Consulta a lista de modelos da SUA chave!
+            if (response.status === 404) {
+                console.warn("⚠️ [IA Velo] Modelo 404. Iniciando Auto-Healing (ListModels)...");
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
+                const listData = await listRes.json();
+                
+                if (listData.models) {
+                    // Busca o primeiro modelo disponível na SUA chave que suporta geração de texto
+                    const validModel = listData.models.find(m => 
+                        m.supportedGenerationMethods?.includes('generateContent') && 
+                        m.name.includes('gemini') && 
+                        !m.name.includes('vision')
+                    );
                     
-                    const errorMsg = aiData.error?.message?.toLowerCase() || '';
-                    if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota')) {
-                        return res.status(200).json({ success: false, error: "Aviso: A cota gratuita da sua chave Google Gemini foi atingida. Use a descrição manual." });
+                    if (validModel) {
+                        targetModel = validModel.name.replace('models/', '');
+                        console.log(`✅ [IA Velo] Auto-Healing encontrou modelo compatível com sua chave: ${targetModel}`);
+                        
+                        // Refaz a requisição com o modelo correto encontrado
+                        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${GEMINI_KEY}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
                     }
                 }
             }
 
-            if (!responseOk) {
-                console.error("❌ Erro Google API Fatal (Todos falharam):", aiData);
-                return res.status(200).json({ success: false, error: "Sua chave do Google Cloud não foi aceita em nenhum modelo ativo. Gere uma chave nova no Google AI Studio." });
+            const aiData = await response.json();
+
+            // 3. TRATAMENTO DE ERROS DE COTA/FATURAMENTO
+            if (!response.ok) {
+                console.error("❌ Erro Google API:", aiData);
+                const errorMsg = aiData.error?.message?.toLowerCase() || '';
+                
+                if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
+                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O limite gratuito da IA do Google foi excedido neste mês. Insira a descrição manualmente." });
+                }
+                
+                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro de conexão'}` });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -3805,11 +3813,10 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
             }
             
-            // 🛡️ BLINDAGEM ANTI-MARKDOWN
+            // 🛡️ 4. BLINDAGEM ANTI-MARKDOWN EXTREMA
             let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBrace = cleanJsonText.indexOf('{');
             const lastBrace = cleanJsonText.lastIndexOf('}');
-            
             if (firstBrace !== -1 && lastBrace !== -1) {
                 cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
             }
