@@ -3746,16 +3746,30 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { termoRaw, lojaNome, lojaNicho } = req.body;
+            // EXTRAINDO A LOCALIZAÇÃO QUE O FRONTEND JÁ MANDA
+            const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
             if (!termoRaw) return res.status(400).json({ error: 'O termo do produto é obrigatório.' });
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
 
-            const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro, sem blocos de código: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
+            // 🚀 PROMPT SÊNIOR COM E-E-A-T, SEO LOCAL E ANTI-SPAM
+            const prompt = `Atue como Especialista Sênior em SEO Local e Copywriting Humano para Delivery. 
+            O cliente buscou por: "${termoRaw}". 
+            Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Localização/Região: ${lojaLocalizacao || 'na sua região'}.
+            
+            OBJETIVO: Criar Nome e Descrição do produto otimizados para o Google, focando em densidade factual (E-E-A-T e diretrizes MUVERA).
+            
+            REGRAS CRÍTICAS:
+            1. TOM HUMANO: É estritamente proibido usar clichês de IA (ex: "explosão de sabores", "desperte seus sentidos", "verdadeira experiência", "mergulhe nessa"). Seja factual, apetitoso, direto e pareça escrito por um humano.
+            2. SEO LOCAL (GEO): Insira a localidade de forma natural na descrição para indexação regional (ex: "Entrega rápida em [Região]", "A melhor pedida de [Região]").
+            3. ESTADO DO PRODUTO: Se for bebida (nicho conveniência/adega), destaque que chega "trincando de gelada na sua porta". Se for comida, destaque "quente e preparado na hora".
+            4. NOME DESCRITIVO: O Nome do produto deve ser claro para o Google Maps/Shopping (Ex ruim: "Cerveja Trincando", Ex bom: "Cerveja [Nome] [ML] Gelada").
+            
+            Retorne APENAS um JSON puro, sem blocos de código em volta: 
+            {"nome": "Nome Otimizado", "descricao": "Descrição factual, humana e com SEO local."}`;
 
-            const payload = { contents: [{ parts: [{ text: prompt }] }] };
-            let targetModel = 'gemini-1.5-flash'; // Modelo Padrão Inicial
+            // 🚀 MOTOR DE RESGATE DEFINITIVO (Usando V1 Estável em vez de V1Beta)
             
             // 1. TENTATIVA PADRÃO
             let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${GEMINI_KEY}`, {
