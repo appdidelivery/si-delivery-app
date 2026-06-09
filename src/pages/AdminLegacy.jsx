@@ -1049,6 +1049,56 @@ const educationalBanners = [
             setSelectedProductIds([]); // Limpa a seleção após o sucesso
         } catch (e) { alert("Erro na atualização em massa."); }
     };
+
+    // --- LÓGICA DE EDIÇÃO EM MASSA (ESTILO PLANILHA) ---
+    const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+    const [bulkEditData, setBulkEditData] = useState({});
+    const [isSavingBulkEdit, setIsSavingBulkEdit] = useState(false);
+
+    const handleOpenBulkEdit = () => {
+        const initialData = {};
+        selectedProductIds.forEach(id => {
+            const prod = products.find(p => p.id === id);
+            if (prod) {
+                initialData[id] = {
+                    price: prod.price || '',
+                    promotionalPrice: prod.promotionalPrice || '',
+                    stock: prod.stock !== undefined ? prod.stock : '',
+                    category: prod.category || '',
+                    gtin: prod.gtin || ''
+                };
+            }
+        });
+        setBulkEditData(initialData);
+        setIsBulkEditModalOpen(true);
+    };
+
+    const handleSaveBulkEdit = async () => {
+        setIsSavingBulkEdit(true);
+        try {
+            const batchPromises = selectedProductIds.map(id => {
+                const draft = bulkEditData[id];
+                if (!draft) return Promise.resolve();
+
+                return updateDoc(doc(db, "products", id), {
+                    price: parseFloat(draft.price) || 0,
+                    promotionalPrice: parseFloat(draft.promotionalPrice) || 0,
+                    stock: draft.stock === '' ? '' : parseInt(draft.stock),
+                    category: draft.category || '',
+                    gtin: draft.gtin || ''
+                });
+            });
+            await Promise.all(batchPromises);
+            setIsBulkEditModalOpen(false);
+            setSelectedProductIds([]); // Zera a seleção após salvar
+            alert("✅ Produtos atualizados em massa com sucesso!");
+        } catch (error) {
+            console.error("Erro na edição em massa:", error);
+            alert("Erro de conexão ao tentar salvar edições em massa.");
+        } finally {
+            setIsSavingBulkEdit(false);
+        }
+    };
     // --- ESTADOS FINANCEIROS (NOVO) ---
     const [invoiceData, setInvoiceData] = useState({
         basePlan: 49.90,
@@ -5838,9 +5888,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <span className="font-bold text-blue-800 text-sm uppercase tracking-widest hidden md:inline">Selecionados</span>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => handleBulkToggleProducts(true)} className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2"><Eye size={16} className="hidden md:block"/> Ativar</button>
-                                    <button onClick={() => handleBulkToggleProducts(false)} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2"><EyeOff size={16} className="hidden md:block"/> Ocultar</button>
-                                    <button onClick={() => setSelectedProductIds([])} className="px-3 py-2 bg-white text-slate-500 hover:bg-slate-100 rounded-xl font-bold text-xs uppercase border border-slate-200 ml-2">Cancelar</button>
+                                    <button onClick={handleOpenBulkEdit} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2 transition-all active:scale-95"><Edit3 size={16} className="hidden md:block"/> Editar Rápido</button>
+                                    <button onClick={() => handleBulkToggleProducts(true)} className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2 transition-all active:scale-95"><Eye size={16} className="hidden md:block"/> Ativar</button>
+                                    <button onClick={() => handleBulkToggleProducts(false)} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-xs uppercase shadow-md flex items-center gap-2 transition-all active:scale-95"><EyeOff size={16} className="hidden md:block"/> Ocultar</button>
+                                    <button onClick={() => setSelectedProductIds([])} className="px-3 py-2 bg-white text-slate-500 hover:bg-slate-100 rounded-xl font-bold text-xs uppercase border border-slate-200 ml-2 transition-all active:scale-95">Cancelar</button>
                                 </div>
                             </div>
                         )}
@@ -13885,6 +13936,122 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             {/* --- FIM: MODAL MÁGICO DE OFERTAS GOOGLE (SEO) --- */}
+
+            {/* --- INÍCIO: MODAL DE EDIÇÃO EM MASSA (EXCEL-LIKE) --- */}
+            <AnimatePresence>
+                {isBulkEditModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-6xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col max-h-[90vh]">
+                            <button 
+                                onClick={() => setIsBulkEditModalOpen(false)} 
+                                className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors z-20"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <div className="relative z-10 mb-6 border-b border-slate-100 pb-4 shrink-0">
+                                <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none mb-2 flex items-center gap-3">
+                                    <Edit3 className="text-purple-600" size={28}/> Edição em Massa
+                                </h2>
+                                <p className="text-sm font-bold text-slate-500">
+                                    Atualize preços, estoque, categorias e código de barras de <strong>{selectedProductIds.length} produtos</strong> de uma só vez.
+                                </p>
+                            </div>
+
+                            <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar bg-slate-50 border border-slate-200 rounded-3xl relative z-10">
+                                <table className="w-full text-left min-w-[800px]">
+                                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                                        <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
+                                            <th className="p-4 font-black">Produto</th>
+                                            <th className="p-4 font-black w-28">Preço (R$)</th>
+                                            <th className="p-4 font-black w-28">Promo (R$)</th>
+                                            <th className="p-4 font-black w-24">Estoque</th>
+                                            <th className="p-4 font-black w-48">Categoria</th>
+                                            <th className="p-4 font-black w-40">EAN (Cód Barras)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-sm font-bold text-slate-700 divide-y divide-slate-100">
+                                        {selectedProductIds.map(id => {
+                                            const prod = products.find(p => p.id === id);
+                                            const draft = bulkEditData[id] || {};
+                                            return (
+                                                <tr key={id} className="hover:bg-white transition-colors">
+                                                    <td className="p-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 overflow-hidden flex-shrink-0">
+                                                                <img src={prod?.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-full h-full object-cover" alt="Thumb"/>
+                                                            </div>
+                                                            <span className="truncate max-w-[150px] md:max-w-[200px]" title={prod?.name}>{prod?.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="number" step="0.01" 
+                                                            value={draft.price} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, price: e.target.value}})}
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="number" step="0.01" 
+                                                            value={draft.promotionalPrice} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, promotionalPrice: e.target.value}})}
+                                                            className="w-full p-2 bg-orange-50 border border-orange-200 text-orange-600 rounded-lg outline-none focus:ring-2 ring-orange-400"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="∞"
+                                                            value={draft.stock} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, stock: e.target.value}})}
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 text-center"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <select 
+                                                            value={draft.category} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, category: e.target.value}})}
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 cursor-pointer"
+                                                        >
+                                                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                        </select>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="GTIN/EAN"
+                                                            value={draft.gtin} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, gtin: e.target.value}})}
+                                                            className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 font-mono text-xs"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="pt-6 shrink-0 relative z-10 flex flex-col md:flex-row gap-4 items-center justify-between">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center md:text-left">
+                                    💡 Dica: Se o estoque ficar vazio, o produto fica infinito (∞).
+                                </p>
+                                <button 
+                                    onClick={handleSaveBulkEdit} 
+                                    disabled={isSavingBulkEdit}
+                                    className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-purple-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {isSavingBulkEdit ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
+                                    {isSavingBulkEdit ? 'Salvando Alterações...' : 'Salvar Alterações em Massa'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE EDIÇÃO EM MASSA (EXCEL-LIKE) --- */}
 
             <VeloSupportWidget />
         </div>
