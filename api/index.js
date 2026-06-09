@@ -3754,47 +3754,72 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const prompt = `Atue como Especialista em SEO e Copywriting para Delivery. Crie um Nome e Descrição curtos e chamativos para o produto: "${termoRaw}". Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Retorne APENAS um JSON puro, sem blocos de código: {"nome": "Nome do Prato", "descricao": "Descrição saborosa e persuasiva."}`;
 
-            // RESTAURADO PARA A VERSÃO NATIVA MAIS ESTÁVEL (Sem configurações que causam conflito 400/404)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            });
+            // 🚀 ROLETA INVENCÍVEL DE MODELOS (Na rota v1beta)
+            // Como sua chave rejeitou o 'gemini-pro' e o '1.5-flash', ela DEVE usar o '1.0-pro' original.
+            const modelsToTry = [
+                'gemini-1.0-pro',          // <-- O SALVA-VIDAS (Testado primeiro)
+                'gemini-1.0-pro-latest', 
+                'gemini-1.5-flash', 
+                'gemini-1.5-flash-latest', 
+                'gemini-pro'
+            ];
 
-            const aiData = await response.json();
+            let aiData = null;
+            let responseOk = false;
+            let modeloQueFuncionou = '';
 
-            if (!response.ok) {
-                console.error("Erro Google API:", aiData);
-                const errorMsg = aiData.error?.message?.toLowerCase() || '';
-                
-                if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
-                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: Cota da IA excedida. Insira a descrição manualmente." });
+            for (const model of modelsToTry) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                aiData = await response.json();
+
+                if (response.ok) {
+                    responseOk = true;
+                    modeloQueFuncionou = model;
+                    console.log(`✅ [IA Velo] SUCESSO ABSOLUTO! O modelo que a sua chave aceitou foi: ${modeloQueFuncionou}`);
+                    break; 
+                } else {
+                    console.warn(`⚠️ [IA Velo] Modelo ${model} rejeitado. Motivo:`, aiData?.error?.message);
+                    
+                    const errorMsg = aiData.error?.message?.toLowerCase() || '';
+                    if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota')) {
+                        return res.status(200).json({ success: false, error: "Aviso: A cota gratuita da sua chave Google Gemini foi atingida. Use a descrição manual." });
+                    }
                 }
+            }
 
-                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro na chave ou modelo'}` });
+            if (!responseOk) {
+                console.error("❌ Erro Google API Fatal (Todos falharam):", aiData);
+                return res.status(200).json({ success: false, error: "Sua chave do Google Cloud não foi aceita em nenhum modelo ativo. Gere uma chave nova no Google AI Studio." });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
             
             if (!rawJsonText) {
-                return res.status(200).json({ success: false, error: "A IA não conseguiu processar este produto agora." });
+                return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
             }
             
-            // BLINDAGEM DE PARSING (Remove blocos markdown ```json que o gemini-pro costuma mandar)
+            // 🛡️ BLINDAGEM ANTI-MARKDOWN
             let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBrace = cleanJsonText.indexOf('{');
             const lastBrace = cleanJsonText.lastIndexOf('}');
+            
             if (firstBrace !== -1 && lastBrace !== -1) {
                 cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
             }
             
             const parsedResult = JSON.parse(cleanJsonText);
             return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
+            
         } catch (error) {
-            console.error("Erro Crítico IA Produtos:", error);
-            return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O assistente de IA está em manutenção. Por favor, insira a descrição manualmente por enquanto." });
+            console.error("❌ Erro de Parsing (IA Produtos):", error);
+            return res.status(200).json({ success: false, error: "O assistente falhou ao formatar o texto. Tente novamente." });
         }
     }
     // ------------------------------------------------------------------------
