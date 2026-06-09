@@ -514,7 +514,7 @@ export default async function handler(req, res) {
                                 if (GEMINI_KEY && cartItems) {
                                     const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
 
-                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -3596,8 +3596,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Categorias Vistas: ${topCategories.join(', ') || 'Nenhuma'}.
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
-            // Chamada para a versão mais recente e veloz do Gemini
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            // Chamada restaurada para a versão estável do Gemini
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3713,7 +3713,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
@@ -3819,12 +3819,11 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
               {"title": "Nome do Combo Criativo", "desc": "Descrição factual detalhando o que vem no combo, com gramaturas ou litros se aplicável.", "price": "Calcule um preço sugerido (ex: R$ 49,90)"}
             ]`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+                    contents: [{ parts: [{ text: prompt }] }]
                 })
             });
 
@@ -3834,7 +3833,12 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!rawJsonText) return res.status(200).json({ success: false, error: "Sem resposta." });
             
-            const parsedResult = JSON.parse(rawJsonText);
+            const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const firstBracket = cleanJsonText.indexOf('[');
+            const lastBracket = cleanJsonText.lastIndexOf(']');
+            const finalJson = (firstBracket !== -1 && lastBracket !== -1) ? cleanJsonText.substring(firstBracket, lastBracket + 1) : cleanJsonText;
+
+            const parsedResult = JSON.parse(finalJson);
             return res.status(200).json({ success: true, combos: parsedResult });
         } catch (error) {
             return res.status(200).json({ success: false, error: error.message });
@@ -3963,12 +3967,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", maxOutputTokens: 150 }
+                    contents: [{ parts: [{ text: prompt }] }]
                 })
             });
 
@@ -4838,13 +4841,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
               {"question": "Pergunta 2?", "answer": "Resposta 2."}
             ]`;
 
-            // Chama a API do Gemini forçando a devolução em formato JSON
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+                    contents: [{ parts: [{ text: prompt }] }]
                 })
             });
 
@@ -4852,7 +4853,6 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             if (!response.ok) {
                 console.error("Erro Google API (FAQ):", aiData);
-                // Retornar 500 aqui é proposital para ativar o "Fallback Inteligente" do Frontend
                 return res.status(500).json({ success: false, error: "Erro na API do Google" });
             }
 
@@ -4862,7 +4862,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(500).json({ success: false, error: "Resposta vazia da IA" });
             }
             
-            const parsedResult = JSON.parse(rawJsonText);
+            const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const firstBracket = cleanJsonText.indexOf('[');
+            const lastBracket = cleanJsonText.lastIndexOf(']');
+            const finalJson = (firstBracket !== -1 && lastBracket !== -1) ? cleanJsonText.substring(firstBracket, lastBracket + 1) : cleanJsonText;
+
+            const parsedResult = JSON.parse(finalJson);
             return res.status(200).json({ success: true, faqList: parsedResult });
 
         } catch (error) {
