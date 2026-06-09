@@ -9385,7 +9385,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         {/* --- SELETOR DE NICHO (REGRAS E IDENTIDADE) --- */}
                         <div className="mt-8 pt-8 border-t border-slate-100">
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-4">🎯 Nicho da Loja (Regras de Funcionalidade)</label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                {[
                                     { id: 'default', label: 'Conveniência', icon: '🏪', color: '#2563eb' },
                                     { id: 'pizza', label: 'Pizzaria', icon: '🍕', color: '#e11d48' },
@@ -9395,7 +9395,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     { id: 'burger', label: 'Hamburgueria', icon: '🍔', color: '#ea580c' },
                                     { id: 'drinks', label: 'Adega', icon: '🍷', color: '#f59e0b' },
                                     { id: 'floricultura', label: 'Floricultura', icon: '🌸', color: '#db2777' },
-                                    { id: 'bakery', label: 'Padaria', icon: '🥖', color: '#d97706' }
+                                    { id: 'bakery', label: 'Padaria', icon: '🥖', color: '#d97706' },
+                                    { id: 'restaurant', label: 'Restaurante', icon: '🍽️', color: '#059669' }
                                 ].map(nicho => (
                                     <button
                                         key={nicho.id}
@@ -9403,7 +9404,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${storeStatus.storeNiche === nicho.id ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100 bg-white hover:bg-slate-50'}`}
                                     >
                                         <div className="flex items-center justify-center w-8 h-8 rounded-full text-xl" style={{ backgroundColor: `${nicho.color}15`, color: nicho.color }}>{nicho.icon}</div>
-                                        <span className="text-[10px] font-black uppercase text-slate-700">{nicho.label}</span>
+                                        <span className="text-[10px] font-black uppercase text-slate-700 text-center">{nicho.label}</span>
                                     </button>
                                 ))}
                             </div>
