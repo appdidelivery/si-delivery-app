@@ -1470,10 +1470,6 @@ const educationalBanners = [
     const [editingBannerId, setEditingBannerId] = useState(null);
     const [bannerImageFile, setBannerImageFile] = useState(null);
     const [uploadingBannerImage, setUploadingBannerImage] = useState(false);
-    
-    // --- ESTADOS DO GERADOR DE BANNERS IA ---
-    const [isGeneratingAiBanner, setIsGeneratingAiBanner] = useState(false);
-    const [aiBannerData, setAiBannerData] = useState({ product: '', context: '' });
 
     // Pedido Manual e Complementos PDV
     const [pdvActiveProduct, setPdvActiveProduct] = useState(null); // NOVO: Controle de complementos no PDV
@@ -10648,7 +10644,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {integrationList.map((app) => {
-                                    // Verifica se esta integração já tem dados salvos no Firebase
+                                    //att    Verifica se esta integração já tem dados salvos no Firebase
                                     const savedData = settings?.integrations?.[app.id] || {};
                                     // Consideramos 'Conectado' se a primeira chave obrigatória não estiver vazia
                                     const isConnected = !!savedData[app.fields[0].key];
@@ -10856,90 +10852,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
 
-                                {/* --- IA STUDIO: GERADOR DE IMAGEM FOODPORN --- */}
-                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-3xl border border-purple-100 shadow-sm relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Sparkles size={100}/></div>
-                                    <h3 className="text-sm font-black text-purple-800 uppercase flex items-center gap-2 mb-4 relative z-10">
-                                        <Sparkles size={18} className="text-purple-600"/> Velo IA Studio (Fotos Profissionais)
-                                    </h3>
-                                    
-                                    <div className="space-y-3 relative z-10">
-                                        {(() => {
-                                            const isDrink = ['default', 'drinks'].includes(storeStatus?.storeNiche);
-                                            const placeholderProduct = isDrink ? "Qual a bebida? (Selecione ou digite)" : "Qual o produto? (Selecione ou digite)";
-                                            const placeholderContext = isDrink ? "Ex: Garrafa suando de tão gelada, luzes neon de fundo..." : "Ex: Queijo derretendo, fumaça quente, fundo rústico...";
-
-                                            return (
-                                                <>
-                                                    <input 
-                                                        type="text" 
-                                                        list="ai-products-list"
-                                                        placeholder={placeholderProduct} 
-                                                        className="w-full p-4 bg-white rounded-2xl font-bold border border-purple-200 outline-none focus:ring-2 ring-purple-500 text-sm placeholder-purple-300"
-                                                        value={aiBannerData.product}
-                                                        onChange={e => setAiBannerData({...aiBannerData, product: e.target.value})}
-                                                        disabled={isGeneratingAiBanner}
-                                                    />
-                                                    {/* Auto-complete nativo com o estoque real da loja */}
-                                                    <datalist id="ai-products-list">
-                                                        {products.filter(p => p.isActive !== false).map(p => (
-                                                            <option key={p.id} value={p.name} />
-                                                        ))}
-                                                    </datalist>
-
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder={placeholderContext} 
-                                                        className="w-full p-4 bg-white rounded-2xl font-medium border border-purple-200 outline-none focus:ring-2 ring-purple-500 text-xs placeholder-purple-300"
-                                                        value={aiBannerData.context}
-                                                        onChange={e => setAiBannerData({...aiBannerData, context: e.target.value})}
-                                                        disabled={isGeneratingAiBanner}
-                                                    />
-                                                </>
-                                            );
-                                        })()}
-
-                                        <button 
-                                            type="button"
-                                            disabled={isGeneratingAiBanner || !aiBannerData.product}
-                                            onClick={async () => {
-                                                setIsGeneratingAiBanner(true);
-                                                try {
-                                                    const res = await fetch('/api/generate-ai-banner', {
-                                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({ storeId, productName: aiBannerData.product, context: aiBannerData.context, category: storeStatus?.storeNiche })
-                                                    });
-                                                    const data = await res.json();
-                                                    if (res.ok && data.success) {
-                                                        // A mágica: joga a imagem gerada direto no estado do formulário!
-                                                        setBannerForm(prev => ({ ...prev, imageUrl: data.imageUrl }));
-                                                        alert(`📸 Obra de arte gerada! Você ainda tem ${data.creditsRemaining} gerações gratuitas este mês.`);
-                                                        setAiBannerData({ product: '', context: '' });
-                                                    } else {
-                                                        alert(data.error || 'Erro ao gerar imagem.');
-                                                    }
-                                                } catch (e) {
-                                                    alert('Erro de conexão ao gerar banner.');
-                                                } finally {
-                                                    setIsGeneratingAiBanner(false);
-                                                }
-                                            }}
-                                            className="w-full bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-md shadow-purple-200 flex justify-center items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                                        >
-                                            {isGeneratingAiBanner ? <Loader2 className="animate-spin" size={16}/> : <Camera size={16}/>}
-                                            {isGeneratingAiBanner ? 'Cozinhando imagem (Pode levar 10s)...' : 'Gerar Imagem com IA'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-4">
-                                    <div className="h-px bg-slate-200 flex-1"></div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ou faça o Upload manual</span>
-                                    <div className="h-px bg-slate-200 flex-1"></div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {/* Preview da Imagem atual (Vinda do PC ou da IA) */}
+                                <div className="space-y-4 pt-4 border-t border-slate-100 mt-4">
+                                    {/* Preview da Imagem atual */}
                                     {(bannerImageFile || bannerForm.imageUrl) && (
                                         <div className="relative rounded-3xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-50">
                                             <img src={bannerImageFile ? URL.createObjectURL(bannerImageFile) : bannerForm.imageUrl} className="w-full h-48 object-cover" alt="Preview Banner" />
