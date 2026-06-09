@@ -1526,33 +1526,28 @@ if (!createRes.ok) {
                                     let storeDomain = '';
                                     let cachedSettings = null;
 
-                                    // 1. Tenta buscar na Memória RAM da Vercel (Custo Zero pro Firebase)
-                                    let waSettings = {}; // 🚨 AQUI NASCE A MEMÓRIA DO ROBÔ
+                                    // 1. Busca Segura em Tempo Real (Evita morte de cache quando o lojista troca de Token)
+                                    let waSettings = {}; 
 
-                                    if (phoneToStoreCache.has(phoneNumberId)) {
-                                        const cachedData = phoneToStoreCache.get(phoneNumberId);
-                                        storeId = cachedData.storeId;
-                                        apiToken = cachedData.apiToken;
-                                        storeDomain = cachedData.storeDomain;
-                                        cachedSettings = cachedData.settings;
-                                        waSettings = cachedData.settings.integrations?.whatsapp || {};
-                                    } else {
-                                        // 2. Se não tem na memória, vai no banco UMA vez só e salva
-                                        let settingsSnap = await db.collection('settings')
-                                            .where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)])
-                                            .limit(1).get();
+                                    let settingsSnap = await db.collection('settings')
+                                        .where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)])
+                                        .limit(1).get();
+                                    
+                                    if (!settingsSnap.empty) {
+                                        const storeData = settingsSnap.docs[0].data();
+                                        storeId = settingsSnap.docs[0].id;
+                                        apiToken = storeData.integrations?.whatsapp?.apiToken;
                                         
-                                        if (!settingsSnap.empty) {
-                                            const storeData = settingsSnap.docs[0].data();
-                                            storeId = settingsSnap.docs[0].id;
-                                            apiToken = storeData.integrations?.whatsapp?.apiToken;
-                                            storeDomain = `https://${storeId}.velodelivery.com.br`; 
-                                            cachedSettings = storeData;
-                                            waSettings = storeData.integrations?.whatsapp || {};
-
-                                            // Guarda na RAM para as próximas mensagens não pagarem pedágio
-                                            phoneToStoreCache.set(phoneNumberId, { storeId, apiToken, storeDomain, settings: storeData });
-                                        }
+                                        // Respeita o domínio personalizado se existir, senão usa o padrão
+                                        storeDomain = storeData.customDomain 
+                                            ? `https://${storeData.customDomain}` 
+                                            : `https://${storeId}.velodelivery.com.br`;
+                                            
+                                        cachedSettings = storeData;
+                                        waSettings = storeData.integrations?.whatsapp || {};
+                                    } else {
+                                        console.log(`[Webhook] Loja não encontrada para o número: ${phoneNumberId}`);
+                                        continue; // Interrompe se não achar a loja
                                     }
 
                                     let logText = messageText || '';

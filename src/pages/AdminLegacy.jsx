@@ -2039,48 +2039,46 @@ const educationalBanners = [
         const cleanFakeCarts = async () => {
             if (!abandonedCarts || abandonedCarts.length === 0 || !orders || orders.length === 0) return;
 
-            // Define o tempo de corte (Pega pedidos feitos nas últimas 12 horas)
+            // Filtro rigoroso: Apenas pedidos feitos nas últimas 12h
             const cutoffTime = Date.now() - (12 * 60 * 60 * 1000);
             
-            // Cria uma lista APENAS com os números de WhatsApp de quem efetivou a compra hoje
-            const phonesThatBought = new Set(
-                orders
-                    .filter(o => {
-                        const orderTime = o.createdAt?.toMillis ? o.createdAt.toMillis() : (o.createdAt?.seconds * 1000) || 0;
-                        return orderTime > cutoffTime && o.status !== 'canceled';
-                    })
-                    .map(o => String(o.customerPhone || '').replace(/\D/g, ''))
-                    .filter(phone => phone.length >= 8) // Filtro reduzido para 8 para bater com testes locais
-            );
+            const recentOrders = orders.filter(o => {
+                const orderTime = o.createdAt?.toMillis ? o.createdAt.toMillis() : (o.createdAt?.seconds * 1000) || 0;
+                return orderTime > cutoffTime && o.status !== 'canceled';
+            });
 
-            // Varre a lista de carrinhos abandonados
             for (const cart of abandonedCarts) {
                 const cartPhone = String(cart.customerPhone || '').replace(/\D/g, '');
                 
-                // Se o dono desse carrinho ESTÁ na lista de quem comprou... DELETA O CARRINHO!
-                if (cartPhone.length >= 8 && phonesThatBought.has(cartPhone)) {
+                // Cruza o telefone do carrinho APENAS com pedidos válidos recentes
+                const matchingOrder = recentOrders.find(o => String(o.customerPhone || '').replace(/\D/g, '') === cartPhone);
+
+                if (cartPhone.length >= 8 && matchingOrder) {
                     try {
-                        const valorRecuperado = Number(cart.subtotal || 0);
+                        // 1. Remove da tela imediatamente
+                        setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
                         
-                        // Apaga do banco de dados para não ocupar espaço
+                        // 2. Apaga o carrinho do banco de dados
                         await deleteDoc(doc(db, "abandoned_carts", cart.id));
                         
-                        // NOVO: Conta a conversão no painel Analytics (+1 Carrinho e soma o R$)
-                        try {
+                        // 3. TRAVA DE IDEMPOTÊNCIA: Só soma no Analytics se este pedido ainda não tiver sido contato
+                        if (!matchingOrder.recoveryCounted) {
+                            // Marca o pedido para não contar duas vezes
+                            await updateDoc(doc(db, "orders", matchingOrder.id), { recoveryCounted: true });
+
+                            // Usa o valor real do pedido finalizado, não do carrinho
+                            const valorRealRecuperado = Number(matchingOrder.total || 0);
+                            
                             const hoje = new Date().toISOString().split('T')[0];
                             await setDoc(doc(db, "stores", storeId, "analytics", hoje), { 
                                 recoveredCarts: increment(1),
-                                recoveredCartsValue: increment(valorRecuperado),
+                                recoveredCartsValue: increment(valorRealRecuperado),
                                 date: hoje
                             }, { merge: true });
-                        } catch (err) {
-                            console.error("Erro ao salvar contabilidade do carrinho:", err);
                         }
 
-                        // Some com ele da tela instantaneamente
-                        setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
                     } catch (e) {
-                        console.error("Erro ao limpar carrinho fantasma:", e);
+                        console.error("Erro na limpeza de carrinhos e analytics:", e);
                     }
                 }
             }
@@ -4112,20 +4110,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <p className="text-rose-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Ghost size={12}/> Vendas Recuperadas</p>
                                             <div className="flex flex-col items-end gap-1">
                                                 <span className="bg-white text-rose-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
-                                                    Hoje: {carrinhosRecuperadosHoje} Carts
+                                                    30 Dias: {analyticsHistory.reduce((acc, d) => acc + (d.recoveredCarts || 0), 0)} Carts
                                                 </span>
                                             </div>
                                         </div>
                                         <div className="mt-1 z-10 relative">
-                                            <p className="text-[10px] text-rose-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
-                                            <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">R$ {(carrinhosRecuperadosValorHoje || 0).toFixed(2)}</p>
+                                            <p className="text-[10px] text-rose-200 font-bold uppercase tracking-widest mb-1">Últimos 30 Dias</p>
+                                            <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
+                                                R$ {analyticsHistory.reduce((acc, d) => acc + (Number(d.recoveredCartsValue) || 0), 0).toFixed(2)}
+                                            </p>
                                             
                                             <div className="mt-3 pt-3 border-t border-rose-400/50 flex justify-between items-end">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[10px] text-rose-200 font-bold uppercase tracking-widest">Últimos 30 Dias</span>
-                                                    <span className="text-[9px] text-rose-300 font-medium">({analyticsHistory.reduce((acc, d) => acc + (d.recoveredCarts || 0), 0)} Carts salvos)</span>
+                                                    <span className="text-[10px] text-rose-200 font-bold uppercase tracking-widest">Hoje</span>
+                                                    <span className="text-[9px] text-rose-300 font-medium">({carrinhosRecuperadosHoje} Carts salvos)</span>
                                                 </div>
-                                                <span className="text-lg font-black text-white italic">R$ {analyticsHistory.reduce((acc, d) => acc + (Number(d.recoveredCartsValue) || 0), 0).toFixed(2)}</span>
+                                                <span className="text-lg font-black text-white italic">R$ {(carrinhosRecuperadosValorHoje || 0).toFixed(2)}</span>
                                             </div>
                                         </div>
                                         <div className="absolute -left-4 -bottom-4 text-white opacity-10"><Ghost size={120}/></div>
@@ -7143,6 +7143,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                 <button 
                     onClick={async () => {
+                        setIsSubmittingPOS(true); // TRAVA ANTI-DUPLICAÇÃO IMEDIATA
+                        
                         const isPickup = manualCustomer.deliveryMethod === 'pickup';
                         const finalAddress = isPickup ? 'Retirada na Loja / Balcão' : manualCustomer.address;
                 const finalName = manualCustomer.name || 'Cliente Avulso (Balcão)';
