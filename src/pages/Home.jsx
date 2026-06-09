@@ -418,10 +418,17 @@ export default function Home() {
 
   const calculateModalTotal = () => {
       if (!selectedProduct) return 0;
-      // Pega o promocional se houver, senão o normal
-      let total = Number(selectedProduct.promotionalPrice) > 0 ? Number(selectedProduct.promotionalPrice) : Number(selectedProduct.price);
+      // Garante extração numérica blindada contra strings mal formatadas
+      let basePrice = Number(selectedProduct.promotionalPrice) > 0 
+          ? Number(selectedProduct.promotionalPrice) 
+          : Number(selectedProduct.price || 0);
+          
+      let total = basePrice;
+      
       Object.values(selectedOptions).forEach(optionArray => {
-          optionArray.forEach(opt => { total += Number(opt.price || 0); });
+          if (Array.isArray(optionArray)) {
+              optionArray.forEach(opt => { total += Number(opt.price || 0); });
+          }
       });
       return total;
   };
@@ -3931,7 +3938,13 @@ if (window.fbq) {
                             <div className="flex gap-2">
                                 <button 
                                     type="button" 
-                                    onClick={() => document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' })}
+                                    onClick={() => {
+                                        const el = document.getElementById('area-pagamento');
+                                        if (el) {
+                                            // Timeout para garantir que a DOM atualizou antes do scroll
+                                            setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                                        }
+                                    }}
                                     className="flex-1 bg-blue-600 text-white text-xs font-black uppercase tracking-widest py-4 rounded-xl shadow-md active:scale-95 transition-all"
                                 >
                                     ✅ Sim, Entregar Aqui
