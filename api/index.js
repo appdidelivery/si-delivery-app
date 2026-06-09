@@ -3846,7 +3846,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         try {
             const { storeName, storeNiche, topProducts } = req.body;
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente." });
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
 
             const produtosTxt = topProducts && topProducts.length > 0 ? topProducts.join(', ') : 'Lanches e Bebidas variadas';
 
@@ -3859,28 +3859,55 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
               {"title": "Nome do Combo Criativo", "desc": "Descrição factual detalhando o que vem no combo, com gramaturas ou litros se aplicável.", "price": "Calcule um preço sugerido (ex: R$ 49,90)"}
             ]`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            });
+            // MOTOR DE AUTO-CURA: Tenta primeiro o modelo Flash, se o Google bloquear por cota, tenta o Pro.
+            let aiData = null;
+            let responseOk = false;
+            const modelsToTry = ['gemini-1.5-flash', 'gemini-1.0-pro'];
 
-            const aiData = await response.json();
-            if (!response.ok) return res.status(200).json({ success: false, error: "Google API Error" });
+            for (const modelName of modelsToTry) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                aiData = await response.json();
+
+                if (response.ok) {
+                    responseOk = true;
+                    break;
+                }
+            }
+
+            if (!responseOk) {
+                console.error("❌ Erro na API do Gemini (Combos):", aiData);
+                return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Limite de cota ou erro na API." });
+            }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawJsonText) return res.status(200).json({ success: false, error: "Sem resposta." });
+            if (!rawJsonText) return res.status(200).json({ success: false, error: "Sem resposta textual da IA." });
             
-            const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            // BLINDAGEM ANTI-MARKDOWN APRIMORADA PARA ARRAYS
+            let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBracket = cleanJsonText.indexOf('[');
             const lastBracket = cleanJsonText.lastIndexOf(']');
-            const finalJson = (firstBracket !== -1 && lastBracket !== -1) ? cleanJsonText.substring(firstBracket, lastBracket + 1) : cleanJsonText;
+            
+            if (firstBracket !== -1 && lastBracket !== -1) {
+                cleanJsonText = cleanJsonText.substring(firstBracket, lastBracket + 1);
+            }
 
-            const parsedResult = JSON.parse(finalJson);
-            return res.status(200).json({ success: true, combos: parsedResult });
+            try {
+                const parsedResult = JSON.parse(cleanJsonText);
+                return res.status(200).json({ success: true, combos: parsedResult });
+            } catch (parseError) {
+                console.error("❌ Erro ao converter JSON da IA:", cleanJsonText);
+                return res.status(200).json({ success: false, error: "A IA gerou um formato inválido." });
+            }
+
         } catch (error) {
+            console.error("❌ Erro Interno (Combos):", error);
             return res.status(200).json({ success: false, error: error.message });
         }
     }
