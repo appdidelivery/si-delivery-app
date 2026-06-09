@@ -3739,7 +3739,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         }
     }
 
-   // ------------------------------------------------------------------------
+  // ------------------------------------------------------------------------
     // 21.5 GERADOR DE COPY DE PRODUTOS (NOME E DESCRIÇÃO VIA IA)
     // ------------------------------------------------------------------------
    else if (path === '/api/generate-product-copy') {
@@ -3752,7 +3752,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
 
-            // 🚀 PROMPT SÊNIOR COM E-E-A-T, SEO LOCAL E ANTI-SPAM
             const prompt = `Atue como Especialista Sênior em SEO Local e Copywriting Humano para Delivery. 
             O cliente buscou por: "${termoRaw}". 
             Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Localização/Região: ${lojaLocalizacao || 'na sua região'}.
@@ -3768,35 +3767,61 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             Retorne APENAS um JSON puro, sem blocos de código em volta: 
             {"nome": "Nome Otimizado", "descricao": "Descrição factual, humana e com SEO local."}`;
 
-            // 🚀 CHAMADA LIMPA E ESTÁVEL (Sem variáveis órfãs)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            });
-
-            const aiData = await response.json();
-
-            if (!response.ok) {
-                console.error("❌ Erro Google API:", aiData);
-                const errorMsg = aiData.error?.message?.toLowerCase() || '';
-                
-                if (errorMsg.includes('credits are depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
-                    return res.status(200).json({ success: false, error: "Aviso Velo Delivery: Cota da IA excedida. Insira a descrição manualmente." });
+            // 🚀 MOTOR DE AUTO-CURA DEFINITIVO (Dinâmico e Blindado)
+            // Lê diretamente da sua chave de API quais modelos ela tem autorização para usar hoje
+            let availableModels = ['gemini-1.5-flash', 'gemini-1.0-pro']; 
+            
+            try {
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
+                if (listRes.ok) {
+                    const listData = await listRes.json();
+                    if (listData.models) {
+                        const validModels = listData.models
+                            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('vision'))
+                            .map(m => m.name.replace('models/', ''));
+                        if (validModels.length > 0) availableModels = validModels;
+                    }
                 }
+            } catch (e) {
+                console.warn("Aviso: Falha ao listar modelos da chave. Usando fallback.");
+            }
 
-                return res.status(200).json({ success: false, error: `Google API: ${aiData.error?.message || 'Erro na chave ou modelo'}` });
+            let aiData = null;
+            let responseOk = false;
+
+            // Roda a roleta apenas com os modelos reais da sua conta
+            for (const modelName of availableModels) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                aiData = await response.json();
+
+                if (response.ok) {
+                    responseOk = true;
+                    console.log(`✅ [IA Velo] Sucesso! Modelo utilizado: ${modelName}`);
+                    break;
+                } else {
+                    const errorMsg = aiData.error?.message?.toLowerCase() || '';
+                    if (errorMsg.includes('depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
+                        return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O limite da sua conta Google Cloud foi atingido. Adicione saldo ou insira a descrição manualmente." });
+                    }
+                }
+            }
+
+            if (!responseOk) {
+                console.error("❌ Erro Google API (Todos falharam):", aiData);
+                return res.status(200).json({ success: false, error: `Erro na API do Google. Sua chave rejeitou os modelos. Detalhe: ${aiData?.error?.message}` });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawJsonText) return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
             
-            if (!rawJsonText) {
-                return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
-            }
-            
-            // 🛡️ BLINDAGEM ANTI-MARKDOWN
+            // 🛡️ BLINDAGEM ANTI-MARKDOWN EXTREMA
             let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             const firstBrace = cleanJsonText.indexOf('{');
             const lastBrace = cleanJsonText.lastIndexOf('}');
