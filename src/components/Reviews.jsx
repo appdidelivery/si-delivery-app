@@ -131,13 +131,17 @@ const handleSyncGoogleReviews = async () => {
                                 <span className="text-[9px] font-bold opacity-80 uppercase tracking-widest">Loja Verificada</span>
                             </div>
                         </div>
-                        <button 
-                            onClick={handleSyncGoogleReviews}
-                            disabled={isSyncing}
-                            className="text-[10px] font-bold text-blue-600 underline hover:text-blue-800 uppercase tracking-widest"
-                        >
-                            {isSyncing ? "Sincronizando..." : "Atualizar do Google"}
-                        </button>
+                        
+                        {/* Renderização Condicional Exclusiva para o Administrador */}
+                        {window.location.pathname.includes('/admin') && (
+                            <button 
+                                onClick={handleSyncGoogleReviews}
+                                disabled={isSyncing}
+                                className="text-[10px] font-bold text-blue-600 underline hover:text-blue-800 uppercase tracking-widest"
+                            >
+                                {isSyncing ? "Sincronizando..." : "Atualizar do Google"}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

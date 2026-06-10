@@ -2846,6 +2846,10 @@ if (window.fbq) {
       // Validação de segurança: Só gera o código se for a página de um produto e ele tiver avaliações
       if (!selectedProduct || !selectedProduct.reviewCount || selectedProduct.reviewCount === 0) return;
 
+      // Cria uma data de validade para a oferta (exigência do Google para não gerar Warning)
+      const validUntil = new Date();
+      validUntil.setFullYear(validUntil.getFullYear() + 1);
+
       const schemaData = {
           "@context": "https://schema.org/",
           "@type": "Product",
@@ -2853,17 +2857,26 @@ if (window.fbq) {
           "image": selectedProduct.imageUrl || storeSettings?.storeLogoUrl || "https://sua-logo-padrao.com/logo.png",
           "description": selectedProduct.description || `Compre ${selectedProduct.name} na nossa loja.`,
           "sku": selectedProduct.gtin || selectedProduct.id,
+          "brand": {
+              "@type": "Brand",
+              "name": storeSettings?.name || "Velo Delivery"
+          },
           "offers": {
               "@type": "Offer",
               "url": window.location.href,
               "priceCurrency": "BRL",
               "price": (Number(selectedProduct.promotionalPrice) > 0 ? Number(selectedProduct.promotionalPrice) : Number(selectedProduct.price)).toFixed(2),
+              "priceValidUntil": validUntil.toISOString().split('T')[0],
               "availability": (selectedProduct.stock === undefined || Number(selectedProduct.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-              "itemCondition": "https://schema.org/NewCondition"
+              "itemCondition": "https://schema.org/NewCondition",
+              "seller": {
+                  "@type": "Organization",
+                  "name": storeSettings?.name || "Velo Delivery"
+              }
           },
           "aggregateRating": {
               "@type": "AggregateRating",
-              "ratingValue": selectedProduct.ratingValue,
+              "ratingValue": Number(selectedProduct.ratingValue).toFixed(1),
               "reviewCount": selectedProduct.reviewCount,
               "bestRating": "5",
               "worstRating": "1"
