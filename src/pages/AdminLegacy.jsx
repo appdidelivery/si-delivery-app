@@ -41,6 +41,7 @@ import VeloSupportWidget from "../components/VeloSupportWidget";
 import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
 import { MissionTracker } from '../components/MissionTracker';
 import PartnersMarketplace from '../components/PartnersMarketplace';
+import GoogleIntegrationDashboard from '../components/GoogleIntegrationDashboard';
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
@@ -160,6 +161,7 @@ const DAYS_OF_WEEK =[
 // --- ITENS DE NAVEGAÇÃO COMPLETA (USADO PARA DESKTOP E MOBILE) ---
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
+    { id: 'google_business', name: 'Google Meu Negócio', icon: <FaGoogle size={18} className="text-blue-500" />, mobileIcon: <FaGoogle size={22} className="text-blue-500" /> },
     { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
     { id: 'datafuel', name: 'Velo Data Fuel', icon: <TrendingUp size={18} className="text-blue-500" />, mobileIcon: <TrendingUp size={22} className="text-blue-500" /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
@@ -200,8 +202,8 @@ export default function Admin() {
     // Matriz de Recursos: O que cada plano tem direito de acessar
     const PLAN_FEATURES = {
         start: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance'],
-        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings'],
-        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners']
+        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'google_business'],
+        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners', 'google_business']
     };
 
     const [upgradeModalFeature, setUpgradeModalFeature] = useState(null);
@@ -914,10 +916,13 @@ const educationalBanners = [
         switch(menuId) {
             case 'dashboard': return true;
             
+            case 'google_business': 
+            case 'integrations': return userPermissions.integrations === true;
+            
             case 'orders': 
             case 'manual': 
             case 'abandoned': 
-            case 'fleet': // <-- ADICIONADO AQUI: Quem vê pedidos, vê a frota!
+            case 'fleet': 
             case 'chat': return userPermissions.orders === true; 
             
             case 'products': 
@@ -932,18 +937,16 @@ const educationalBanners = [
             case 'marketing': 
             case 'partners': 
             case 'datafuel':
-            case 'insights': return userPermissions.marketing === true; // <-- CORREÇÃO: Insights, Parceiros e DataFuel liberados junto com Marketing
+            case 'insights': return userPermissions.marketing === true; 
             
             case 'finance': return userPermissions.finance === true;
             
             case 'team': return userPermissions.team === true; 
             
-            case 'integrations': return userPermissions.integrations === true; 
-            
             default: return false;
         }
     };
-    const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
+    const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
     // --- ESTADO DO MONITOR DE FROTA ---
     const [fleetLocations, setFleetLocations] = useState([]);
     const [withdrawalsList, setWithdrawalsList] = useState([]); // NOVO: Lista de Saques para abater do saldo
@@ -10845,6 +10848,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                     );
                 })()}
+
+                {/* --- ABA GOOGLE MEU NEGÓCIO --- */}
+                {activeTab === 'google_business' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <GoogleIntegrationDashboard storeId={storeId} />
+                    </div>
+                )}
             </main>
 
             {/* --- RODAPÉ MOBILE:1 ESTRUTURA REVISADA --- */}
