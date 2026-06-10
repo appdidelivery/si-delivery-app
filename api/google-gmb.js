@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 
+// Inicializa o Firebase Admin (Singleton para evitar erros de múltiplas conexões)
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert({
@@ -14,16 +15,20 @@ const db = admin.firestore();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
+// Função utilitária para verificar e renovar o token do Google automaticamente
 async function getValidGmbTokenAndIds(storeId) {
     const docRef = db.collection('settings').doc(storeId);
     const docSnap = await docRef.get();
     const data = docSnap.exists ? docSnap.data()?.integrations?.google_my_business : null;
 
-    if (!data || !data.accessToken) throw new Error("Loja não possui integração Google conectada.");
+    if (!data || !data.accessToken) {
+        throw new Error("A loja não possui uma conta do Google Meu Negócio conectada.");
+    }
 
     const connectedAtMs = data.connectedAt?.toMillis ? data.connectedAt.toMillis() : Date.now();
-    const isExpired = (Date.now() - connectedAtMs) > 3500000; 
+    const isExpired = (Date.now() - connectedAtMs) > 3500000; // Aproximadamente 58 minutos
 
+    // Renova o token se estiver expirado e houver um refresh token salvo
     if (isExpired && data.refreshToken) {
         try {
             const tokenParams = new URLSearchParams({
@@ -40,23 +45,30 @@ async function getValidGmbTokenAndIds(storeId) {
             });
 
             const tokenData = await tokenRes.json();
-            if (!tokenRes.ok) throw new Error("Erro no refresh_token do Google.");
+            if (!tokenRes.ok) throw new Error(tokenData.error_description || "Erro ao tentar atualizar o token do Google.");
 
             const newAccessToken = tokenData.access_token;
 
             await docRef.set({
-                integrations: { google_my_business: { accessToken: newAccessToken, connectedAt: admin.firestore.FieldValue.serverTimestamp() } }
+                integrations: { 
+                    google_my_business: { 
+                        accessToken: newAccessToken, 
+                        connectedAt: admin.firestore.FieldValue.serverTimestamp() 
+                    } 
+                }
             }, { merge: true });
 
             return { accessToken: newAccessToken, locationId: data.locationId };
         } catch (error) {
-            throw new Error("Token expirou e não pôde ser renovado automaticamente.");
+            throw new Error("O Token do Google expirou e não pôde ser renovado. Desconecte e conecte novamente na aba Integrações.");
         }
     }
     return { accessToken: data.accessToken, locationId: data.locationId };
 }
 
+// Handler Principal (Roteador da API)
 export default async function handler(req, res) {
+    // Configurações de CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -65,25 +77,38 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     try {
+        // Agrupa os parâmetros independentemente de ser GET ou POST
         const params = { ...req.query, ...req.body };
         const { action, storeId } = params;
 
-        if (!storeId) return res.status(400).json({ success: false, error: 'O storeId é obrigatório.' });
+        if (!storeId) {
+            return res.status(400).json({ success: false, error: 'O parâmetro storeId é obrigatório.' });
+        }
 
+        // 1. CHECAGEM DE STATUS RÁPIDA (Não consome chamadas pesadas da API)
         if (action === 'checkStatus') {
             const docSnap = await db.collection('settings').doc(storeId).get();
             const gmbData = docSnap.exists ? docSnap.data()?.integrations?.google_my_business : null;
             return res.status(200).json({ connected: !!(gmbData && gmbData.accessToken) });
         }
 
+        // Para todas as outras requisições, validamos e extraímos o token
         const { accessToken, locationId } = await getValidGmbTokenAndIds(storeId);
-        if (!locationId) return res.status(400).json({ success: false, error: "Falta o ID do Local." });
+        
+        if (!locationId && action !== 'getProfile') {
+            return res.status(400).json({ success: false, error: "O ID do Local não foi configurado na aba de integrações." });
+        }
 
-        const cleanLocationId = locationId.replace('locations/', '');
+        // Formatação dos IDs que o Google exige dependendo do endpoint
+        const cleanLocationId = locationId ? locationId.replace('locations/', '') : '';
         const locationName = `locations/${cleanLocationId}`;
         const accountLocationName = `accounts/-/locations/${cleanLocationId}`;
 
-        // 1. PERFIL
+        // ==========================================
+        // ESCOPOS DA INTEGRAÇÃO
+        // ==========================================
+
+        // 2. PERFIL: Buscar Dados do Local
         if (action === 'getProfile') {
             const apiRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?readMask=title,profile,primaryPhone`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -93,6 +118,7 @@ export default async function handler(req, res) {
             return res.status(200).json({ success: true, profile: data });
         }
 
+        // 3. PERFIL: Atualizar Dados (PATCH)
         if (action === 'updateBusinessInfo') {
             const { title, description, phone } = params;
             const updatePayload = {};
@@ -108,17 +134,24 @@ export default async function handler(req, res) {
                 body: JSON.stringify(updatePayload)
             });
             const data = await apiRes.json();
-            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao atualizar perfil.");
+            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao atualizar perfil no Google.");
             return res.status(200).json({ success: true, profile: data });
         }
 
-        // 2. FEED (POSTAGENS)
+        // 4. FEED: Criar Postagem no Google
         if (action === 'createGooglePost') {
             const { summary, imageUrl, topicType } = params;
             if (!summary) throw new Error("O texto da postagem é obrigatório.");
 
-            const postPayload = { languageCode: "pt-BR", topicType: topicType || "STANDARD", summary: summary };
-            if (imageUrl) postPayload.media = [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }];
+            const postPayload = { 
+                languageCode: "pt-BR", 
+                topicType: topicType || "STANDARD", 
+                summary: summary 
+            };
+            
+            if (imageUrl) {
+                postPayload.media = [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }];
+            }
 
             const apiRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/localPosts`, {
                 method: 'POST',
@@ -126,20 +159,21 @@ export default async function handler(req, res) {
                 body: JSON.stringify(postPayload)
             });
             const data = await apiRes.json();
-            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao publicar postagem.");
+            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao publicar postagem no Google.");
             return res.status(200).json({ success: true, post: data });
         }
 
-        // 3. AVALIAÇÕES
+        // 5. AVALIAÇÕES: Buscar (GET)
         if (action === 'getReviews') {
             const apiRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/reviews`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             const data = await apiRes.json();
-            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao listar avaliações.");
+            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao listar avaliações do Google.");
             return res.status(200).json({ success: true, reviews: data });
         }
 
+        // 6. AVALIAÇÕES: Responder (PUT)
         if (action === 'handleReviews') {
             const { reviewId, replyText } = params;
             const apiRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/reviews/${reviewId}/reply`, {
@@ -148,50 +182,66 @@ export default async function handler(req, res) {
                 body: JSON.stringify({ comment: replyText })
             });
             const data = await apiRes.json();
-            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao enviar resposta.");
+            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao enviar resposta para o Google.");
             return res.status(200).json({ success: true, reply: data });
         }
 
-        // 4. MÍDIAS (GET E POST)
+        // 7. MÍDIAS: Buscar Fotos (GET)
         if (action === 'getMedia') {
             const apiRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/media`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             const data = await apiRes.json();
-            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao buscar mídias.");
+            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao buscar mídias do Google.");
             return res.status(200).json({ success: true, media: data });
         }
 
+        // 8. MÍDIAS: Fazer Upload (POST)
         if (action === 'uploadGoogleMedia') {
             const { mediaUrl, category } = params; 
             const apiRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/media`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mediaFormat: "PHOTO", locationAssociation: { category: category }, sourceUrl: mediaUrl })
+                body: JSON.stringify({ 
+                    mediaFormat: "PHOTO", 
+                    locationAssociation: { category: category }, 
+                    sourceUrl: mediaUrl 
+                })
             });
             const data = await apiRes.json();
-            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao enviar imagem.");
+            if (!apiRes.ok) throw new Error(data.error?.message || "Falha ao enviar imagem para o Google.");
             return res.status(200).json({ success: true, media: data });
         }
 
-        // 5. SINCRONIZAR CARDÁPIO
+        // 9. CARDÁPIO: Sincronização em Massa de Produtos (POST)
         if (action === 'syncVeloProducts') {
-            const productsSnap = await db.collection('products').where('storeId', '==', storeId).where('isActive', '==', true).get();
-            if (productsSnap.empty) throw new Error("Nenhum produto ativo encontrado.");
+            const productsSnap = await db.collection('products')
+                .where('storeId', '==', storeId)
+                .where('isActive', '==', true)
+                .get();
+                
+            if (productsSnap.empty) throw new Error("Nenhum produto ativo encontrado para sincronizar.");
 
             const products = productsSnap.docs.map(doc => doc.data());
             let syncedCount = 0;
             
+            // Cria postagens no formato "Offer/Standard" para preencher o catálogo do Google
             const batchPromises = products.map(async (p) => {
                 if (!p.imageUrl) return; 
+                
                 const postPayload = {
-                    languageCode: "pt-BR", topicType: "STANDARD",
-                    summary: `${p.name} - R$ ${p.price}\n\n${p.description || 'Peça online agora mesmo.'}`,
+                    languageCode: "pt-BR", 
+                    topicType: "STANDARD",
+                    summary: `${p.name} - R$ ${p.price}\n\n${p.description || 'Faça seu pedido online agora mesmo.'}`,
                     media: [{ mediaFormat: "PHOTO", sourceUrl: p.imageUrl }]
                 };
+                
                 const gRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/localPosts`, {
-                    method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(postPayload)
+                    method: 'POST', 
+                    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(postPayload)
                 });
+                
                 if (gRes.ok) syncedCount++;
             });
 
@@ -199,9 +249,11 @@ export default async function handler(req, res) {
             return res.status(200).json({ success: true, syncedCount });
         }
 
-        return res.status(400).json({ success: false, error: 'Ação não reconhecida.' });
+        // Fallback para Ação Desconhecida
+        return res.status(400).json({ success: false, error: 'Ação não reconhecida pelo servidor.' });
 
     } catch (error) {
+        console.error("Erro na API do Google Meu Negócio:", error.message);
         return res.status(500).json({ success: false, error: error.message });
     }
 }
