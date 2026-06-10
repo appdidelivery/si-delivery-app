@@ -5799,80 +5799,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                 {activeTab === 'products' && (
                     <div className="space-y-8">
-                        <div className="flex justify-between items-center">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
-                            <div className="flex flex-col md:flex-row gap-3">
-                                {/* BOTÃO MÁGICO: ENVIAR CARDÁPIO PRO GOOGLE (TRAVA DE 30 DIAS ANTISPAM) */}
-                                {settings?.integrations?.google_my_business?.locationId && (() => {
-                                    const hoje = new Date().toISOString().split('T')[0];
-                                    let diasFaltantes = 0;
-                                    let isSincronizacaoBloqueada = false;
-
-                                    if (storeStatus?.lastGoogleSync) {
-                                        const dataUltima = new Date(storeStatus.lastGoogleSync);
-                                        const dataHoje = new Date(hoje);
-                                        const diffTempo = Math.abs(dataHoje - dataUltima);
-                                        const diffDias = Math.ceil(diffTempo / (1000 * 60 * 60 * 24));
-                                        
-                                        if (diffDias < 30) {
-                                            isSincronizacaoBloqueada = true;
-                                            diasFaltantes = 30 - diffDias;
-                                        }
-                                    }
-
-                                    return (
-                                        <div className="flex flex-col items-end group relative">
-                                            <button 
-                                                disabled={isSyncingGoogle || isSincronizacaoBloqueada}
-                                                onClick={async (e) => {
-                                                    if(!window.confirm("Deseja enviar todo o seu cardápio ativo para a vitrine do Google Meu Negócio agora?")) return;
-                                                    
-                                                    setIsSyncingGoogle(true);
-                                                    try {
-                                                        const activeProducts = products.filter(p => p.isActive !== false && (Number(p.price) > 0 || Number(p.promotionalPrice) > 0) && (p.imageUrl || p.videoUrl));
-                                                        const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
-                                                        
-                                                        const res = await fetch('/api/sync-google-catalog', {
-                                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({ 
-                                                                storeId, 
-                                                                locationId: settings.integrations.google_my_business.locationId,
-                                                                productsList: activeProducts,
-                                                                storeDomain: baseUrl
-                                                            })
-                                                        });
-                                                        const data = await res.json();
-                                                        
-                                                        if(res.ok) {
-                                                            await updateDoc(doc(db, "stores", storeId), { lastGoogleSync: hoje }, { merge: true });
-                                                            setStoreStatus(prev => ({...prev, lastGoogleSync: hoje}));
-                                                            alert(`✅ Vitrine Sincronizada! ${data.syncedCount} produtos enviados ao Google. Eles aparecerão no seu perfil nos próximos minutos.`);
-                                                        }
-                                                        else alert(`❌ Erro do Google: ${data.error}`);
-                                                    } catch(err) {
-                                                        alert("Erro de conexão com a API.");
-                                                    }
-                                                    setIsSyncingGoogle(false);
-                                                }} 
-                                                className={`px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 active:scale-95 transition-all uppercase tracking-widest text-[10px] ${isSincronizacaoBloqueada ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50'}`}
-                                            >
-                                                {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : (isSincronizacaoBloqueada ? <Clock size={14}/> : <FaGoogle size={14}/>)}
-                                                <span className="hidden md:inline">
-                                                    {isSyncingGoogle ? 'Enviando...' : (isSincronizacaoBloqueada ? `Liberado em ${diasFaltantes} dias` : 'Sincronizar no Google')}
-                                                </span>
-                                                <span className="md:hidden">Google</span>
-                                            </button>
-
-                                            {/* Tooltip Educativo (Aparece no Hover) */}
-                                            <div className="absolute top-full right-0 mt-2 w-64 bg-slate-900 text-white p-3 rounded-xl text-[10px] font-bold shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                                <p className="text-blue-300 font-black mb-1 uppercase tracking-widest">Proteção Anti-Spam Ativa</p>
-                                                O Google pune lojas que enviam o cardápio inteiro repetidas vezes. A sincronização em massa só é permitida a cada 30 dias. <br/><br/>
-                                                Última vez: <b>{storeStatus?.lastGoogleSync ? new Date(storeStatus.lastGoogleSync).toLocaleDateString('pt-BR') : 'Nunca'}</b>.
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                                
+                            <div className="flex flex-wrap gap-3">
                                 {/* BOTÃO DE SINCRONIZAÇÃO RETROATIVA DE AVALIAÇÕES REAIS */}
                                 <button onClick={async () => {
                                     if(!window.confirm("Deseja recalcular as notas de todos os produtos com base no histórico de avaliações reais recebidas?")) return;
@@ -6071,9 +6000,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                     {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}
                                                     <div className="flex flex-col justify-center gap-2 flex-shrink-0 relative z-10 w-10">
-                                                        <button onClick={() => handleGeneratePromoCopy(p)} className="p-2.5 bg-purple-50 rounded-xl text-purple-600 border border-purple-100 hover:bg-purple-100 transition-all shadow-sm" title="Criar Copy de Promoção (IA)">
-                                                            <Sparkles size={18} className="mx-auto" />
-                                                        </button>
+
                                                         <button onClick={() => handleQuickToggleProduct(p)} className={`p-2.5 rounded-xl transition-all shadow-sm ${p.isActive === false ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'}`} title={p.isActive === false ? 'Oculto (Clique para Ativar)' : 'Ativo (Clique para Ocultar)'}>
                                                             {p.isActive === false ? <EyeOff size={18} className="mx-auto" /> : <Eye size={18} className="mx-auto" />}
                                                         </button>
