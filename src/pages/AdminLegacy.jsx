@@ -3656,14 +3656,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     )}
                 </div>
 
-               <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar">
+               <nav className="space-y-1 flex-1 overflow-y-auto no-scrollbar pb-4">
     {allNavItems
         .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
         .filter(item => hasPermission(item.id)) // Filtro de permissão do funcionário
         .map(item => {
         const badgeCount = getBadgeCount(item.id);
         const isManual = item.id === 'manual';
-        const isLockedByPlan = !hasFeatureAccess(item.id); // 🔒 NOVO: Checa o Plano do SaaS
+        const isGoogle = item.id === 'google_business'; // <-- IDENTIFICA O BOTÃO DO GOOGLE
+        const isLockedByPlan = !hasFeatureAccess(item.id);
 
         return (
             <button 
@@ -3675,27 +3676,39 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         setActiveTab(item.id);
                     }
                 }} 
-                className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all relative ${
+                className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest transition-all duration-300 relative ${
                     isManual && !isLockedByPlan
                     ? 'bg-blue-600 text-white shadow-xl hover:bg-blue-700 hover:-translate-y-1 my-3' 
                     : activeTab === item.id 
-                        ? 'bg-blue-600 text-white shadow-lg' 
+                        ? (isGoogle 
+                            ? 'bg-white text-slate-900 border border-slate-100 shadow-[0_0_20px_rgba(66,133,244,0.25)] relative overflow-hidden z-10 scale-[1.02]' // GOOGLE ATIVO (Brilho Azul + Branco Moderno)
+                            : 'bg-blue-600 text-white shadow-lg') // OUTROS ATIVOS
                         : isLockedByPlan
-                            ? 'text-slate-400 bg-slate-100/50 hover:bg-slate-200 cursor-not-allowed opacity-80' // Estilo Bloqueado
-                            : 'text-slate-500 hover:bg-slate-50'
+                            ? 'text-slate-400 bg-slate-100/50 hover:bg-slate-200 cursor-not-allowed opacity-80'
+                            : (isGoogle
+                                ? 'bg-white text-slate-700 border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md my-1' // GOOGLE INATIVO (Destacado do fundo cinza)
+                                : 'text-slate-500 hover:bg-slate-50') // OUTROS INATIVOS
                 }`}
             >
-                <div className="flex items-center gap-3 text-left overflow-hidden w-full">
-                    <div className="flex-shrink-0">{item.icon}</div>
+                {/* Efeito Moderno Google 2026: Barra lateral multi-colorida quando ativo */}
+                {isGoogle && activeTab === item.id && (
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-blue-500 via-red-500 to-yellow-400 rounded-l-2xl"></div>
+                )}
+
+                <div className="flex items-center gap-3 text-left overflow-hidden w-full relative z-10">
+                    <div className="flex-shrink-0">
+                        {/* Força o ícone do Google a manter a cor original mesmo quando o botão está ativo */}
+                        {isGoogle ? <FaGoogle size={18} className="text-blue-500 drop-shadow-sm" /> : item.icon}
+                    </div>
                     <span className="truncate whitespace-nowrap">{item.name}</span>
                 </div>
                 
                 {isLockedByPlan ? (
-                    <div className="bg-slate-200 text-slate-500 p-1.5 rounded-lg flex-shrink-0">
+                    <div className="bg-slate-200 text-slate-500 p-1.5 rounded-lg flex-shrink-0 relative z-10">
                         <Lock size={14} />
                     </div>
                 ) : badgeCount > 0 ? (
-                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md flex-shrink-0">
+                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md flex-shrink-0 relative z-10">
                         {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                 ) : null}
