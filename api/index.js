@@ -4970,6 +4970,77 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(500).json({ success: false, error: `Falha técnica: ${error.message}` });
         }
     }
+    // ------------------------------------------------------------------------
+    // XX. MÓDULO DE PROSPECÇÃO ATIVA (SERPER + EVOLUTION ISOLADA)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/prospeccao') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+        const { action } = req.body;
+
+        try {
+            // AÇÃO 1: BUSCAR LEADS NO GOOGLE PLACES (SERPER DEV)
+            if (action === 'prospeccao_serper') {
+                const { queryTerm } = req.body;
+                if (!process.env.SERPER_API_KEY) throw new Error("A variável SERPER_API_KEY não está configurada na Vercel.");
+
+                const response = await fetch('https://google.serper.dev/places', {
+                    method: 'POST',
+                    headers: {
+                        'X-API-KEY': process.env.SERPER_API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ q: queryTerm, gl: 'br', hl: 'pt-br' })
+                });
+                
+                const data = await response.json();
+
+                // Regra de Ouro: Filtra apenas estabelecimentos que NÃO possuem website
+                const leads = (data.places || []).filter(place => !place.website);
+
+                return res.status(200).json({ success: true, leads });
+            }
+
+            // AÇÃO 2: DISPARO DE MENSAGEM FRIA (EVOLUTION ISOLADA)
+            if (action === 'prospeccao_wpp') {
+                const { phone, message, evoUrl, evoName, evoToken } = req.body;
+
+                if (!evoUrl || !evoName || !evoToken) {
+                    return res.status(400).json({ error: 'Credenciais da API de Prospecção (Evolution) estão ausentes no painel.' });
+                }
+
+                let cleanPhone = String(phone).replace(/\D/g, '');
+                if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
+                cleanPhone = `55${cleanPhone}`;
+
+                let formatUrl = evoUrl.replace(/\/+$/, '');
+                if (!formatUrl.includes(':8080') && !formatUrl.includes('https')) formatUrl += ':8080';
+
+                const response = await fetch(`${formatUrl}/message/sendText/${evoName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': evoToken
+                    },
+                    body: JSON.stringify({
+                        number: cleanPhone,
+                        options: { delay: 1500, presence: "composing" },
+                        textMessage: { text: message }
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(JSON.stringify(data));
+
+                return res.status(200).json({ success: true, data });
+            }
+
+            return res.status(400).json({ error: 'Ação de prospecção não reconhecida.' });
+        } catch (error) {
+            console.error("❌ Erro na Prospecção:", error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
     // ============================================================================
     // ROTA NÃO ENCONTRADA
     // ============================================================================

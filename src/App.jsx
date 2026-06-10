@@ -15,6 +15,7 @@ import AdminSaaS from './pages/AdminSaaS';
 import DriverPanel from './pages/DriverPanel';
 import InfluencerDashboard from './components/InfluencerDashboard'; // Ou './pages/InfluencerDashboard' dependendo de onde você salvou
 import WppWebview from './pages/WppWebview'; // <-- NOVO: Importação da Webview Slim
+import ProspeccaoKanban from './pages/ProspeccaoKanban';
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
@@ -157,6 +158,14 @@ function App() {
               element={
                 <ProtectedRoute user={currentUser}>
                   <AdminSaaS />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/prospeccao"
+              element={
+                <ProtectedRoute user={currentUser}>
+                  <ProspeccaoKanban />
                 </ProtectedRoute>
               }
             />
