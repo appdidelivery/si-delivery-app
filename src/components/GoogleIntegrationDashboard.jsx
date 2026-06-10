@@ -321,8 +321,8 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                     </div>
                                     
                                     {productSearch && (
-                                        <div className="max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-2xl p-2 shadow-xl absolute z-20 w-[calc(100%-4rem)] md:w-[calc(100%-8rem)] custom-scrollbar">
-                                            {products.filter(p => (p.name || '').toLowerCase().includes((productSearch || '').toLowerCase())).map(p => (
+    <div className="max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-2xl p-2 shadow-xl absolute z-20 w-[calc(100%-4rem)] md:w-[calc(100%-8rem)] custom-scrollbar">
+        {(products || []).filter(p => (p.name || '').toLowerCase().includes((productSearch || '').toLowerCase())).map(p => (
                                                 <button key={p.id} onClick={() => { setSelectedProduct(p); setProductSearch(''); setPostData({...postData, topicType: 'OFFER'}) }} className="w-full text-left p-3 hover:bg-blue-50 text-sm font-bold rounded-xl flex items-center gap-3 transition-colors border-b border-slate-50 last:border-0">
                                                     {p.imageUrl ? <img src={p.imageUrl} className="w-8 h-8 rounded-lg object-cover border border-slate-100"/> : <div className="w-8 h-8 bg-slate-100 rounded-lg"></div>} 
                                                     {p.name}

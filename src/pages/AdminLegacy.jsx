@@ -10777,11 +10777,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 })()}
 
                 {/* --- ABA GOOGLE MEU NEGÓCIO --- */}
-                {activeTab === 'google_business' && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <GoogleIntegrationDashboard storeId={storeId} />
-                    </div>
-                )}
+{activeTab === 'google_business' && (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <GoogleIntegrationDashboard 
+            storeId={storeId} 
+            products={products} 
+            storeStatus={storeStatus} 
+            uploadImageToCloudinary={uploadImageToCloudinary} 
+        />
+    </div>
+)}
             </main>
 
             {/* --- RODAPÉ MOBILE:1 ESTRUTURA REVISADA --- */}
