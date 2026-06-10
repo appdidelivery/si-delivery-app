@@ -4307,6 +4307,65 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
     // ------------------------------------------------------------------------
+    // 25.5 META: TROCA SEGURA DE TOKEN (MARKETING API)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/meta-exchange-token') {
+        if (req.method !== 'POST') return res.status(405).end();
+        
+        try {
+            const { storeId, shortLivedToken } = req.body;
+            if (!storeId || !shortLivedToken) {
+                return res.status(400).json({ error: "Parâmetros inválidos (storeId ou shortLivedToken ausentes)." });
+            }
+
+            const appId = process.env.META_APP_ID;
+            const appSecret = process.env.META_APP_SECRET;
+
+            if (!appId || !appSecret) {
+                return res.status(500).json({ error: "Credenciais da Meta (META_APP_ID / META_APP_SECRET) não configuradas na Vercel." });
+            }
+
+            // 1. Troca o Token de curto prazo por um Long-Lived Token (Dura ~60 dias)
+            const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
+            const tokenRes = await fetch(tokenUrl);
+            const tokenData = await tokenRes.json();
+
+            if (!tokenRes.ok) {
+                console.error("❌ Falha Meta OAuth:", tokenData);
+                throw new Error(tokenData.error?.message || "O Facebook rejeitou a troca de chaves.");
+            }
+
+            const longLivedToken = tokenData.access_token;
+
+            // 2. Busca dados de identificação do lojista (ID e Nome)
+            const userRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${longLivedToken}`);
+            const userData = await userRes.json();
+
+            // 3. Salva de forma isolada e segura no Firestore do Lojista
+            await db.collection('settings').doc(storeId).set({
+                integrations: {
+                    meta: {
+                        marketingToken: longLivedToken,
+                        metaUserId: userData.id || null,
+                        metaUserName: userData.name || 'Usuário Meta',
+                        connectedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }
+                }
+            }, { merge: true });
+
+            return res.status(200).json({ 
+                success: true, 
+                longLivedToken, 
+                userId: userData.id, 
+                userName: userData.name 
+            });
+
+        } catch (error) {
+            console.error("❌ Erro Crítico (Meta Token Exchange):", error);
+            return res.status(500).json({ error: error.message || "Falha na comunicação com os servidores da Meta." });
+        }
+    }
+    // ------------------------------------------------------------------------
     // 26. GOOGLE MEU NEGÓCIO: RESPONDER AVALIAÇÃO (REPLY)
     // ------------------------------------------------------------------------
     else if (path === '/api/reply-google-review') {

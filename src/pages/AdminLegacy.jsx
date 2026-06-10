@@ -10650,14 +10650,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         { 
                             id: 'meta', 
                             name: 'Meta Ads', 
-                            desc: 'Pixel de Rastreamento e Conversions API (CAPI).', 
+                            desc: 'Pixel, Conversions API e Automação de Campanhas.', 
                             icon: <FaFacebook className="text-blue-600" size={40}/>, 
                             fields:[
+                                {key: 'marketingToken', label: 'Conexão Segura com a Meta (Marketing API)'},
                                 {key: 'pixelId', label: 'ID do Pixel (Dataset ID)'}, 
                                 {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'}
                             ],
                             helpUrl: 'https://business.facebook.com/settings/pixels',
-
                             helpText: 'Descobrir meu ID do Meta Pixel'
                         },
                         { 
@@ -12678,6 +12678,106 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     </button>
                                                 )}
                                                 <p className="text-[10px] text-blue-600/70 font-bold leading-tight">Obrigatório. O Google gerará seu Token automaticamente após o login.</p>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // BLINDAGEM MESTRA: Botão Seguro para Autenticação na Meta (Marketing API)
+                                    else if (selectedIntegration.id === 'meta' && field.key === 'marketingToken') {
+                                        return (
+                                            <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-[2rem]">
+                                                <label className="text-xs font-black uppercase tracking-widest text-blue-800 flex items-center gap-2">
+                                                    <FaFacebook size={16}/> Central de Anúncios
+                                                </label>
+                                                {integrationForm.marketingToken ? (
+                                                    <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-blue-100">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-black text-green-600 flex items-center gap-1"><CheckCircle size={14}/> Conta Meta Conectada</span>
+                                                            {integrationForm.metaUserName && <span className="text-[9px] font-bold text-slate-500 mt-0.5">👤 {integrationForm.metaUserName}</span>}
+                                                        </div>
+                                                        <div className="flex gap-3 items-center">
+                                                            <button type="button" onClick={async () => {
+                                                                if(window.confirm("Deseja revogar o acesso à Meta Ads? Suas automações de marketing serão pausadas.")) {
+                                                                    await updateDoc(doc(db, "settings", storeId), {
+                                                                        "integrations.meta.marketingToken": null,
+                                                                        "integrations.meta.metaUserId": null,
+                                                                        "integrations.meta.metaUserName": null
+                                                                    });
+                                                                    setIntegrationForm(prev => ({...prev, marketingToken: null, metaUserId: null, metaUserName: null}));
+                                                                    alert("Acesso revogado com sucesso!");
+                                                                }
+                                                            }} className="text-[10px] text-red-500 font-bold uppercase tracking-widest hover:underline px-2 py-1">Desconectar</button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <button 
+                                                        type="button"
+                                                        id="btn-meta-login"
+                                                        onClick={async (e) => {
+                                                            const btn = e.currentTarget;
+                                                            const appId = import.meta.env.VITE_META_APP_ID;
+                                                            
+                                                            if (!appId) {
+                                                                return alert("⚠️ Configuração Pendente: A variável VITE_META_APP_ID não foi configurada na Vercel.");
+                                                            }
+
+                                                            const oldText = btn.innerHTML;
+                                                            btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Conectando...</span>';
+                                                            btn.disabled = true;
+
+                                                            // Carregamento Preguiçoso (Lazy Load) do SDK da Meta
+                                                            const loadFbSdk = () => new Promise((resolve) => {
+                                                                if (window.FB) return resolve();
+                                                                window.fbAsyncInit = function() {
+                                                                    window.FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v19.0' });
+                                                                    resolve();
+                                                                };
+                                                                const script = document.createElement('script');
+                                                                script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+                                                                script.async = true; script.defer = true;
+                                                                document.body.appendChild(script);
+                                                            });
+
+                                                            await loadFbSdk();
+
+                                                            window.FB.login(async (response) => {
+                                                                if (response.authResponse) {
+                                                                    const shortLivedToken = response.authResponse.accessToken;
+                                                                    try {
+                                                                        const res = await fetch('/api/meta-exchange-token', {
+                                                                            method: 'POST',
+                                                                            headers: { 'Content-Type': 'application/json' },
+                                                                            body: JSON.stringify({ storeId, shortLivedToken })
+                                                                        });
+                                                                        const data = await res.json();
+                                                                        
+                                                                        if (res.ok) {
+                                                                            setIntegrationForm(prev => ({ 
+                                                                                ...prev, 
+                                                                                marketingToken: data.longLivedToken, 
+                                                                                metaUserId: data.userId,
+                                                                                metaUserName: data.userName
+                                                                            }));
+                                                                            alert("✅ Conta conectada com sucesso! Token seguro gerado.");
+                                                                        } else {
+                                                                            alert(`❌ Erro no Servidor: ${data.error}`);
+                                                                        }
+                                                                    } catch (err) {
+                                                                        alert("Erro de conexão ao trocar token com o servidor.");
+                                                                    }
+                                                                } else {
+                                                                    alert("Processo de conexão com a Meta foi cancelado.");
+                                                                }
+                                                                btn.innerHTML = oldText;
+                                                                btn.disabled = false;
+                                                            }, { scope: 'ads_management,pages_read_engagement,pages_manage_ads' });
+                                                        }}
+                                                        className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95 disabled:opacity-50"
+                                                    >
+                                                        Conectar Conta de Anúncios
+                                                    </button>
+                                                )}
+                                                <p className="text-[10px] text-blue-600/70 font-bold leading-tight">Obrigatório para disparar automações de campanhas (Ads) pelo painel da Velo.</p>
                                             </div>
                                         );
                                     }
