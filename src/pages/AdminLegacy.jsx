@@ -44,7 +44,7 @@ import PartnersMarketplace from '../components/PartnersMarketplace';
 import GoogleIntegrationDashboard from '../components/GoogleIntegrationDashboard';
 import MetaAdsDashboard from '../components/MetaAdsDashboard';
 
-import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
+import { FaFacebook, FaInstagram, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
 
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
@@ -163,7 +163,7 @@ const DAYS_OF_WEEK =[
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
     { id: 'google_business', name: 'Google Meu Negócio', icon: <FaGoogle size={18} className="text-blue-500" />, mobileIcon: <FaGoogle size={22} className="text-blue-500" /> },
-    { id: 'meta_ads', name: 'Meta Ads (Anúncios)', icon: <FaFacebook size={18} className="text-blue-600" />, mobileIcon: <FaFacebook size={22} className="text-blue-600" /> },
+    { id: 'meta_ads', name: 'Anúncios (Insta/Face)', icon: <div className="flex items-center -space-x-1.5"><FaInstagram size={18} className="text-pink-600 relative z-10 drop-shadow-sm" /><FaFacebook size={18} className="text-blue-600" /></div>, mobileIcon: <div className="flex items-center -space-x-1.5"><FaInstagram size={22} className="text-pink-600 relative z-10 drop-shadow-sm" /><FaFacebook size={22} className="text-blue-600" /></div> },
     { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
     { id: 'datafuel', name: 'Velo Data Fuel', icon: <TrendingUp size={18} className="text-blue-500" />, mobileIcon: <TrendingUp size={22} className="text-blue-500" /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
@@ -10589,12 +10589,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     const integrationList =[
                         { 
                             id: 'meta', 
-                            name: 'Meta Ads', 
-                            desc: 'Pixel, Conversions API e Automação de Campanhas.', 
-                            icon: <FaFacebook className="text-blue-600" size={40}/>, 
+                            name: 'Instagram & Facebook', 
+                            desc: 'Automação de anúncios e rastreio de vendas (Pixel).', 
+                            icon: <div className="flex -space-x-3"><FaInstagram className="text-pink-600 relative z-10 drop-shadow-md" size={44}/><FaFacebook className="text-blue-600" size={44}/></div>, 
                             fields:[
-                                {key: 'marketingToken', label: 'Automação de Anúncios (Meta Ads)'},
-                                {key: 'pixelId', label: 'ID do Pixel (Para rastreio no Site)'}, 
+                                {key: 'marketingToken', label: 'Automação de Anúncios (Insta & Face)'},
+                                {key: 'pixelId', label: 'ID do Pixel (Para rastreio no Site)'},
                                 {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'}
                             ],
                             helpUrl: 'https://business.facebook.com/settings/pixels',
