@@ -684,11 +684,89 @@ export default async function handler(req, res) {
             await Promise.all(postOrderPromises);
             // --- FIM: MOTOR DE PÓS-VENDA ---
             
-            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0) {
+            // --- INÍCIO: MOTOR DE PROSPECÇÃO ATIVA (CRM VELO) ---
+            let crmAlertsSent = 0;
+            const prospeccaoPromises = [];
+            
+            // Puxa os leads que estão na fila de disparo (limitado a 15 por ciclo para não sobrecarregar a Vercel)
+            const leadsSnap = await db.collection("leads_prospeccao")
+                .where("wppCloudStatus", "==", "pending_trigger")
+                .limit(15)
+                .get();
+
+            for (const docLead of leadsSnap.docs) {
+                const lData = docLead.data();
+                
+                // Busca as credenciais da Meta da Velo (Lojista Mestre)
+                const mainSettingsDoc = await db.collection('settings').doc('main-app').get();
+                const waConfig = mainSettingsDoc.data()?.integrations?.whatsapp || {
+                    phoneNumberId: process.env.VELO_WA_PHONE_ID,
+                    apiToken: process.env.VELO_WA_TOKEN
+                };
+
+                if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && lData.phone) {
+                    const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                    
+                    let cleanPhone = String(lData.phone).replace(/\D/g, '');
+                    if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) cleanPhone = `55${cleanPhone}`;
+
+                    // Isola o primeiro nome do restaurante para personalizar a copy
+                    const leadName = lData.name ? lData.name.split(' ')[0] : 'Restaurante';
+
+                    prospeccaoPromises.push((async () => {
+                        try {
+                            const res = await fetch(GRAPH_API_URL, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    messaging_product: "whatsapp", 
+                                    recipient_type: "individual", 
+                                    to: cleanPhone, 
+                                    type: "template", 
+                                    template: { 
+                                        name: "apresentacao_velo_v1", // 🚨 COLOQUE AQUI O NOME DO SEU TEMPLATE APROVADO NA META
+                                        language: { code: "pt_BR" },
+                                        components: [{
+                                            type: "body",
+                                            parameters: [{ type: "text", text: leadName }]
+                                        }]
+                                    }
+                                })
+                            });
+                            
+                            const data = await res.json();
+                            if (res.ok) {
+                                // Registra a mensagem na sua caixa de entrada Omnichannel
+                                await db.collection('whatsapp_inbound').add({
+                                    storeId: 'main-app',
+                                    to: cleanPhone,
+                                    phone: cleanPhone,
+                                    text: `[Prospecção Enviada] Olá ${leadName}, vi o seu restaurante no Google...`,
+                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                    status: 'read',
+                                    direction: 'outbound'
+                                });
+                                // Carimba o lead como "enviado" para ele sair da fila do Cron Job
+                                batch.update(docLead.ref, { wppCloudStatus: 'sent', wppSentAt: admin.firestore.FieldValue.serverTimestamp() });
+                                crmAlertsSent++;
+                            } else {
+                                console.error("Erro Meta CRM:", data);
+                                batch.update(docLead.ref, { wppCloudStatus: 'error', wppError: data.error?.message });
+                            }
+                        } catch(e) {
+                            console.error("Erro Fetch CRM:", e);
+                        }
+                    })());
+                }
+            }
+            await Promise.all(prospeccaoPromises);
+            // --- FIM: MOTOR DE PROSPECÇÃO ATIVA ---
+
+            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0 || crmAlertsSent > 0) {
                 await batch.commit();
             }
 
-            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent });
+            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent, crmAlertsSent });
         } catch (error) {
             console.error('❌ Erro no CRON:', error);
             return res.status(500).json({ error: error.message });
