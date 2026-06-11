@@ -532,23 +532,60 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                             </motion.div>
                         )}
 
-                        {activeTab === 'catalog' && (
-                            <motion.div key="catalog" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                <div className="text-center py-16 flex flex-col items-center">
-                                    <div className="w-20 h-20 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mb-6">
-                                        <FaList size={36}/> 
+                        {activeTab === 'catalog' && (() => {
+                            // Lógica de Trava (Cooldown) de 12 horas
+                            let lastSyncDate = null;
+                            if (storeStatus?.lastCatalogSync) {
+                                if (typeof storeStatus.lastCatalogSync.toDate === 'function') {
+                                    lastSyncDate = storeStatus.lastCatalogSync.toDate();
+                                } else if (storeStatus.lastCatalogSync.seconds) {
+                                    lastSyncDate = new Date(storeStatus.lastCatalogSync.seconds * 1000);
+                                } else {
+                                    lastSyncDate = new Date(storeStatus.lastCatalogSync);
+                                }
+                            }
+
+                            const cooldownMs = 12 * 60 * 60 * 1000; // 12 horas em milissegundos
+                            const isLocked = lastSyncDate && (new Date() - lastSyncDate) < cooldownMs;
+                            const timeRemainingMs = isLocked ? cooldownMs - (new Date() - lastSyncDate) : 0;
+                            const hoursRemaining = Math.ceil(timeRemainingMs / (1000 * 60 * 60));
+
+                            return (
+                                <motion.div key="catalog" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                    <div className="text-center py-16 flex flex-col items-center">
+                                        <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${isLocked ? 'bg-slate-100 text-slate-400' : 'bg-green-50 text-green-600'}`}>
+                                            <FaList size={36}/> 
+                                        </div>
+                                        <h2 className="text-3xl font-black uppercase text-slate-800 mb-2">Sincronização de Cardápio</h2>
+                                        <p className="text-sm font-bold text-slate-500 mb-8 max-w-md">
+                                            Envie todos os produtos ativos do painel Velo Delivery diretamente para a aba "Produtos" do seu perfil no Google Maps.
+                                        </p>
+                                        
+                                        <button 
+                                            onClick={handleSyncCatalog} 
+                                            disabled={isSaving || isLocked} 
+                                            className={`px-10 py-5 rounded-[2rem] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 mx-auto disabled:opacity-100 disabled:cursor-not-allowed ${isLocked ? 'bg-slate-200 text-slate-500 shadow-none' : 'bg-green-500 text-white shadow-xl shadow-green-200 hover:bg-green-600'}`}
+                                        >
+                                            {isSaving ? <Loader2 className="animate-spin" size={20}/> : (isLocked ? <CheckCircle size={20}/> : <RefreshCw size={20}/>)}
+                                            {isSaving ? 'Sincronizando...' : (isLocked ? 'Catálogo Sincronizado' : 'Sincronizar Velo -> Google')}
+                                        </button>
+
+                                        {lastSyncDate && (
+                                            <div className="mt-6 flex flex-col items-center gap-1">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                                                    Última Sincronização: <span className="text-slate-700">{lastSyncDate.toLocaleString('pt-BR')}</span>
+                                                </p>
+                                                {isLocked && (
+                                                    <p className="text-[9px] font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg mt-2 border border-orange-100 flex items-center gap-1 animate-pulse">
+                                                        <Clock size={12}/> Nova sincronização liberada em aprox. {hoursRemaining}h (Prevenção Antispam)
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-                                    <h2 className="text-3xl font-black uppercase text-slate-800 mb-2">Sincronização de Cardápio</h2>
-                                    <p className="text-sm font-bold text-slate-500 mb-8 max-w-md">
-                                        Envie todos os produtos ativos do painel Velo Delivery diretamente para a aba "Produtos" do seu perfil no Google Maps.
-                                    </p>
-                                    <button onClick={handleSyncCatalog} disabled={isSaving} className="bg-green-500 text-white px-10 py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl shadow-green-200 hover:bg-green-700 transition-all active:scale-95 flex items-center gap-2 mx-auto disabled:opacity-50">
-                                        {isSaving ? <Loader2 className="animate-spin" size={20}/> : <RefreshCw size={20}/>}
-                                        Sincronizar Velo -{'>'} Google
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
+                                </motion.div>
+                            );
+                        })()}
                     </AnimatePresence>
                 </div>
             </div>

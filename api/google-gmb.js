@@ -279,6 +279,12 @@ export default async function handler(req, res) {
             });
 
             await Promise.all(batchPromises);
+            
+            // Grava o timestamp da última sincronização para a trava do frontend (Antispam)
+            await db.collection('stores').doc(storeId).update({
+                lastCatalogSync: admin.firestore.FieldValue.serverTimestamp()
+            });
+
             return res.status(200).json({ success: true, syncedCount });
         }
 
