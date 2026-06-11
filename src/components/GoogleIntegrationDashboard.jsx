@@ -8,7 +8,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [isConnected, setIsConnected] = useState(false);
     const [activeTab, setActiveTab] = useState('profile');
 
-    const [profileData, setProfileData] = useState({ title: '', description: '', phone: '' });
+    const [profileData, setProfileData] = useState({ title: '', description: '', phone: '', vouchers: [] });
     const [postData, setPostData] = useState({ summary: '', imageUrl: '', topicType: 'STANDARD', startDate: '', endDate: '' });    const [productSearch, setProductSearch] = useState('');
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [imageFile, setImageFile] = useState(null);
@@ -63,9 +63,18 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         e.preventDefault();
         setIsSaving(true);
         try {
+            // AEO (Answer Engine Optimization) - Injeta os Vales no final da descrição para o Google indexar nos filtros
+            let finalDescription = profileData.description;
+            if (profileData.vouchers?.length > 0) {
+                const voucherText = `\n\n💳 Aceitamos Vales e Benefícios: ${profileData.vouchers.join(', ')}.`;
+                if (!finalDescription.includes('Aceitamos Vales e Benefícios')) {
+                    finalDescription += voucherText;
+                }
+            }
+
             const res = await fetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateBusinessInfo', storeId, ...profileData })
+                body: JSON.stringify({ action: 'updateBusinessInfo', storeId, ...profileData, description: finalDescription })
             });
             const data = await res.json();
             if (data.success) alert("✅ Perfil atualizado no Google!");
@@ -318,16 +327,71 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                 <form onSubmit={handleSaveProfile} className="space-y-4">
                                     <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Nome da Loja no Maps</label><input type="text" value={profileData.title} onChange={e => setProfileData({...profileData, title: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" required /></div>
                                     <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Telefone de Contato</label><input type="text" value={profileData.phone} onChange={e => setProfileData({...profileData, phone: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" /></div>
-                                    <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Descrição Oficial</label><textarea rows="4" value={profileData.description} onChange={e => setProfileData({...profileData, description: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-medium outline-none focus:ring-2 ring-blue-500 resize-none"></textarea></div>
-                                    <button type="submit" disabled={isSaving} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-md hover:bg-blue-700 flex justify-center items-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações no Google</button>
+                                    <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Descrição Oficial</label><textarea rows="4" value={profileData.description} onChange={e => setProfileData({...profileData, description: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-medium outline-none focus:ring-2 ring-blue-500 resize-none custom-scrollbar"></textarea></div>
+                                    
+                                    {/* UPDATE 2026: VALES E BENEFÍCIOS */}
+                                    <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
+                                        <div className="mb-3">
+                                            <label className="text-xs font-black uppercase text-blue-800 flex items-center gap-2">🎟️ Vales e Benefícios (Filtro do Google)</label>
+                                            <p className="text-[10px] font-bold text-slate-500 leading-tight mt-1">Marque os vales que você aceita. O sistema injetará tags invisíveis (AEO) no seu perfil para você ranquear primeiro quando o cliente pesquisar "aceita sodexo".</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {['Alelo', 'Sodexo', 'Pluxee', 'Ticket', 'VR Benefícios', 'Ben Visa Vale', 'Caju'].map(voucher => {
+                                                const isSelected = profileData.vouchers?.includes(voucher);
+                                                return (
+                                                    <label key={voucher} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all border cursor-pointer flex items-center gap-2 select-none ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="hidden"
+                                                            checked={isSelected}
+                                                            onChange={(e) => {
+                                                                let current = profileData.vouchers || [];
+                                                                if (e.target.checked) current.push(voucher);
+                                                                else current = current.filter(v => v !== voucher);
+                                                                setProfileData({...profileData, vouchers: current});
+                                                            }}
+                                                        />
+                                                        {isSelected && <CheckCircle size={12} className="text-white"/>}
+                                                        {voucher}
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" disabled={isSaving} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 flex justify-center items-center gap-2 disabled:opacity-50 active:scale-95 transition-all"><Save size={18}/> Salvar Perfil e Atualizar Filtros</button>
                                 </form>
                             </motion.div>
                         )}
 
                         {activeTab === 'feed' && (
                             <motion.div key="feed" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2 mb-6"><MessageSquare className="text-blue-600"/> Nova Postagem (Feed)</h2>
+                                <h2 className="text-2xl font-black uppercase text-slate-800 flex items-center gap-2 mb-6"><MessageSquare className="text-blue-600"/> Feed de Novidades</h2>
                                 
+                                {/* UPDATE 2026: FUNÇÃO SEGUIR NO MAPS */}
+                                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-3xl mb-6 shadow-lg text-white flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="font-black uppercase tracking-widest flex items-center gap-2 text-sm mb-1"><Users size={18} className="text-blue-200"/> Nutrição de Seguidores (Maps)</h3>
+                                        <p className="text-[10px] font-medium text-blue-100 leading-relaxed max-w-lg">O Google Maps agora permite que clientes "Sigam" sua loja. Use este feed semanalmente para nutrir sua base com links do Clube VIP e cupons, transformando pesquisas em recorrência.</p>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setPostData({
+                                                ...postData,
+                                                topicType: 'OFFER',
+                                                summary: `🎁 Benefício Exclusivo para nossos Seguidores!\n\nVocê que acompanha a ${storeStatus?.name || 'nossa loja'} por aqui, acabou de ganhar acesso ao nosso Clube de Vantagens.\n\nFaça seu pedido no nosso app oficial e acumule pontos que valem descontos e produtos gratuitos na hora!\n\n👉 Acesse o link do nosso App, cadastre-se e aproveite!`,
+                                                startDate: new Date().toISOString().split('T')[0],
+                                                endDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0] // +7 dias
+                                            });
+                                            alert("Template de nutrição de seguidores gerado! Selecione uma foto chamativa e publique.");
+                                        }}
+                                        className="bg-white text-blue-700 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-blue-50 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        <Sparkles size={14}/> Gerar Post p/ Seguidores
+                                    </button>
+                                </div>
+
                                 <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 mb-6">
                                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 block ml-1">Vincular Produto (Ofertas e Combos)</label>
                                     <div className="relative mb-2">
@@ -440,16 +504,27 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                         {activeTab === 'reviews' && (
                             <motion.div key="reviews" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-black uppercase text-slate-800 flex items-center gap-2"><FaStar className="text-yellow-400"/> Avaliações</h2>
-                                    <button onClick={handleFetchReviews} disabled={isSaving} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100">
-                                        {isSaving ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>} Atualizar
+                                    <h2 className="text-2xl font-black uppercase text-slate-800 flex items-center gap-2"><FaStar className="text-yellow-400"/> Gestão de Reputação</h2>
+                                    <button onClick={handleFetchReviews} disabled={isSaving} className="bg-blue-50 text-blue-600 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100 shadow-sm transition-all active:scale-95">
+                                        {isSaving ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>} Sincronizar
                                     </button>
                                 </div>
 
+                                {/* UPDATE 2026: MODERAÇÃO DE REVIEWS */}
+                                <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl mb-6 flex items-start gap-3">
+                                    <ShieldCheck size={20} className="text-orange-500 mt-0.5 flex-shrink-0"/>
+                                    <div>
+                                        <p className="text-xs font-black text-orange-800 uppercase tracking-widest mb-1">Aviso de Moderação de IA (Google)</p>
+                                        <p className="text-[10px] font-bold text-orange-700 leading-relaxed">
+                                            Clientes agora podem avaliar usando pseudônimos/apelidos anônimos. <b>Nunca use o nome de quem avaliou na sua resposta</b> para não ser barrado. O Google agora demora de 10 minutos a 30 dias para publicar suas respostas caso a IA deles detecte linguagem repetitiva ou nomes inválidos. Foque em respostas limpas e objetivas sobre o produto (AEO).
+                                        </p>
+                                    </div>
+                                </div>
+
                                 <div className="flex gap-2 mb-4 bg-slate-50 p-1.5 rounded-xl w-fit">
-                                    <button onClick={() => setReviewFilter('ALL')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${reviewFilter === 'ALL' ? 'bg-white shadow text-slate-800' : 'text-slate-400'}`}>Todas</button>
-                                    <button onClick={() => setReviewFilter('UNREPLIED')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${reviewFilter === 'UNREPLIED' ? 'bg-white shadow text-slate-800' : 'text-slate-400'}`}>Não Respondidas</button>
-                                    <button onClick={() => setReviewFilter('REPLIED')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${reviewFilter === 'REPLIED' ? 'bg-white shadow text-slate-800' : 'text-slate-400'}`}>Respondidas</button>
+                                    <button onClick={() => setReviewFilter('ALL')} className={`px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reviewFilter === 'ALL' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>Todas</button>
+                                    <button onClick={() => setReviewFilter('UNREPLIED')} className={`px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reviewFilter === 'UNREPLIED' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>Pendente</button>
+                                    <button onClick={() => setReviewFilter('REPLIED')} className={`px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reviewFilter === 'REPLIED' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>Respondidas</button>
                                 </div>
 
                                 <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
@@ -473,14 +548,53 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                             <p className="text-sm text-slate-600 font-medium italic mb-4">"{review.comment || 'Avaliação sem texto.'}"</p>
                                             
                                             {review.reviewReply ? (
-                                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
-                                                    <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1">Você respondeu:</p>
+                                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl relative">
+                                                    <div className="absolute top-4 right-4 bg-green-500/20 text-green-700 px-2 py-1 rounded text-[8px] font-black uppercase">Enviada p/ Moderação</div>
+                                                    <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1">Resposta do Estabelecimento:</p>
                                                     <p className="text-sm font-bold text-blue-900">{review.reviewReply.comment}</p>
                                                 </div>
                                             ) : (
-                                                <div className="flex gap-2">
-                                                    <input type="text" placeholder="Responder como o Dono..." value={replyInputs[review.reviewId] || ''} onChange={(e) => setReplyInputs({...replyInputs, [review.reviewId]: e.target.value})} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500" />
-                                                    <button onClick={() => handleReplyReview(review.reviewId)} disabled={isSaving} className="bg-blue-600 text-white px-6 rounded-xl font-black text-xs uppercase hover:bg-blue-700 transition-all">Enviar</button>
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex gap-2">
+                                                        <div className="flex-1 relative">
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Resposta profissional..." 
+                                                                value={replyInputs[review.reviewId] || ''} 
+                                                                onChange={(e) => setReplyInputs({...replyInputs, [review.reviewId]: e.target.value})} 
+                                                                className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500 text-slate-700" 
+                                                            />
+                                                            {/* BOTÃO IA ANTI-SPAM (AEO Seguro) */}
+                                                            <button 
+                                                                type="button"
+                                                                title="Gerar Resposta Segura (AEO)"
+                                                                onClick={() => {
+                                                                    const isPositive = review.starRating === 'FIVE' || review.starRating === 'FOUR';
+                                                                    const storeName = storeStatus?.name || 'nossa loja';
+                                                                    const niche = storeStatus?.storeNiche || 'delivery';
+                                                                    
+                                                                    let safeReply = '';
+                                                                    if (isPositive) {
+                                                                        // Sem usar nome. Focando no produto, nicho e local (SEO Puro)
+                                                                        safeReply = `Olá! Agradecemos muito a sua avaliação positiva. Nosso time trabalha duro todos os dias para entregar a melhor experiência em ${niche}. Sempre que precisar, a equipe da ${storeName} estará à disposição!`;
+                                                                    } else {
+                                                                        safeReply = `Olá. Agradecemos o seu feedback, pois ele é fundamental para nossa evolução. Lamentamos que a sua experiência não tenha sido ideal. Prezamos muito pela qualidade do nosso serviço na ${storeName}. Por favor, entre em contato conosco pelos canais oficiais para entendermos o ocorrido.`;
+                                                                    }
+                                                                    setReplyInputs({...replyInputs, [review.reviewId]: safeReply});
+                                                                }}
+                                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition-all"
+                                                            >
+                                                                <Sparkles size={16}/>
+                                                            </button>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => handleReplyReview(review.reviewId)} 
+                                                            disabled={isSaving || !replyInputs[review.reviewId]} 
+                                                            className="bg-blue-600 text-white px-6 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Enviar p/ Google
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
