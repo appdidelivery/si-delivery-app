@@ -269,9 +269,18 @@ export default function ProspeccaoKanban() {
                                                             evoUrl: evoConfig.url, evoName: evoConfig.instance, evoToken: evoConfig.token 
                                                         })
                                                     });
-                                                    const data = await res.json();
                                                     
-                                                    if (!res.ok) throw new Error(data.error);
+                                                    // 🚨 BLINDAGEM MESTRA: Lê como texto primeiro para evitar o erro do "A server error" (HTML da Vercel)
+                                                    const textRes = await res.text();
+                                                    let data;
+                                                    try {
+                                                        data = JSON.parse(textRes);
+                                                    } catch (parseErr) {
+                                                        console.error("Erro da Vercel/VPS:", textRes);
+                                                        throw new Error("A VPS demorou muito para responder ou está offline (Timeout). Verifique se o servidor está rodando.");
+                                                    }
+                                                    
+                                                    if (!res.ok) throw new Error(data.error || "Erro desconhecido na API.");
 
                                                     if (data.status === 'open') {
                                                         setEvoStatus('open');
