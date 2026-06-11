@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaGoogle, FaStore, FaStar, FaImage, FaList, FaBullhorn } from 'react-icons/fa6';
-import { Loader2, ExternalLink, Save, CheckCircle, Send, RefreshCw, MessageSquare, Search, Sparkles, UploadCloud, X, Edit3 } from 'lucide-react';
+import { Loader2, ExternalLink, Save, CheckCircle, Send, RefreshCw, MessageSquare, Search, Sparkles, UploadCloud, X, Edit3, Users, ShieldCheck, Clock } from 'lucide-react';
 
 export default function GoogleIntegrationDashboard({ storeId, products, storeStatus, uploadImageToCloudinary }) {
     const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +19,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [mediaItems, setMediaItems] = useState([]);
     const [mediaCategory, setMediaCategory] = useState('FOOD_AND_DRINK');
     const [mediaFile, setMediaFile] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
+    const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
     useEffect(() => {
         if (storeId) checkConnectionStatus();
@@ -44,18 +44,35 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     };
 
     const fetchProfileData = async () => {
+        setIsFetchingProfile(true);
         try {
             const res = await fetch(`/api/google-gmb?action=getProfile&storeId=${storeId}`);
             const data = await res.json();
+            
             if (data.success && data.profile) {
+                let rawDescription = data.profile.profile?.description || '';
+                let extractedVouchers = [];
+                
+                // Inteligência: Se a descrição já tiver os Vales injetados do salvamento anterior,
+                // nós retiramos do texto limpo e usamos para marcar as caixinhas automaticamente!
+                if (rawDescription.includes('💳 Aceitamos Vales e Benefícios:')) {
+                    const parts = rawDescription.split('💳 Aceitamos Vales e Benefícios:');
+                    rawDescription = parts[0].trim();
+                    const vouchersString = parts[1].replace('.', '').trim();
+                    extractedVouchers = vouchersString.split(',').map(v => v.trim());
+                }
+
                 setProfileData({
                     title: data.profile.title || '',
-                    description: data.profile.profile?.description || '',
-                    phone: data.profile.primaryPhone || ''
+                    description: rawDescription,
+                    phone: data.profile.primaryPhone || '',
+                    vouchers: extractedVouchers
                 });
             }
         } catch (error) { 
-            console.error("Erro ao buscar perfil"); 
+            console.error("Erro ao buscar perfil", error); 
+        } finally {
+            setIsFetchingProfile(false);
         }
     };
 
@@ -321,10 +338,38 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                         
                         {activeTab === 'profile' && (
                             <motion.div key="profile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                <h2 className="text-2xl font-black uppercase text-slate-800 mb-6 flex items-center gap-2">
-                                    <FaStore className="text-blue-600"/> Dados Comerciais (Google)
-                                </h2>
-                                <form onSubmit={handleSaveProfile} className="space-y-4">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                                    <h2 className="text-2xl font-black uppercase text-slate-800 flex items-center gap-2">
+                                        <FaStore className="text-blue-600"/> Dados do Google
+                                    </h2>
+                                    <button 
+                                        onClick={fetchProfileData} 
+                                        disabled={isFetchingProfile} 
+                                        className="bg-blue-50 text-blue-600 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100 transition-all active:scale-95 shadow-sm"
+                                    >
+                                        {isFetchingProfile ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>} 
+                                        {isFetchingProfile ? 'Buscando...' : 'Puxar do Google Agora'}
+                                    </button>
+                                </div>
+
+                                <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl mb-6 flex items-start gap-3 shadow-sm animate-in fade-in">
+                                    <FaGoogle size={20} className="text-blue-500 mt-0.5 flex-shrink-0"/>
+                                    <div>
+                                        <p className="text-xs font-black text-blue-800 uppercase tracking-widest mb-1">Ficha Sincronizada ao Vivo</p>
+                                        <p className="text-[10px] font-bold text-blue-700 leading-relaxed">
+                                            Os dados abaixo foram puxados diretamente da sua ficha no Google Maps agora mesmo. Para atualizar qualquer informação, basta editar e clicar em Salvar.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {isFetchingProfile ? (
+                                    <div className="flex flex-col items-center justify-center py-16 bg-slate-50 rounded-3xl border border-slate-100">
+                                        <Loader2 className="animate-spin text-blue-500 mb-4" size={48} />
+                                        <p className="font-black uppercase text-sm text-slate-500 tracking-widest">Buscando na sua conta Google...</p>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleSaveProfile} className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+
                                     <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Nome da Loja no Maps</label><input type="text" value={profileData.title} onChange={e => setProfileData({...profileData, title: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" required /></div>
                                     <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Telefone de Contato</label><input type="text" value={profileData.phone} onChange={e => setProfileData({...profileData, phone: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500" /></div>
                                     <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Descrição Oficial</label><textarea rows="4" value={profileData.description} onChange={e => setProfileData({...profileData, description: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-medium outline-none focus:ring-2 ring-blue-500 resize-none custom-scrollbar"></textarea></div>
@@ -361,6 +406,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
 
                                     <button type="submit" disabled={isSaving} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 flex justify-center items-center gap-2 disabled:opacity-50 active:scale-95 transition-all"><Save size={18}/> Salvar Perfil e Atualizar Filtros</button>
                                 </form>
+                                )}
                             </motion.div>
                         )}
 
