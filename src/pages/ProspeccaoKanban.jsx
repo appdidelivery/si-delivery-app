@@ -31,6 +31,8 @@ export default function ProspeccaoKanban() {
         if (!searchTerm) return;
         setIsSearching(true);
 
+        console.log(`🚀 [Frontend] Iniciando busca por: "${searchTerm}"`);
+
         try {
             const response = await fetch('/api/prospeccao', {
                 method: 'POST',
@@ -38,10 +40,9 @@ export default function ProspeccaoKanban() {
                 body: JSON.stringify({ action: 'prospeccao_serper', queryTerm: searchTerm })
             });
             
-            // 🛡️ BLINDAGEM: Verifica se a Vercel crashou antes de tentar ler o JSON
             const contentType = response.headers.get("content-type");
             if (!contentType || !contentType.includes("application/json")) {
-                throw new Error("Erro na API da Vercel. O arquivo api/index.js pode estar com erro de sintaxe.");
+                throw new Error("Erro na API da Vercel. Formato de resposta inválido.");
             }
 
             const data = await response.json();
@@ -50,41 +51,60 @@ export default function ProspeccaoKanban() {
                 throw new Error(data.error || 'Erro ao buscar no Serper');
             }
 
+            console.log(`📦 [Frontend] O backend entregou ${data.leads.length} restaurantes brutos.`);
+
             let added = 0;
             for (const place of data.leads) {
-                // 1. HIGIENIZAÇÃO INTELIGENTE: Puxa o telefone de qualquer chave que o Google/Serper retornar
                 const rawPhone = place.phoneNumber || place.formatted_phone_number || place.international_phone_number || place.phone;
+                const leadName = place.title || place.name || 'Sem Nome';
                 
-                if (rawPhone) {
-                    let cleanPhone = String(rawPhone).replace(/\D/g, ''); 
-                    
-                    // Garante que o código do Brasil (55) está presente para a automação não falhar depois
-                    if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) {
-                        cleanPhone = `55${cleanPhone}`;
-                    }
+                if (!rawPhone) {
+                    console.log(`❌ [Descartado] ${leadName} - Motivo: Não possui nenhum telefone cadastrado no Google.`);
+                    continue; // Pula para o próximo restaurante
+                }
 
-                    // 2. REGRA DE NEGÓCIO: Evitamos duplicatas baseando-se no telefone já limpo.
-                    if (cleanPhone.length >= 12 && !leads.some(l => l.phone === cleanPhone)) {
-                        await addDoc(collection(db, 'leads_prospeccao'), {
-                            name: place.title || place.name || 'Sem Nome',
-                            phone: cleanPhone,
-                            address: place.address || place.formatted_address || '',
-                            status: 'extracted', // Cai na primeira coluna do Kanban
-                            createdAt: serverTimestamp()
-                        });
-                        added++;
-                    }
+                let cleanPhone = String(rawPhone).replace(/\D/g, ''); 
+                
+                if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) {
+                    cleanPhone = `55${cleanPhone}`;
+                }
+
+                // Removemos o limite rígido de 12 caracteres para ver o que chega de verdade
+                if (cleanPhone.length < 10) {
+                     console.log(`❌ [Descartado] ${leadName} - Motivo: O telefone é muito curto/inválido (${cleanPhone}).`);
+                     continue;
+                }
+
+                // Verifica duplicidade no banco local
+                const isDuplicate = leads.some(l => l.phone === cleanPhone);
+                
+                if (isDuplicate) {
+                    console.log(`🔁 [Descartado] ${leadName} - Motivo: O telefone ${cleanPhone} JÁ EXISTE no seu Kanban.`);
+                } else {
+                    console.log(`✅ [Adicionado] ${leadName} - Telefone limpo e válido: ${cleanPhone}`);
+                    await addDoc(collection(db, 'leads_prospeccao'), {
+                        name: leadName,
+                        phone: cleanPhone,
+                        address: place.address || place.formatted_address || '',
+                        status: 'extracted',
+                        createdAt: serverTimestamp()
+                    });
+                    added++;
                 }
             }
             
             if (added > 0) {
-                alert(`🎯 Sucesso! ${added} novos restaurantes SEM SITE adicionados ao funil.`);
+                alert(`🎯 Sucesso! ${added} novos restaurantes adicionados ao funil.`);
             } else {
-                alert(`Nenhum lead novo encontrado com telefone válido ou todos já estão no seu funil.`);
+                // Alerta mais específico para você saber que deve olhar o console
+                alert(`Nenhum lead NOVO foi adicionado. 
+A pesquisa retornou ${data.leads.length} resultados, mas todos foram rejeitados. 
+Abra o Inspecionar (F12) > Console para ver o motivo exato de cada rejeição!`);
             }
             
         } catch (error) {
             alert(`Erro na busca: ${error.message}`);
+            console.error("Erro na busca de leads:", error);
         } finally {
             setIsSearching(false);
         }
