@@ -4353,6 +4353,108 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
     // ------------------------------------------------------------------------
+    // 25.6 META ADS: CRIAR CAMPANHA INTELIGENTE (MARKETING API)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/meta-create-campaign') {
+        if (req.method !== 'POST') return res.status(405).end();
+        try {
+            const { storeId, productId, productName, productUrl, imageUrl, dailyBudget, radius } = req.body;
+            
+            // 1. Puxa as credenciais que configuramos na Etapa 1
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const metaConfig = settingsDoc.data()?.integrations?.meta;
+            
+            if (!metaConfig || !metaConfig.marketingToken || !metaConfig.adAccountId || !metaConfig.pageId) {
+                return res.status(400).json({ error: "Configuração da Meta incompleta. Falta Token, ID da Conta ou ID da Página." });
+            }
+
+            // 2. Puxa as coordenadas da loja para focar o anúncio
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const { lat, lng } = storeDoc.data();
+            if (!lat || !lng) return res.status(400).json({ error: "A sua loja precisa ter Latitude e Longitude configuradas na aba 'Configurações'." });
+
+            const token = metaConfig.marketingToken;
+            let adAccountId = metaConfig.adAccountId.trim();
+            // A Meta exige o prefixo 'act_' no Ad Account ID
+            if (!adAccountId.startsWith('act_')) adAccountId = `act_${adAccountId}`;
+            const pageId = metaConfig.pageId.trim();
+
+            const budgetCents = Math.round(Number(dailyBudget) * 100);
+
+            // Helper para fazer as requisições à Meta
+            const fetchMeta = async (endpoint, payload) => {
+                const res = await fetch(`https://graph.facebook.com/v19.0/${endpoint}?access_token=${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.error_user_title || data.error?.message || 'Meta API Error');
+                return data;
+            };
+
+            // PASSO 1: Criar a Campanha (Tráfego)
+            const campaign = await fetchMeta(`${adAccountId}/campaigns`, {
+                name: `[Velo] ${productName}`,
+                objective: 'OUTCOME_TRAFFIC',
+                status: 'PAUSED', // 🚨 BLINDAGEM: Criada pausada para o cliente não gastar sem querer
+                special_ad_categories: ['NONE']
+            });
+
+            // PASSO 2: Criar o Conjunto de Anúncios (Público + Raio de Entrega)
+            const adSet = await fetchMeta(`${adAccountId}/adsets`, {
+                name: `📍 Raio ${radius}km ao redor da Loja`,
+                campaign_id: campaign.id,
+                daily_budget: budgetCents,
+                billing_event: 'IMPRESSIONS',
+                optimization_goal: 'LINK_CLICKS',
+                promoted_object: { page_id: pageId },
+                targeting: {
+                    geo_locations: {
+                        custom_locations: [{
+                            latitude: Number(lat),
+                            longitude: Number(lng),
+                            radius: Number(radius),
+                            distance_unit: 'kilometer'
+                        }]
+                    }
+                },
+                status: 'PAUSED'
+            });
+
+            // PASSO 3: Criar o Criativo (Foto, Texto e Link do Cardápio)
+            const creative = await fetchMeta(`${adAccountId}/adcreatives`, {
+                name: `Criativo - ${productName}`,
+                object_story_spec: {
+                    page_id: pageId,
+                    link_data: {
+                        image_url: imageUrl,
+                        link: productUrl,
+                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Clique em "Saiba mais" para abrir o cardápio e pedir na hora.`,
+                        name: `Peça ${productName} Agora!`,
+                        call_to_action: { type: 'LEARN_MORE' } // Botão Saiba Mais
+                    }
+                }
+            });
+
+            // PASSO 4: Criar o Anúncio Final (Montando as peças)
+            const ad = await fetchMeta(`${adAccountId}/ads`, {
+                name: `Anúncio Velo 1`,
+                adset_id: adSet.id,
+                creative: { creative_id: creative.id },
+                status: 'PAUSED'
+            });
+
+            // Sucesso Total! Opcionalmente, você pode salvar o ID da campanha no Firestore aqui.
+            return res.status(200).json({ success: true, campaignId: campaign.id });
+
+        } catch (error) {
+            console.error("Erro Meta Ads:", error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 26. GOOGLE MEU NEGÓCIO: RESPONDER AVALIAÇÃO (REPLY)
     // ------------------------------------------------------------------------
     else if (path === '/api/reply-google-review') {

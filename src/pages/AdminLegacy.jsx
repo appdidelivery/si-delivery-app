@@ -42,6 +42,7 @@ import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou e
 import { MissionTracker } from '../components/MissionTracker';
 import PartnersMarketplace from '../components/PartnersMarketplace';
 import GoogleIntegrationDashboard from '../components/GoogleIntegrationDashboard';
+import MetaAdsDashboard from '../components/MetaAdsDashboard';
 
 import { FaFacebook, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
@@ -162,6 +163,7 @@ const DAYS_OF_WEEK =[
 const allNavItems =[
     { id: 'dashboard', name: 'Início', icon: <LayoutDashboard size={18} />, mobileIcon: <LayoutDashboard size={22} /> },
     { id: 'google_business', name: 'Google Meu Negócio', icon: <FaGoogle size={18} className="text-blue-500" />, mobileIcon: <FaGoogle size={22} className="text-blue-500" /> },
+    { id: 'meta_ads', name: 'Meta Ads (Anúncios)', icon: <FaFacebook size={18} className="text-blue-600" />, mobileIcon: <FaFacebook size={22} className="text-blue-600" /> },
     { id: 'insights', name: 'Velo Insights (IA)', icon: <Sparkles size={18} className="text-purple-500" />, mobileIcon: <Sparkles size={22} className="text-purple-500" /> }, // <-- NOVA ABA DE IA
     { id: 'datafuel', name: 'Velo Data Fuel', icon: <TrendingUp size={18} className="text-blue-500" />, mobileIcon: <TrendingUp size={22} className="text-blue-500" /> },
     { id: 'orders', name: 'Pedidos', icon: <ShoppingBag size={18} />, mobileIcon: <ShoppingBag size={22} /> },
@@ -202,8 +204,8 @@ export default function Admin() {
     // Matriz de Recursos: O que cada plano tem direito de acessar
     const PLAN_FEATURES = {
         start: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance'],
-        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'google_business'],
-        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners', 'google_business']
+        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'google_business', 'meta_ads'],
+        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners', 'google_business', 'meta_ads']
     };
 
     const [upgradeModalFeature, setUpgradeModalFeature] = useState(null);
@@ -918,8 +920,10 @@ const educationalBanners = [
             
             case 'google_business': 
             case 'integrations': return userPermissions.integrations === true;
+
+            case 'meta_ads': return userPermissions.marketing === true;
             
-            case 'orders': 
+            case 'orders':
             case 'manual': 
             case 'abandoned': 
             case 'fleet': 
@@ -10590,6 +10594,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             icon: <FaFacebook className="text-blue-600" size={40}/>, 
                             fields:[
                                 {key: 'marketingToken', label: 'Conexão Segura com a Meta (Marketing API)'},
+                                {key: 'adAccountId', label: 'ID da Conta de Anúncios (Ex: act_123456789)'},
+                                {key: 'pageId', label: 'ID da Página do Facebook'},
                                 {key: 'pixelId', label: 'ID do Pixel (Dataset ID)'}, 
                                 {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'}
                             ],
@@ -10733,6 +10739,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             products={products} 
             storeStatus={storeStatus} 
             uploadImageToCloudinary={uploadImageToCloudinary} 
+        />
+    </div>
+)}
+
+                {/* --- ABA META ADS (ANÚNCIOS) --- */}
+{activeTab === 'meta_ads' && (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <MetaAdsDashboard 
+            storeId={storeId} 
+            products={products} 
+            storeStatus={storeStatus} 
         />
     </div>
 )}
