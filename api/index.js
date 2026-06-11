@@ -4958,7 +4958,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 console.log(`🤖 [Apify] Acionando robô para: "${queryTerm}"`);
 
                 // Requisição Síncrona: O Apify vai rodar o scraper e devolver os resultados direto
-                const response = await fetch(`https://api.apify.com/v2/acts/compass~google-maps-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_API_TOKEN}`, {
+                const response = await fetch(`https://api.apify.com/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items?token=${process.env.APIFY_API_TOKEN}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
