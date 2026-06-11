@@ -140,7 +140,7 @@ export default async function handler(req, res) {
 
         // 4. FEED: Criar Postagem no Google
         if (action === 'createGooglePost') {
-            const { summary, imageUrl, topicType } = params;
+            const { summary, imageUrl, topicType, startDate, endDate } = params;
             if (!summary) throw new Error("O texto da postagem é obrigatório.");
 
             const postPayload = { 
@@ -150,7 +150,32 @@ export default async function handler(req, res) {
             };
             
             if (imageUrl) {
-                postPayload.media = [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }];
+                // encodeURI resolve o DeprecationWarning url.parse do Node para URLs do Cloudinary contendo espaços
+                postPayload.media = [{ mediaFormat: "PHOTO", sourceUrl: encodeURI(imageUrl) }];
+            }
+
+            // O Google exige objeto 'event' e 'schedule' se o post for uma oferta ou evento
+            if (topicType === 'OFFER' || topicType === 'EVENT') {
+                if (!startDate || !endDate) {
+                    throw new Error("Data de Início e Término são obrigatórias para Ofertas e Eventos.");
+                }
+                
+                // Quebra a string "YYYY-MM-DD" localmente para evitar shift de Fuso Horário do objeto Date nativo
+                const startYear = parseInt(startDate.split('-')[0]);
+                const startMonth = parseInt(startDate.split('-')[1]);
+                const startDay = parseInt(startDate.split('-')[2]);
+                
+                const endYear = parseInt(endDate.split('-')[0]);
+                const endMonth = parseInt(endDate.split('-')[1]);
+                const endDay = parseInt(endDate.split('-')[2]);
+
+                postPayload.event = {
+                    title: topicType === 'EVENT' ? 'Evento Especial' : 'Oferta Especial',
+                    schedule: {
+                        startDate: { year: startYear, month: startMonth, day: startDay },
+                        endDate: { year: endYear, month: endMonth, day: endDay }
+                    }
+                };
             }
 
             const apiRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/localPosts`, {
@@ -205,7 +230,7 @@ export default async function handler(req, res) {
                 body: JSON.stringify({ 
                     mediaFormat: "PHOTO", 
                     locationAssociation: { category: category }, 
-                    sourceUrl: mediaUrl 
+                    sourceUrl: encodeURI(mediaUrl) 
                 })
             });
             const data = await apiRes.json();
@@ -233,7 +258,7 @@ export default async function handler(req, res) {
                     languageCode: "pt-BR", 
                     topicType: "STANDARD",
                     summary: `${p.name} - R$ ${p.price}\n\n${p.description || 'Faça seu pedido online agora mesmo.'}`,
-                    media: [{ mediaFormat: "PHOTO", sourceUrl: p.imageUrl }]
+                    media: [{ mediaFormat: "PHOTO", sourceUrl: encodeURI(p.imageUrl) }]
                 };
                 
                 const gRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/localPosts`, {

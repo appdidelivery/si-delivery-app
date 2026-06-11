@@ -9,8 +9,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [activeTab, setActiveTab] = useState('profile');
 
     const [profileData, setProfileData] = useState({ title: '', description: '', phone: '' });
-    const [postData, setPostData] = useState({ summary: '', imageUrl: '', topicType: 'STANDARD' });
-    const [productSearch, setProductSearch] = useState('');
+    const [postData, setPostData] = useState({ summary: '', imageUrl: '', topicType: 'STANDARD', startDate: '', endDate: '' });    const [productSearch, setProductSearch] = useState('');
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [imageFile, setImageFile] = useState(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -116,12 +115,20 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
 
             const res = await fetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'createGooglePost', storeId, summary: postData.summary, imageUrl: finalImageUrl, topicType: postData.topicType })
+                body: JSON.stringify({ 
+                    action: 'createGooglePost', 
+                    storeId, 
+                    summary: postData.summary, 
+                    imageUrl: finalImageUrl, 
+                    topicType: postData.topicType,
+                    startDate: postData.startDate,
+                    endDate: postData.endDate
+                })
             });
             const data = await res.json();
             if (data.success) {
                 alert("✅ Postagem publicada!");
-                setPostData({ summary: '', imageUrl: '', topicType: 'STANDARD' });
+                setPostData({ summary: '', imageUrl: '', topicType: 'STANDARD', startDate: '', endDate: '' });
                 setSelectedProduct(null);
                 setImageFile(null);
             } else throw new Error(data.error);
@@ -366,6 +373,19 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                             </label>
                                         </div>
                                     </div>
+
+                                    {(postData.topicType === 'OFFER' || postData.topicType === 'EVENT') && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block ml-2">Data de Início *</label>
+                                                <input type="date" value={postData.startDate} onChange={e => setPostData({...postData, startDate: e.target.value})} required className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500 text-slate-700" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block ml-2">Data de Término *</label>
+                                                <input type="date" value={postData.endDate} onChange={e => setPostData({...postData, endDate: e.target.value})} required className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-blue-500 text-slate-700" />
+                                            </div>
+                                        </div>
+                                    )}
                                     
                                     <div className="bg-slate-50 p-1 rounded-3xl border border-slate-200">
                                         <div className="flex justify-between items-end mb-2 px-3 pt-3">
