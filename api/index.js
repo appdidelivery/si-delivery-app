@@ -5107,8 +5107,28 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 if (!formatUrl.startsWith('http')) formatUrl = `https://${formatUrl}`;
 
                 try {
-                    console.log(`[EVO LOG] 1. Criando instância ${evoName}...`);
+                    // 1. Verifica se a instância já existe e qual o status dela
+                    const statusRes = await fetch(`${formatUrl}/instance/connectionState/${evoName}`, {
+                        method: 'GET', headers: { 'apikey': evoToken }
+                    });
                     
+                    if (statusRes.ok) {
+                        const statusData = await statusRes.json().catch(() => ({}));
+                        
+                        // Se já está conectada, perfeito, vida que segue!
+                        if (statusData?.instance?.state === 'open' || statusData?.state === 'open') {
+                            return res.status(200).json({ success: true, status: 'open' });
+                        }
+
+                        // 🚨 TÁTICA AGRESSIVA: Se ela existe mas não está conectada, ela está travada.
+                        // Vamos deletar ela para limpar a memória do WhatsApp instantaneamente.
+                        console.log(`[EVO LOG] Instância travada. Deletando para recriar...`);
+                        await fetch(`${formatUrl}/instance/logout/${evoName}`, { method: 'DELETE', headers: { 'apikey': evoToken } });
+                        await fetch(`${formatUrl}/instance/delete/${evoName}`, { method: 'DELETE', headers: { 'apikey': evoToken } });
+                    }
+
+                    // 2. Cria a instância do zero (Isso OBRIGA a Evolution a devolver o QR Code na hora)
+                    console.log(`[EVO LOG] Criando instância limpa...`);
                     const createRes = await fetch(`${formatUrl}/instance/create`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'apikey': evoToken },
@@ -5116,41 +5136,17 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     });
                     
                     const createData = await createRes.json().catch(() => ({}));
-                    
-                    // A Evolution devolve o QR Code já na hora da CRIAÇÃO nas versões mais novas!
-                    // Vamos tentar interceptar ele aqui antes mesmo de pedir de novo.
-                    let base64Image = createData?.qrcode?.base64 || createData?.hash?.qrcode || null;
+                    const base64Image = createData?.qrcode?.base64 || createData?.hash?.qrcode;
 
-                    console.log(`[EVO LOG] 2. Verificando Status...`);
-                    const statusRes = await fetch(`${formatUrl}/instance/connectionState/${evoName}`, {
-                        method: 'GET', headers: { 'apikey': evoToken }
-                    });
-                    
-                    const statusData = await statusRes.json().catch(() => ({}));
-                    
-                    if (statusData?.instance?.state === 'open' || statusData?.state === 'open') {
-                        return res.status(200).json({ success: true, status: 'open' });
-                    }
-
-                    // Se não pegou na criação, pede forçado pro endpoint de connect
-                    if (!base64Image) {
-                        console.log(`[EVO LOG] 3. Forçando Geração do QR Code...`);
-                        const qrRes = await fetch(`${formatUrl}/instance/connect/${evoName}`, {
-                            method: 'GET', headers: { 'apikey': evoToken }
-                        });
-                        const qrData = await qrRes.json().catch(() => ({}));
-                        
-                        base64Image = qrData?.base64 || qrData?.qrcode || qrData?.instance?.qrcode;
-                    }
-                    
                     if (base64Image) {
                         return res.status(200).json({ success: true, status: 'qr_ready', base64: base64Image });
                     } else {
-                        // Resposta polida sem causar Crash na Vercel
-                        return res.status(400).json({ error: 'A Evolution está iniciando a sessão com o WhatsApp (Demora de 5 a 10 segs). Por favor, clique novamente no botão.' });
+                        // Se chegou aqui, a VPS realmente está com problemas graves de disco/memória
+                        return res.status(500).json({ error: 'A VPS falhou em gerar a imagem do QR Code. Verifique se o servidor está sobrecarregado.' });
                     }
+
                 } catch (err) {
-                    console.error("[EVO LOG FATAL] Ocorreu um erro de rede interno:", err);
+                    console.error("[EVO LOG FATAL] Erro de rede:", err);
                     return res.status(500).json({ error: `Falha de rede ao contatar a VPS: ${err.message}` });
                 }
             }
