@@ -19,6 +19,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [mediaItems, setMediaItems] = useState([]);
     const [mediaCategory, setMediaCategory] = useState('FOOD_AND_DRINK');
     const [mediaFile, setMediaFile] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
     useEffect(() => {
