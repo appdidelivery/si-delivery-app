@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
 
 export default function ProspeccaoKanban() {
     const [leads, setLeads] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
+    
+    // Estado para controlar qual lead está com o Chat aberto
+    const [activeChatLead, setActiveChatLead] = useState(null);
     
     // Estados do Gerenciador de QR Code
     const [evoStatus, setEvoStatus] = useState('offline');
@@ -173,6 +177,14 @@ export default function ProspeccaoKanban() {
                         <Send size={12}/> Abordar
                     </button>
                 )}
+                
+                {/* Botão de Abrir o Chat (Aparece se o lead não estiver na primeira coluna) */}
+                {lead.status !== 'extracted' && lead.phone && (
+                    <button onClick={() => setActiveChatLead(lead)} className="bg-[#25D366] text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-[#1ebd59] active:scale-95 shadow-sm">
+                        <MessageCircle size={12}/> Chat
+                    </button>
+                )}
+
                 {lead.status === 'replied' && (
                     <button onClick={() => handleChangeStatus(lead.id, 'closed')} className="bg-green-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-green-600 active:scale-95 shadow-sm">
                         <CheckCircle2 size={12}/> Vendeu
@@ -316,8 +328,15 @@ export default function ProspeccaoKanban() {
                 )}
             </AnimatePresence>
 
+            {/* Painel Lateral do Chat (Abre por cima do Kanban) */}
+            <AnimatePresence>
+                {activeChatLead && (
+                    <ProspectChat lead={activeChatLead} onClose={() => setActiveChatLead(null)} />
+                )}
+            </AnimatePresence>
+
             {/* Kanban Board */}
-            <main className="flex-1 p-6 overflow-x-auto">
+            <main className="flex-1 p-6 overflow-x-auto relative">
                 <div className="flex gap-6 min-w-max h-full">
                     {COLUMNS.map((col, index) => {
                         const colLeads = leads.filter(l => l.status === col.id);
