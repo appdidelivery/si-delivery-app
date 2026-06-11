@@ -97,47 +97,32 @@ export default function ProspeccaoKanban() {
     // 2. Mudar Status no Kanban
     const handleChangeStatus = async (leadId, newStatus) => {
         try {
-            await updateDoc(doc(db, 'leads_prospeccao', leadId), { status: newStatus });
+            const updatePayload = { status: newStatus };
+
+            // INTEGRAÇÃO WHATSAPP CLOUD API (META)
+            // Se o card for movido para a coluna de "Abordagem Inicial" (contacted),
+            // injetamos a flag para a Cloud Function fazer o disparo em background.
+            // Proteção: não afeta as outras colunas.
+            if (newStatus === 'contacted') {
+                updatePayload.wppCloudStatus = 'pending_trigger';
+                updatePayload.wppTriggeredAt = serverTimestamp();
+            }
+
+            await updateDoc(doc(db, 'leads_prospeccao', leadId), updatePayload);
         } catch (error) {
             alert('Erro ao atualizar status.');
         }
     };
 
-    // 3. Disparar Mensagem Fria
+    // 3. Disparar Mensagem Fria (Nova Arquitetura Assíncrona)
     const handleSendColdMessage = async (lead) => {
-        if (!evoConfig.url || !evoConfig.instance || !evoConfig.token) {
-            alert("Configure os dados da Evolution API isolada primeiro (Ícone de Engrenagem).");
-            setShowConfig(true);
-            return;
-        }
-
         try {
-            // Pega o primeiro nome da empresa
-            const firstName = lead.name.split(' ')[0] || 'Responsável';
-            const finalMessage = evoConfig.defaultMessage.replace('{nome}', firstName);
-
-            const response = await fetch('/api/prospeccao', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'prospeccao_wpp',
-                    phone: lead.phone,
-                    message: finalMessage,
-                    evoUrl: evoConfig.url,
-                    evoName: evoConfig.instance,
-                    evoToken: evoConfig.token
-                })
-            });
-
-            if (response.ok) {
-                // Move automaticamente para a próxima coluna!
-                await handleChangeStatus(lead.id, 'contacted');
-            } else {
-                const err = await response.json();
-                alert(`Erro ao enviar: ${err.error}`);
-            }
+            // O frontend não faz mais requisições bloqueantes. 
+            // Apenas atualiza o status do Firestore e a UI responde instantaneamente.
+            // A Cloud Function cuidará de identificar a mudança e disparar o Template da Meta.
+            await handleChangeStatus(lead.id, 'contacted');
         } catch (error) {
-            alert(`Erro de conexão: ${error.message}`);
+            alert(`Erro ao acionar abordagem: ${error.message}`);
         }
     };
 
