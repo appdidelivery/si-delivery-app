@@ -10,6 +10,14 @@ export default function ProspeccaoKanban() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     
+    // Filtros de Qualificação Velo
+    const [filters, setFilters] = useState({
+        onlyWithPhone: false,
+        noWebsite: false,      // Ideal para vender a criação da loja
+        noOrderLink: false,    // Identifica quem não tem cardápio digital
+        hasInstagram: false    // Bom para saber se o lead é engajado
+    });
+    
     // Estado para controlar qual lead está com o Chat aberto
     const [activeChatLead, setActiveChatLead] = useState(null);
     
@@ -244,11 +252,55 @@ export default function ProspeccaoKanban() {
                 )}
             </AnimatePresence>
 
+            {/* Barra de Filtros Inteligentes */}
+            <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 overflow-x-auto">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <Search size={14}/> Filtros:
+                </span>
+                
+                <button 
+                    onClick={() => setFilters(f => ({ ...f, onlyWithPhone: !f.onlyWithPhone }))}
+                    className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-full transition-colors flex items-center gap-1 border ${filters.onlyWithPhone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                >
+                    <Phone size={12}/> Com Telefone
+                </button>
+
+                <button 
+                    onClick={() => setFilters(f => ({ ...f, noWebsite: !f.noWebsite }))}
+                    className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-full transition-colors border ${filters.noWebsite ? 'bg-red-100 text-red-700 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                >
+                    Sem Site Próprio
+                </button>
+
+                <button 
+                    onClick={() => setFilters(f => ({ ...f, noOrderLink: !f.noOrderLink }))}
+                    className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-full transition-colors border ${filters.noOrderLink ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                >
+                    Sem Cardápio Digital
+                </button>
+
+                <button 
+                    onClick={() => setFilters(f => ({ ...f, hasInstagram: !f.hasInstagram }))}
+                    className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-full transition-colors border ${filters.hasInstagram ? 'bg-pink-100 text-pink-700 border-pink-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                >
+                    Tem Instagram
+                </button>
+            </div>
+
             {/* Kanban Board */}
             <main className="flex-1 p-6 overflow-x-auto relative">
                 <div className="flex gap-6 min-w-max h-full">
                     {COLUMNS.map((col, index) => {
-                        const colLeads = leads.filter(l => l.status === col.id);
+                        // Aplica os filtros antes de renderizar as colunas
+                        const colLeads = leads.filter(l => {
+                            if (l.status !== col.id) return false;
+                            if (filters.onlyWithPhone && !l.phone) return false;
+                            if (filters.noWebsite && l.website) return false;
+                            if (filters.noOrderLink && l.orderUrl) return false;
+                            if (filters.hasInstagram && !l.instagram) return false;
+                            return true;
+                        });
+
                         return (
                             <div key={col.id} className={`w-80 flex flex-col rounded-3xl ${col.color} border ${col.border} overflow-hidden max-h-[calc(100vh-140px)] shadow-sm`}>
                                 <div className="p-4 border-b border-black/5 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
