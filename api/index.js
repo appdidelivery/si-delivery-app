@@ -5093,6 +5093,46 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(200).json({ success: true, data });
             }
 
+            // AÇÃO 3: GERENCIAR INSTÂNCIA E GERAR QR CODE (EVOLUTION)
+            if (action === 'evo_manager') {
+                const { evoUrl, evoName, evoToken } = req.body;
+                if (!evoUrl || !evoName || !evoToken) return res.status(400).json({ error: 'Preencha a URL, Nome e Token antes de conectar.' });
+
+                let formatUrl = evoUrl.replace(/\/+$/, '');
+                if (!formatUrl.includes(':8080') && !formatUrl.includes('https')) formatUrl += ':8080';
+
+                try {
+                    // 1. Força a criação da instância (Se já existir, a Evolution apenas ignora)
+                    await fetch(`${formatUrl}/instance/create`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': evoToken },
+                        body: JSON.stringify({ instanceName: evoName, qrcode: true, integration: "WHATSAPP-BAILEYS" })
+                    });
+
+                    // 2. Solicita o Status ou o QR Code
+                    const statusRes = await fetch(`${formatUrl}/instance/connect/${evoName}`, {
+                        method: 'GET', headers: { 'apikey': evoToken }
+                    });
+                    
+                    const statusData = await statusRes.json();
+                    
+                    // Se já estiver pareado
+                    if (statusData.instance?.state === 'open' || statusData.state === 'open') {
+                        return res.status(200).json({ success: true, status: 'open' });
+                    }
+
+                    // Se precisar ler o QR Code
+                    const base64Image = statusData.base64 || statusData.qrcode || statusData.instance?.qrcode;
+                    if (base64Image) {
+                        return res.status(200).json({ success: true, status: 'qr_ready', base64: base64Image });
+                    } else {
+                        return res.status(400).json({ error: 'Aguarde. A VPS ainda está gerando o QR Code. Clique novamente em 5 segundos.' });
+                    }
+                } catch (err) {
+                    return res.status(500).json({ error: 'A VPS não respondeu. Verifique se o servidor está ligado.' });
+                }
+            }
+
             return res.status(400).json({ error: 'Ação de prospecção não reconhecida.' });
         } catch (error) {
             console.error("❌ Erro na Prospecção:", error);

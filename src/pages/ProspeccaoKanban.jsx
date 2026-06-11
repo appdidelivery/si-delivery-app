@@ -9,6 +9,11 @@ export default function ProspeccaoKanban() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     
+    // Estados do Gerenciador de QR Code
+    const [evoStatus, setEvoStatus] = useState('offline');
+    const [evoQrCode, setEvoQrCode] = useState(null);
+    const [isLoadingEvo, setIsLoadingEvo] = useState(false);
+    
     // Configurações do WhatsApp Isolado para Prospecção
     const [showConfig, setShowConfig] = useState(false);
     const [evoConfig, setEvoConfig] = useState(() => {
@@ -240,6 +245,66 @@ export default function ProspeccaoKanban() {
                                     <input type="text" placeholder="Nome da Instância" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500" value={evoConfig.instance} onChange={e => setEvoConfig({...evoConfig, instance: e.target.value})} />
                                     <input type="password" placeholder="Global API Key" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500" value={evoConfig.token} onChange={e => setEvoConfig({...evoConfig, token: e.target.value})} />
                                 </div>
+                                
+                                {/* BOTÃO E VISUALIZADOR DE QR CODE */}
+                                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-3 h-3 rounded-full ${evoStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                                            <span className="text-xs font-black uppercase text-slate-600">
+                                                Status: {evoStatus === 'open' ? 'Conectado' : 'Desconectado'}
+                                            </span>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            disabled={isLoadingEvo}
+                                            onClick={async () => {
+                                                setIsLoadingEvo(true);
+                                                setEvoQrCode(null);
+                                                try {
+                                                    const res = await fetch('/api/prospeccao', {
+                                                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                        body: JSON.stringify({ 
+                                                            action: 'evo_manager', 
+                                                            evoUrl: evoConfig.url, evoName: evoConfig.instance, evoToken: evoConfig.token 
+                                                        })
+                                                    });
+                                                    const data = await res.json();
+                                                    
+                                                    if (!res.ok) throw new Error(data.error);
+
+                                                    if (data.status === 'open') {
+                                                        setEvoStatus('open');
+                                                        alert("✅ WhatsApp Conectado e Pronto para Disparo!");
+                                                    } else if (data.status === 'qr_ready' && data.base64) {
+                                                        setEvoStatus('qr_ready');
+                                                        const imageStr = String(data.base64).includes('data:image') ? data.base64 : `data:image/png;base64,${data.base64}`;
+                                                        setEvoQrCode(imageStr);
+                                                    }
+                                                } catch(err) {
+                                                    alert("Erro na VPS: " + err.message);
+                                                } finally {
+                                                    setIsLoadingEvo(false);
+                                                }
+                                            }}
+                                            className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-md hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                                        >
+                                            {isLoadingEvo ? <Loader2 size={14} className="animate-spin"/> : 'Gerar QR / Testar Conexão'}
+                                        </button>
+                                    </div>
+
+                                    {evoQrCode && evoStatus !== 'open' && (
+                                        <div className="flex flex-col items-center justify-center bg-slate-50 p-4 rounded-2xl border border-slate-200 animate-in zoom-in">
+                                            <p className="text-xs font-black uppercase tracking-widest text-slate-800 mb-3">Escaneie o QR Code</p>
+                                            <img src={evoQrCode} alt="QR Code Evolution" className="w-48 h-48 rounded-xl border-4 border-white shadow-sm" />
+                                            <p className="text-[10px] text-slate-500 font-bold mt-3 text-center leading-tight">
+                                                Abra o WhatsApp no celular secundário de prospecção e aponte a câmera.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                                {/* FIM VISUALIZADOR */}
+
                             </div>
                             <div>
                                 <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs flex items-center gap-2 mb-4">
