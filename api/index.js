@@ -5127,7 +5127,16 @@ Retorne APENAS um JSON com 3 chaves curtas:
                         method: 'GET', headers: { 'apikey': evoToken }
                     });
                     
-                    const statusData = await statusRes.json();
+                    const statusText = await statusRes.text();
+                    let statusData;
+                    
+                    // 🚨 BLINDAGEM: Tenta converter para JSON. Se for um erro HTML do Nginx, captura o erro com elegância.
+                    try {
+                        statusData = JSON.parse(statusText);
+                    } catch (parseError) {
+                        console.error("Erro da VPS (Não é JSON):", statusText);
+                        return res.status(500).json({ error: 'A Evolution API ainda está reiniciando ou indisponível. Aguarde 1 minuto e tente novamente.' });
+                    }
                     
                     // Se já estiver pareado
                     if (statusData.instance?.state === 'open' || statusData.state === 'open') {
@@ -5160,7 +5169,16 @@ Retorne APENAS um JSON com 3 chaves curtas:
                         method: 'GET', headers: { 'apikey': evoToken }
                     });
                     
-                    const statusData = await statusRes.json();
+                    const statusText = await statusRes.text();
+                    let statusData;
+                    
+                    // 🚨 BLINDAGEM: Tenta converter para JSON. Se for um erro HTML do Nginx, captura o erro com elegância.
+                    try {
+                        statusData = JSON.parse(statusText);
+                    } catch (parseError) {
+                        console.error("Erro da VPS (Não é JSON):", statusText);
+                        return res.status(500).json({ error: 'A Evolution API ainda está reiniciando ou indisponível. Aguarde 1 minuto e tente novamente.' });
+                    }
                     
                     // Se já estiver pareado
                     if (statusData.instance?.state === 'open' || statusData.state === 'open') {
