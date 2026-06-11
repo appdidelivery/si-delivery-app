@@ -140,7 +140,7 @@ export default async function handler(req, res) {
 
         // 4. FEED: Criar Postagem no Google
         if (action === 'createGooglePost') {
-            const { summary, imageUrl, topicType, startDate, endDate } = params;
+            const { summary, imageUrl, topicType, startDate, endDate, productUrl } = params;
             if (!summary) throw new Error("O texto da postagem é obrigatório.");
 
             const postPayload = { 
@@ -152,6 +152,14 @@ export default async function handler(req, res) {
             if (imageUrl) {
                 // encodeURI resolve o DeprecationWarning url.parse do Node para URLs do Cloudinary contendo espaços
                 postPayload.media = [{ mediaFormat: "PHOTO", sourceUrl: encodeURI(imageUrl) }];
+            }
+
+            // Se o produto estiver vinculado, cria um Botão (Call To Action) na postagem
+            if (productUrl) {
+                postPayload.callToAction = {
+                    actionType: "ORDER", // No Google em PT-BR isso vira "Fazer pedido"
+                    url: productUrl
+                };
             }
 
             // O Google exige objeto 'event' e 'schedule' se o post for uma oferta ou evento

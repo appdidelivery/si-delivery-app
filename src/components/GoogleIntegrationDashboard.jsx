@@ -113,6 +113,19 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                 finalImageUrl = selectedProduct.imageUrl;
             }
 
+            // Descobre a URL base da loja e formata o slug do produto para o botão do Google
+            let productUrl = null;
+            if (selectedProduct) {
+                const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                const safeSlug = selectedProduct.name.toString().toLowerCase()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^a-z0-9 -]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-+/, '').replace(/-+$/, '');
+                productUrl = `${baseUrl}/p/${safeSlug}`;
+            }
+
             const res = await fetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -122,7 +135,8 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                     imageUrl: finalImageUrl, 
                     topicType: postData.topicType,
                     startDate: postData.startDate,
-                    endDate: postData.endDate
+                    endDate: postData.endDate,
+                    productUrl: productUrl
                 })
             });
             const data = await res.json();
