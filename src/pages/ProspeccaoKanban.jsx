@@ -37,6 +37,13 @@ export default function ProspeccaoKanban() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'prospeccao_serper', queryTerm: searchTerm })
             });
+            
+            // 🛡️ BLINDAGEM: Verifica se a Vercel crashou antes de tentar ler o JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new Error("Erro na API da Vercel. O arquivo api/index.js pode estar com erro de sintaxe.");
+            }
+
             const data = await response.json();
 
             if (!response.ok || !data.success) {
