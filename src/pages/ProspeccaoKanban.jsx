@@ -66,7 +66,7 @@ export default function ProspeccaoKanban() {
 
             let added = 0;
             for (const place of data.leads) {
-                // Adicionado 'phone_number' (com underline) na malha de busca
+                // aAdicionado 'phone_number' (com underline) na malha de busca
                 const rawPhone = place.phoneNumber || place.phone_number || place.formatted_phone_number || place.international_phone_number || place.phone || place.telefone;
                 const leadName = place.title || place.name || 'Sem Nome';
                 
