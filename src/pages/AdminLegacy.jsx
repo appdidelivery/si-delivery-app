@@ -12705,40 +12705,53 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                                 await loadFbSdk();
 
-                                                                window.FB.login(async (response) => {
+                                                                // A Meta não aceita "async" diretamente aqui, então usamos uma função normal
+                                                                window.FB.login((response) => {
                                                                     if (response.authResponse) {
                                                                         const shortLivedToken = response.authResponse.accessToken;
-                                                                        try {
-                                                                            btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Puxando Ativos...</span>';
-                                                                            
-                                                                            const res = await fetch('/api/meta-exchange-token', {
-                                                                                method: 'POST',
-                                                                                headers: { 'Content-Type': 'application/json' },
-                                                                                body: JSON.stringify({ storeId, shortLivedToken })
-                                                                            });
-                                                                            const data = await res.json();
-                                                                            
-                                                                            if (res.ok) {
-                                                                                setIntegrationForm(prev => ({ 
-                                                                                    ...prev, 
-                                                                                    marketingToken: data.longLivedToken, 
-                                                                                    metaUserId: data.userId,
-                                                                                    metaUserName: data.userName,
-                                                                                    adAccountName: data.adAccountName,
-                                                                                    pageName: data.pageName
-                                                                                }));
-                                                                                alert("✅ Conta conectada! Nós puxamos sua Página e Conta de Anúncios automaticamente.");
-                                                                            } else {
-                                                                                alert(`❌ Erro no Servidor: ${data.error}`);
+                                                                        
+                                                                        // Criamos uma função assíncrona isolada para rodar internamente
+                                                                        const processMetaLogin = async () => {
+                                                                            try {
+                                                                                btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Puxando Ativos...</span>';
+                                                                                
+                                                                                const res = await fetch('/api/meta-exchange-token', {
+                                                                                    method: 'POST',
+                                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                                    body: JSON.stringify({ storeId, shortLivedToken })
+                                                                                });
+                                                                                const data = await res.json();
+                                                                                
+                                                                                if (res.ok) {
+                                                                                    setIntegrationForm(prev => ({ 
+                                                                                        ...prev, 
+                                                                                        marketingToken: data.longLivedToken, 
+                                                                                        metaUserId: data.userId,
+                                                                                        metaUserName: data.userName,
+                                                                                        adAccountName: data.adAccountName,
+                                                                                        pageName: data.pageName
+                                                                                    }));
+                                                                                    alert("✅ Conta conectada! Nós puxamos sua Página e Conta de Anúncios automaticamente.");
+                                                                                } else {
+                                                                                    alert(`❌ Erro no Servidor: ${data.error}`);
+                                                                                }
+                                                                            } catch (err) {
+                                                                                alert("Erro de conexão ao trocar token com o servidor.");
+                                                                            } finally {
+                                                                                // O finally garante que o botão destrave independente de dar erro ou sucesso
+                                                                                btn.innerHTML = oldText;
+                                                                                btn.disabled = false;
                                                                             }
-                                                                        } catch (err) {
-                                                                            alert("Erro de conexão ao trocar token com o servidor.");
-                                                                        }
+                                                                        };
+
+                                                                        // Dispara a função assíncrona
+                                                                        processMetaLogin();
+
                                                                     } else {
                                                                         alert("Processo de conexão com a Meta foi cancelado.");
+                                                                        btn.innerHTML = oldText;
+                                                                        btn.disabled = false;
                                                                     }
-                                                                    btn.innerHTML = oldText;
-                                                                    btn.disabled = false;
                                                                 }, { scope: 'ads_management,pages_read_engagement,pages_manage_ads' });
 
                                                             } catch (err) {
