@@ -5093,43 +5093,62 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 return res.status(200).json({ success: true, data });
             }
 
-            // AÇÃO 3: GERENCIAR INSTÂNCIA E GERAR QR CODE (EVOLUTION)
+           // AÇÃO 3: GERENCIAR INSTÂNCIA E GERAR QR CODE (EVOLUTION)
             if (action === 'evo_manager') {
-                const { evoUrl, evoName, evoToken } = req.body;
-                if (!evoUrl || !evoName || !evoToken) return res.status(400).json({ error: 'Preencha a URL, Nome e Token antes de conectar.' });
+                const evoUrl = req.body.evoUrl;
+                const evoName = req.body.evoName;
+                const evoToken = req.body.evoToken;
+                
+                if (!evoUrl || !evoName || !evoToken) {
+                    return res.status(400).json({ error: 'Preencha a URL, Nome e Token antes de conectar.' });
+                }
 
                 let formatUrl = evoUrl.replace(/\/+$/, '');
-                if (!formatUrl.includes(':8080') && !formatUrl.includes('https')) formatUrl += ':8080';
+                if (!formatUrl.startsWith('http')) formatUrl = `https://${formatUrl}`;
 
                 try {
-                    // 1. Força a criação da instância (Se já existir, a Evolution apenas ignora)
-                    await fetch(`${formatUrl}/instance/create`, {
+                    console.log(`[EVO LOG] 1. Tentando criar instância ${evoName} em: ${formatUrl}`);
+                    
+                    const createRes = await fetch(`${formatUrl}/instance/create`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'apikey': evoToken },
                         body: JSON.stringify({ instanceName: evoName, qrcode: true, integration: "WHATSAPP-BAILEYS" })
                     });
+                    
+                    const createText = await createRes.text();
+                    console.log(`[EVO LOG] 2. Resposta do Create:`, createText.substring(0, 150));
 
-                    // 2. Solicita o Status ou o QR Code
+                    console.log(`[EVO LOG] 3. Tentando buscar QR Code...`);
                     const statusRes = await fetch(`${formatUrl}/instance/connect/${evoName}`, {
                         method: 'GET', headers: { 'apikey': evoToken }
                     });
                     
-                    const statusData = await statusRes.json();
+                    const statusText = await statusRes.text();
+                    console.log(`[EVO LOG] 4. Resposta do Status:`, statusText.substring(0, 150));
+
+                    let statusData;
+                    try {
+                        statusData = JSON.parse(statusText);
+                    } catch (parseErr) {
+                        console.error("[EVO LOG FATAL] A VPS não retornou um JSON válido. Ela retornou:", statusText);
+                        // Ao invés de quebrar a Vercel, devolvemos o erro mastigado pro Frontend!
+                        return res.status(500).json({ error: `A VPS retornou um erro do sistema: ${statusText.substring(0, 50)}... Veja os logs da Vercel.` });
+                    }
                     
-                    // Se já estiver pareado
+                    // Se passou pelo parse, é um JSON válido!
                     if (statusData.instance?.state === 'open' || statusData.state === 'open') {
                         return res.status(200).json({ success: true, status: 'open' });
                     }
 
-                    // Se precisar ler o QR Code
                     const base64Image = statusData.base64 || statusData.qrcode || statusData.instance?.qrcode;
                     if (base64Image) {
                         return res.status(200).json({ success: true, status: 'qr_ready', base64: base64Image });
                     } else {
-                        return res.status(400).json({ error: 'Aguarde. A VPS ainda está gerando o QR Code. Clique novamente em 5 segundos.' });
+                        return res.status(400).json({ error: 'A VPS respondeu, mas ainda não gerou o QR Code. Clique de novo em 5 segundos.' });
                     }
                 } catch (err) {
-                    return res.status(500).json({ error: 'A VPS não respondeu. Verifique se o servidor está ligado.' });
+                    console.error("[EVO LOG FATAL] Ocorreu um erro de rede interno:", err);
+                    return res.status(500).json({ error: `Falha de rede ao contatar a VPS: ${err.message}` });
                 }
             }
 
