@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaRegChartBar } from 'react-icons/fa6';
 import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign } from 'lucide-react';
 
-export default function MetaAdsDashboard({ storeId, products, storeStatus }) {
+export default function MetaAdsDashboard({ storeId, products, storeStatus, settings }) {
     const [metaStatus, setMetaStatus] = useState({ isConnected: false, userName: null, hasAccountIds: false });
     const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,7 +13,7 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus }) {
     const [radiusKm, setRadiusKm] = useState(5);
 
     useEffect(() => {
-        const metaConfig = storeStatus?.integrations?.meta;
+        const metaConfig = settings?.integrations?.meta;
         if (metaConfig?.marketingToken) {
             setMetaStatus({
                 isConnected: true,

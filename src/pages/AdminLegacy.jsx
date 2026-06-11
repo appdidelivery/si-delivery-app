@@ -10748,6 +10748,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             storeId={storeId} 
             products={products} 
             storeStatus={storeStatus} 
+            settings={settings}
         />
     </div>
 )}
@@ -12672,97 +12673,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 ) : (
                                                     <button 
                                                         type="button"
-                                                        id="btn-meta-login"
-                                                        onClick={async (e) => {
-                                                            const btn = e.currentTarget;
-                                                            const appId = import.meta.env.VITE_META_APP_ID;
+                                                        onClick={() => {
+                                                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                                                            const authUrl = isLocal 
+                                                                ? `http://localhost:3000/api/meta-auth?storeId=${storeId}` 
+                                                                : `https://app.velodelivery.com.br/api/meta-auth?storeId=${storeId}`;
                                                             
-                                                            if (!appId) {
-                                                                return alert("⚠️ Configuração Pendente: A variável VITE_META_APP_ID não foi configurada na Vercel.");
-                                                            }
-
-                                                            const oldText = btn.innerHTML;
-                                                            btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Autenticando...</span>';
-                                                            btn.disabled = true;
-
-                                                            try {
-                                                                // Carregamento Preguiçoso com Proteção Anti-AdBlocker
-                                                                const loadFbSdk = () => new Promise((resolve, reject) => {
-                                                                    if (window.FB) return resolve();
-                                                                    window.fbAsyncInit = function() {
-                                                                        window.FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v19.0' });
-                                                                        resolve();
-                                                                    };
-                                                                    const script = document.createElement('script');
-                                                                    script.src = "https://connect.facebook.net/pt_BR/sdk.js";
-                                                                    script.async = true; script.defer = true;
-                                                                    script.onerror = () => reject(new Error("Script do Facebook foi bloqueado."));
-                                                                    document.body.appendChild(script);
-                                                                    
-                                                                    // Timeout de segurança (Se demorar mais de 6 segundos, aborta)
-                                                                    setTimeout(() => reject(new Error("Tempo limite de conexão esgotado.")), 6000);
-                                                                });
-
-                                                                await loadFbSdk();
-
-                                                                // A Meta não aceita "async" diretamente aqui, então usamos uma função normal
-                                                                window.FB.login((response) => {
-                                                                    if (response.authResponse) {
-                                                                        const shortLivedToken = response.authResponse.accessToken;
-                                                                        
-                                                                        // Criamos uma função assíncrona isolada para rodar internamente
-                                                                        const processMetaLogin = async () => {
-                                                                            try {
-                                                                                btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Puxando Ativos...</span>';
-                                                                                
-                                                                                const res = await fetch('/api/meta-exchange-token', {
-                                                                                    method: 'POST',
-                                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                                    body: JSON.stringify({ storeId, shortLivedToken })
-                                                                                });
-                                                                                const data = await res.json();
-                                                                                
-                                                                                if (res.ok) {
-                                                                                    setIntegrationForm(prev => ({ 
-                                                                                        ...prev, 
-                                                                                        marketingToken: data.longLivedToken, 
-                                                                                        metaUserId: data.userId,
-                                                                                        metaUserName: data.userName,
-                                                                                        adAccountName: data.adAccountName,
-                                                                                        pageName: data.pageName
-                                                                                    }));
-                                                                                    alert("✅ Conta conectada! Nós puxamos sua Página e Conta de Anúncios automaticamente.");
-                                                                                } else {
-                                                                                    alert(`❌ Erro no Servidor: ${data.error}`);
-                                                                                }
-                                                                            } catch (err) {
-                                                                                alert("Erro de conexão ao trocar token com o servidor.");
-                                                                            } finally {
-                                                                                // O finally garante que o botão destrave independente de dar erro ou sucesso
-                                                                                btn.innerHTML = oldText;
-                                                                                btn.disabled = false;
-                                                                            }
-                                                                        };
-
-                                                                        // Dispara a função assíncrona
-                                                                        processMetaLogin();
-
-                                                                    } else {
-                                                                        alert("Processo de conexão com a Meta foi cancelado.");
-                                                                        btn.innerHTML = oldText;
-                                                                        btn.disabled = false;
-                                                                    }
-                                                                }, { scope: 'ads_management,pages_read_engagement,pages_manage_ads' });
-
-                                                            } catch (err) {
-                                                                alert(`⚠️ Erro: ${err.message}\nSeu navegador (ou AdBlocker/Brave) está bloqueando o script de login do Facebook. Pause-o temporariamente para conectar.`);
-                                                                btn.innerHTML = oldText;
-                                                                btn.disabled = false;
-                                                            }
+                                                            window.location.href = authUrl;
                                                         }}
-                                                        className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95 disabled:opacity-50"
+                                                        className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95"
                                                     >
-                                                        Conectar com o Facebook
+                                                        <FaFacebook size={18} /> Conectar Conta de Anúncios
                                                     </button>
                                                 )}
                                                 <p className="text-[10px] text-blue-600/70 font-bold leading-tight">O sistema buscará sua Conta de Anúncios e sua Página automaticamente.</p>
