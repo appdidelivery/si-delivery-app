@@ -13,22 +13,6 @@ export default function ProspeccaoKanban() {
     // Estado para controlar qual lead está com o Chat aberto
     const [activeChatLead, setActiveChatLead] = useState(null);
     
-    // Estados do Gerenciador de QR Code
-    const [evoStatus, setEvoStatus] = useState('offline');
-    const [evoQrCode, setEvoQrCode] = useState(null);
-    const [isLoadingEvo, setIsLoadingEvo] = useState(false);
-    
-    // Configurações do WhatsApp Isolado para Prospecção
-    const [showConfig, setShowConfig] = useState(false);
-    const [evoConfig, setEvoConfig] = useState(() => {
-        const saved = localStorage.getItem('velo_prospeccao_config');
-        return saved ? JSON.parse(saved) : { url: '', instance: '', token: '', defaultMessage: 'Olá! Sou especialista em Delivery. Notei que o seu restaurante não tem site oficial. Posso te apresentar a Velo?' };
-    });
-
-    useEffect(() => {
-        localStorage.setItem('velo_prospeccao_config', JSON.stringify(evoConfig));
-    }, [evoConfig]);
-
     // Carregar leads do Firebase
     useEffect(() => {
         const q = query(collection(db, 'leads_prospeccao'));
@@ -222,111 +206,8 @@ export default function ProspeccaoKanban() {
                     <button type="submit" disabled={isSearching || !searchTerm} className="bg-blue-600 hover:bg-blue-700 text-white px-6 rounded-xl font-black uppercase text-xs tracking-widest transition-all disabled:opacity-50 flex items-center justify-center shrink-0">
                         {isSearching ? <Loader2 size={18} className="animate-spin" /> : 'Prospectar'}
                     </button>
-                    <button type="button" onClick={() => setShowConfig(!showConfig)} className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-xl transition-all shrink-0">
-                        <Settings size={20} />
-                    </button>
-                </form>
+                    </form>
             </header>
-
-            {/* Modal de Configuração WPP Isolado */}
-            <AnimatePresence>
-                {showConfig && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-white border-b border-slate-200 overflow-hidden shadow-sm z-10">
-                        <div className="p-6 max-w-5xl mx-auto grid md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs flex items-center gap-2">
-                                    <Settings size={14} className="text-blue-500"/> Servidor de Disparo (Número Secundário)
-                                </h3>
-                                <input type="text" placeholder="URL da Evolution API (Ex: https://vps.sua.com)" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500" value={evoConfig.url} onChange={e => setEvoConfig({...evoConfig, url: e.target.value})} />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input type="text" placeholder="Nome da Instância" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500" value={evoConfig.instance} onChange={e => setEvoConfig({...evoConfig, instance: e.target.value})} />
-                                    <input type="password" placeholder="Global API Key" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500" value={evoConfig.token} onChange={e => setEvoConfig({...evoConfig, token: e.target.value})} />
-                                </div>
-                                
-                                {/* BOTÃO E VISUALIZADOR DE QR CODE */}
-                                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`w-3 h-3 rounded-full ${evoStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                                            <span className="text-xs font-black uppercase text-slate-600">
-                                                Status: {evoStatus === 'open' ? 'Conectado' : 'Desconectado'}
-                                            </span>
-                                        </div>
-                                        <button 
-                                            type="button"
-                                            disabled={isLoadingEvo}
-                                            onClick={async () => {
-                                                setIsLoadingEvo(true);
-                                                setEvoQrCode(null);
-                                                try {
-                                                    const res = await fetch('/api/prospeccao', {
-                                                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                                                        body: JSON.stringify({ 
-                                                            action: 'evo_manager', 
-                                                            evoUrl: evoConfig.url, evoName: evoConfig.instance, evoToken: evoConfig.token 
-                                                        })
-                                                    });
-                                                    
-                                                    // 🚨 BLINDAGEM MESTRA: Lê como texto primeiro para evitar o erro do "A server error" (HTML da Vercel)
-                                                    const textRes = await res.text();
-                                                    let data;
-                                                    try {
-                                                        data = JSON.parse(textRes);
-                                                    } catch (parseErr) {
-                                                        console.error("Erro da Vercel/VPS:", textRes);
-                                                        throw new Error("A VPS demorou muito para responder ou está offline (Timeout). Verifique se o servidor está rodando.");
-                                                    }
-                                                    
-                                                    if (!res.ok) throw new Error(data.error || "Erro desconhecido na API.");
-
-                                                    if (data.status === 'open') {
-                                                        setEvoStatus('open');
-                                                        alert("✅ WhatsApp Conectado e Pronto para Disparo!");
-                                                    } else if (data.status === 'qr_ready' && data.base64) {
-                                                        setEvoStatus('qr_ready');
-                                                        const imageStr = String(data.base64).includes('data:image') ? data.base64 : `data:image/png;base64,${data.base64}`;
-                                                        setEvoQrCode(imageStr);
-                                                    }
-                                                } catch(err) {
-                                                    alert("Erro na VPS: " + err.message);
-                                                } finally {
-                                                    setIsLoadingEvo(false);
-                                                }
-                                            }}
-                                            className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-md hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50"
-                                        >
-                                            {isLoadingEvo ? <Loader2 size={14} className="animate-spin"/> : 'Gerar QR / Testar Conexão'}
-                                        </button>
-                                    </div>
-
-                                    {evoQrCode && evoStatus !== 'open' && (
-                                        <div className="flex flex-col items-center justify-center bg-slate-50 p-4 rounded-2xl border border-slate-200 animate-in zoom-in">
-                                            <p className="text-xs font-black uppercase tracking-widest text-slate-800 mb-3">Escaneie o QR Code</p>
-                                            <img src={evoQrCode} alt="QR Code Evolution" className="w-48 h-48 rounded-xl border-4 border-white shadow-sm" />
-                                            <p className="text-[10px] text-slate-500 font-bold mt-3 text-center leading-tight">
-                                                Abra o WhatsApp no celular secundário de prospecção e aponte a câmera.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                                {/* FIM VISUALIZADOR */}
-
-                            </div>
-                            <div>
-                                <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs flex items-center gap-2 mb-4">
-                                    💬 Mensagem Fria Padrão (Use {'{nome}'} para substituir)
-                                </h3>
-                                <textarea 
-                                    rows="4"
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-blue-500 resize-none custom-scrollbar"
-                                    value={evoConfig.defaultMessage} 
-                                    onChange={e => setEvoConfig({...evoConfig, defaultMessage: e.target.value})} 
-                                />
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
 
             {/* Painel Lateral do Chat (Abre por cima do Kanban) */}
             <AnimatePresence>
