@@ -5071,7 +5071,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
     }
 
     // ============================================================================
-    // ROTA NÃO ENCONTRADA
+    // ROTA NÃO ENCONTRADA att
     // ============================================================================
     // Silenciador de erros 404 para o gerador de prévia social
     else if (path === '/api/og') {
