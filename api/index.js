@@ -4294,7 +4294,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
     // ------------------------------------------------------------------------
-    // 25.5 META: TROCA SEGURA DE TOKEN (MARKETING API)
+    // 25.5 META: TROCA SEGURA DE TOKEN E BUSCA AUTOMÁTICA DE ATIVOS
     // ------------------------------------------------------------------------
     else if (path === '/api/meta-exchange-token') {
         if (req.method !== 'POST') return res.status(405).end();
@@ -4328,13 +4328,41 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const userRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${longLivedToken}`);
             const userData = await userRes.json();
 
-            // 3. Salva de forma isolada e segura no Firestore do Lojista
+            // 3. MÁGICA: Busca automaticamente a primeira Conta de Anúncios do lojista
+            let adAccountId = null;
+            let adAccountName = null;
+            try {
+                const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${longLivedToken}`);
+                const adData = await adRes.json();
+                if (adData.data && adData.data.length > 0) {
+                    adAccountId = adData.data[0].id; // O ID já vem com o prefixo 'act_'
+                    adAccountName = adData.data[0].name;
+                }
+            } catch (e) { console.error("Erro ao buscar Ad Accounts", e); }
+
+            // 4. MÁGICA: Busca automaticamente a primeira Página do Facebook do lojista
+            let pageId = null;
+            let pageName = null;
+            try {
+                const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=id,name&access_token=${longLivedToken}`);
+                const pageData = await pageRes.json();
+                if (pageData.data && pageData.data.length > 0) {
+                    pageId = pageData.data[0].id;
+                    pageName = pageData.data[0].name;
+                }
+            } catch (e) { console.error("Erro ao buscar Pages", e); }
+
+            // 5. Salva de forma isolada e segura no Firestore do Lojista
             await db.collection('settings').doc(storeId).set({
                 integrations: {
                     meta: {
                         marketingToken: longLivedToken,
                         metaUserId: userData.id || null,
                         metaUserName: userData.name || 'Usuário Meta',
+                        adAccountId: adAccountId,
+                        adAccountName: adAccountName,
+                        pageId: pageId,
+                        pageName: pageName,
                         connectedAt: admin.firestore.FieldValue.serverTimestamp()
                     }
                 }
@@ -4344,7 +4372,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 success: true, 
                 longLivedToken, 
                 userId: userData.id, 
-                userName: userData.name 
+                userName: userData.name,
+                adAccountName,
+                pageName
             });
 
         } catch (error) {

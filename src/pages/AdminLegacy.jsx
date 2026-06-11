@@ -10593,10 +10593,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             desc: 'Pixel, Conversions API e Automação de Campanhas.', 
                             icon: <FaFacebook className="text-blue-600" size={40}/>, 
                             fields:[
-                                {key: 'marketingToken', label: 'Conexão Segura com a Meta (Marketing API)'},
-                                {key: 'adAccountId', label: 'ID da Conta de Anúncios (Ex: act_123456789)'},
-                                {key: 'pageId', label: 'ID da Página do Facebook'},
-                                {key: 'pixelId', label: 'ID do Pixel (Dataset ID)'}, 
+                                {key: 'marketingToken', label: 'Automação de Anúncios (Meta Ads)'},
+                                {key: 'pixelId', label: 'ID do Pixel (Para rastreio no Site)'}, 
                                 {key: 'apiToken', label: 'Token da API de Conversões (Opcional)'}
                             ],
                             helpUrl: 'https://business.facebook.com/settings/pixels',
@@ -12635,7 +12633,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         );
                                     }
                                     
-                                    // BLINDAGEM MESTRA: Botão Seguro para Autenticação na Meta (Marketing API)
+                                    // BLINDAGEM MESTRA: Botão Seguro e Automático para Autenticação na Meta
                                     else if (selectedIntegration.id === 'meta' && field.key === 'marketingToken') {
                                         return (
                                             <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-[2rem]">
@@ -12643,23 +12641,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <FaFacebook size={16}/> Central de Anúncios
                                                 </label>
                                                 {integrationForm.marketingToken ? (
-                                                    <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-blue-100">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs font-black text-green-600 flex items-center gap-1"><CheckCircle size={14}/> Conta Meta Conectada</span>
-                                                            {integrationForm.metaUserName && <span className="text-[9px] font-bold text-slate-500 mt-0.5">👤 {integrationForm.metaUserName}</span>}
-                                                        </div>
-                                                        <div className="flex gap-3 items-center">
+                                                    <div className="flex flex-col gap-3 bg-white p-4 rounded-xl border border-blue-100">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-black text-green-600 flex items-center gap-1"><CheckCircle size={14}/> Conta Conectada</span>
+                                                                <span className="text-[10px] font-bold text-slate-500 mt-0.5">👤 {integrationForm.metaUserName}</span>
+                                                            </div>
                                                             <button type="button" onClick={async () => {
                                                                 if(window.confirm("Deseja revogar o acesso à Meta Ads? Suas automações de marketing serão pausadas.")) {
                                                                     await updateDoc(doc(db, "settings", storeId), {
                                                                         "integrations.meta.marketingToken": null,
                                                                         "integrations.meta.metaUserId": null,
-                                                                        "integrations.meta.metaUserName": null
+                                                                        "integrations.meta.metaUserName": null,
+                                                                        "integrations.meta.adAccountId": null,
+                                                                        "integrations.meta.pageId": null
                                                                     });
-                                                                    setIntegrationForm(prev => ({...prev, marketingToken: null, metaUserId: null, metaUserName: null}));
+                                                                    setIntegrationForm(prev => ({...prev, marketingToken: null, metaUserId: null, metaUserName: null, adAccountId: null, pageId: null}));
                                                                     alert("Acesso revogado com sucesso!");
                                                                 }
-                                                            }} className="text-[10px] text-red-500 font-bold uppercase tracking-widest hover:underline px-2 py-1">Desconectar</button>
+                                                            }} className="text-[10px] text-red-500 font-bold uppercase tracking-widest hover:underline px-2 py-1 bg-red-50 rounded-lg">Desconectar</button>
+                                                        </div>
+                                                        
+                                                        {/* Exibe o que foi achado automaticamente pelo backend */}
+                                                        <div className="border-t border-slate-100 pt-3 flex flex-col gap-1">
+                                                            <p className="text-[9px] font-black uppercase text-slate-400">Ativos Detectados:</p>
+                                                            <p className="text-[10px] text-slate-600 font-bold">🎯 Conta: <span className="text-blue-600">{integrationForm.adAccountName || integrationForm.adAccountId || 'Não localizada'}</span></p>
+                                                            <p className="text-[10px] text-slate-600 font-bold">📄 Página: <span className="text-blue-600">{integrationForm.pageName || integrationForm.pageId || 'Não localizada'}</span></p>
                                                         </div>
                                                     </div>
                                                 ) : (
@@ -12675,62 +12682,77 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             }
 
                                                             const oldText = btn.innerHTML;
-                                                            btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Conectando...</span>';
+                                                            btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Autenticando...</span>';
                                                             btn.disabled = true;
 
-                                                            // Carregamento Preguiçoso (Lazy Load) do SDK da Meta
-                                                            const loadFbSdk = () => new Promise((resolve) => {
-                                                                if (window.FB) return resolve();
-                                                                window.fbAsyncInit = function() {
-                                                                    window.FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v19.0' });
-                                                                    resolve();
-                                                                };
-                                                                const script = document.createElement('script');
-                                                                script.src = "https://connect.facebook.net/pt_BR/sdk.js";
-                                                                script.async = true; script.defer = true;
-                                                                document.body.appendChild(script);
-                                                            });
+                                                            try {
+                                                                // Carregamento Preguiçoso com Proteção Anti-AdBlocker
+                                                                const loadFbSdk = () => new Promise((resolve, reject) => {
+                                                                    if (window.FB) return resolve();
+                                                                    window.fbAsyncInit = function() {
+                                                                        window.FB.init({ appId: appId, cookie: true, xfbml: true, version: 'v19.0' });
+                                                                        resolve();
+                                                                    };
+                                                                    const script = document.createElement('script');
+                                                                    script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+                                                                    script.async = true; script.defer = true;
+                                                                    script.onerror = () => reject(new Error("Script do Facebook foi bloqueado."));
+                                                                    document.body.appendChild(script);
+                                                                    
+                                                                    // Timeout de segurança (Se demorar mais de 6 segundos, aborta)
+                                                                    setTimeout(() => reject(new Error("Tempo limite de conexão esgotado.")), 6000);
+                                                                });
 
-                                                            await loadFbSdk();
+                                                                await loadFbSdk();
 
-                                                            window.FB.login(async (response) => {
-                                                                if (response.authResponse) {
-                                                                    const shortLivedToken = response.authResponse.accessToken;
-                                                                    try {
-                                                                        const res = await fetch('/api/meta-exchange-token', {
-                                                                            method: 'POST',
-                                                                            headers: { 'Content-Type': 'application/json' },
-                                                                            body: JSON.stringify({ storeId, shortLivedToken })
-                                                                        });
-                                                                        const data = await res.json();
-                                                                        
-                                                                        if (res.ok) {
-                                                                            setIntegrationForm(prev => ({ 
-                                                                                ...prev, 
-                                                                                marketingToken: data.longLivedToken, 
-                                                                                metaUserId: data.userId,
-                                                                                metaUserName: data.userName
-                                                                            }));
-                                                                            alert("✅ Conta conectada com sucesso! Token seguro gerado.");
-                                                                        } else {
-                                                                            alert(`❌ Erro no Servidor: ${data.error}`);
+                                                                window.FB.login(async (response) => {
+                                                                    if (response.authResponse) {
+                                                                        const shortLivedToken = response.authResponse.accessToken;
+                                                                        try {
+                                                                            btn.innerHTML = '<span class="flex items-center gap-2 justify-center"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Puxando Ativos...</span>';
+                                                                            
+                                                                            const res = await fetch('/api/meta-exchange-token', {
+                                                                                method: 'POST',
+                                                                                headers: { 'Content-Type': 'application/json' },
+                                                                                body: JSON.stringify({ storeId, shortLivedToken })
+                                                                            });
+                                                                            const data = await res.json();
+                                                                            
+                                                                            if (res.ok) {
+                                                                                setIntegrationForm(prev => ({ 
+                                                                                    ...prev, 
+                                                                                    marketingToken: data.longLivedToken, 
+                                                                                    metaUserId: data.userId,
+                                                                                    metaUserName: data.userName,
+                                                                                    adAccountName: data.adAccountName,
+                                                                                    pageName: data.pageName
+                                                                                }));
+                                                                                alert("✅ Conta conectada! Nós puxamos sua Página e Conta de Anúncios automaticamente.");
+                                                                            } else {
+                                                                                alert(`❌ Erro no Servidor: ${data.error}`);
+                                                                            }
+                                                                        } catch (err) {
+                                                                            alert("Erro de conexão ao trocar token com o servidor.");
                                                                         }
-                                                                    } catch (err) {
-                                                                        alert("Erro de conexão ao trocar token com o servidor.");
+                                                                    } else {
+                                                                        alert("Processo de conexão com a Meta foi cancelado.");
                                                                     }
-                                                                } else {
-                                                                    alert("Processo de conexão com a Meta foi cancelado.");
-                                                                }
+                                                                    btn.innerHTML = oldText;
+                                                                    btn.disabled = false;
+                                                                }, { scope: 'ads_management,pages_read_engagement,pages_manage_ads' });
+
+                                                            } catch (err) {
+                                                                alert(`⚠️ Erro: ${err.message}\nSeu navegador (ou AdBlocker/Brave) está bloqueando o script de login do Facebook. Pause-o temporariamente para conectar.`);
                                                                 btn.innerHTML = oldText;
                                                                 btn.disabled = false;
-                                                            }, { scope: 'ads_management,pages_read_engagement,pages_manage_ads' });
+                                                            }
                                                         }}
                                                         className="w-full bg-blue-600 text-white p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex justify-center items-center gap-2 shadow-md active:scale-95 disabled:opacity-50"
                                                     >
-                                                        Conectar Conta de Anúncios
+                                                        Conectar com o Facebook
                                                     </button>
                                                 )}
-                                                <p className="text-[10px] text-blue-600/70 font-bold leading-tight">Obrigatório para disparar automações de campanhas (Ads) pelo painel da Velo.</p>
+                                                <p className="text-[10px] text-blue-600/70 font-bold leading-tight">O sistema buscará sua Conta de Anúncios e sua Página automaticamente.</p>
                                             </div>
                                         );
                                     }
