@@ -4963,8 +4963,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         searchStringsArray: [queryTerm],
-                        maxCrawledPlacesPerSearch: 15, // Limite de 15 para a Vercel não dar timeout (limite de tempo da requisição)
-                        language: "pt",
+                        maxCrawledPlacesPerSearch: 15, // Limite de 15 para a Vercel não dar timeout 
+                        language: "pt-BR", // 🚨 Correção: O Apify exige o padrão exato do idioma
                         region: "BR"
                     })
                 });
