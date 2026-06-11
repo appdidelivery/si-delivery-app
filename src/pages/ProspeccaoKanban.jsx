@@ -4,11 +4,13 @@ import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serve
 import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
+import CentralOmnichannel from '../components/CentralOmnichannel'; // <-- Importando a Central Omnichannel
 
 export default function ProspeccaoKanban() {
     const [leads, setLeads] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
+    const [activeView, setActiveView] = useState('funil'); // <-- Novo Estado para controlar as Abas
     
     // Filtros de Qualificação Velo
     const [filters, setFilters] = useState({
@@ -248,6 +250,22 @@ export default function ProspeccaoKanban() {
                     </form>
             </header>
 
+            {/* Abas de Navegação do CRM */}
+            <div className="bg-white border-b border-slate-200 px-6 flex gap-6 shrink-0 relative z-20">
+                <button 
+                    onClick={() => setActiveView('funil')}
+                    className={`py-4 text-sm font-black uppercase tracking-widest border-b-2 transition-colors ${activeView === 'funil' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                >
+                    Funil de Prospecção
+                </button>
+                <button 
+                    onClick={() => setActiveView('inbox')}
+                    className={`py-4 text-sm font-black uppercase tracking-widest border-b-2 transition-colors flex items-center gap-2 ${activeView === 'inbox' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                >
+                    Caixa de Entrada <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm">Inbox</span>
+                </button>
+            </div>
+
             {/* Painel Lateral do Chat (Abre por cima do Kanban) */}
             <AnimatePresence>
                 {activeChatLead && (
@@ -255,8 +273,15 @@ export default function ProspeccaoKanban() {
                 )}
             </AnimatePresence>
 
-            {/* Barra de Filtros Inteligentes */}
-            <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 overflow-x-auto">
+            {/* TELA DA CAIXA DE ENTRADA (Visível apenas na aba inbox) */}
+            {activeView === 'inbox' && (
+                <main className="flex-1 p-6 relative bg-slate-50">
+                    <CentralOmnichannel storeId="main-app" />
+                </main>
+            )}
+
+            {/* Barra de Filtros Inteligentes (Oculta na aba inbox) */}
+            <div className={`bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 overflow-x-auto ${activeView === 'inbox' ? 'hidden' : ''}`}>
                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                     <Search size={14}/> Filtros:
                 </span>
@@ -290,8 +315,8 @@ export default function ProspeccaoKanban() {
                 </button>
             </div>
 
-            {/* Kanban Board */}
-            <main className="flex-1 p-6 overflow-x-auto relative">
+            {/* Kanban Board (Oculto na aba inbox) */}
+            <main className={`flex-1 p-6 overflow-x-auto relative ${activeView === 'inbox' ? 'hidden' : ''}`}>
                 <div className="flex gap-6 min-w-max h-full">
                     {COLUMNS.map((col, index) => {
                         // Aplica os filtros antes de renderizar as colunas
