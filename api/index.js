@@ -4947,48 +4947,47 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
         try {
             // AÇÃO 1: BUSCAR LEADS NO GOOGLE PLACES (SERPER DEV)
-            if (action === 'prospeccao_serper') {
+            // AÇÃO 1: BUSCAR LEADS NO GOOGLE MAPS (APIFY - DADOS RICOS)
+            // Mantivemos o nome 'prospeccao_serper' para não quebrar a chamada do seu frontend atual
+            if (action === 'prospeccao_serper') { 
                 const { queryTerm } = req.body;
-                if (!process.env.SERPER_API_KEY) throw new Error("A variável SERPER_API_KEY não está configurada na Vercel.");
-
-                if (!queryTerm) {
-                    return res.status(400).json({ error: 'Termo de busca vazio.' });
-                }
-
-                console.log(`[Serper] Iniciando busca por: "${queryTerm}"`);
-
-                const response = await fetch('https://google.serper.dev/places', {
-                    method: 'POST',
-                    headers: {
-                        'X-API-KEY': process.env.SERPER_API_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ q: queryTerm, gl: 'br', hl: 'pt-br' })
-                });
                 
+                // Agora você precisa colocar a APIFY_API_TOKEN lá nas configurações da Vercel
+                if (!process.env.APIFY_API_TOKEN) throw new Error("A variável APIFY_API_TOKEN não está configurada na Vercel.");
+
+                console.log(`🤖 [Apify] Acionando robô para: "${queryTerm}"`);
+
+                // Requisição Síncrona: O Apify vai rodar o scraper e devolver os resultados direto
+                const response = await fetch(`https://api.apify.com/v2/acts/compass~google-maps-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_API_TOKEN}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        searchStringsArray: [queryTerm],
+                        maxCrawledPlacesPerSearch: 15, // Limite de 15 para a Vercel não dar timeout (limite de tempo da requisição)
+                        language: "pt",
+                        region: "BR"
+                    })
+                });
+
                 const data = await response.json();
 
-                // BLINDAGEM: Se a chave do Serper estiver errada ou sem saldo, joga o erro na tela!
-                if (data.message || data.error) {
-                    console.error("[Serper] Erro retornado pela API:", data.message || data.error);
-                    throw new Error(`Erro na conta do Serper: ${data.message || data.error}`);
+                if (!response.ok) {
+                    throw new Error(data.error?.message || 'Erro ao processar dados no Apify');
                 }
 
-                // LOG CIRÚRGICO: Imprime as chaves reais que o Serper devolveu
-                console.log("[Serper] Chaves retornadas:", Object.keys(data));
+                // O Apify devolve um Array direto. Vamos formatar para o padrão que a Velo espera:
+                const leads = data.map(place => ({
+                    title: place.title || 'Sem Nome',
+                    phoneNumber: place.phone || place.phoneUnformatted || null,
+                    address: place.address || place.street || '',
+                    website: place.website || null,
+                    // Puxa o link do iFood/Cardápio se ele existir nos botões do Google
+                    orderUrl: place.menu || place.orderUrl || place.reserveTableUrl || null,
+                    // Faz uma varredura para achar o Instagram (seja no campo de redes ou no próprio site)
+                    instagram: place.socialMedia?.instagram || (place.website?.includes('instagram.com') ? place.website : null)
+                }));
 
-                // O Serper pode retornar 'places' ou 'organic' dependendo de como o Google interpreta a busca.
-                // Esta blindagem garante a extração de dados independente da variação do motor de busca.
-                let leads = [];
-                if (data.places && data.places.length > 0) {
-                    leads = data.places;
-                    console.log(`[Serper] Sucesso: Encontrados ${leads.length} leads em 'places'.`);
-                } else if (data.organic && data.organic.length > 0) {
-                    leads = data.organic;
-                    console.log(`[Serper] Sucesso Alternativo: Encontrados ${leads.length} leads em 'organic'.`);
-                } else {
-                    console.log("[Serper] ATENÇÃO - Nenhum lead extraído. Resposta bruta do Google:", JSON.stringify(data).substring(0, 400));
-                }
+                console.log(`🤖 [Apify] Extração concluída: ${leads.length} leads mapeados.`);
 
                 return res.status(200).json({ success: true, leads });
             }

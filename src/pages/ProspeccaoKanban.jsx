@@ -97,6 +97,9 @@ export default function ProspeccaoKanban() {
                         name: leadName,
                         phone: cleanPhone,
                         address: place.address || place.formatted_address || '',
+                        website: place.website || '',
+                        orderUrl: place.orderUrl || '',
+                        instagram: place.instagram || '',
                         status: 'extracted',
                         createdAt: serverTimestamp()
                     });
