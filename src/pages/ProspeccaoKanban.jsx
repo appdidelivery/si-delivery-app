@@ -50,22 +50,38 @@ export default function ProspeccaoKanban() {
                 throw new Error(data.error || 'Erro ao buscar no Serper');
             }
 
-            // Salva os novos leads no Firebase
             let added = 0;
             for (const place of data.leads) {
-                // Evita duplicatas se o telefone já existir
-                if (place.phoneNumber && !leads.some(l => l.phone === place.phoneNumber)) {
-                    await addDoc(collection(db, 'leads_prospeccao'), {
-                        name: place.title || 'Sem Nome',
-                        phone: place.phoneNumber,
-                        address: place.address || '',
-                        status: 'extracted', // Status Kanban inicial
-                        createdAt: serverTimestamp()
-                    });
-                    added++;
+                // 1. HIGIENIZAÇÃO: Remove espaços, traços e parênteses do Google
+                if (place.phoneNumber) {
+                    let cleanPhone = String(place.phoneNumber).replace(/\D/g, ''); 
+                    
+                    // Garante que o código do Brasil (55) está presente para a Evolution API não falhar depois
+                    if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) {
+                        cleanPhone = `55${cleanPhone}`;
+                    }
+
+                    // 2. REGRA DE NEGÓCIO: O backend já filtrou quem tem site. 
+                    // Aqui evitamos duplicatas baseando-se no telefone já limpo.
+                    if (cleanPhone.length >= 12 && !leads.some(l => l.phone === cleanPhone)) {
+                        await addDoc(collection(db, 'leads_prospeccao'), {
+                            name: place.title || 'Sem Nome',
+                            phone: cleanPhone,
+                            address: place.address || '',
+                            status: 'extracted', // Cai na primeira coluna do Kanban
+                            createdAt: serverTimestamp()
+                        });
+                        added++;
+                    }
                 }
             }
-            alert(`Busca concluída! ${added} novos restaurantes sem site adicionados ao funil.`);
+            
+            if (added > 0) {
+                alert(`🎯 Sucesso! ${added} novos restaurantes SEM SITE adicionados ao funil.`);
+            } else {
+                alert(`Nenhum lead novo encontrado. Talvez todos da pesquisa já tenham site ou já estejam no seu funil.`);
+            }
+            
         } catch (error) {
             alert(`Erro na busca: ${error.message}`);
         } finally {
