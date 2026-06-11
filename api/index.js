@@ -4951,6 +4951,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 const { queryTerm } = req.body;
                 if (!process.env.SERPER_API_KEY) throw new Error("A variável SERPER_API_KEY não está configurada na Vercel.");
 
+                if (!queryTerm) {
+                    return res.status(400).json({ error: 'Termo de busca vazio.' });
+                }
+
+                console.log(`[Serper] Iniciando busca por: "${queryTerm}"`);
+
                 const response = await fetch('https://google.serper.dev/places', {
                     method: 'POST',
                     headers: {
@@ -4964,13 +4970,25 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
                 // BLINDAGEM: Se a chave do Serper estiver errada ou sem saldo, joga o erro na tela!
                 if (data.message || data.error) {
+                    console.error("[Serper] Erro retornado pela API:", data.message || data.error);
                     throw new Error(`Erro na conta do Serper: ${data.message || data.error}`);
                 }
 
-                // REMOVEMOS A REGRA RÍGIDA TEMPORARIAMENTE: 
-                // Antes ele apagava quem tinha Instagram/iFood cadastrado como site. 
-                // Agora ele vai trazer TODO MUNDO que tiver um telefone cadastrado!
-                const leads = data.places || [];
+                // LOG CIRÚRGICO: Imprime as chaves reais que o Serper devolveu
+                console.log("[Serper] Chaves retornadas:", Object.keys(data));
+
+                // O Serper pode retornar 'places' ou 'organic' dependendo de como o Google interpreta a busca.
+                // Esta blindagem garante a extração de dados independente da variação do motor de busca.
+                let leads = [];
+                if (data.places && data.places.length > 0) {
+                    leads = data.places;
+                    console.log(`[Serper] Sucesso: Encontrados ${leads.length} leads em 'places'.`);
+                } else if (data.organic && data.organic.length > 0) {
+                    leads = data.organic;
+                    console.log(`[Serper] Sucesso Alternativo: Encontrados ${leads.length} leads em 'organic'.`);
+                } else {
+                    console.log("[Serper] ATENÇÃO - Nenhum lead extraído. Resposta bruta do Google:", JSON.stringify(data).substring(0, 400));
+                }
 
                 return res.status(200).json({ success: true, leads });
             }
