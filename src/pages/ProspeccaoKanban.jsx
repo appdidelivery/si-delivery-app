@@ -52,22 +52,23 @@ export default function ProspeccaoKanban() {
 
             let added = 0;
             for (const place of data.leads) {
-                // 1. HIGIENIZAÇÃO: Remove espaços, traços e parênteses do Google
-                if (place.phoneNumber) {
-                    let cleanPhone = String(place.phoneNumber).replace(/\D/g, ''); 
+                // 1. HIGIENIZAÇÃO INTELIGENTE: Puxa o telefone de qualquer chave que o Google/Serper retornar
+                const rawPhone = place.phoneNumber || place.formatted_phone_number || place.international_phone_number || place.phone;
+                
+                if (rawPhone) {
+                    let cleanPhone = String(rawPhone).replace(/\D/g, ''); 
                     
-                    // Garante que o código do Brasil (55) está presente para a Evolution API não falhar depois
+                    // Garante que o código do Brasil (55) está presente para a automação não falhar depois
                     if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) {
                         cleanPhone = `55${cleanPhone}`;
                     }
 
-                    // 2. REGRA DE NEGÓCIO: O backend já filtrou quem tem site. 
-                    // Aqui evitamos duplicatas baseando-se no telefone já limpo.
+                    // 2. REGRA DE NEGÓCIO: Evitamos duplicatas baseando-se no telefone já limpo.
                     if (cleanPhone.length >= 12 && !leads.some(l => l.phone === cleanPhone)) {
                         await addDoc(collection(db, 'leads_prospeccao'), {
-                            name: place.title || 'Sem Nome',
+                            name: place.title || place.name || 'Sem Nome',
                             phone: cleanPhone,
-                            address: place.address || '',
+                            address: place.address || place.formatted_address || '',
                             status: 'extracted', // Cai na primeira coluna do Kanban
                             createdAt: serverTimestamp()
                         });
@@ -79,7 +80,7 @@ export default function ProspeccaoKanban() {
             if (added > 0) {
                 alert(`🎯 Sucesso! ${added} novos restaurantes SEM SITE adicionados ao funil.`);
             } else {
-                alert(`Nenhum lead novo encontrado. Talvez todos da pesquisa já tenham site ou já estejam no seu funil.`);
+                alert(`Nenhum lead novo encontrado com telefone válido ou todos já estão no seu funil.`);
             }
             
         } catch (error) {
