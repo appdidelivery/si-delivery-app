@@ -52,15 +52,20 @@ export default function ProspeccaoKanban() {
             }
 
             console.log(`📦 [Frontend] O backend entregou ${data.leads.length} restaurantes brutos.`);
+            if (data.leads.length > 0) {
+                 console.log(`🔍 [Raio-X] Estrutura completa do 1º lead:`, data.leads[0]);
+            }
 
             let added = 0;
             for (const place of data.leads) {
-                const rawPhone = place.phoneNumber || place.formatted_phone_number || place.international_phone_number || place.phone;
+                // Adicionado 'phone_number' (com underline) na malha de busca
+                const rawPhone = place.phoneNumber || place.phone_number || place.formatted_phone_number || place.international_phone_number || place.phone || place.telefone;
                 const leadName = place.title || place.name || 'Sem Nome';
                 
                 if (!rawPhone) {
-                    console.log(`❌ [Descartado] ${leadName} - Motivo: Não possui nenhum telefone cadastrado no Google.`);
-                    continue; // Pula para o próximo restaurante
+                    // RAIO-X IMPRESSO: Mostra exatamente o que o Serper entregou
+                    console.log(`❌ [Descartado] ${leadName} - Motivo: Chave de telefone ausente. As chaves recebidas foram: [ ${Object.keys(place).join(', ')} ]`);
+                    continue; 
                 }
 
                 let cleanPhone = String(rawPhone).replace(/\D/g, ''); 
@@ -69,13 +74,11 @@ export default function ProspeccaoKanban() {
                     cleanPhone = `55${cleanPhone}`;
                 }
 
-                // Removemos o limite rígido de 12 caracteres para ver o que chega de verdade
                 if (cleanPhone.length < 10) {
                      console.log(`❌ [Descartado] ${leadName} - Motivo: O telefone é muito curto/inválido (${cleanPhone}).`);
                      continue;
                 }
 
-                // Verifica duplicidade no banco local
                 const isDuplicate = leads.some(l => l.phone === cleanPhone);
                 
                 if (isDuplicate) {
@@ -96,10 +99,7 @@ export default function ProspeccaoKanban() {
             if (added > 0) {
                 alert(`🎯 Sucesso! ${added} novos restaurantes adicionados ao funil.`);
             } else {
-                // Alerta mais específico para você saber que deve olhar o console
-                alert(`Nenhum lead NOVO foi adicionado. 
-A pesquisa retornou ${data.leads.length} resultados, mas todos foram rejeitados. 
-Abra o Inspecionar (F12) > Console para ver o motivo exato de cada rejeição!`);
+                alert(`Nenhum lead NOVO foi adicionado. \nA pesquisa retornou ${data.leads.length} resultados, mas todos foram rejeitados. \nAbra o Inspecionar (F12) > Console para ver os detalhes!`);
             }
             
         } catch (error) {
