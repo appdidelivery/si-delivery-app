@@ -5,8 +5,6 @@ import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 
 const STRIPE_ENABLED = false;
-// Ajuste o caminho se a pasta lib for diferente!
-import { sendWhatsAppNotification } from '../lib/evolution.js';
 
 // Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
 async function getGoogleAuthToken(storeId = null) {
@@ -1320,95 +1318,6 @@ export default async function handler(req, res) {
         } catch (error) {
             console.error('Erro no WhatsApp Send:', error);
             return res.status(500).json({ error: 'Erro interno no servidor' });
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    // ROTA PLANO B: GERAÇÃO MULTI-TENANT DE INSTÂNCIA E QR CODE
-    // ------------------------------------------------------------------------
-    else if (path === '/api/evolution-qrcode') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
-
-        const { storeId } = req.body;
-        if (!storeId) return res.status(400).json({ error: 'storeId obrigatório.' });
-
-        try {
-            const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
-            const waConfig = storeSettingsDoc.data()?.integrations?.whatsapp || {};
-            
-            let fallbackInstanceUrl = waConfig.fallbackInstanceUrl;
-// Garante que a porta 8080 esteja presente se o usuário esquecer de colocar
-if (fallbackInstanceUrl && !fallbackInstanceUrl.includes(':8080')) {
-    fallbackInstanceUrl = fallbackInstanceUrl.replace(/\/+$/, '') + ':8080';
-}
-            const globalApiKey = waConfig.fallbackInstanceKey; // Master Key inserida pelo lojista
-            
-            if (!fallbackInstanceUrl || !globalApiKey) {
-                return res.status(400).json({ error: 'Configure a URL da VPS e a Global API Key primeiro.' });
-            }
-
-            // Garante unicidade e rastreabilidade da instância
-            const instanceName = `backup_${storeId}`;
-
-            // 1. Cria a Instância na VPS (Contabo)
-            const createRes = await fetch(`${fallbackInstanceUrl}/instance/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
-                body: JSON.stringify({
-                    instanceName: instanceName,
-                    qrcode: true,
-                    integration: "WHATSAPP-BAILEYS"
-                })
-            });
-            // CÓDIGO NOVO
-const responseText = await createRes.text(); // Captura a resposta como texto bruto
-let createData;
-try {
-    createData = JSON.parse(responseText);
-} catch (e) {
-    throw new Error(`Resposta inválida da VPS: ${responseText.substring(0, 100)}`);
-}
-
-if (!createRes.ok) {
-    throw new Error(createData.message?.[0] || createData.error || 'Erro ao criar instância na VPS.');
-}
-
-            // 2. Configura o Webhook da Evolution para apontar pro nosso sistema Velo
-            const webhookUrl = `https://${req.headers.host}/api/whatsapp-webhook`;
-            await fetch(`${fallbackInstanceUrl}/webhook/set/${instanceName}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': globalApiKey },
-                body: JSON.stringify({
-                    webhook: {
-                        enabled: true,
-                        url: webhookUrl,
-                        byEvents: false,
-                        base64: false,
-                        events: ["MESSAGES_UPSERT"]
-                    }
-                })
-            });
-
-            // 3. Salva a Hash/Token de Segurança da Instância na loja (Firestore)
-            const instanceToken = createData.hash?.apikey || createData.instance?.token || globalApiKey;
-            
-            await db.collection('settings').doc(storeId).set({
-                integrations: {
-                    whatsapp: {
-                        backup_instance_name: instanceName,
-                        backup_instance_token: instanceToken,
-                        backup_active: true
-                    }
-                }
-            }, { merge: true });
-
-            // 4. Devolve o QR Code para a Interface
-            let base64Image = createData.qrcode?.base64 || createData.base64 || null;
-            return res.status(200).json({ success: true, base64: base64Image, instanceName });
-
-        } catch (error) {
-            console.error("🚨 Erro na criação de QR Evolution:", error);
-            return res.status(500).json({ error: error.message || 'Erro de comunicação com a VPS.' });
         }
     }
 
