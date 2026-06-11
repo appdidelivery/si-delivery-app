@@ -4962,8 +4962,15 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 
                 const data = await response.json();
 
-                // Regra de Ouro: Filtra apenas estabelecimentos que NÃO possuem website
-                const leads = (data.places || []).filter(place => !place.website);
+                // BLINDAGEM: Se a chave do Serper estiver errada ou sem saldo, joga o erro na tela!
+                if (data.message || data.error) {
+                    throw new Error(`Erro na conta do Serper: ${data.message || data.error}`);
+                }
+
+                // REMOVEMOS A REGRA RÍGIDA TEMPORARIAMENTE: 
+                // Antes ele apagava quem tinha Instagram/iFood cadastrado como site. 
+                // Agora ele vai trazer TODO MUNDO que tiver um telefone cadastrado!
+                const leads = data.places || [];
 
                 return res.status(200).json({ success: true, leads });
             }
