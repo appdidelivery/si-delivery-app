@@ -33,7 +33,7 @@ const [radiusKm, setRadiusKm] = useState(5);
             
             if (adData.error) {
                 console.error("Erro Meta AdAccounts:", adData.error);
-                throw new Error(`Meta recusou acesso às contas de anúncio: ${adData.error.message}`);
+                throw new Error(`Meta recusou acesso: ${adData.error.message}`);
             }
 
             if (adData.data && adData.data.length > 0) {
@@ -55,19 +55,30 @@ const [radiusKm, setRadiusKm] = useState(5);
                 fetchedPageName = pageData.data[0].name;
             }
 
-            if (!fetchedAdAccountId && !fetchedPageId) {
-                return alert("⚠️ A Meta não retornou seus dados.\n\nVocê não possui Conta de Anúncios ou Página criadas, ou não concedeu a permissão 'ads_management' durante o login.");
+            // 3. Monta o Alerta Inteligente
+            let alertaMsg = "✅ Retorno da Meta:\n\n";
+            alertaMsg += fetchedAdAccountId ? `🎯 Conta: ${fetchedAdAccountName}\n` : `❌ Conta: NÃO ENCONTRADA\n`;
+            alertaMsg += fetchedPageId ? `📄 Página: ${fetchedPageName}\n` : `❌ Página: NÃO ENCONTRADA\n`;
+
+            if (!fetchedAdAccountId || !fetchedPageId) {
+                alertaMsg += `\n⚠️ AVISO: O painel continuará bloqueado.\nMotivos comuns:\n1. Seu Facebook não tem Conta de Anúncios criada.\n2. O seu App na Meta não tem as permissões 'ads_management' e 'manage_pages'.`;
             }
 
-            // 3. Salva os IDs no Firestore
+            // 4. Salva no Firebase o que encontrou
             await updateDoc(doc(db, "settings", storeId), {
-                "integrations.meta.adAccountId": fetchedAdAccountId || settings.integrations.meta.adAccountId || null,
-                "integrations.meta.adAccountName": fetchedAdAccountName || settings.integrations.meta.adAccountName || null,
-                "integrations.meta.pageId": fetchedPageId || settings.integrations.meta.pageId || null,
-                "integrations.meta.pageName": fetchedPageName || settings.integrations.meta.pageName || null,
+                "integrations.meta.adAccountId": fetchedAdAccountId || settings?.integrations?.meta?.adAccountId || null,
+                "integrations.meta.adAccountName": fetchedAdAccountName || settings?.integrations?.meta?.adAccountName || null,
+                "integrations.meta.pageId": fetchedPageId || settings?.integrations?.meta?.pageId || null,
+                "integrations.meta.pageName": fetchedPageName || settings?.integrations?.meta?.pageName || null,
             });
 
-            alert(`✅ Sincronização Concluída!\n\nConta de Anúncio: ${fetchedAdAccountName || 'Não localizada'}\nPágina: ${fetchedPageName || 'Não localizada'}`);
+            // 5. MÁGICA: Força a tela a destravar na mesma hora se os dados vieram corretos
+            if (fetchedAdAccountId && fetchedPageId) {
+                setMetaStatus(prev => ({ ...prev, hasAccountIds: true }));
+            }
+
+            alert(alertaMsg);
+
         } catch (error) {
             console.error("Erro ao buscar assets da Meta:", error);
             alert(`Falha na sincronização:\n${error.message}`);
