@@ -30,6 +30,12 @@ const [radiusKm, setRadiusKm] = useState(5);
             // 1. Busca Ad Accounts vinculadas ao usuário
             const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${token}`);
             const adData = await adRes.json();
+            
+            if (adData.error) {
+                console.error("Erro Meta AdAccounts:", adData.error);
+                throw new Error(`Meta recusou acesso às contas de anúncio: ${adData.error.message}`);
+            }
+
             if (adData.data && adData.data.length > 0) {
                 fetchedAdAccountId = adData.data[0].id; // Já vem com o prefixo act_
                 fetchedAdAccountName = adData.data[0].name;
@@ -38,27 +44,33 @@ const [radiusKm, setRadiusKm] = useState(5);
             // 2. Busca Páginas do Facebook vinculadas
             const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=id,name&access_token=${token}`);
             const pageData = await pageRes.json();
+            
+            if (pageData.error) {
+                console.error("Erro Meta Pages:", pageData.error);
+                throw new Error(`Meta recusou acesso às páginas: ${pageData.error.message}`);
+            }
+
             if (pageData.data && pageData.data.length > 0) {
                 fetchedPageId = pageData.data[0].id;
                 fetchedPageName = pageData.data[0].name;
             }
 
             if (!fetchedAdAccountId && !fetchedPageId) {
-                return alert("⚠️ A Meta não retornou seus dados.\n\nVerifique se o seu perfil pessoal do Facebook é Administrador de uma Conta de Anúncios e de uma Página Comercial no Gerenciador de Negócios.");
+                return alert("⚠️ A Meta não retornou seus dados.\n\nVocê não possui Conta de Anúncios ou Página criadas, ou não concedeu a permissão 'ads_management' durante o login.");
             }
 
-            // 3. Salva os IDs no Firestore (Apenas os que encontrou)
+            // 3. Salva os IDs no Firestore
             await updateDoc(doc(db, "settings", storeId), {
-                "integrations.meta.adAccountId": fetchedAdAccountId || settings.integrations.meta.adAccountId,
-                "integrations.meta.adAccountName": fetchedAdAccountName || settings.integrations.meta.adAccountName,
-                "integrations.meta.pageId": fetchedPageId || settings.integrations.meta.pageId,
-                "integrations.meta.pageName": fetchedPageName || settings.integrations.meta.pageName,
+                "integrations.meta.adAccountId": fetchedAdAccountId || settings.integrations.meta.adAccountId || null,
+                "integrations.meta.adAccountName": fetchedAdAccountName || settings.integrations.meta.adAccountName || null,
+                "integrations.meta.pageId": fetchedPageId || settings.integrations.meta.pageId || null,
+                "integrations.meta.pageName": fetchedPageName || settings.integrations.meta.pageName || null,
             });
 
-            alert(`✅ Sincronização Concluída!\n\nConta vinculada: ${fetchedAdAccountName || 'Não alterada'}\nPágina vinculada: ${fetchedPageName || 'Não alterada'}`);
+            alert(`✅ Sincronização Concluída!\n\nConta de Anúncio: ${fetchedAdAccountName || 'Não localizada'}\nPágina: ${fetchedPageName || 'Não localizada'}`);
         } catch (error) {
             console.error("Erro ao buscar assets da Meta:", error);
-            alert("Erro de conexão ao buscar dados da Meta. Verifique sua internet.");
+            alert(`Falha na sincronização:\n${error.message}`);
         } finally {
             setIsFetchingAssets(false);
         }
@@ -116,8 +128,18 @@ const [radiusKm, setRadiusKm] = useState(5);
 
             const data = await res.json();
 
-            if (res.ok) {
-                alert("✅ Campanha gerada com sucesso!\n\nPor segurança, ela foi criada em modo 'Pausado'. Acesse seu App do Gerenciador de Anúncios no celular para revisar e ativar.");
+            if (res.ok && data.success) {
+                // SALVA O ID DA CAMPANHA NO PRODUTO PARA FUTURA AUTO-PAUSA (ESTOQUE ZERO)
+                try {
+                    await updateDoc(doc(db, "products", product.id), {
+                        metaCampaignId: data.campaignId,
+                        hasActiveAd: true
+                    });
+                } catch (e) {
+                    console.warn("Aviso: Campanha criada, mas falhou ao vincular ID ao produto localmente.", e);
+                }
+
+                alert("✅ Campanha gerada com sucesso!\n\nPor segurança, ela foi criada em modo 'Pausado'. Acesse o Gerenciador de Anúncios da Meta para inserir seu Cartão de Crédito e Ativar.");
                 setIsCampaignModalOpen(false);
             } else {
                 alert(`❌ Erro da Meta: ${data.error}`);

@@ -4411,7 +4411,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             const budgetCents = Math.round(Number(dailyBudget) * 100);
 
-            // Helper para fazer as requisições à Meta
+            // Helper para fazer as requisições à Meta com Tratamento de Erros do Cartão/Bloqueio
             const fetchMeta = async (endpoint, payload) => {
                 const res = await fetch(`https://graph.facebook.com/v19.0/${endpoint}?access_token=${token}`, {
                     method: 'POST',
@@ -4419,7 +4419,25 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error?.error_user_title || data.error?.message || 'Meta API Error');
+                
+                if (!res.ok) {
+                    let errorMessage = data.error?.error_user_title || data.error?.message || 'Meta API Error';
+                    const errorCode = data.error?.code;
+                    const errorSubcode = data.error?.error_subcode;
+
+                    // Dicionário Oficial de Bloqueios da Meta Marketing API
+                    if (errorCode === 1882037 || errorCode === 1815043 || errorSubcode === 1882037) {
+                        errorMessage = "Sua Conta de Anúncios não possui uma forma de pagamento cadastrada (Cartão de Crédito). Acesse o Facebook, adicione o cartão e tente novamente.";
+                    } else if (errorCode === 1882006 || errorSubcode === 1882006) {
+                        errorMessage = "Sua Conta de Anúncios está Desativada ou Suspensa pela Meta. Acesse a 'Qualidade da Conta' no Facebook.";
+                    } else if (errorCode === 274 || errorSubcode === 274) {
+                        errorMessage = "Limite de gastos atingido ou falha na cobrança do seu cartão. Verifique sua fatura no Facebook.";
+                    } else if (errorCode === 10) {
+                        errorMessage = "Permissão negada. O aplicativo Velo ainda não possui as permissões necessárias aprovadas pela Meta ou você não tem nível de administrador na conta.";
+                    }
+
+                    throw new Error(errorMessage);
+                }
                 return data;
             };
 
