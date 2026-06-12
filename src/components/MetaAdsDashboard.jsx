@@ -99,7 +99,8 @@ const [radiusKm, setRadiusKm] = useState(5);
     
     useEffect(() => {
         const metaConfig = settings?.integrations?.meta;
-        if (metaConfig?.marketingToken) {
+        // Validação extra: Se o token for a string "null" ou vazio, trata como desconectado
+        if (metaConfig && metaConfig.marketingToken && metaConfig.marketingToken !== "null") {
             setMetaStatus({
                 isConnected: true,
                 userName: metaConfig.metaUserName || 'Usuário Conectado',
@@ -108,7 +109,7 @@ const [radiusKm, setRadiusKm] = useState(5);
         } else {
             setMetaStatus({ isConnected: false, userName: null, hasAccountIds: false });
         }
-    }, [storeStatus, settings]);
+    }, [settings]); // Removido storeStatus para evitar loops desnecessários, já que os dados da Meta estão em 'settings'
 
     const handleOpenModal = (objectiveId) => {
         setSelectedObjective(objectiveId);
@@ -204,6 +205,35 @@ const [radiusKm, setRadiusKm] = useState(5);
                     <p className="text-blue-100 font-bold text-sm flex items-center gap-2 mb-4">
                         <CheckCircle size={18} className="text-green-400" />
                         Conectado: <span className="text-white">{metaStatus.userName}</span>
+                        <button 
+                            onClick={async () => {
+                                if (window.confirm("Deseja realmente desconectar a Meta? Suas automações pararão de funcionar.")) {
+                                    try {
+                                        // Limpeza PROFUNDA no Firebase. Remove todas as chaves associadas à Meta.
+                                        await updateDoc(doc(db, "settings", storeId), {
+                                            "integrations.meta": {
+                                                marketingToken: null,
+                                                userId: null,
+                                                healthStatus: 'disconnected',
+                                                adAccountId: null,
+                                                adAccountName: null,
+                                                pageId: null,
+                                                pageName: null,
+                                                metaUserName: null
+                                            }
+                                        });
+                                        setMetaStatus({ isConnected: false, userName: null, hasAccountIds: false });
+                                        alert("Desconectado com sucesso.");
+                                    } catch (e) {
+                                        console.error("Erro ao desconectar:", e);
+                                        alert("Erro ao desconectar. Tente atualizar a página.");
+                                    }
+                                }
+                            }}
+                            className="ml-4 text-xs font-black uppercase tracking-widest text-red-300 hover:text-red-400 transition-colors"
+                        >
+                            Desconectar
+                        </button>
                     </p>
                     
                     {!metaStatus.hasAccountIds && (

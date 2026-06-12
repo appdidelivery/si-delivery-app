@@ -1013,10 +1013,63 @@ const educationalBanners = [
         }
     };
 
-    // --- ESTADOS DE INTEGRAÇÕES ---
+   // --- ESTADOS DE INTEGRAÇÕES ---
     const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
     const[selectedIntegration, setSelectedIntegration] = useState(null);
     const [integrationForm, setIntegrationForm] = useState({});
+    const [isMetaSdkLoaded, setIsMetaSdkLoaded] = useState(false);
+
+    // INJEÇÃO ASSÍNCRONA DO META SDK (LAZY LOAD PARA PERFORMANCE)
+    useEffect(() => {
+        if (activeTab === 'integrations' && !document.getElementById('meta-sdk-script')) {
+            window.fbAsyncInit = function() {
+                window.FB.init({
+                    appId      : 'SEU_APP_ID_AQUI', // ⚠️ ATENÇÃO: COLOQUE SEU APP ID AQUI
+                    cookie     : true,
+                    xfbml      : true,
+                    version    : 'v19.0'
+                });
+                setIsMetaSdkLoaded(true);
+            };
+
+            const script = document.createElement('script');
+            script.id = 'meta-sdk-script';
+            script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+            script.async = true;
+            script.defer = true;
+            document.body.appendChild(script);
+        }
+    }, [activeTab]);
+
+    // FUNÇÃO DE LOGIN OAUTH (POP-UP)
+    const handleMetaLogin = () => {
+        if (!window.FB) return alert("SDK da Meta ainda está carregando. Aguarde um segundo e tente novamente.");
+
+        window.FB.login((response) => {
+            if (response.authResponse) {
+                const shortLivedToken = response.authResponse.accessToken;
+                
+                // Feedback visual para o lojista não clicar duas vezes
+                const btn = document.getElementById('btn-conectar-meta');
+                if(btn) { btn.innerText = 'Salvando Token...'; btn.disabled = true; }
+
+                // Salva o token inicial e o status no banco de dados da loja
+                updateDoc(doc(db, "settings", storeId), {
+                    "integrations.meta.marketingToken": shortLivedToken,
+                    "integrations.meta.userId": response.authResponse.userID,
+                    "integrations.meta.healthStatus": "healthy"
+                }).then(() => {
+                    alert("✅ Autenticação realizada com sucesso!");
+                    if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
+                }).catch(err => {
+                    alert("Erro ao salvar as credenciais no banco de dados.");
+                    if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
+                });
+            } else {
+                alert("Autenticação cancelada pelo usuário.");
+            }
+        }, { scope: 'ads_management,business_management,pages_read_engagement' });
+    };
    
     // Estado da Busca e Filtros de Produtos
     const [productSearch, setProductSearch] = useState('');
@@ -10743,15 +10796,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             ) : (
                                                 <button 
-                                                    onClick={() => {
+                                                id={app.id === 'meta' ? 'btn-conectar-meta' : undefined}
+                                                onClick={() => {
+                                                    // Interceptação Cirúrgica: Se for Meta e não estiver conectado, abre o pop-up nativo
+                                                    if (app.id === 'meta' && !isConnected) {
+                                                        handleMetaLogin();
+                                                    } else {
                                                         setSelectedIntegration(app);
                                                         setIntegrationForm(savedData); // Carrega os dados existentes pro input
                                                         setIsIntegrationModalOpen(true);
-                                                    }}
-                                                    className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${isConnected ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'}`}
-                                                >
-                                                    {isConnected ? '⚙️ Configurar' : '+ Conectar API'}
-                                                </button>
+                                                    }
+                                                }}
+                                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${isConnected ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'}`}
+                                            >
+                                                {isConnected ? '⚙️ Configurar' : '+ Conectar API'}
+                                            </button>
                                             )}
                                         </div>
                                     );
