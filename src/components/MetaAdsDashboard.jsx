@@ -27,8 +27,8 @@ const [radiusKm, setRadiusKm] = useState(5);
             let fetchedPageId = null;
             let fetchedPageName = null;
 
-            // 1. Busca Ad Accounts vinculadas ao usuário
-            const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${token}`);
+            // 1. Busca Ad Accounts vinculadas ao usuário (Pedindo o Status da Conta)
+            const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,account_status&access_token=${token}`);
             const adData = await adRes.json();
             
             if (adData.error) {
@@ -37,8 +37,18 @@ const [radiusKm, setRadiusKm] = useState(5);
             }
 
             if (adData.data && adData.data.length > 0) {
-                fetchedAdAccountId = adData.data[0].id; // Já vem com o prefixo act_
-                fetchedAdAccountName = adData.data[0].name;
+                // MÁGICA: Procura a primeira conta que esteja ATIVA (account_status === 1)
+                const activeAccount = adData.data.find(acc => acc.account_status === 1);
+                
+                if (activeAccount) {
+                    fetchedAdAccountId = activeAccount.id; 
+                    fetchedAdAccountName = activeAccount.name;
+                } else {
+                    // Se não achar nenhuma ativa, pega a primeira mesmo assim para mostrar o erro pro Lojista
+                    fetchedAdAccountId = adData.data[0].id;
+                    fetchedAdAccountName = adData.data[0].name;
+                    alert("⚠️ AVISO: Detectamos que a sua Conta de Anúncios da Meta pode estar desativada ou com pendências financeiras. Recomendamos verificar no Facebook.");
+                }
             }
 
             // 2. Busca Páginas do Facebook vinculadas
