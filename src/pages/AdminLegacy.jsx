@@ -1041,19 +1041,36 @@ const educationalBanners = [
         }
     }, [activeTab]);
 
-    // FUNÇÃO DE LOGIN OAUTH (POP-UP)
+    // FUNÇÃO DE LOGIN OAUTH (POP-UP) COM INJEÇÃO FORÇADA
     const handleMetaLogin = () => {
-        if (!window.FB) return alert("SDK da Meta ainda está carregando. Aguarde um segundo e tente novamente.");
+        console.log("1. Botão clicado. A verificar o SDK da Meta...");
+        
+        if (!window.FB) {
+            console.error("ERRO: O SDK da Meta não foi carregado.");
+            return alert("O sistema da Meta ainda está a carregar ou foi bloqueado por um AdBlock. Aguarde um segundo e tente novamente.");
+        }
 
+        console.log("2. A forçar a inicialização do FB.init...");
+        // FORÇA A INICIALIZAÇÃO AQUI PARA EVITAR O ERRO DO CONSOLE
+        window.FB.init({
+            appId      : '1417174507099571', // O SEU APP ID INJETADO
+            cookie     : true,
+            xfbml      : true,
+            version    : 'v19.0'
+        });
+
+        console.log("3. FB inicializado. A chamar o FB.login...");
+        
         window.FB.login((response) => {
+            console.log("4. Resposta da Meta:", response);
+            
             if (response.authResponse) {
                 const shortLivedToken = response.authResponse.accessToken;
+                console.log("5. Token obtido com sucesso!");
                 
-                // Feedback visual para o lojista não clicar duas vezes
                 const btn = document.getElementById('btn-conectar-meta');
-                if(btn) { btn.innerText = 'Salvando Token...'; btn.disabled = true; }
+                if(btn) { btn.innerText = 'A guardar Token...'; btn.disabled = true; }
 
-                // Salva o token inicial e o status no banco de dados da loja
                 updateDoc(doc(db, "settings", storeId), {
                     "integrations.meta.marketingToken": shortLivedToken,
                     "integrations.meta.userId": response.authResponse.userID,
@@ -1062,11 +1079,13 @@ const educationalBanners = [
                     alert("✅ Autenticação realizada com sucesso!");
                     if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
                 }).catch(err => {
-                    alert("Erro ao salvar as credenciais no banco de dados.");
+                    console.error("Erro ao guardar na base de dados:", err);
+                    alert("Erro ao guardar as credenciais.");
                     if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
                 });
             } else {
-                alert("Autenticação cancelada pelo usuário.");
+                console.warn("6. O utilizador fechou o pop-up ou a Meta bloqueou.");
+                alert("Autenticação cancelada ou bloqueada. Verifique se o pop-up foi fechado antes de concluir.");
             }
         }, { scope: 'ads_management,business_management,pages_read_engagement' });
     };
