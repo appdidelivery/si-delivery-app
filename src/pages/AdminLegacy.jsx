@@ -10711,16 +10711,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </p>
                                             </div>
 
-                                            <button 
-                                                onClick={() => {
-                                                    setSelectedIntegration(app);
-                                                    setIntegrationForm(savedData); // Carrega os dados existentes pro input
-                                                    setIsIntegrationModalOpen(true);
-                                                }}
-                                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${isConnected ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'}`}
-                                            >
-                                                {isConnected ? '⚙️ Configurar' : '+ Conectar API'}
-                                            </button>
+                                            {isConnected && app.id === 'meta' ? (
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => setActiveTab('meta_ads')}
+                                                        className="flex-1 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                    >
+                                                        🚀 Abrir Painel
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setSelectedIntegration(app);
+                                                            setIntegrationForm(savedData);
+                                                            setIsIntegrationModalOpen(true);
+                                                        }}
+                                                        className="px-5 py-4 bg-slate-50 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center border border-slate-200"
+                                                        title="Configurações da API"
+                                                    >
+                                                        ⚙️
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => {
+                                                        setSelectedIntegration(app);
+                                                        setIntegrationForm(savedData); // Carrega os dados existentes pro input
+                                                        setIsIntegrationModalOpen(true);
+                                                    }}
+                                                    className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${isConnected ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'}`}
+                                                >
+                                                    {isConnected ? '⚙️ Configurar' : '+ Conectar API'}
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })}
