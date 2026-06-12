@@ -7074,6 +7074,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         if (cartItem.stock !== undefined && cartItem.stock !== null && cartItem.stock !== '') {
                             const productRef = doc(db, "products", cartItem.id);
                             promisesBaixa.push(updateDoc(productRef, { stock: increment(-Number(cartItem.quantity)) }));
+                            
+                            // 🛑 GATILHO DE PROTEÇÃO DE BOLSO (META ADS AUTO-PAUSE)
+                            // Se o estoque atual menos o que foi vendido chegar a Zero (ou negativo)
+                            if (cartItem.metaCampaignId && (Number(cartItem.stock) - Number(cartItem.quantity) <= 0)) {
+                                fetch('/api/meta-pause-campaign', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ storeId: storeId, productId: cartItem.id })
+                                }).catch(e => console.error("Aviso: Falha ao tentar auto-pausar campanha Meta.", e));
+                            }
                         }
 
                         // Baixa dos Insumos da Ficha Técnica

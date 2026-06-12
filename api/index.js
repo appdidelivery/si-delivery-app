@@ -3,8 +3,58 @@ import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
+import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 
 const STRIPE_ENABLED = false;
+
+// ============================================================================
+// 🚀 MOTOR CAPI (META CONVERSIONS API) - Rastreio Invisível de Vendas
+// ============================================================================
+async function sendMetaPurchaseEvent(storeId, orderData, dbRef) {
+    try {
+        const settingsDoc = await dbRef.collection('settings').doc(storeId).get();
+        const metaConfig = settingsDoc.data()?.integrations?.meta;
+
+        // Só dispara se o lojista colou o Pixel e o Token CAPI no painel
+        if (!metaConfig?.pixelId || !metaConfig?.apiToken) return;
+
+        // A Meta exige que o telefone (se existir) seja enviado em formato SHA-256
+        let hashedPhone = null;
+        if (orderData.customerPhone) {
+            const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
+            const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+            hashedPhone = crypto.createHash('sha256').update(formattedPhone).digest('hex');
+        }
+
+        const eventPayload = {
+            data: [
+                {
+                    event_name: 'Purchase',
+                    event_time: Math.floor(Date.now() / 1000),
+                    action_source: 'website',
+                    user_data: {
+                        ph: hashedPhone ? [hashedPhone] : [],
+                    },
+                    custom_data: {
+                        currency: 'BRL',
+                        value: Number(orderData.total || 0),
+                        order_id: String(orderData.id || 'N/A')
+                    }
+                }
+            ]
+        };
+
+        const res = await fetch(`https://graph.facebook.com/v19.0/${metaConfig.pixelId}/events?access_token=${metaConfig.apiToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(eventPayload)
+        });
+        
+        if (res.ok) console.log(`🎯 [Meta CAPI] Venda de R$ ${orderData.total} rastreada com sucesso na loja ${storeId}`);
+    } catch (error) {
+        console.error('❌ [Meta CAPI] Erro ao enviar evento de conversão:', error);
+    }
+}
 
 // Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
 async function getGoogleAuthToken(storeId = null) {
@@ -3146,6 +3196,13 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
                                 await batch.commit();
                                 console.log(`✅ Webhook MP: Pedido ${orderId} atualizado para PAGO!`);
+                                
+                                // 🚀 GATILHO DA CAPI: Avisa a Meta que a venda online foi concluída
+                                await sendMetaPurchaseEvent(storeId, { 
+                                    id: orderId, 
+                                    total: valorPago, 
+                                    customerPhone: orderDoc.data().customerPhone 
+                                }, db);
                             }
                         }
                     }
@@ -4498,6 +4555,51 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
         } catch (error) {
             console.error("Erro Meta Ads:", error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 25.7 META ADS: AUTO-PAUSA DE CAMPANHA (ESTOQUE ZERO)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/meta-pause-campaign') {
+        if (req.method !== 'POST') return res.status(405).end();
+        try {
+            const { storeId, productId } = req.body;
+            
+            const productDoc = await db.collection('products').doc(productId).get();
+            const productData = productDoc.data();
+
+            // Se o produto não tem uma campanha atrelada, ignora silenciosamente
+            if (!productData?.metaCampaignId) {
+                return res.status(200).json({ skipped: true, reason: 'Nenhuma campanha atrelada a este produto.' });
+            }
+
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const metaConfig = settingsDoc.data()?.integrations?.meta;
+
+            if (!metaConfig?.marketingToken) throw new Error("Token da Meta ausente.");
+
+            // 🛑 Comando de Morte: Pausa a campanha na Meta
+            const res = await fetch(`https://graph.facebook.com/v19.0/${productData.metaCampaignId}?access_token=${metaConfig.marketingToken}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'PAUSED' })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error?.message || 'Falha ao pausar na Meta.');
+            }
+
+            // Remove o selo de "Anúncio Ativo" do produto no Firebase
+            await db.collection('products').doc(productId).update({ hasActiveAd: false });
+
+            console.log(`🛑 [Meta Ads] Campanha ${productData.metaCampaignId} pausada por falta de estoque.`);
+            return res.status(200).json({ success: true, campaignId: productData.metaCampaignId });
+
+        } catch (error) {
+            console.error("❌ Erro ao auto-pausar campanha Meta:", error);
             return res.status(500).json({ error: error.message });
         }
     }
