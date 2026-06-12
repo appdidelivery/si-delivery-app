@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaRegChartBar } from 'react-icons/fa6';
-import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign, Users, ShoppingBag, Zap } from 'lucide-react';
+import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign, Users, ShoppingBag, Zap, RefreshCw } from 'lucide-react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 export default function MetaAdsDashboard({ storeId, products, storeStatus, settings }) {
     const [metaStatus, setMetaStatus] = useState({ isConnected: false, userName: null, hasAccountIds: false });
@@ -11,8 +13,57 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
     // Form states
     const [selectedProduct, setSelectedProduct] = useState('');
     const [dailyBudget, setDailyBudget] = useState(10);
-    const [radiusKm, setRadiusKm] = useState(5);
+const [radiusKm, setRadiusKm] = useState(5);
+    const [isFetchingAssets, setIsFetchingAssets] = useState(false);
 
+    const handleFetchMetaAssets = async () => {
+        const token = settings?.integrations?.meta?.marketingToken;
+        if (!token) return alert("Token da Meta não encontrado. Conecte a conta novamente na aba Integrações.");
+        
+        setIsFetchingAssets(true);
+        try {
+            let fetchedAdAccountId = null;
+            let fetchedAdAccountName = null;
+            let fetchedPageId = null;
+            let fetchedPageName = null;
+
+            // 1. Busca Ad Accounts vinculadas ao usuário
+            const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${token}`);
+            const adData = await adRes.json();
+            if (adData.data && adData.data.length > 0) {
+                fetchedAdAccountId = adData.data[0].id; // Já vem com o prefixo act_
+                fetchedAdAccountName = adData.data[0].name;
+            }
+
+            // 2. Busca Páginas do Facebook vinculadas
+            const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=id,name&access_token=${token}`);
+            const pageData = await pageRes.json();
+            if (pageData.data && pageData.data.length > 0) {
+                fetchedPageId = pageData.data[0].id;
+                fetchedPageName = pageData.data[0].name;
+            }
+
+            if (!fetchedAdAccountId && !fetchedPageId) {
+                return alert("⚠️ A Meta não retornou seus dados.\n\nVerifique se o seu perfil pessoal do Facebook é Administrador de uma Conta de Anúncios e de uma Página Comercial no Gerenciador de Negócios.");
+            }
+
+            // 3. Salva os IDs no Firestore (Apenas os que encontrou)
+            await updateDoc(doc(db, "settings", storeId), {
+                "integrations.meta.adAccountId": fetchedAdAccountId || settings.integrations.meta.adAccountId,
+                "integrations.meta.adAccountName": fetchedAdAccountName || settings.integrations.meta.adAccountName,
+                "integrations.meta.pageId": fetchedPageId || settings.integrations.meta.pageId,
+                "integrations.meta.pageName": fetchedPageName || settings.integrations.meta.pageName,
+            });
+
+            alert(`✅ Sincronização Concluída!\n\nConta vinculada: ${fetchedAdAccountName || 'Não alterada'}\nPágina vinculada: ${fetchedPageName || 'Não alterada'}`);
+        } catch (error) {
+            console.error("Erro ao buscar assets da Meta:", error);
+            alert("Erro de conexão ao buscar dados da Meta. Verifique sua internet.");
+        } finally {
+            setIsFetchingAssets(false);
+        }
+    };
+    
     useEffect(() => {
         const metaConfig = settings?.integrations?.meta;
         if (metaConfig?.marketingToken) {
@@ -113,11 +164,21 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
                     </p>
                     
                     {!metaStatus.hasAccountIds && (
-                        <div className="bg-orange-500/20 border border-orange-500/50 p-4 rounded-2xl flex flex-col md:flex-row items-center gap-4 backdrop-blur-sm">
+                        <div className="bg-orange-500/20 border border-orange-500/50 p-4 rounded-2xl flex flex-col md:flex-row items-center gap-4 backdrop-blur-sm mt-4">
                             <div className="flex-1">
                                 <p className="text-orange-300 font-black uppercase tracking-widest text-xs mb-1">⚠️ Configuração Incompleta</p>
-                                <p className="text-orange-100 text-[10px] font-bold">Falta o ID da Conta de Anúncios ou da Página. Vá na aba Integrações para corrigir.</p>
+                                <p className="text-orange-100 text-[10px] font-bold leading-relaxed">
+                                    O sistema ainda não localizou o ID da sua Conta de Anúncios ou da sua Página. Clique no botão ao lado para que a inteligência da Velo busque esses dados automaticamente na Meta.
+                                </p>
                             </div>
+                            <button 
+                                onClick={handleFetchMetaAssets}
+                                disabled={isFetchingAssets}
+                                className="w-full md:w-auto bg-orange-500 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:bg-orange-400 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isFetchingAssets ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                {isFetchingAssets ? 'Consultando Meta...' : 'Puxar Dados Automaticamente'}
+                            </button>
                         </div>
                     )}
                 </div>
