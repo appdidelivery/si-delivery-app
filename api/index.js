@@ -4503,7 +4503,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 name: `[Velo] ${productName}`,
                 objective: 'OUTCOME_TRAFFIC',
                 status: 'PAUSED', // 🚨 BLINDAGEM: Criada pausada para o cliente não gastar sem querer
-                special_ad_categories: ['NONE']
+                special_ad_categories: ['NONE'],
+                is_adset_budget_sharing_enabled: false // <-- A MÁGICA ESTÁ AQUI: Diz pra Meta que o orçamento vai no AdSet e não na Campanha
             });
 
             // PASSO 2: Criar o Conjunto de Anúncios (Público + Raio de Entrega)
