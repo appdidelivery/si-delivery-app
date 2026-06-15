@@ -1051,9 +1051,8 @@ const educationalBanners = [
         }
 
         console.log("2. A forçar a inicialização do FB.init...");
-        // FORÇA A INICIALIZAÇÃO AQUI PARA EVITAR O ERRO DO CONSOLE
         window.FB.init({
-            appId      : 'SEU_APP_ID_AQUI', // ⚠️ ATENÇÃO: COLOQUE SEU APP ID AQUI (Ex: 1417174507099571)
+            appId      : '1417174507099571', // Seu APP ID
             cookie     : true,
             xfbml      : true,
             version    : 'v19.0'
@@ -1066,13 +1065,13 @@ const educationalBanners = [
             
             if (response.authResponse) {
                 const shortLivedToken = response.authResponse.accessToken;
-                console.log("5. Token Curto obtido com sucesso. Iniciando troca segura no servidor...");
+                console.log("5. Token Curto obtido. A solicitar Long-Lived Token ao Backend...");
                 
                 const btn = document.getElementById('btn-conectar-meta');
-                if(btn) { btn.innerText = 'Gerando Token Seguro...'; btn.disabled = true; }
+                if(btn) { btn.innerText = 'A gerar Token Seguro...'; btn.disabled = true; }
 
                 try {
-                    // Manda para o backend trocar o token de curto prazo por um de 60 dias e salvar no banco
+                    // Manda para o backend trocar o token de curto prazo por um de 60 dias (SaaS)
                     const res = await fetch('/api/meta-exchange-token', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1082,16 +1081,27 @@ const educationalBanners = [
                     const data = await res.json();
                     
                     if (res.ok && data.success) {
-                        alert("✅ Autenticação realizada! Conta de Anúncios conectada com sucesso.");
+                        alert("✅ Autenticação realizada! Conta conectada com Token de Longa Duração (60 dias).");
                         if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
-                        // Recarrega os dados do Firebase localmente para a UI atualizar na hora
-                        setIntegrationForm(prev => ({...prev, marketingToken: data.longLivedToken, metaUserName: data.userName, adAccountName: data.adAccountName, pageName: data.pageName}));
+                        
+                        // Atualiza o estado local para o painel refletir a mudança instantaneamente
+                        setIntegrationForm(prev => ({
+                            ...prev, 
+                            marketingToken: data.longLivedToken, 
+                            metaUserName: data.userName, 
+                            adAccountId: data.adAccountName, // Previne null reference no Dashboard
+                            pageId: data.pageName,
+                            healthStatus: 'healthy'
+                        }));
+                        
+                        // Redireciona para a aba de anúncios para testar
+                        setActiveTab('meta_ads');
                     } else {
-                        throw new Error(data.error || "Erro desconhecido ao trocar o token.");
+                        throw new Error(data.error || "Erro ao trocar o token no servidor.");
                     }
                 } catch (err) {
-                    console.error("Erro na comunicação com o backend da Velo:", err);
-                    alert(`❌ Falha de segurança na Meta: ${err.message}`);
+                    console.error("Erro na comunicação com a API Velo:", err);
+                    alert(`❌ Falha na integração com a Meta:\n${err.message}`);
                     if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
                 }
             } else {
