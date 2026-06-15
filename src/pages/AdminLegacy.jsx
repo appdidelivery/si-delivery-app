@@ -1048,9 +1048,8 @@ const educationalBanners = [
             return alert("O sistema da Meta ainda está a carregar ou foi bloqueado por um AdBlock. Aguarde um segundo e tente novamente.");
         }
 
-        // Como já inicializamos no useEffect, chamamos APENAS o login direto no clique!
-        // Isso evita que o navegador bloqueie o pop-up achando que é SPAM.
-        window.FB.login(async (response) => {
+        // Função NORMAL (não async) para o Facebook não bloquear!
+        window.FB.login(function(response) {
             console.log("Resposta da Meta:", response);
             
             if (response.authResponse) {
@@ -1059,43 +1058,47 @@ const educationalBanners = [
                 const btn = document.getElementById('btn-conectar-meta');
                 if(btn) { btn.innerText = 'A gerar Token Seguro...'; btn.disabled = true; }
 
-                try {
-                    // Manda para o backend trocar o token de curto prazo por um de 60 dias (SaaS)
-                    const res = await fetch('/api/meta-exchange-token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ storeId: storeId, shortLivedToken: shortLivedToken })
-                    });
-                    
-                    const data = await res.json();
-                    
-                    if (res.ok && data.success) {
-                        alert("✅ Autenticação realizada! Conta conectada com Token de Longa Duração (60 dias).");
-                        if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
+                // Criamos uma função async INTERNA para poder usar o "await" e falar com a Vercel
+                const processTokenSeguro = async () => {
+                    try {
+                        const res = await fetch('/api/meta-exchange-token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ storeId: storeId, shortLivedToken: shortLivedToken })
+                        });
                         
-                        // Atualiza o estado local para o painel refletir a mudança instantaneamente
-                        setIntegrationForm(prev => ({
-                            ...prev, 
-                            marketingToken: data.longLivedToken, 
-                            metaUserName: data.userName, 
-                            adAccountId: data.adAccountName,
-                            pageId: data.pageName,
-                            healthStatus: 'healthy'
-                        }));
+                        const data = await res.json();
                         
-                        // Redireciona para a aba de anúncios para testar
-                        setActiveTab('meta_ads');
-                    } else {
-                        throw new Error(data.error || "Erro ao trocar o token no servidor.");
+                        if (res.ok && data.success) {
+                            alert("✅ Autenticação realizada! Conta conectada com Token de Longa Duração (60 dias).");
+                            if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
+                            
+                            setIntegrationForm(prev => ({
+                                ...prev, 
+                                marketingToken: data.longLivedToken, 
+                                metaUserName: data.userName, 
+                                adAccountId: data.adAccountName,
+                                pageId: data.pageName,
+                                healthStatus: 'healthy'
+                            }));
+                            
+                            setActiveTab('meta_ads');
+                        } else {
+                            throw new Error(data.error || "Erro ao trocar o token no servidor.");
+                        }
+                    } catch (err) {
+                        console.error("Erro na comunicação com a API Velo:", err);
+                        alert(`❌ Falha na integração com a Meta:\n${err.message}`);
+                        if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
                     }
-                } catch (err) {
-                    console.error("Erro na comunicação com a API Velo:", err);
-                    alert(`❌ Falha na integração com a Meta:\n${err.message}`);
-                    if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
-                }
+                };
+
+                // Executa a função interna logo após pegar o token
+                processTokenSeguro();
+
             } else {
                 console.warn("O utilizador fechou o pop-up ou a Meta bloqueou.");
-                alert("Autenticação cancelada ou bloqueada. Verifique se o pop-up foi fechado antes de concluir.");
+                alert("Autenticação cancelada ou bloqueada. Verifique se fechou a aba antes de concluir.");
             }
         }, { scope: 'ads_management,business_management,pages_read_engagement' });
     };
