@@ -1024,7 +1024,7 @@ const educationalBanners = [
         if (activeTab === 'integrations' && !document.getElementById('meta-sdk-script')) {
             window.fbAsyncInit = function() {
                 window.FB.init({
-                    appId      : 'SEU_APP_ID_AQUI', // ⚠️ ATENÇÃO: COLOQUE SEU APP ID AQUI
+                    appId      : '1417174507099571', // ⚠️ O SEU APP ID REAL AQUI
                     cookie     : true,
                     xfbml      : true,
                     version    : 'v19.0'
@@ -1043,29 +1043,18 @@ const educationalBanners = [
 
     // FUNÇÃO DE LOGIN OAUTH (POP-UP) COM INJEÇÃO FORÇADA E TROCA PARA LONG-LIVED TOKEN
     const handleMetaLogin = () => {
-        console.log("1. Botão clicado. A verificar o SDK da Meta...");
-        
         if (!window.FB) {
             console.error("ERRO: O SDK da Meta não foi carregado.");
             return alert("O sistema da Meta ainda está a carregar ou foi bloqueado por um AdBlock. Aguarde um segundo e tente novamente.");
         }
 
-        console.log("2. A forçar a inicialização do FB.init...");
-        window.FB.init({
-            appId      : '1417174507099571', // Seu APP ID
-            cookie     : true,
-            xfbml      : true,
-            version    : 'v19.0'
-        });
-
-        console.log("3. FB inicializado. A chamar o FB.login...");
-        
+        // Como já inicializamos no useEffect, chamamos APENAS o login direto no clique!
+        // Isso evita que o navegador bloqueie o pop-up achando que é SPAM.
         window.FB.login(async (response) => {
-            console.log("4. Resposta da Meta:", response);
+            console.log("Resposta da Meta:", response);
             
             if (response.authResponse) {
                 const shortLivedToken = response.authResponse.accessToken;
-                console.log("5. Token Curto obtido. A solicitar Long-Lived Token ao Backend...");
                 
                 const btn = document.getElementById('btn-conectar-meta');
                 if(btn) { btn.innerText = 'A gerar Token Seguro...'; btn.disabled = true; }
@@ -1089,7 +1078,7 @@ const educationalBanners = [
                             ...prev, 
                             marketingToken: data.longLivedToken, 
                             metaUserName: data.userName, 
-                            adAccountId: data.adAccountName, // Previne null reference no Dashboard
+                            adAccountId: data.adAccountName,
                             pageId: data.pageName,
                             healthStatus: 'healthy'
                         }));
@@ -1105,7 +1094,7 @@ const educationalBanners = [
                     if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
                 }
             } else {
-                console.warn("6. O utilizador fechou o pop-up ou a Meta bloqueou.");
+                console.warn("O utilizador fechou o pop-up ou a Meta bloqueou.");
                 alert("Autenticação cancelada ou bloqueada. Verifique se o pop-up foi fechado antes de concluir.");
             }
         }, { scope: 'ads_management,business_management,pages_read_engagement' });
