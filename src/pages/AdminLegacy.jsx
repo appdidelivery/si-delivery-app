@@ -1041,7 +1041,7 @@ const educationalBanners = [
         }
     }, [activeTab]);
 
-    // FUNÇÃO DE LOGIN OAUTH (POP-UP) COM INJEÇÃO FORÇADA
+    // FUNÇÃO DE LOGIN OAUTH (POP-UP) COM INJEÇÃO FORÇADA E TROCA PARA LONG-LIVED TOKEN
     const handleMetaLogin = () => {
         console.log("1. Botão clicado. A verificar o SDK da Meta...");
         
@@ -1053,7 +1053,7 @@ const educationalBanners = [
         console.log("2. A forçar a inicialização do FB.init...");
         // FORÇA A INICIALIZAÇÃO AQUI PARA EVITAR O ERRO DO CONSOLE
         window.FB.init({
-            appId      : '1417174507099571', // O SEU APP ID INJETADO
+            appId      : 'SEU_APP_ID_AQUI', // ⚠️ ATENÇÃO: COLOQUE SEU APP ID AQUI (Ex: 1417174507099571)
             cookie     : true,
             xfbml      : true,
             version    : 'v19.0'
@@ -1061,28 +1061,39 @@ const educationalBanners = [
 
         console.log("3. FB inicializado. A chamar o FB.login...");
         
-        window.FB.login((response) => {
+        window.FB.login(async (response) => {
             console.log("4. Resposta da Meta:", response);
             
             if (response.authResponse) {
                 const shortLivedToken = response.authResponse.accessToken;
-                console.log("5. Token obtido com sucesso!");
+                console.log("5. Token Curto obtido com sucesso. Iniciando troca segura no servidor...");
                 
                 const btn = document.getElementById('btn-conectar-meta');
-                if(btn) { btn.innerText = 'A guardar Token...'; btn.disabled = true; }
+                if(btn) { btn.innerText = 'Gerando Token Seguro...'; btn.disabled = true; }
 
-                updateDoc(doc(db, "settings", storeId), {
-                    "integrations.meta.marketingToken": shortLivedToken,
-                    "integrations.meta.userId": response.authResponse.userID,
-                    "integrations.meta.healthStatus": "healthy"
-                }).then(() => {
-                    alert("✅ Autenticação realizada com sucesso!");
-                    if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
-                }).catch(err => {
-                    console.error("Erro ao guardar na base de dados:", err);
-                    alert("Erro ao guardar as credenciais.");
+                try {
+                    // Manda para o backend trocar o token de curto prazo por um de 60 dias e salvar no banco
+                    const res = await fetch('/api/meta-exchange-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ storeId: storeId, shortLivedToken: shortLivedToken })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (res.ok && data.success) {
+                        alert("✅ Autenticação realizada! Conta de Anúncios conectada com sucesso.");
+                        if(btn) { btn.innerText = '⚙️ Configurar'; btn.disabled = false; }
+                        // Recarrega os dados do Firebase localmente para a UI atualizar na hora
+                        setIntegrationForm(prev => ({...prev, marketingToken: data.longLivedToken, metaUserName: data.userName, adAccountName: data.adAccountName, pageName: data.pageName}));
+                    } else {
+                        throw new Error(data.error || "Erro desconhecido ao trocar o token.");
+                    }
+                } catch (err) {
+                    console.error("Erro na comunicação com o backend da Velo:", err);
+                    alert(`❌ Falha de segurança na Meta: ${err.message}`);
                     if(btn) { btn.innerText = '+ Conectar API'; btn.disabled = false; }
-                });
+                }
             } else {
                 console.warn("6. O utilizador fechou o pop-up ou a Meta bloqueou.");
                 alert("Autenticação cancelada ou bloqueada. Verifique se o pop-up foi fechado antes de concluir.");

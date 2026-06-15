@@ -4385,15 +4385,16 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const userRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${longLivedToken}`);
             const userData = await userRes.json();
 
-            // 3. MÁGICA: Busca automaticamente a primeira Conta de Anúncios do lojista
+            // 3. MÁGICA: Busca automaticamente a primeira Conta de Anúncios ATIVA do lojista
             let adAccountId = null;
             let adAccountName = null;
             try {
-                const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${longLivedToken}`);
+                const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,account_status&access_token=${longLivedToken}`);
                 const adData = await adRes.json();
                 if (adData.data && adData.data.length > 0) {
-                    adAccountId = adData.data[0].id; // O ID já vem com o prefixo 'act_'
-                    adAccountName = adData.data[0].name;
+                    const activeAccount = adData.data.find(acc => acc.account_status === 1) || adData.data[0];
+                    adAccountId = activeAccount.id; // O ID já vem com o prefixo 'act_'
+                    adAccountName = activeAccount.name;
                 }
             } catch (e) { console.error("Erro ao buscar Ad Accounts", e); }
 
@@ -4420,6 +4421,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                         adAccountName: adAccountName,
                         pageId: pageId,
                         pageName: pageName,
+                        healthStatus: 'healthy',
                         connectedAt: admin.firestore.FieldValue.serverTimestamp()
                     }
                 }

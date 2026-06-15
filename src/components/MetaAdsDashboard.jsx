@@ -144,12 +144,13 @@ const [radiusKm, setRadiusKm] = useState(5);
                     imageUrl: product.imageUrl || product.videoUrl,
                     dailyBudget: dailyBudget,
                     radius: radiusKm,
-                    objective: selectedObjective // Enviando o objetivo para o backend futuro
+                    objective: selectedObjective
                 })
             });
 
             const data = await res.json();
 
+            // Lógica rigorosa de tratamento de erros para não prender o loading
             if (res.ok && data.success) {
                 // SALVA O ID DA CAMPANHA NO PRODUTO PARA FUTURA AUTO-PAUSA (ESTOQUE ZERO)
                 try {
@@ -157,18 +158,29 @@ const [radiusKm, setRadiusKm] = useState(5);
                         metaCampaignId: data.campaignId,
                         hasActiveAd: true
                     });
-                } catch (e) {
-                    console.warn("Aviso: Campanha criada, mas falhou ao vincular ID ao produto localmente.", e);
+                } catch (errDb) {
+                    console.warn("Aviso: Campanha criada, mas falhou ao vincular ID ao produto localmente.", errDb);
                 }
 
                 alert("✅ Campanha gerada com sucesso!\n\nPor segurança, ela foi criada em modo 'Pausado'. Acesse o Gerenciador de Anúncios da Meta para inserir seu Cartão de Crédito e Ativar.");
                 setIsCampaignModalOpen(false);
             } else {
-                alert(`❌ Erro da Meta: ${data.error}`);
+                // Se a API devolveu erro (ex: Token Expirado, Sem Cartão, etc)
+                console.error("Erro devolvido pelo servidor:", data);
+                const errorMsg = data.error || "Erro desconhecido na Meta.";
+                
+                // Trata especificamente o erro de sessão expirada
+                if (errorMsg.toLowerCase().includes("session has expired") || errorMsg.toLowerCase().includes("token")) {
+                    alert(`⚠️ SESSÃO EXPIRADA!\n\nO seu acesso à Meta expirou por segurança. Por favor, vá à aba "Integrações", clique em "Desconectar" na Meta e faça login novamente para gerar uma nova chave.\n\nDetalhe do erro: ${errorMsg}`);
+                } else {
+                    alert(`❌ Falha ao Criar Campanha:\n\n${errorMsg}`);
+                }
             }
         } catch (error) {
-            alert("Erro de conexão ao tentar criar a campanha. Verifique sua internet.");
+            console.error("Erro no fetch de criação de campanha:", error);
+            alert("❌ Erro de comunicação com o servidor. A campanha não foi criada. Verifique a sua internet e tente novamente.");
         } finally {
+            // GARANTE que o loading é desativado independentemente de sucesso ou erro
             setIsSubmitting(false);
         }
     };
