@@ -4647,7 +4647,55 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(500).json({ error: error.message });
         }
     }
+// ------------------------------------------------------------------------
+    // 25.8 META ADS: BUSCAR CAMPANHAS DO LOJISTA
+    // ------------------------------------------------------------------------
+    else if (path === '/api/meta-campaigns') {
+        if (req.method !== 'GET') return res.status(405).end();
+        try {
+            const { storeId } = req.query;
+            if (!storeId) return res.status(400).json({ error: "StoreId não fornecido." });
 
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const metaConfig = settingsDoc.data()?.integrations?.meta;
+
+            if (!metaConfig?.marketingToken || !metaConfig?.adAccountId) {
+                return res.status(400).json({ error: "Integração com a Meta incompleta." });
+            }
+
+            let adAccountId = metaConfig.adAccountId.trim();
+            if (!adAccountId.startsWith('act_')) adAccountId = `act_${adAccountId}`;
+
+            // Pede à Meta a lista de campanhas, os status e os resultados (Insights)
+            // Trazemos os dados dos últimos 30 dias
+            const metaRes = await fetch(`https://graph.facebook.com/v19.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,insights.date_preset(last_30d){impressions,clicks,spend}&access_token=${metaConfig.marketingToken}`);
+            
+            const data = await metaRes.json();
+
+            if (!metaRes.ok) {
+                throw new Error(data.error?.message || "Erro ao consultar campanhas na Meta.");
+            }
+
+            // Formatar os dados para o frontend
+            const formatadas = (data.data || []).map(camp => {
+                const insight = camp.insights?.data?.[0] || { impressions: 0, clicks: 0, spend: 0 };
+                return {
+                    id: camp.id,
+                    name: camp.name,
+                    status: camp.effective_status || camp.status,
+                    impressions: insight.impressions,
+                    clicks: insight.clicks,
+                    spend: insight.spend
+                };
+            });
+
+            return res.status(200).json({ success: true, campaigns: formatadas });
+
+        } catch (error) {
+            console.error("Erro ao buscar campanhas Meta:", error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
     // ------------------------------------------------------------------------
     // 26. GOOGLE MEU NEGÓCIO: RESPONDER AVALIAÇÃO (REPLY)
     // ------------------------------------------------------------------------

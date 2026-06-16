@@ -15,6 +15,8 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
     const [dailyBudget, setDailyBudget] = useState(10);
 const [radiusKm, setRadiusKm] = useState(5);
     const [isFetchingAssets, setIsFetchingAssets] = useState(false);
+    const [campaignsList, setCampaignsList] = useState([]);
+    const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
 
     const handleFetchMetaAssets = async () => {
         const token = settings?.integrations?.meta?.marketingToken;
@@ -126,7 +128,27 @@ const [radiusKm, setRadiusKm] = useState(5);
         }
 
         setIsSubmitting(true);
+const fetchCampaigns = async () => {
+        setIsLoadingCampaigns(true);
+        try {
+            const res = await fetch(`/api/meta-campaigns?storeId=${storeId}`);
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setCampaignsList(data.campaigns);
+            }
+        } catch (e) {
+            console.error("Erro ao buscar campanhas", e);
+        } finally {
+            setIsLoadingCampaigns(false);
+        }
+    };
 
+    // Puxa as campanhas automaticamente quando a Meta estiver conectada
+    useEffect(() => {
+        if (metaStatus.isConnected) {
+            fetchCampaigns();
+        }
+    }, [metaStatus.isConnected]);
         // Monta o link do produto
         const domain = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
         const safeSlug = product.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
@@ -334,19 +356,75 @@ const [radiusKm, setRadiusKm] = useState(5);
                 </div>
             </div>
 
-            {/* DASHBOARD DE MÉTRICAS RÁPIDAS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-200">
-                <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 flex flex-col justify-center">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Target size={14}/> Status do Pixel</p>
-                    <p className="text-2xl font-black text-slate-800 italic">Rastreando</p>
+            {/* MINHAS CAMPANHAS (DADOS REAIS DA META) */}
+            <div className="pt-8 border-t border-slate-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-black text-slate-800 uppercase italic">Minhas Campanhas</h3>
+                    <button 
+                        onClick={fetchCampaigns}
+                        disabled={isLoadingCampaigns}
+                        className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100 transition-all disabled:opacity-50"
+                    >
+                        {isLoadingCampaigns ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>}
+                        Atualizar
+                    </button>
                 </div>
-                <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 flex flex-col justify-center">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><FaRegChartBar size={14}/> API de Conversões</p>
-                    <p className="text-2xl font-black text-blue-600 italic">Pronta</p>
+
+                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                    {isLoadingCampaigns && campaignsList.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-10 text-slate-400">
+                            <Loader2 size={32} className="animate-spin mb-2" />
+                            <p className="text-xs font-black uppercase tracking-widest">Buscando na Meta...</p>
+                        </div>
+                    ) : campaignsList.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-10 text-slate-400">
+                            <Megaphone size={40} className="mb-3 opacity-50" />
+                            <p className="text-sm font-bold">Nenhuma campanha encontrada.</p>
+                            <p className="text-xs mt-1">Crie a sua primeira campanha nos botões acima.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b border-slate-100">
+                                    <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
+                                        <th className="p-5 font-black">Nome da Campanha</th>
+                                        <th className="p-5 font-black text-center">Status</th>
+                                        <th className="p-5 font-black text-center">Cliques</th>
+                                        <th className="p-5 font-black text-center">Gasto</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm font-bold text-slate-700 divide-y divide-slate-50">
+                                    {campaignsList.map(camp => (
+                                        <tr key={camp.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-5">{camp.name}</td>
+                                            <td className="p-5 text-center">
+                                                <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                                                    camp.status.includes('ACTIVE') ? 'bg-green-100 text-green-700' : 
+                                                    camp.status.includes('PAUSED') ? 'bg-orange-100 text-orange-700' : 
+                                                    'bg-slate-100 text-slate-600'
+                                                }`}>
+                                                    {camp.status.replace('CAMPAIGN_', '')}
+                                                </span>
+                                            </td>
+                                            <td className="p-5 text-center text-blue-600">{camp.clicks || 0}</td>
+                                            <td className="p-5 text-center text-red-500">R$ {Number(camp.spend || 0).toFixed(2)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
-                <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 flex flex-col justify-center">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><FaInstagram size={14}/> Posicionamentos</p>
-                    <p className="text-2xl font-black text-pink-600 italic">Insta & Facebook</p>
+                
+                <div className="mt-4 text-center">
+                    <a 
+                        href="https://adsmanager.facebook.com/" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-black text-blue-500 uppercase tracking-widest hover:underline flex items-center justify-center gap-1"
+                    >
+                        Abrir Gerenciador de Anúncios Profissional <ExternalLink size={12} />
+                    </a>
                 </div>
             </div>
 
