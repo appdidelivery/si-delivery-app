@@ -4573,7 +4573,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
     }
 
     // ------------------------------------------------------------------------
-    // 25.7 META ADS: AUTO-PAUSA DE CAMPANHA (ESTOQUE ZERO)
+    // 25.7 META ADS:attAUTO-PAUSA DE CAMPANHA (ESTOQUE ZERO)
     // ------------------------------------------------------------------------
     else if (path === '/api/meta-pause-campaign') {
         if (req.method !== 'POST') return res.status(405).end();
