@@ -4525,8 +4525,10 @@ Retorne APENAS um JSON com 3 chaves curtas:
                             radius: Number(radius),
                             distance_unit: 'kilometer'
                         }]
-                    }
-                    // 🚨 REMOVIDO o publisher_platforms: Deixamos a Meta usar o Advantage+ Automático
+                    },
+                    // 🚨 BLINDAGEM MÁXIMA: Forçamos o anúncio apenas para o Facebook.
+                    // Isso impede que a Meta crashe exigindo o ID do Instagram.
+                    publisher_platforms: ['facebook'] 
                 },
                 status: 'PAUSED'
             });
@@ -4537,19 +4539,21 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 safeImageUrl = safeImageUrl.replace(/\.mp4$/i, '.jpg').replace(/\.webm$/i, '.jpg');
             }
 
+            // 🚨 BLINDAGEM DE URL: Se estiver rodando localmente, a Meta rejeita o link.
+            const isLocalhost = productUrl.includes('localhost') || productUrl.includes('127.0.0.1');
+            const finalLink = isLocalhost ? 'https://velodelivery.com.br' : productUrl;
+
             const creative = await fetchMeta(`${adAccountId}/adcreatives`, {
                 name: `Criativo - ${productName}`,
                 object_story_spec: {
                     page_id: pageId,
-                    // 🚨 AQUI: Removi o instagram_actor_id. 
-                    // Se não enviarmos nada, a Meta roda o anúncio no Insta usando a sua Página do FB automaticamente!
                     link_data: {
                         image_url: safeImageUrl,
-                        link: productUrl,
-                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Toque em "Saiba mais" para pedir na hora.`,
+                        link: finalLink, // Usa o link seguro
+                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.`,
+                        // 🚨 BLINDAGEM DO BOTÃO: Sintaxe mínima que a Meta aceita sem crashar.
                         call_to_action: { 
-                            type: 'LEARN_MORE',
-                            value: { link: productUrl } // Esta foi a correção salvadora de antes!
+                            type: 'LEARN_MORE' 
                         }
                     }
                 }
@@ -4568,6 +4572,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
         } catch (error) {
             console.error("Erro Meta Ads:", error);
+            // Retorna o erro exato para o Frontend mostrar no Pop-up
             return res.status(500).json({ error: error.message });
         }
     }
