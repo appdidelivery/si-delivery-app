@@ -4541,14 +4541,15 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 name: `Criativo - ${productName}`,
                 object_story_spec: {
                     page_id: pageId,
-                    instagram_actor_id: pageId, // 🚨 O SEGREDO: Autoriza o anúncio a rodar no Instagram usando a sua Página
+                    // 🚨 AQUI: Removi o instagram_actor_id. 
+                    // Se não enviarmos nada, a Meta roda o anúncio no Insta usando a sua Página do FB automaticamente!
                     link_data: {
                         image_url: safeImageUrl,
                         link: productUrl,
                         message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Toque em "Saiba mais" para pedir na hora.`,
                         call_to_action: { 
                             type: 'LEARN_MORE',
-                            value: { link: productUrl }
+                            value: { link: productUrl } // Esta foi a correção salvadora de antes!
                         }
                     }
                 }
