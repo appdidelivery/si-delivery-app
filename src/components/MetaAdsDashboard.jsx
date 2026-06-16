@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaRegChartBar } from 'react-icons/fa6';
-import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign, Users, ShoppingBag, Zap, RefreshCw } from 'lucide-react';
+import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign, Users, ShoppingBag, Zap, RefreshCw, ExternalLink } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
@@ -8,13 +8,15 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
     const [metaStatus, setMetaStatus] = useState({ isConnected: false, userName: null, hasAccountIds: false });
     const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedObjective, setSelectedObjective] = useState(null); // 'followers', 'sales', 'smart'
+    const [selectedObjective, setSelectedObjective] = useState(null); 
 
     // Form states
     const [selectedProduct, setSelectedProduct] = useState('');
     const [dailyBudget, setDailyBudget] = useState(10);
-const [radiusKm, setRadiusKm] = useState(5);
+    const [radiusKm, setRadiusKm] = useState(5);
     const [isFetchingAssets, setIsFetchingAssets] = useState(false);
+    
+    // Estados da Tabela de Campanhas
     const [campaignsList, setCampaignsList] = useState([]);
     const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
 
@@ -39,14 +41,11 @@ const [radiusKm, setRadiusKm] = useState(5);
             }
 
             if (adData.data && adData.data.length > 0) {
-                // MÁGICA: Procura a primeira conta que esteja ATIVA (account_status === 1)
                 const activeAccount = adData.data.find(acc => acc.account_status === 1);
-                
                 if (activeAccount) {
                     fetchedAdAccountId = activeAccount.id; 
                     fetchedAdAccountName = activeAccount.name;
                 } else {
-                    // Se não achar nenhuma ativa, pega a primeira mesmo assim para mostrar o erro pro Lojista
                     fetchedAdAccountId = adData.data[0].id;
                     fetchedAdAccountName = adData.data[0].name;
                     alert("⚠️ AVISO: Detectamos que a sua Conta de Anúncios da Meta pode estar desativada ou com pendências financeiras. Recomendamos verificar no Facebook.");
@@ -67,7 +66,6 @@ const [radiusKm, setRadiusKm] = useState(5);
                 fetchedPageName = pageData.data[0].name;
             }
 
-            // 3. Monta o Alerta Inteligente
             let alertaMsg = "✅ Retorno da Meta:\n\n";
             alertaMsg += fetchedAdAccountId ? `🎯 Conta: ${fetchedAdAccountName}\n` : `❌ Conta: NÃO ENCONTRADA\n`;
             alertaMsg += fetchedPageId ? `📄 Página: ${fetchedPageName}\n` : `❌ Página: NÃO ENCONTRADA\n`;
@@ -76,7 +74,6 @@ const [radiusKm, setRadiusKm] = useState(5);
                 alertaMsg += `\n⚠️ AVISO: O painel continuará bloqueado.\nMotivos comuns:\n1. Seu Facebook não tem Conta de Anúncios criada.\n2. O seu App na Meta não tem as permissões 'ads_management' e 'manage_pages'.`;
             }
 
-            // 4. Salva no Firebase o que encontrou
             await updateDoc(doc(db, "settings", storeId), {
                 "integrations.meta.adAccountId": fetchedAdAccountId || settings?.integrations?.meta?.adAccountId || null,
                 "integrations.meta.adAccountName": fetchedAdAccountName || settings?.integrations?.meta?.adAccountName || null,
@@ -84,7 +81,6 @@ const [radiusKm, setRadiusKm] = useState(5);
                 "integrations.meta.pageName": fetchedPageName || settings?.integrations?.meta?.pageName || null,
             });
 
-            // 5. MÁGICA: Força a tela a destravar na mesma hora se os dados vieram corretos
             if (fetchedAdAccountId && fetchedPageId) {
                 setMetaStatus(prev => ({ ...prev, hasAccountIds: true }));
             }
@@ -101,7 +97,6 @@ const [radiusKm, setRadiusKm] = useState(5);
     
     useEffect(() => {
         const metaConfig = settings?.integrations?.meta;
-        // Validação extra: Se o token for a string "null" ou vazio, trata como desconectado
         if (metaConfig && metaConfig.marketingToken && metaConfig.marketingToken !== "null") {
             setMetaStatus({
                 isConnected: true,
@@ -111,7 +106,7 @@ const [radiusKm, setRadiusKm] = useState(5);
         } else {
             setMetaStatus({ isConnected: false, userName: null, hasAccountIds: false });
         }
-    }, [settings]); // Removido storeStatus para evitar loops desnecessários, já que os dados da Meta estão em 'settings'
+    }, [settings]);
 
     // 🚨 FUNÇÃO CORRIGIDA: Buscar campanhas agora está solta e livre!
     const fetchCampaigns = async () => {
@@ -152,7 +147,6 @@ const [radiusKm, setRadiusKm] = useState(5);
 
         setIsSubmitting(true);
 
-        // Monta o link do produto
         const domain = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
         const safeSlug = product.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
         const productUrl = `${domain}/p/${safeSlug}`;
@@ -175,9 +169,7 @@ const [radiusKm, setRadiusKm] = useState(5);
 
             const data = await res.json();
 
-            // Lógica rigorosa de tratamento de erros para não prender o loading
             if (res.ok && data.success) {
-                // SALVA O ID DA CAMPANHA NO PRODUTO PARA FUTURA AUTO-PAUSA (ESTOQUE ZERO)
                 try {
                     await updateDoc(doc(db, "products", product.id), {
                         metaCampaignId: data.campaignId,
@@ -189,12 +181,10 @@ const [radiusKm, setRadiusKm] = useState(5);
 
                 alert("✅ Campanha gerada com sucesso!\n\nPor segurança, ela foi criada em modo 'Pausado'. Acesse o Gerenciador de Anúncios da Meta para inserir seu Cartão de Crédito e Ativar.");
                 setIsCampaignModalOpen(false);
+                fetchCampaigns(); // Atualiza a tabela na mesma hora
             } else {
-                // Se a API devolveu erro (ex: Token Expirado, Sem Cartão, etc)
                 console.error("Erro devolvido pelo servidor:", data);
                 const errorMsg = data.error || "Erro desconhecido na Meta.";
-                
-                // Trata especificamente o erro de sessão expirada
                 if (errorMsg.toLowerCase().includes("session has expired") || errorMsg.toLowerCase().includes("token")) {
                     alert(`⚠️ SESSÃO EXPIRADA!\n\nO seu acesso à Meta expirou por segurança. Por favor, vá à aba "Integrações", clique em "Desconectar" na Meta e faça login novamente para gerar uma nova chave.\n\nDetalhe do erro: ${errorMsg}`);
                 } else {
@@ -205,7 +195,6 @@ const [radiusKm, setRadiusKm] = useState(5);
             console.error("Erro no fetch de criação de campanha:", error);
             alert("❌ Erro de comunicação com o servidor. A campanha não foi criada. Verifique a sua internet e tente novamente.");
         } finally {
-            // GARANTE que o loading é desativado independentemente de sucesso ou erro
             setIsSubmitting(false);
         }
     };
@@ -232,7 +221,6 @@ const [radiusKm, setRadiusKm] = useState(5);
 
     return (
         <div className="space-y-8">
-            {/* CABEÇALHO */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 p-8 md:p-10 rounded-[3rem] text-white shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                     <Megaphone size={180} />
@@ -246,7 +234,6 @@ const [radiusKm, setRadiusKm] = useState(5);
                             onClick={async () => {
                                 if (window.confirm("Deseja realmente desconectar a Meta? Suas automações pararão de funcionar.")) {
                                     try {
-                                        // Limpeza PROFUNDA no Firebase. Remove todas as chaves associadas à Meta.
                                         await updateDoc(doc(db, "settings", storeId), {
                                             "integrations.meta": {
                                                 marketingToken: null,
@@ -294,12 +281,9 @@ const [radiusKm, setRadiusKm] = useState(5);
                 </div>
             </div>
 
-            {/* SELEÇÃO DE OBJETIVOS (3 CARDS GIGANTES) */}
             <div>
                 <h3 className="text-2xl font-black text-slate-800 uppercase italic mb-6">Qual seu objetivo hoje?</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    
-                    {/* CARD 1: SEGUIDORES */}
                     <button 
                         onClick={() => handleOpenModal('followers')}
                         disabled={!metaStatus.hasAccountIds}
@@ -318,7 +302,6 @@ const [radiusKm, setRadiusKm] = useState(5);
                         </div>
                     </button>
 
-                    {/* CARD 2: VENDAS E PROMOÇÕES */}
                     <button 
                         onClick={() => handleOpenModal('sales')}
                         disabled={!metaStatus.hasAccountIds}
@@ -337,7 +320,6 @@ const [radiusKm, setRadiusKm] = useState(5);
                         </div>
                     </button>
 
-                    {/* CARD 3: PILOTO AUTOMÁTICO */}
                     <button 
                         onClick={() => handleOpenModal('smart')}
                         disabled={!metaStatus.hasAccountIds}
