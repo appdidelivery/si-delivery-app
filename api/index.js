@@ -4516,7 +4516,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 daily_budget: budgetCents,
                 billing_event: 'IMPRESSIONS',
                 optimization_goal: 'LINK_CLICKS',
-                bid_strategy: 'LOWEST_COST_WITHOUT_CAP', // 🚨 CORREÇÃO: Força a estratégia "Maior Volume"
+                bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
                 targeting: {
                     geo_locations: {
                         custom_locations: [{
@@ -4525,17 +4525,13 @@ Retorne APENAS um JSON com 3 chaves curtas:
                             radius: Number(radius),
                             distance_unit: 'kilometer'
                         }]
-                    },
-                    // Garante que o anúncio vai rodar nos Feeds e Stories do Insta/Face
-                    publisher_platforms: ['facebook', 'instagram']
+                    }
+                    // 🚨 REMOVIDO o publisher_platforms: Deixamos a Meta usar o Advantage+ Automático
                 },
                 status: 'PAUSED'
             });
 
             // PASSO 3: Criar o Criativo (Foto, Texto e Link do Cardápio)
-            
-            // 🚨 BLINDAGEM DE VÍDEO: Se a URL for um vídeo do Cloudinary, forçamos a extensão .jpg 
-            // para que a Meta extraia a capa (miniatura), evitando erro de formato.
             let safeImageUrl = imageUrl;
             if (safeImageUrl && safeImageUrl.includes('cloudinary.com')) {
                 safeImageUrl = safeImageUrl.replace(/\.mp4$/i, '.jpg').replace(/\.webm$/i, '.jpg');
@@ -4545,16 +4541,14 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 name: `Criativo - ${productName}`,
                 object_story_spec: {
                     page_id: pageId,
+                    instagram_actor_id: pageId, // 🚨 O SEGREDO: Autoriza o anúncio a rodar no Instagram usando a sua Página
                     link_data: {
                         image_url: safeImageUrl,
                         link: productUrl,
                         message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Toque em "Saiba mais" para pedir na hora.`,
-                        // Botão obrigatório configurado da forma exata que a Graph API v19 exige
                         call_to_action: { 
                             type: 'LEARN_MORE',
-                            value: {
-                                link: productUrl
-                            }
+                            value: { link: productUrl }
                         }
                     }
                 }
