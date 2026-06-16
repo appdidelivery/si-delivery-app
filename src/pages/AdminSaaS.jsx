@@ -297,12 +297,15 @@ export default function AdminSaaS() {
                 const ordersSnap = await getDocs(query(collection(db, 'orders'), where('storeId', '==', loja.id)));
                 const todosPedidosLoja = ordersSnap.docs.map(d => d.data());
 
-                // Nova Regra de Antecipação: Compara hoje com (Vencimento - 7 dias)
-                const dataParaCriacao = new Date(endOfCycle);
-                dataParaCriacao.setDate(dataParaCriacao.getDate() - 7);
+                // Loop seguro: vai quebrar (break) quando a data chegar no futuro
+                while (true) {
+                    // Calcula o dia exato que a fatura deve ser gerada (7 dias antes do vencimento)
+                    const dataParaCriacao = new Date(endOfCycle);
+                    dataParaCriacao.setDate(dataParaCriacao.getDate() - 7);
 
-                // Enquanto a data permitida para criar (vencimento - 7 dias) for Menor ou Igual a Hoje, o ciclo fechou e gera fatura!
-                while (dataParaCriacao <= hoje) {
+                    // Se a data de gerar a fatura ainda não chegou (está no futuro), PARA o loop!
+                    if (dataParaCriacao > hoje) break;
+
                     const nomeMesAno = endOfCycle.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                     const jaExiste = historicoAtual.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
                     
