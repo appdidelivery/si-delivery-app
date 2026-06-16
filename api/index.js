@@ -4531,7 +4531,7 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 status: 'PAUSED'
             });
 
-            // 🚨 PASSO 3: MÁGICA DE UPLOAD BINÁRIO (A ÚNICA FORMA 100% SEGURA)
+            // 🚨 PASSO 3: UPLOAD DA IMAGEM PARA A BIBLIOTECA DA META
             let safeImageUrl = imageUrl;
             if (safeImageUrl && safeImageUrl.includes('cloudinary.com')) {
                 safeImageUrl = safeImageUrl.replace(/\.mp4$/i, '.jpg').replace(/\.webm$/i, '.jpg');
@@ -4539,66 +4539,65 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             let imageHash = null;
             try {
-                // 1. O nosso Servidor (Vercel) faz o download da imagem do Cloudinary
-                const imgDownload = await fetch(safeImageUrl);
-                const imgBuffer = await imgDownload.arrayBuffer();
-                
-                // 2. Prepara o ficheiro binário nativo para a Meta
-                const formData = new FormData();
-                const blob = new Blob([imgBuffer], { type: 'image/jpeg' });
-                formData.append('filename', blob, 'criativo.jpg');
-
-                // 3. Faz o Upload direto para a Galeria de Mídia da Conta de Anúncios!
-                const imgUploadRes = await fetch(`https://graph.facebook.com/v19.0/${adAccountId}/adimages?access_token=${token}`, {
+                // Manda a Meta buscar a URL e guardar na sua biblioteca de anúncios
+                const imgRes = await fetch(`https://graph.facebook.com/v19.0/${adAccountId}/adimages?access_token=${token}`, {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: safeImageUrl }) 
                 });
                 
-                const imgData = await imgUploadRes.json();
+                const imgData = await imgRes.json();
                 
-                // Pega a HASH (O passaporte VIP da Meta)
                 if (imgData.images && Object.keys(imgData.images).length > 0) {
                     const firstKey = Object.keys(imgData.images)[0];
-                    imageHash = imgData.images[firstKey].hash;
+                    imageHash = imgData.images[firstKey].hash; // 👈 O Passaporte VIP!
+                } else if (imgData.error) {
+                    console.error("A Meta rejeitou a imagem:", imgData.error.message);
                 }
             } catch (err) {
-                console.error("Falha no upload binário da imagem:", err);
+                console.error("Falha ao subir imagem para a Meta:", err);
             }
 
-            // Se a imagem for inválida e não gerar Hash, paramos aqui com um aviso limpo.
+            // Se não gerou Hash, não tentamos forçar. Avisamos o lojista.
             if (!imageHash) {
-                return res.status(400).json({ error: "O Facebook recusou a foto deste produto. Tente anunciar outro item com uma foto diferente." });
+                return res.status(400).json({ error: "A Meta não conseguiu baixar a foto deste produto. Verifique se a foto é válida ou tente anunciar outro item." });
             }
 
+            // Ajuste de Link Localhost
             const isLocalhost = productUrl.includes('localhost') || productUrl.includes('127.0.0.1');
             const finalLink = isLocalhost ? 'https://velodelivery.com.br' : productUrl;
 
-            // PASSO 4: Criar o Criativo usando APENAS A HASH NATIVA (Sem botões extras que dão erro)
+            // PASSO 4: Criar o Criativo usando a HASH NATIVA (Sem falhas!)
             const creative = await fetchMeta(`${adAccountId}/adcreatives`, {
                 name: `Criativo - ${productName}`,
                 object_story_spec: {
                     page_id: pageId,
                     link_data: {
-                        image_hash: imageHash, // <--- A Meta ama isto. Nunca falha.
+                        image_hash: imageHash, 
                         link: finalLink,
-                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta.`
+                        name: `Peça ${productName} Agora!`, // Título do Anúncio (Em negrito)
+                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Toque em "Saiba mais" para pedir.`,
+                        call_to_action: { 
+                            type: 'LEARN_MORE',
+                            value: { link: finalLink }
+                        }
                     }
                 }
             });
 
-            // PASSO 5: Criar o Anúncio Final
+            // PASSO 5: Criar o Anúncio Final (Liga o Criativo ao Conjunto)
             const ad = await fetchMeta(`${adAccountId}/ads`, {
                 name: `Anúncio Velo - ${productName}`,
                 adset_id: adSet.id,
                 creative: { creative_id: creative.id },
-                status: 'PAUSED'
+                status: 'PAUSED' // Vai pausado por segurança
             });
 
+            // Sucesso Total!
             return res.status(200).json({ success: true, campaignId: campaign.id });
 
         } catch (error) {
             console.error("Erro Meta Ads:", error);
-            // 🚨 Retorna 400 para que o Front-end consiga ler a mensagem de erro e DESTRAVAR o botão de loading
             return res.status(400).json({ error: error.message });
         }
     }
