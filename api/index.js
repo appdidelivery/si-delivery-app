@@ -4509,14 +4509,14 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 is_adset_budget_sharing_enabled: false // <-- A MÁGICA ESTÁ AQUI: Diz pra Meta que o orçamento vai no AdSet e não na Campanha
             });
 
-            // PASSO 2: Criar o Conjunto de Anúncios (Público + Raio de Entrega)
+           // PASSO 2: Criar o Conjunto de Anúncios (Público + Raio de Entrega)
             const adSet = await fetchMeta(`${adAccountId}/adsets`, {
                 name: `📍 Raio ${radius}km ao redor da Loja`,
                 campaign_id: campaign.id,
                 daily_budget: budgetCents,
                 billing_event: 'IMPRESSIONS',
                 optimization_goal: 'LINK_CLICKS',
-                promoted_object: { page_id: pageId },
+                bid_strategy: 'LOWEST_COST_WITHOUT_CAP', // 🚨 CORREÇÃO: Força a estratégia "Maior Volume"
                 targeting: {
                     geo_locations: {
                         custom_locations: [{
@@ -4525,7 +4525,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
                             radius: Number(radius),
                             distance_unit: 'kilometer'
                         }]
-                    }
+                    },
+                    // Garante que o anúncio vai rodar nos Feeds e Stories do Insta/Face
+                    publisher_platforms: ['facebook', 'instagram']
                 },
                 status: 'PAUSED'
             });
