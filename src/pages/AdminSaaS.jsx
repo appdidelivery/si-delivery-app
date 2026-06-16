@@ -297,8 +297,12 @@ export default function AdminSaaS() {
                 const ordersSnap = await getDocs(query(collection(db, 'orders'), where('storeId', '==', loja.id)));
                 const todosPedidosLoja = ordersSnap.docs.map(d => d.data());
 
-                // Enquanto a data de fim do ciclo for Menor ou Igual a Hoje, o ciclo fechou e gera fatura!
-                while (endOfCycle <= hoje) {
+                // Nova Regra de Antecipação: Compara hoje com (Vencimento - 7 dias)
+                const dataParaCriacao = new Date(endOfCycle);
+                dataParaCriacao.setDate(dataParaCriacao.getDate() - 7);
+
+                // Enquanto a data permitida para criar (vencimento - 7 dias) for Menor ou Igual a Hoje, o ciclo fechou e gera fatura!
+                while (dataParaCriacao <= hoje) {
                     const nomeMesAno = endOfCycle.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                     const jaExiste = historicoAtual.some(f => f.month.toLowerCase().includes(nomeMesAno.split(' ')[0].toLowerCase()));
                     
