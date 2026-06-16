@@ -4385,32 +4385,40 @@ Retorne APENAS um JSON com 3 chaves curtas:
             const userRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${longLivedToken}`);
             const userData = await userRes.json();
 
-            // 3. MÁGICA: Busca automaticamente a primeira Conta de Anúncios ATIVA do lojista
+           // 3. MÁGICA: Busca a lista de todas as Contas de Anúncios ATIVAS do lojista
+            let availableAdAccounts = [];
             let adAccountId = null;
             let adAccountName = null;
             try {
                 const adRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,account_status&access_token=${longLivedToken}`);
                 const adData = await adRes.json();
                 if (adData.data && adData.data.length > 0) {
-                    const activeAccount = adData.data.find(acc => acc.account_status === 1) || adData.data[0];
-                    adAccountId = activeAccount.id; // O ID já vem com o prefixo 'act_'
-                    adAccountName = activeAccount.name;
+                    // Filtra só as contas ativas e guarda a lista
+                    availableAdAccounts = adData.data.filter(acc => acc.account_status === 1).map(acc => ({ id: acc.id, name: acc.name }));
+                    if (availableAdAccounts.length > 0) {
+                        adAccountId = availableAdAccounts[0].id;
+                        adAccountName = availableAdAccounts[0].name;
+                    }
                 }
             } catch (e) { console.error("Erro ao buscar Ad Accounts", e); }
 
-            // 4. MÁGICA: Busca automaticamente a primeira Página do Facebook do lojista
+            // 4. MÁGICA: Busca a lista de todas as Páginas do Facebook do lojista
+            let availablePages = [];
             let pageId = null;
             let pageName = null;
             try {
                 const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=id,name&access_token=${longLivedToken}`);
                 const pageData = await pageRes.json();
                 if (pageData.data && pageData.data.length > 0) {
-                    pageId = pageData.data[0].id;
-                    pageName = pageData.data[0].name;
+                    availablePages = pageData.data.map(p => ({ id: p.id, name: p.name }));
+                    if (availablePages.length > 0) {
+                        pageId = availablePages[0].id;
+                        pageName = availablePages[0].name;
+                    }
                 }
             } catch (e) { console.error("Erro ao buscar Pages", e); }
 
-            // 5. Salva de forma isolada e segura no Firestore do Lojista
+            // 5. Salva a configuração atual E as listas disponíveis no Firestore
             await db.collection('settings').doc(storeId).set({
                 integrations: {
                     meta: {
@@ -4421,6 +4429,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
                         adAccountName: adAccountName,
                         pageId: pageId,
                         pageName: pageName,
+                        availableAdAccounts: availableAdAccounts, // Guarda a lista
+                        availablePages: availablePages,           // Guarda a lista
                         healthStatus: 'healthy',
                         connectedAt: admin.firestore.FieldValue.serverTimestamp()
                     }
@@ -4430,10 +4440,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(200).json({ 
                 success: true, 
                 longLivedToken, 
-                userId: userData.id, 
                 userName: userData.name,
                 adAccountName,
-                pageName
+                pageName,
+                availableAdAccounts,
+                availablePages
             });
 
         } catch (error) {

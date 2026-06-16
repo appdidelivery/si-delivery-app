@@ -19,6 +19,7 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
     // Estados da Tabela de Campanhas
     const [campaignsList, setCampaignsList] = useState([]);
     const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+    const [campaignFilter, setCampaignFilter] = useState('ALL');
 
     const handleFetchMetaAssets = async () => {
         const token = settings?.integrations?.meta?.marketingToken;
@@ -342,73 +343,189 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
             </div>
 
             {/* MINHAS CAMPANHAS (DADOS REAIS DA META) */}
-            <div className="pt-8 border-t border-slate-200">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-2xl font-black text-slate-800 uppercase italic">Minhas Campanhas</h3>
+            <div className="pt-8 border-t border-slate-200 animate-in fade-in">
+                
+                {/* CABEÇALHO DA TABELA */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div>
+                        <h3 className="text-2xl font-black text-slate-800 uppercase italic">Minhas Campanhas</h3>
+                        <p className="text-xs font-bold text-slate-400">Resultados dos últimos 30 dias (Atualizado ao vivo).</p>
+                    </div>
                     <button 
                         onClick={fetchCampaigns}
                         disabled={isLoadingCampaigns}
-                        className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-100 transition-all disabled:opacity-50"
+                        className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg active:scale-95 disabled:opacity-50"
                     >
                         {isLoadingCampaigns ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>}
-                        Atualizar
+                        {isLoadingCampaigns ? 'Sincronizando...' : 'Sincronizar Meta'}
                     </button>
                 </div>
 
-                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                {/* 🚨 SUPER CARDS DE RESUMO (KPIs GLOBAIS) */}
+                {campaignsList.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Gasto Total</p>
+                            <p className="text-2xl font-black text-red-500 italic leading-none">
+                                R$ {campaignsList.reduce((acc, c) => acc + Number(c.spend || 0), 0).toFixed(2)}
+                            </p>
+                        </div>
+                        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 flex items-center gap-1">Vendas (Site)</p>
+                            <p className="text-2xl font-black text-blue-600 italic leading-none">
+                                {campaignsList.reduce((acc, c) => acc + Number(c.purchases || 0), 0)}
+                            </p>
+                        </div>
+                        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Receita Gerada</p>
+                            <p className="text-2xl font-black text-green-500 italic leading-none">
+                                R$ {campaignsList.reduce((acc, c) => acc + Number(c.revenue || 0), 0).toFixed(2)}
+                            </p>
+                        </div>
+                        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-5 rounded-3xl shadow-md flex flex-col justify-center text-white">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200 mb-1">ROAS Global (Retorno)</p>
+                            <p className="text-2xl font-black italic leading-none">
+                                {(() => {
+                                    const tGasto = campaignsList.reduce((acc, c) => acc + Number(c.spend || 0), 0);
+                                    const tReceita = campaignsList.reduce((acc, c) => acc + Number(c.revenue || 0), 0);
+                                    return tGasto > 0 ? (tReceita / tGasto).toFixed(2) : '0.00';
+                                })()}x
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* FILTROS TIPO "TRIPLE WHALE / MADGICX" */}
+                {campaignsList.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto custom-scrollbar mb-4 pb-2">
+                        {['ALL', 'ACTIVE', 'PAUSED'].map(filter => (
+                            <button 
+                                key={filter}
+                                onClick={() => setCampaignFilter(filter)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap shadow-sm ${
+                                    campaignFilter === filter 
+                                    ? 'bg-blue-600 text-white border-blue-600' 
+                                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                                }`}
+                            >
+                                {filter === 'ALL' ? 'Todas' : filter === 'ACTIVE' ? '🟢 Ativas' : '⏸️ Pausadas'}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* TABELA PROFISSIONAL */}
+                <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
                     {isLoadingCampaigns && campaignsList.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-10 text-slate-400">
-                            <Loader2 size={32} className="animate-spin mb-2" />
-                            <p className="text-xs font-black uppercase tracking-widest">Buscando na Meta...</p>
+                        <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+                            <Loader2 size={32} className="animate-spin mb-3 text-blue-500" />
+                            <p className="text-xs font-black uppercase tracking-widest">Sincronizando com a Meta...</p>
                         </div>
                     ) : campaignsList.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-10 text-slate-400">
-                            <Megaphone size={40} className="mb-3 opacity-50" />
-                            <p className="text-sm font-bold">Nenhuma campanha encontrada.</p>
-                            <p className="text-xs mt-1">Crie a sua primeira campanha nos botões acima.</p>
+                        <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                <Megaphone size={32} className="text-slate-300" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-600">Nenhuma campanha encontrada.</p>
+                            <p className="text-xs mt-1">Crie a sua primeira campanha usando os cartões acima.</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100">
-                                    <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
-                                        <th className="p-5 font-black">Nome da Campanha</th>
-                                        <th className="p-5 font-black text-center">Status</th>
-                                        <th className="p-5 font-black text-center">Cliques</th>
-                                        <th className="p-5 font-black text-center">Gasto</th>
+                                    <tr className="text-[9px] text-slate-400 uppercase tracking-widest">
+                                        <th className="p-4 font-black">Campanha & Objetivo</th>
+                                        <th className="p-4 font-black text-center">Status</th>
+                                        <th className="p-4 font-black text-right">Gasto</th>
+                                        <th className="p-4 font-black text-center">Cliques</th>
+                                        <th className="p-4 font-black text-center bg-green-50/50">Vendas (R$)</th>
+                                        <th className="p-4 font-black text-center">ROAS</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm font-bold text-slate-700 divide-y divide-slate-50">
-                                    {campaignsList.map(camp => (
-                                        <tr key={camp.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="p-5">{camp.name}</td>
-                                            <td className="p-5 text-center">
-                                                <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                                                    camp.status.includes('ACTIVE') ? 'bg-green-100 text-green-700' : 
-                                                    camp.status.includes('PAUSED') ? 'bg-orange-100 text-orange-700' : 
-                                                    'bg-slate-100 text-slate-600'
-                                                }`}>
-                                                    {camp.status.replace('CAMPAIGN_', '')}
-                                                </span>
-                                            </td>
-                                            <td className="p-5 text-center text-blue-600">{camp.clicks || 0}</td>
-                                            <td className="p-5 text-center text-red-500">R$ {Number(camp.spend || 0).toFixed(2)}</td>
-                                        </tr>
-                                    ))}
+                                    {campaignsList
+                                        .filter(c => campaignFilter === 'ALL' || c.status.includes(campaignFilter))
+                                        .map(camp => {
+                                            const objMap = { 
+                                                'OUTCOME_TRAFFIC': { label: 'Tráfego', icon: '🌐', color: 'text-blue-500' },
+                                                'OUTCOME_SALES': { label: 'Vendas', icon: '🛍️', color: 'text-green-500' },
+                                                'OUTCOME_ENGAGEMENT': { label: 'Engajamento', icon: '💬', color: 'text-pink-500' },
+                                                'UNKNOWN': { label: 'Campanha', icon: '📁', color: 'text-slate-400' }
+                                            };
+                                            const objetivo = objMap[camp.objective] || objMap['UNKNOWN'];
+                                            
+                                            // Lógica de Cor do ROAS (Verde = Bom, Amarelo = Empate, Vermelho = Prejuízo)
+                                            const roasNum = Number(camp.roas);
+                                            let roasColor = 'bg-slate-100 text-slate-600';
+                                            if (roasNum >= 3) roasColor = 'bg-green-100 text-green-700';
+                                            else if (roasNum > 1 && roasNum < 3) roasColor = 'bg-yellow-100 text-yellow-700';
+                                            else if (roasNum > 0 && roasNum <= 1) roasColor = 'bg-red-100 text-red-700';
+
+                                            return (
+                                            <tr key={camp.id} className="hover:bg-slate-50 transition-colors">
+                                                {/* Nome e Objetivo */}
+                                                <td className="p-4">
+                                                    <p className="text-xs font-black text-slate-800 line-clamp-1" title={camp.name}>{camp.name}</p>
+                                                    <p className={`text-[9px] uppercase font-black tracking-widest mt-1 ${objetivo.color}`}>
+                                                        {objetivo.icon} {objetivo.label}
+                                                    </p>
+                                                </td>
+                                                
+                                                {/* Status */}
+                                                <td className="p-4 text-center">
+                                                    <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shadow-sm border ${
+                                                        camp.status.includes('ACTIVE') ? 'bg-green-50 text-green-600 border-green-200' : 
+                                                        camp.status.includes('PAUSED') ? 'bg-slate-100 text-slate-500 border-slate-200' : 
+                                                        'bg-red-50 text-red-500 border-red-200'
+                                                    }`}>
+                                                        {camp.status.includes('ACTIVE') ? 'Ativa' : camp.status.includes('PAUSED') ? 'Pausada' : 'Inativa'}
+                                                    </span>
+                                                </td>
+                                                
+                                                {/* Gasto */}
+                                                <td className="p-4 text-right text-red-500 font-black italic">
+                                                    R$ {Number(camp.spend || 0).toFixed(2)}
+                                                </td>
+                                                
+                                                {/* Cliques */}
+                                                <td className="p-4 text-center">
+                                                    <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs font-black">
+                                                        {camp.clicks || 0}
+                                                    </span>
+                                                </td>
+
+                                                {/* Vendas (Quantidade + Dinheiro) */}
+                                                <td className="p-4 text-center bg-green-50/30">
+                                                    <p className="text-xs font-black text-green-600">{camp.purchases || 0} pedidos</p>
+                                                    <p className="text-[10px] text-green-700 mt-0.5">R$ {Number(camp.revenue || 0).toFixed(2)}</p>
+                                                </td>
+
+                                                {/* ROAS (Badge colorido) */}
+                                                <td className="p-4 text-center">
+                                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${roasColor} shadow-sm border border-black/5`}>
+                                                        {camp.roas > 0 ? `${camp.roas}x` : '-'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        )})}
                                 </tbody>
                             </table>
                         </div>
                     )}
                 </div>
                 
-                <div className="mt-4 text-center">
+                <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                    <p className="text-[10px] font-bold text-blue-800 leading-relaxed text-center md:text-left">
+                        <span className="font-black uppercase tracking-widest block mb-1">Dica de Especialista:</span>
+                        Se o ROAS (Retorno Sobre o Gasto) estiver acima de 3x, escale o orçamento. Se estiver abaixo de 1x, pause a campanha e teste uma foto diferente!
+                    </p>
                     <a 
                         href="https://adsmanager.facebook.com/" 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-[10px] font-black text-blue-500 uppercase tracking-widest hover:underline flex items-center justify-center gap-1"
+                        className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-md whitespace-nowrap"
                     >
-                        Abrir Gerenciador de Anúncios Profissional <ExternalLink size={12} />
+                        Abrir Ads Manager <ExternalLink size={12} />
                     </a>
                 </div>
             </div>
