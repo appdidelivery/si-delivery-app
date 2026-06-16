@@ -113,22 +113,8 @@ const [radiusKm, setRadiusKm] = useState(5);
         }
     }, [settings]); // Removido storeStatus para evitar loops desnecessários, já que os dados da Meta estão em 'settings'
 
-    const handleOpenModal = (objectiveId) => {
-        setSelectedObjective(objectiveId);
-        setIsCampaignModalOpen(true);
-    };
-
-    const handleCreateCampaign = async (e) => {
-        e.preventDefault();
-        if (!selectedProduct) return alert("Selecione um produto para anunciar.");
-        
-        const product = products.find(p => p.id === selectedProduct);
-        if (!product || (!product.imageUrl && !product.videoUrl)) {
-            return alert("O produto selecionado precisa ter uma foto cadastrada no estoque.");
-        }
-
-        setIsSubmitting(true);
-const fetchCampaigns = async () => {
+    // 🚨 FUNÇÃO CORRIGIDA: Buscar campanhas agora está solta e livre!
+    const fetchCampaigns = async () => {
         setIsLoadingCampaigns(true);
         try {
             const res = await fetch(`/api/meta-campaigns?storeId=${storeId}`);
@@ -149,6 +135,23 @@ const fetchCampaigns = async () => {
             fetchCampaigns();
         }
     }, [metaStatus.isConnected]);
+
+    const handleOpenModal = (objectiveId) => {
+        setSelectedObjective(objectiveId);
+        setIsCampaignModalOpen(true);
+    };
+
+    const handleCreateCampaign = async (e) => {
+        e.preventDefault();
+        if (!selectedProduct) return alert("Selecione um produto para anunciar.");
+        
+        const product = products.find(p => p.id === selectedProduct);
+        if (!product || (!product.imageUrl && !product.videoUrl)) {
+            return alert("O produto selecionado precisa ter uma foto cadastrada no estoque.");
+        }
+
+        setIsSubmitting(true);
+
         // Monta o link do produto
         const domain = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
         const safeSlug = product.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
