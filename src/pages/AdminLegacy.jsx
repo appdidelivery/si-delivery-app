@@ -1492,17 +1492,19 @@ const educationalBanners = [
         }
 
         const now = new Date();
-        let pastCycleStart, pastCycleEnd, pastDueDate;
+        let pastCycleStart, pastCycleEnd, pastDueDate;
 
-        if (now.getDate() > diaVencimento) {
-            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
-            pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
-            pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
-        } else {
-            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
-            pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
-            pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
-        }
+        // NOVO: Antecipa a geração da fatura em 7 dias (Ex: Se vence dia 17, gera dia 10)
+        // Isso permite que o lojista veja a fatura antes, pague com calma e receba o aviso amarelo de "Fatura Próxima"
+        if (now.getDate() >= (diaVencimento - 7)) {
+            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+            pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
+            pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+        } else {
+            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
+            pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
+            pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+        }
 
         const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
         const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;

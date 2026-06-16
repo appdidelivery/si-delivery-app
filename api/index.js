@@ -494,96 +494,92 @@ export default async function handler(req, res) {
             console.log("⏱️ Iniciando Rotina de Automação e Faturamento...");
             const batch = db.batch();
             
-            // --- INÍCIO: MOTOR DE FATURAMENTO AUTOMÁTICO (ROLLING BILLING) ---
-            const brazilTime = new Date(new Date().getTime() - 3 * 3600 * 1000); // Fuso UTC-3
-            const todayDay = brazilTime.getDate();
-            let faturasGeradas = 0;
+           // --- INÍCIO: MOTOR DE FATURAMENTO AUTOMÁTICO (ROLLING BILLING) ---
+            const brazilTime = new Date(new Date().getTime() - 3 * 3600 * 1000); // Fuso UTC-3
+            const todayDay = brazilTime.getDate();
+            let faturasGeradas = 0;
 
-            const storesQuery = await db.collection('stores').get();
-            
-            for (const storeDoc of storesQuery.docs) {
-                const storeData = storeDoc.data();
-                if (!storeData.createdAt) continue;
+            const storesQuery = await db.collection('stores').get();
+            
+            for (const storeDoc of storesQuery.docs) {
+                const storeData = storeDoc.data();
+                if (!storeData.createdAt) continue;
 
-                // BLINDAGEM DE DATAS: Aceita Timestamp do Firebase ou Texto (String ISO)
-                let dataCriacao;
-                if (storeData.createdAt && typeof storeData.createdAt.toDate === 'function') {
-                    dataCriacao = storeData.createdAt.toDate();
-                } else {
-                    dataCriacao = new Date(storeData.createdAt);
-                }
+                let dataCriacao;
+                if (storeData.createdAt && typeof storeData.createdAt.toDate === 'function') {
+                    dataCriacao = storeData.createdAt.toDate();
+                } else {
+                    dataCriacao = new Date(storeData.createdAt);
+                }
 
-                if (isNaN(dataCriacao)) continue;
+                if (isNaN(dataCriacao)) continue;
 
-                const diaVencimento = dataCriacao.getDate();
+                const diaVencimento = dataCriacao.getDate();
 
-                // Hoje é o aniversário do ciclo da loja?
-                if (todayDay >= diaVencimento) {
-                    const nomeMesAno = brazilTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                    const faturas = storeData.faturasHistorico || [];
-                    const faturaJaExiste = faturas.some(f => f.month.toLowerCase() === nomeMesAno.toLowerCase() && f.isAuto);
-                    
-                    if (!faturaJaExiste) {
-                        const startOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth() - 1, diaVencimento);
-                        const endOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth(), diaVencimento);
+                // Correção: Verifica se passou do dia do vencimento E se a fatura do mês atual ainda não foi gerada
+                const nomeMesAno = brazilTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                const faturas = storeData.faturasHistorico || [];
+                const faturaJaExiste = faturas.some(f => f.month.toLowerCase() === nomeMesAno.toLowerCase() && f.isAuto);
+                
+                // NOVO: O Cron gera a fatura 7 dias ANTES do vencimento para o cliente ter tempo de pagar
+                if (todayDay >= (diaVencimento - 7) && !faturaJaExiste) {
+                    const startOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth() - 1, diaVencimento);
+                    const endOfCycle = new Date(brazilTime.getFullYear(), brazilTime.getMonth(), diaVencimento);
 
-                        const ordersSnap = await db.collection('orders').where('storeId', '==', storeDoc.id).get();
-                        
-                        const ordersCount = ordersSnap.docs.filter(d => {
-                            const oData = d.data();
-                            if (oData.status === 'canceled') return false;
-                            
-                            // Blindagem de data nos pedidos também
-                            let dt;
-                            if (oData.createdAt && typeof oData.createdAt.toDate === 'function') {
-                                dt = oData.createdAt.toDate();
-                            } else {
-                                dt = new Date(oData.createdAt || 0);
-                            }
-                            return dt >= startOfCycle && dt < endOfCycle;
-                        }).length;
-                        
-                        const extraOrders = Math.max(0, ordersCount - 100);
-                        const extraCost = extraOrders * 0.25;
-                        const isCortesia = storeData.billingStatus === 'gratis_vitalicio';
-                        
-                        // Mantém o valor cheio para o Extrato riscar e gerar a sensação de Economia
-                        const totalFatura = 49.90 + extraCost;
-                        const statusFatura = isCortesia ? 'ISENTO' : 'PENDENTE';
-
-                        const novaFatura = {
-                            id: `cron_${brazilTime.getTime()}`,
-                            month: nomeMesAno,
-                            amount: `R$ ${totalFatura.toFixed(2).replace('.', ',')}`,
-                            status: statusFatura,
-                            dueDate: endOfCycle.toISOString(),
-                            createdAt: brazilTime.toISOString(),
-                            isAuto: true,
-                            breakdown: {
-                                basePlan: 49.90,
-                                extraOrdersCost: extraCost,
-                                discount: isCortesia ? (49.90 + extraCost) : 0
-                            }
-                        };
-
-                        const updateData = { faturasHistorico: admin.firestore.FieldValue.arrayUnion(novaFatura) };
-                        
-                      if (!isCortesia && storeData.billingStatus !== 'teste' && storeData.billingStatus !== 'bloqueado') {
-                            updateData.billingStatus = 'pendente';
+                    const ordersSnap = await db.collection('orders').where('storeId', '==', storeDoc.id).get();
+                    
+                    const ordersCount = ordersSnap.docs.filter(d => {
+                        const oData = d.data();
+                        if (oData.status === 'canceled') return false;
+                        
+                        let dt;
+                        if (oData.createdAt && typeof oData.createdAt.toDate === 'function') {
+                            dt = oData.createdAt.toDate();
+                        } else {
+                            dt = new Date(oData.createdAt || 0);
                         }
+                        return dt >= startOfCycle && dt < endOfCycle;
+                    }).length;
+                    
+                    const extraOrders = Math.max(0, ordersCount - 100);
+                    const extraCost = extraOrders * 0.25;
+                    const isCortesia = storeData.billingStatus === 'gratis_vitalicio';
+                    
+                    const totalFatura = 49.90 + extraCost;
+                    const statusFatura = isCortesia ? 'ISENTO' : 'PENDENTE';
 
-                        batch.update(storeDoc.ref, updateData);
+                    const novaFatura = {
+                        id: `cron_${brazilTime.getTime()}`,
+                        month: nomeMesAno,
+                        amount: `R$ ${totalFatura.toFixed(2).replace('.', ',')}`,
+                        status: statusFatura,
+                        dueDate: endOfCycle.toISOString(),
+                        createdAt: brazilTime.toISOString(),
+                        isAuto: true,
+                        breakdown: {
+                            basePlan: 49.90,
+                            extraOrdersCost: extraCost,
+                            discount: isCortesia ? (49.90 + extraCost) : 0
+                        }
+                    };
 
-                        // NOVO: Salva também na subcoleção 'analytics'
-                        const analyticsRef = storeDoc.ref.collection('analytics').doc(novaFatura.id);
-                        batch.set(analyticsRef, novaFatura, { merge: true });
+                    const updateData = { faturasHistorico: admin.firestore.FieldValue.arrayUnion(novaFatura) };
+                    
+                    if (!isCortesia && storeData.billingStatus !== 'teste' && storeData.billingStatus !== 'bloqueado') {
+                        updateData.billingStatus = 'pendente';
+                    }
 
-                        faturasGeradas++;
-                    }
-                }
-            }
-            console.log(`✅ Motor de Faturamento: ${faturasGeradas} faturas fechadas hoje.`);
-            // --- FIM: MOTOR DE FATURAMENTO AUTOMÁTICO ---
+                    batch.update(storeDoc.ref, updateData);
+
+                    // NOVO: Salva também a fatura na subcoleção 'analytics'
+                    const analyticsRef = storeDoc.ref.collection('analytics').doc(novaFatura.id);
+                    batch.set(analyticsRef, novaFatura, { merge: true });
+
+                    faturasGeradas++;
+                }
+            }
+            console.log(`✅ Motor de Faturamento: ${faturasGeradas} faturas fechadas hoje.`);
+            // --- FIM: MOTOR DE FATURAMENTO AUTOMÁTICO ---
 
             let alertsSent = 0;
             const now = new Date();
