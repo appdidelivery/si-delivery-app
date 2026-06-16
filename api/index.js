@@ -4534,8 +4534,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
 
             // PASSO 3: Criar o Criativo (Foto, Texto e Link do Cardápio)
             
-            // 🚨 BLINDAGEM DE VÍDEO: Se a URL for um vídeo do Cloudinary (.mp4, .webm), forçamos a extensão .jpg 
-            // para que a Meta extraia a capa (miniatura) estática, evitando o erro de "Formato Inválido".
+            // 🚨 BLINDAGEM DE VÍDEO: Se a URL for um vídeo do Cloudinary, forçamos a extensão .jpg 
+            // para que a Meta extraia a capa (miniatura), evitando erro de formato.
             let safeImageUrl = imageUrl;
             if (safeImageUrl && safeImageUrl.includes('cloudinary.com')) {
                 safeImageUrl = safeImageUrl.replace(/\.mp4$/i, '.jpg').replace(/\.webm$/i, '.jpg');
@@ -4548,25 +4548,13 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     link_data: {
                         image_url: safeImageUrl,
                         link: productUrl,
-                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Clique em "Saiba mais" para abrir o cardápio e pedir na hora.`,
-                        name: `Peça ${productName} Agora!`, // Título do Anúncio (Negrito)
-                        
-                        // 🚨 CORREÇÃO CRÍTICA DO ERRO "object_story_spec": 
-                        // A Meta EXIGE que o call_to_action tenha o objeto "value" com o "link" dentro.
+                        message: `Bateu aquela fome? Peça agora o seu ${productName}! 😋\n\n🛵💨 Entrega rápida na sua porta ou retire no balcão.\n👉 Toque em "Saiba mais" para pedir na hora.`,
+                        // Botão obrigatório configurado da forma exata que a Graph API v19 exige
                         call_to_action: { 
                             type: 'LEARN_MORE',
                             value: {
                                 link: productUrl
                             }
-                        }
-                    }
-                },
-                // 🚨 PROATIVO (Anti-Erro Instagram): Dizemos à Meta para ajustar a foto 
-                // automaticamente para os Stories e Reels, evitando erros de dimensão.
-                degrees_of_freedom_spec: {
-                    creative_features_spec: {
-                        standard_enhancements: {
-                            enroll_status: 'OPT_IN'
                         }
                     }
                 }
