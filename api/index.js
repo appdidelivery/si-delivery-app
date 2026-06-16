@@ -361,6 +361,65 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------------------
+    // 2.5 GERAR PIX DIRETO (TRANSPARENTE) PARA FATURA VELO SAAS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/pay-subscription-mp-pix') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeId, amount, invoiceId } = req.body;
+        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para PIX.' });
+
+        try {
+            const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
+            const finalInvoiceId = invoiceId || 'avulsa';
+
+            const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                    'Content-Type': 'application/json',
+                    'X-Idempotency-Key': `fatura_pix_${storeId}_${finalInvoiceId}_${Date.now()}`
+                },
+                body: JSON.stringify({
+                    transaction_amount: Number(amount),
+                    description: `Fatura Mensal - Velo Delivery (${storeId})`,
+                    payment_method_id: "pix",
+                    payer: {
+                        email: `faturas_${storeId}@velodelivery.com.br`, // E-mail fictício válido obrigatório para a API
+                        first_name: "Lojista",
+                        last_name: storeId
+                    },
+                    external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`, // O Webhook lê isso e dá a baixa!
+                    notification_url: `https://${req.headers.host}/api/mp-webhook`
+                })
+            });
+
+            const data = await mpResponse.json();
+
+            if (!mpResponse.ok || !data.point_of_interaction?.transaction_data) {
+                console.error("Erro ao gerar PIX Transparente SaaS:", data);
+                return res.status(400).json({ error: "Erro ao gerar chave PIX.", details: data });
+            }
+
+            return res.status(200).json({ 
+                success: true,
+                qrCodeBase64: data.point_of_interaction.transaction_data.qr_code_base64,
+                copiaECola: data.point_of_interaction.transaction_data.qr_code,
+                paymentId: data.id
+            });
+        } catch (error) {
+            console.error('Erro no PIX SaaS:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 3. CREATE CONNECT ACCOUNT
     // ------------------------------------------------------------------------
     else if (path === '/api/create-connect-account') {

@@ -354,6 +354,52 @@ export default function Admin() {
         }
     };
 
+    // --- NOVO: FUNÇÃO PARA GERAR O PIX NA TELA ---
+    const handleGeneratePixInvoice = async (invoiceIdOverride = null) => {
+        if (!storeId) return alert("Erro: Loja não identificada.");
+        setIsGeneratingPix(true);
+        setShowPixModal(true); // Abre o modal com loading
+        setPixData({ qrCodeBase64: null, copiaECola: null });
+
+        try {
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const apiUrl = isLocal ? '/api/pay-subscription-mp-pix' : 'https://app.velodelivery.com.br/api/pay-subscription-mp-pix';
+
+            const amountToPay = invoiceData?.total || 49.90;
+            
+            let targetInvoiceId = invoiceIdOverride;
+            if (!targetInvoiceId && storeStatus?.faturasHistorico) {
+                const pendentes = storeStatus.faturasHistorico.filter(f => f.status === 'PENDENTE' || f.status === 'pendente');
+                if (pendentes.length > 0) targetInvoiceId = pendentes[0].id;
+            }
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    storeId: storeId, 
+                    amount: amountToPay,
+                    invoiceId: targetInvoiceId || 'avulsa'
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                setPixData({ qrCodeBase64: data.qrCodeBase64, copiaECola: data.copiaECola });
+            } else {
+                alert("Erro ao gerar PIX: " + (data.error || "Desconhecido"));
+                setShowPixModal(false);
+            }
+        } catch (error) {
+            console.error("Erro no PIX da fatura:", error);
+            alert("Erro de conexão ao tentar gerar o PIX.");
+            setShowPixModal(false);
+        } finally {
+            setIsGeneratingPix(false);
+        }
+    };
+
     // --- INTEGRAÇÃO STRIPE CONNECT EXPRESS ---
     const handleConectarBanco = async () => {
         try {
@@ -1204,6 +1250,8 @@ const educationalBanners = [
         status: 'open'
     });
     const [showPixModal, setShowPixModal] = useState(false);
+    const [pixData, setPixData] = useState({ qrCodeBase64: null, copiaECola: null }); // NOVO ESTADO
+    const [isGeneratingPix, setIsGeneratingPix] = useState(false); // NOVO ESTADO
     const [loyaltyRedemptions, setLoyaltyRedemptions] = useState([]);
     const [reviewsList, setReviewsList] = useState([]);
     const [showAllVips, setShowAllVips] = useState(false); // CORREÇÃO: Estado que controla o limite da lista VIP
@@ -9079,13 +9127,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             🎁 Plano Cortesia Ativo
                                         </div>
                                     ) : storeStatus?.billingStatus === 'pago' ? (
-                                        <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
-                                            ✅ Fatura Paga
-                                        </div>
-                                    ) : (
-                                        <button onClick={() => handlePayOverdueInvoice()} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                            <Landmark size={20}/> Pagar Fatura (Mercado Pago)
-                                        </button>
+                                        <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
+                                            ✅ Fatura Paga
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col md:flex-row gap-3 w-full">
+                                            <button onClick={() => handleGeneratePixInvoice()} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                                <QrCode size={20}/> Pagar com PIX
+                                            </button>
+                                            <button onClick={() => handlePayOverdueInvoice()} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                                <CreditCard size={20}/> Pagar c/ Cartão
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -12498,7 +12551,50 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
+{/* MODAL DE PAGAMENTO PIX DINÂMICO (SAAS) */}
+            <AnimatePresence>
+               {showPixModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center shadow-2xl flex flex-col items-center">
+                            <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X size={24}/></button>
+                            
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2 mt-4">Pagamento PIX</h2>
+                            <p className="text-slate-500 font-bold mb-6">Escaneie o QR Code abaixo com o app do seu banco.</p>
 
+                            {isGeneratingPix || !pixData.qrCodeBase64 ? (
+                                <div className="flex flex-col items-center justify-center h-48 w-48 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 mb-6">
+                                    <Loader2 className="animate-spin text-emerald-500 mb-2" size={32} />
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Gerando PIX...</span>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="bg-white p-2 rounded-3xl border-4 border-emerald-100 shadow-md mb-6">
+                                        <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" className="w-48 h-48 object-contain rounded-2xl" />
+                                    </div>
+
+                                    <div className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl mb-6 relative group cursor-pointer" onClick={() => {
+                                        navigator.clipboard.writeText(pixData.copiaECola);
+                                        alert("Código Copia e Cola copiado com sucesso!");
+                                    }}>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Pix Copia e Cola (Clique para Copiar)</p>
+                                        <p className="text-xs font-mono text-slate-600 break-all line-clamp-3 select-all">{pixData.copiaECola}</p>
+                                        <div className="absolute inset-0 bg-blue-600/90 text-white rounded-2xl flex items-center justify-center font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Copy size={16} className="mr-2"/> Copiar Código
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                            
+                            <button onClick={() => {
+                                setShowPixModal(false);
+                                alert("Assim que o pagamento for concluído no seu banco, atualize a página. A liberação do painel é imediata.");
+                            }} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 active:scale-95 transition-all">
+                                Já realizei o pagamento
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* --- FLUXO DE BLOQUEIOS (ONBOARDING E FATURA) --- */}
             {/* 1. SE A FATURA ESTIVER VENCIDA E OS TERMOS JÁ TIVEREM SIDO ACEITOS */}
             {isOverdue && storeStatus?.termsAccepted && (
@@ -12516,9 +12612,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
                             <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
                         </div>
-                        <button onClick={handlePayOverdueInvoice} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
-                            <QrCode size={20}/> Pagar via Mercado Pago
-                        </button>
+                        <div className="flex gap-2 w-full">
+                            <button onClick={() => handleGeneratePixInvoice()} className="flex-[1.5] bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
+                                <QrCode size={20}/> Pagar com PIX
+                            </button>
+                            <button onClick={() => handlePayOverdueInvoice()} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
+                                <CreditCard size={20}/> Cartão
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -13354,9 +13455,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {selectedInvoice.status === 'PENDENTE' && (
-                                <button onClick={() => handlePayOverdueInvoice(selectedInvoice.id)} className="w-full mt-4 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                    <Landmark size={18} /> Pagar Fatura (Mercado Pago)
-                                </button>
+                                <div className="flex gap-2 w-full mt-4">
+                                    <button onClick={() => handleGeneratePixInvoice(selectedInvoice.id)} className="flex-1 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                        <QrCode size={18} /> PIX
+                                    </button>
+                                    <button onClick={() => handlePayOverdueInvoice(selectedInvoice.id)} className="flex-[2] bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                        <CreditCard size={18} /> Cartão de Crédito
+                                    </button>
+                                </div>
                             )}
                         </motion.div>
                     </motion.div>
