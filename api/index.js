@@ -308,12 +308,13 @@ export default async function handler(req, res) {
         if (req.method === 'OPTIONS') return res.status(200).end();
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { storeId, amount } = req.body;
+        const { storeId, amount, invoiceId } = req.body;
         if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para faturamento.' });
 
         try {
             // Usa o Token Principal da Plataforma (Conta do Diego)
             const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
+            const finalInvoiceId = invoiceId || 'avulsa';
 
             const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
                 method: 'POST',
@@ -336,8 +337,8 @@ export default async function handler(req, res) {
                         pending: `${req.headers.origin || `https://${req.headers.host}`}/admin?fatura=pendente`
                     },
                     auto_return: "approved",
-                    external_reference: `fatura_saas_${storeId}`, // Marcador para o Webhook identificar depois
-                    notification_url: `https://${req.headers.host}/api/mp-webhook`, // <-- CORREÇÃO: Força o MP a notificar sua API
+                    external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`,
+                    notification_url: `https://${req.headers.host}/api/mp-webhook`,
                     statement_descriptor: "VELO SAAS",
                     payment_methods: {
                         excluded_payment_types: [{ id: "ticket" }] // Removemos boleto para ser instantâneo
@@ -458,7 +459,7 @@ export default async function handler(req, res) {
                 const diaVencimento = dataCriacao.getDate();
 
                 // Hoje é o aniversário do ciclo da loja?
-                if (diaVencimento === todayDay) {
+                if (todayDay >= diaVencimento) {
                     const nomeMesAno = brazilTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                     const faturas = storeData.faturasHistorico || [];
                     const faturaJaExiste = faturas.some(f => f.month.toLowerCase() === nomeMesAno.toLowerCase() && f.isAuto);
@@ -508,12 +509,17 @@ export default async function handler(req, res) {
 
                         const updateData = { faturasHistorico: admin.firestore.FieldValue.arrayUnion(novaFatura) };
                         
-                        if (!isCortesia && storeData.billingStatus !== 'teste' && storeData.billingStatus !== 'bloqueado') {
-                            updateData.billingStatus = 'pendente';
-                        }
+                      if (!isCortesia && storeData.billingStatus !== 'teste' && storeData.billingStatus !== 'bloqueado') {
+                            updateData.billingStatus = 'pendente';
+                        }
 
-                        batch.update(storeDoc.ref, updateData);
-                        faturasGeradas++;
+                        batch.update(storeDoc.ref, updateData);
+
+                        // NOVO: Salva também na subcoleção 'analytics'
+                        const analyticsRef = storeDoc.ref.collection('analytics').doc(novaFatura.id);
+                        batch.set(analyticsRef, novaFatura, { merge: true });
+
+                        faturasGeradas++;
                     }
                 }
             }
@@ -3147,30 +3153,43 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         
                         // LÓGICA: MENSALIDADE SaaS PAGA PELO LOJISTA
                         if (externalRef && externalRef.startsWith('fatura_saas_')) {
-                            const storeIdToRelease = externalRef.replace('fatura_saas_', '');
+                            const refParts = externalRef.split('_');
+                            const storeIdToRelease = refParts[2];
+                            const invoiceId = refParts.slice(3).join('_'); 
                             
                             const storeRef = db.collection('stores').doc(storeIdToRelease);
                             const storeDoc = await storeRef.get();
                             let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
                             
-                            // Mapeia ignorando Capitalization (Aceita 'PENDENTE' ou 'pendente')
                             faturasHistorico = faturasHistorico.map(fatura => {
-                                if (fatura.status === 'PENDENTE' || fatura.status === 'pendente') {
+                                if (fatura.id === invoiceId || ((!invoiceId || invoiceId === 'avulsa') && (fatura.status === 'PENDENTE' || fatura.status === 'pendente'))) {
                                     return { ...fatura, status: 'PAGO' };
                                 }
                                 return fatura;
                             });
 
-                            await storeRef.set({
+                            const batch = db.batch();
+                            
+                            batch.set(storeRef, {
                                 billingStatus: 'ativo',
-                                paymentStatus: 'paid', // Libera o painel imediatamente
+                                paymentStatus: 'paid',
                                 lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
                                 faturasHistorico: faturasHistorico
                             }, { merge: true });
 
-                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga e histórico atualizado!`);
-                            return res.status(200).send('OK');
-                        }
+                            if (invoiceId && invoiceId !== 'avulsa') {
+                                const analyticsInvoiceRef = storeRef.collection('analytics').doc(invoiceId);
+                                batch.set(analyticsInvoiceRef, {
+                                    status: 'PAGO',
+                                    paidAt: admin.firestore.FieldValue.serverTimestamp()
+                                }, { merge: true });
+                            }
+
+                            await batch.commit();
+
+                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga e histórico atualizado!`);
+                            return res.status(200).send('OK');
+                        }
 
                         // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
                         const orderId = externalRef;

@@ -311,17 +311,21 @@ export default function Admin() {
         }
     };
 
-   // --- NOVO: FUNÇÃO PARA PAGAR FATURA PENDENTE / DESBLOQUEAR LOJA ---
-    const handlePayOverdueInvoice = async () => {
+   // --- NOVO: FUNÇÃO PARA PAGAR FATURA PENDENTE VIA MERCADO PAGO ---
+    const handlePayOverdueInvoice = async (invoiceIdOverride = null) => {
         if (!storeId) return alert("Erro: Loja não identificada.");
         try {
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             const apiUrl = isLocal ? '/api/pay-subscription-mp' : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
 
-            // Pega o total atual da fatura pendente calculada pelo sistema
             const amountToPay = invoiceData?.total || 49.90;
+            
+            let targetInvoiceId = invoiceIdOverride;
+            if (!targetInvoiceId && storeStatus?.faturasHistorico) {
+                const pendentes = storeStatus.faturasHistorico.filter(f => f.status === 'PENDENTE' || f.status === 'pendente');
+                if (pendentes.length > 0) targetInvoiceId = pendentes[0].id;
+            }
 
-            // Muda o texto do botão (Opcional, para UX)
             const btn = document.activeElement;
             const originalText = btn.innerHTML;
             if(btn.tagName === 'BUTTON') { btn.innerHTML = 'Gerando link...'; btn.disabled = true; }
@@ -329,7 +333,11 @@ export default function Admin() {
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: storeId, amount: amountToPay })
+                body: JSON.stringify({ 
+                    storeId: storeId, 
+                    amount: amountToPay,
+                    invoiceId: targetInvoiceId || 'avulsa'
+                })
             });
             
             const data = await response.json();
@@ -9075,10 +9083,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             ✅ Fatura Paga
                                         </div>
                                     ) : (
-                                        <button onClick={() => setShowPixModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                            <QrCode size={20}/> Pagar Fatura via PIX
-                                        </button>
-                                    )}
+                                        <button onClick={() => handlePayOverdueInvoice()} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                            <Landmark size={20}/> Pagar Fatura (Mercado Pago)
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -12491,41 +12499,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
 
-            <AnimatePresence>
-               {showPixModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[300] flex items-center justify-center p-4">
-                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center shadow-2xl">
-                            <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X size={24}/></button>
-                            
-                            <div className="bg-emerald-100 text-emerald-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <QrCode size={40} />
-                            </div>
-
-                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2">Pagamento PIX</h2>
-                            <p className="text-slate-500 font-bold mb-6">Realize a transferência para liberar seu painel.</p>
-                            
-                            <div className="bg-slate-50 border border-slate-200 p-6 rounded-3xl mb-6">
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Valor Exato da Fatura</p>
-                                <p className="text-4xl font-black text-emerald-600 italic">R$ {invoiceData.total.toFixed(2)}</p>
-                            </div>
-                            
-                            <div className="text-left bg-blue-50 border border-blue-100 p-6 rounded-3xl mb-8">
-                                <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-3 border-b border-blue-200 pb-2">Dados para Transferência</p>
-                                <p className="text-sm font-bold text-slate-700 mb-2"><span className="text-slate-500">Chave PIX (CNPJ):</span><br/> <span className="text-blue-700 font-black text-lg select-all">53.620.109/0001-98</span></p>
-                                <p className="text-sm font-bold text-slate-700 mb-2"><span className="text-slate-500">Instituição:</span><br/> Efí S.A</p>
-                                <p className="text-sm font-bold text-slate-700"><span className="text-slate-500">Beneficiário:</span><br/> Velo Delivery Tecnologia</p>
-                            </div>
-
-                            <button onClick={() => {
-                                navigator.clipboard.writeText("53620109000198");
-                                alert("Chave PIX (CNPJ) copiada! Após realizar o pagamento, chame o suporte no WhatsApp enviando o comprovante para a liberação da sua loja.");
-                            }} className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <Copy size={18}/> Copiar Chave PIX
-                            </button>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
             {/* --- FLUXO DE BLOQUEIOS (ONBOARDING E FATURA) --- */}
             {/* 1. SE A FATURA ESTIVER VENCIDA E OS TERMOS JÁ TIVEREM SIDO ACEITOS */}
             {isOverdue && storeStatus?.termsAccepted && (
@@ -13381,8 +13354,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {selectedInvoice.status === 'PENDENTE' && (
-                                <button onClick={handlePayOverdueInvoice} className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                    <QrCode size={18} /> Pagar Fatura (Mercado Pago)
+                                <button onClick={() => handlePayOverdueInvoice(selectedInvoice.id)} className="w-full mt-4 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                    <Landmark size={18} /> Pagar Fatura (Mercado Pago)
                                 </button>
                             )}
                         </motion.div>
