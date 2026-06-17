@@ -1719,6 +1719,18 @@ const educationalBanners = [
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
     const[uploadingLogo, setUploadingLogo] = useState(false);
     const [uploadingBanner, setUploadingBanner] = useState(false); // Manter este
+
+    // --- ESTADOS DO MÓDULO FISCAL (NFC-e) ---
+    const [fiscalForm, setFiscalForm] = useState({});
+    const [certFile, setCertFile] = useState(null);
+    const [isSavingFiscal, setIsSavingFiscal] = useState(false);
+
+    // Carrega os dados fiscais salvos assim que a tela abre
+    useEffect(() => {
+        if (settings?.fiscal) {
+            setFiscalForm(settings.fiscal);
+        }
+    }, [settings?.fiscal]);
     
     // Novos estados para o Nicho Personalizado
     const[customBgFile, setCustomBgFile] = useState(null);
@@ -4912,6 +4924,197 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <span className="font-black uppercase text-xs tracking-widest">Sincronizando Satélites...</span>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- ABA FISCAL (NFC-e) --- */}
+                {activeTab === 'fiscal' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                            <div>
+                                <h1 className="text-4xl font-black italic tracking-tighter uppercase text-slate-900 leading-none">Fiscal & Notas</h1>
+                                <p className="text-slate-400 font-bold mt-2 text-sm">Configure a emissão automática de NFC-e para suas vendas.</p>
+                            </div>
+                            
+                            <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer border-2 transition-all shadow-sm ${fiscalForm.enabled ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200'}`}>
+                                <div className="flex flex-col text-right">
+                                    <span className={`font-black uppercase tracking-tight text-xs ${fiscalForm.enabled ? 'text-blue-800' : 'text-slate-500'}`}>Módulo NFC-e</span>
+                                    <span className="text-[9px] font-bold text-slate-400">{fiscalForm.enabled ? 'Emissão Ativada' : 'Emissão Desativada'}</span>
+                                </div>
+                                <input 
+                                    type="checkbox" 
+                                    checked={fiscalForm.enabled || false} 
+                                    onChange={(e) => setFiscalForm({ ...fiscalForm, enabled: e.target.checked })}
+                                    className="w-6 h-6 rounded-md accent-blue-600 cursor-pointer" 
+                                />
+                            </label>
+                        </div>
+
+                        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-all duration-300 ${!fiscalForm.enabled ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
+                            
+                            {/* CARD 1: DADOS DA EMPRESA */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
+                                <h2 className="text-xl font-black uppercase text-slate-800 mb-4 flex items-center gap-2">
+                                    <Store size={20} className="text-blue-500"/> Dados da Empresa
+                                </h2>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Razão Social</label>
+                                    <input type="text" placeholder="Ex: Conveniência Silva LTDA" value={fiscalForm.razaoSocial || ''} onChange={e => setFiscalForm({...fiscalForm, razaoSocial: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">CNPJ</label>
+                                        <input type="text" placeholder="00.000.000/0001-00" value={fiscalForm.cnpj || ''} onChange={e => setFiscalForm({...fiscalForm, cnpj: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Inscrição Estadual (IE)</label>
+                                        <input type="text" placeholder="Isento ou Número" value={fiscalForm.ie || ''} onChange={e => setFiscalForm({...fiscalForm, ie: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Regime Tributário (CRT)</label>
+                                    <select value={fiscalForm.crt || '1'} onChange={e => setFiscalForm({...fiscalForm, crt: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer text-slate-700">
+                                        <option value="1">1 - Simples Nacional</option>
+                                        <option value="2">2 - Simples Nacional (Excesso Receita Bruta)</option>
+                                        <option value="3">3 - Regime Normal (Lucro Presumido/Real)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* CARD 2: ENDEREÇO FISCAL (Exigência SEFAZ) */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
+                                <h2 className="text-xl font-black uppercase text-slate-800 mb-4 flex items-center gap-2">
+                                    <MapPin size={20} className="text-orange-500"/> Endereço Fiscal (SEFAZ)
+                                </h2>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Logradouro (Rua)</label>
+                                        <input type="text" placeholder="Ex: Avenida Brasil" value={fiscalForm.logradouro || ''} onChange={e => setFiscalForm({...fiscalForm, logradouro: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-orange-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Número</label>
+                                        <input type="text" placeholder="Ex: 100" value={fiscalForm.numero || ''} onChange={e => setFiscalForm({...fiscalForm, numero: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-orange-500" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Bairro</label>
+                                        <input type="text" placeholder="Centro" value={fiscalForm.bairro || ''} onChange={e => setFiscalForm({...fiscalForm, bairro: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-orange-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">CEP</label>
+                                        <input type="text" placeholder="00000-000" value={fiscalForm.cep || ''} onChange={e => setFiscalForm({...fiscalForm, cep: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-orange-500" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Cód. Município (IBGE)</label>
+                                        <input type="text" placeholder="Ex: 3550308" value={fiscalForm.ibgeCidade || ''} onChange={e => setFiscalForm({...fiscalForm, ibgeCidade: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-orange-500" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">UF (Estado)</label>
+                                        <input type="text" placeholder="Ex: SP" maxLength="2" value={fiscalForm.ibgeUf || ''} onChange={e => setFiscalForm({...fiscalForm, ibgeUf: e.target.value.toUpperCase()})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-orange-500 uppercase" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* CARD 3: MATRIZ TRIBUTÁRIA PADRÃO */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
+                                <h2 className="text-xl font-black uppercase text-slate-800 mb-4 flex items-center gap-2">
+                                    <Database size={20} className="text-purple-500"/> Matriz Tributária Padrão
+                                </h2>
+                                <p className="text-[10px] font-bold text-slate-400 mb-4">Caso um produto vendido não tenha NCM/CFOP cadastrado, o sistema usará esta matriz padrão de contingência para não travar a venda.</p>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">NCM Padrão</label>
+                                        <input type="text" placeholder="Ex: 22021000 (Águas/Refri)" value={fiscalForm.defaultNCM || ''} onChange={e => setFiscalForm({...fiscalForm, defaultNCM: e.target.value})} className="w-full p-4 bg-purple-50 rounded-xl font-black text-sm outline-none border border-purple-100 focus:ring-2 ring-purple-400 text-purple-800" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">CFOP Padrão</label>
+                                        <input type="text" placeholder="Ex: 5102" value={fiscalForm.defaultCFOP || ''} onChange={e => setFiscalForm({...fiscalForm, defaultCFOP: e.target.value})} className="w-full p-4 bg-purple-50 rounded-xl font-black text-sm outline-none border border-purple-100 focus:ring-2 ring-purple-400 text-purple-800" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">CSOSN Padrão (Simples)</label>
+                                        <select value={fiscalForm.defaultCSOSN || '102'} onChange={e => setFiscalForm({...fiscalForm, defaultCSOSN: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-purple-500 cursor-pointer">
+                                            <option value="101">101 - Com permissão de crédito</option>
+                                            <option value="102">102 - Sem permissão de crédito</option>
+                                            <option value="103">103 - Isenção do ICMS</option>
+                                            <option value="400">400 - Não tributada pelo Simples</option>
+                                            <option value="500">500 - ICMS cobrado por ST</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">CST Padrão (Normal)</label>
+                                        <input type="text" placeholder="Ex: 00" value={fiscalForm.defaultCST || ''} onChange={e => setFiscalForm({...fiscalForm, defaultCST: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-purple-500" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* CARD 4: CERTIFICADO DIGITAL A1 */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <h2 className="text-xl font-black uppercase text-slate-800 mb-4 flex items-center gap-2">
+                                        <ShieldCheck size={20} className="text-green-500"/> Certificado Digital A1
+                                    </h2>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-6 leading-relaxed">
+                                        Para assinar as notas eletronicamente e transmitir à SEFAZ, faça o upload do seu certificado digital (formato <b>.pfx</b> ou <b>.p12</b>) e digite a senha.
+                                    </p>
+                                    
+                                    <div className="space-y-4">
+                                        <input type="file" accept=".pfx,.p12" id="cert-upload" onChange={e => setCertFile(e.target.files[0])} className="hidden" />
+                                        
+                                        <label htmlFor="cert-upload" className={`w-full p-6 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${certFile || fiscalForm.certStatus === 'uploaded' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-slate-50 border-slate-300 text-slate-500 hover:bg-blue-50 hover:border-blue-300'}`}>
+                                            <UploadCloud size={24} />
+                                            <span className="font-black text-xs uppercase tracking-widest text-center">
+                                                {certFile ? certFile.name : (fiscalForm.certStatus === 'uploaded' ? 'Certificado Instalado (Trocar)' : 'Selecionar Arquivo .PFX')}
+                                            </span>
+                                        </label>
+
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Senha do Certificado</label>
+                                            <input 
+                                                type="password" 
+                                                placeholder="Digite a senha do certificado..." 
+                                                value={fiscalForm.certPassword || ''} 
+                                                onChange={e => setFiscalForm({...fiscalForm, certPassword: e.target.value})} 
+                                                className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-green-500" 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="mt-6 pt-4 border-t border-slate-100">
+                                    <button 
+                                        onClick={async () => {
+                                            setIsSavingFiscal(true);
+                                            try {
+                                                // Salva as configurações de texto no banco de dados primeiro
+                                                await setDoc(doc(db, "settings", storeId), { fiscal: fiscalForm }, { merge: true });
+                                                
+                                                if (certFile) {
+                                                    // Trava de segurança provisória da Arquitetura
+                                                    alert("✅ Configurações salvas no banco de dados!\n\nNa próxima etapa (Backend), criaremos a API que pegará este arquivo PFX e o enviará criptografado diretamente para o parceiro fiscal (Focus/eNotas), para garantir segurança total.");
+                                                } else {
+                                                    alert("✅ Configurações fiscais atualizadas!");
+                                                }
+                                            } catch (error) {
+                                                alert("Erro ao salvar: " + error.message);
+                                            } finally {
+                                                setIsSavingFiscal(false);
+                                            }
+                                        }}
+                                        disabled={isSavingFiscal}
+                                        className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isSavingFiscal ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                        Salvar Configurações Fiscais
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -11541,6 +11744,34 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     )}
                                 </div>
                                 {/* --- FIM: NOVOS CAMPOS SEO, LOGÍSTICA E NUTRIÇÃO --- */}
+
+                                {/* --- INÍCIO: DADOS FISCAIS DO PRODUTO --- */}
+                                <div className="space-y-4 pt-6 border-t border-slate-100">
+                                    <label className="text-xs font-black text-purple-600 uppercase tracking-widest flex items-center gap-2">
+                                        <Receipt size={16}/> Dados Fiscais (NFC-e)
+                                    </label>
+                                    <p className="text-[10px] text-slate-400 font-bold mb-2">Se deixado em branco, o sistema usará a Matriz Padrão configurada na aba Fiscal ao emitir a nota.</p>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">NCM do Produto</label>
+                                            <input type="text" placeholder="Ex: 22021000" className="w-full p-4 bg-purple-50/50 rounded-xl outline-none font-bold text-sm border border-purple-100 focus:ring-2 ring-purple-400 text-purple-800" value={form.ncm || ''} onChange={e => setForm({...form, ncm: e.target.value.replace(/\D/g, '')})} maxLength="8" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">CFOP</label>
+                                            <input type="text" placeholder="Ex: 5102" className="w-full p-4 bg-purple-50/50 rounded-xl outline-none font-bold text-sm border border-purple-100 focus:ring-2 ring-purple-400 text-purple-800" value={form.cfop || ''} onChange={e => setForm({...form, cfop: e.target.value.replace(/\D/g, '')})} maxLength="4" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">CEST (Opcional)</label>
+                                            <input type="text" placeholder="Ex: 0300700" className="w-full p-4 bg-purple-50/50 rounded-xl outline-none font-bold text-sm border border-purple-100 focus:ring-2 ring-purple-400 text-purple-800" value={form.cest || ''} onChange={e => setForm({...form, cest: e.target.value.replace(/\D/g, '')})} maxLength="7" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 ml-2">CSOSN / CST (Opcional)</label>
+                                            <input type="text" placeholder="Ex: 102 ou 00" className="w-full p-4 bg-purple-50/50 rounded-xl outline-none font-bold text-sm border border-purple-100 focus:ring-2 ring-purple-400 text-purple-800" value={form.csosn_cst || ''} onChange={e => setForm({...form, csosn_cst: e.target.value.replace(/\D/g, '')})} maxLength="3" />
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* --- FIM: DADOS FISCAIS DO PRODUTO --- */}
                                <div className="space-y-2 pt-4 border-t border-slate-100">
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
