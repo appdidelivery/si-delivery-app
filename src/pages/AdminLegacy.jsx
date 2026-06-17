@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -181,6 +181,7 @@ const allNavItems =[
     { id: 'partners', name: 'Hub Parceiros', icon: <Handshake size={18} />, mobileIcon: <Handshake size={22} /> },
     { id: 'team', name: 'Equipe', icon: <UserPlus size={18} />, mobileIcon: <UserPlus size={22} /> },
     { id: 'finance', name: 'Financeiro', icon: <Wallet size={18} />, mobileIcon: <Wallet size={22} /> },
+    { id: 'fiscal', name: 'Fiscal (Notas)', icon: <Receipt size={18} />, mobileIcon: <Receipt size={22} /> },
     { id: 'chat', name: 'Chat Whats', icon: <MessageCircle size={18} />, mobileIcon: <MessageCircle size={22} /> },
 ];
 
@@ -204,8 +205,8 @@ export default function Admin() {
     // Matriz de Recursos: O que cada plano tem direito de acessar
     const PLAN_FEATURES = {
         start: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance'],
-        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'google_business', 'meta_ads'],
-        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners', 'google_business', 'meta_ads']
+        pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'google_business', 'meta_ads', 'fiscal'],
+        infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners', 'google_business', 'meta_ads', 'fiscal']
     };
 
     const [upgradeModalFeature, setUpgradeModalFeature] = useState(null);
@@ -997,7 +998,8 @@ const educationalBanners = [
             case 'datafuel':
             case 'insights': return userPermissions.marketing === true; 
             
-            case 'finance': return userPermissions.finance === true;
+            case 'finance': 
+            case 'fiscal': return userPermissions.finance === true;
             
             case 'team': return userPermissions.team === true; 
             
