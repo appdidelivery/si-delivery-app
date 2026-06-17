@@ -5092,17 +5092,46 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         onClick={async () => {
                                             setIsSavingFiscal(true);
                                             try {
-                                                // Salva as configurações de texto no banco de dados primeiro
-                                                await setDoc(doc(db, "settings", storeId), { fiscal: fiscalForm }, { merge: true });
+                                                let certBase64 = null;
                                                 
+                                                // Se o lojista selecionou um arquivo, converte para Base64 no navegador
                                                 if (certFile) {
-                                                    // Trava de segurança provisória da Arquitetura
-                                                    alert("✅ Configurações salvas no banco de dados!\n\nNa próxima etapa (Backend), criaremos a API que pegará este arquivo PFX e o enviará criptografado diretamente para o parceiro fiscal (Focus/eNotas), para garantir segurança total.");
-                                                } else {
-                                                    alert("✅ Configurações fiscais atualizadas!");
+                                                    certBase64 = await new Promise((resolve, reject) => {
+                                                        const reader = new FileReader();
+                                                        reader.readAsDataURL(certFile);
+                                                        // Tira o cabeçalho 'data:application/x-pkcs12;base64,' e manda só o código puro
+                                                        reader.onload = () => resolve(reader.result.split(',')[1]);
+                                                        reader.onerror = error => reject(error);
+                                                    });
                                                 }
+
+                                                // Dispara para o nosso cofre na Vercel (Backend)
+                                                const response = await fetch('/api/fiscal-setup', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        storeId: storeId,
+                                                        fiscalData: fiscalForm,
+                                                        certBase64: certBase64
+                                                    })
+                                                });
+
+                                                const result = await response.json();
+
+                                                if (!response.ok) {
+                                                    throw new Error(result.error || "Erro no servidor fiscal.");
+                                                }
+
+                                                // Feedback Visual
+                                                if (certBase64) {
+                                                    setFiscalForm(prev => ({ ...prev, certStatus: 'uploaded' }));
+                                                    setCertFile(null); // Limpa o arquivo da memória
+                                                }
+
+                                                alert("✅ Configurações e Certificado Digital salvos com segurança máxima!");
                                             } catch (error) {
-                                                alert("Erro ao salvar: " + error.message);
+                                                alert("❌ Falha de comunicação com o cofre fiscal: " + error.message);
+                                                console.error("Erro no envio:", error);
                                             } finally {
                                                 setIsSavingFiscal(false);
                                             }
