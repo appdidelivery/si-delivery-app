@@ -243,50 +243,55 @@ exports.emitirNotaFiscal = functions.firestore
             // 3. IDEMPOTÊNCIA: Marca o pedido como "Processando" para evitar que outra instância tente emitir ao mesmo tempo
             await change.after.ref.update({ fiscalStatus: 'processing' });
 
-            // 4. MONTA O PAYLOAD (FOCUS NFE - PADRÃO SAAS)
-            // Lê cada item do pedido. Se o item não tiver NCM/CFOP, usa a Matriz Padrão da Loja
+            // 4. MONTA O PAYLOAD (FOCUS NFE V2 - PADRÃO NFC-e)
+            // Filtra e prepara os itens conforme exigência da SEFAZ
             const itensNfe = (order.items || []).map((item, index) => ({
                 numero_item: index + 1,
                 codigo_produto: item.id || `ITEM-${index}`,
-                descricao: item.name,
+                descricao: item.name.substring(0, 120), // Limite de caracteres SEFAZ
                 cfop: item.cfop || fiscal.defaultCFOP || "5102",
                 unidade_comercial: "UN",
                 quantidade_comercial: item.quantity,
                 valor_unitario_comercial: item.price,
-                valor_bruto: item.price * item.quantity,
+                valor_bruto: (item.price * item.quantity).toFixed(2), // Valor com 2 casas decimais
                 codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
                 icms_origem: "0",
                 icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
             }));
 
+            // Identifica o CPF do cliente (se houver) para a nota
+            const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
+
             const payloadNFCe = {
-                natureza_operacao: "VENDA DE MERCADORIAS",
+                natureza_operacao: "VENDA",
                 data_emissao: new Date().toISOString(),
-                tipo_documento: "2", // 2 = NFC-e (Cupom Fiscal)
-                local_destino: "1", // Operação interna
-                finalidade_emissao: "1", // Normal
-                consumidor_final: "1", // Sim
-                presenca_comprador: order.tipo === 'local' || order.tipo === 'pickup' ? "1" : "4", // 1 = Presencial, 4 = Delivery
+                tipo_documento: "2", // NFC-e
+                local_destino: "1", 
+                finalidade_emissao: "1", 
+                consumidor_final: "1", 
+                presenca_comprador: order.tipo === 'local' || order.tipo === 'pickup' ? "1" : "4",
+                cliente: {
+                    nome_completo: order.customerName || "Consumidor Final",
+                    cpf: cpfLimpo && cpfLimpo.length === 11 ? cpfLimpo : null
+                },
                 itens: itensNfe,
                 pagamentos: [
                     {
-                        forma_pagamento: order.paymentMethod === 'dinheiro' ? "01" : order.paymentMethod.includes('cartao') ? "03" : "17", // 17 = PIX
-                        valor_pagamento: order.total
+                        // Mapeamento: 01:Dinheiro, 17:PIX, 03:Cartão (Crédito), 04:Cartão (Débito)
+                        forma_pagamento: order.paymentMethod === 'dinheiro' ? "01" : 
+                                        order.paymentMethod.includes('pix') ? "17" : "03",
+                        valor_pagamento: Number(order.total).toFixed(2)
                     }
                 ]
             };
 
-            // 5. ENVIO REAL PARA API FOCUS NFE (V2)
+            // 5. ENVIO REAL PARA API FOCUS NFE
             const isProduction = fiscal.environment === 'production';
             const focusToken = fiscal.token;
-            const baseUrl = isProduction 
-                ? "https://api.focusnfe.com.br" 
-                : "https://homologacao.focusnfe.com.br";
-
-            // A referência deve ser única por pedido. Usamos o orderId do Firebase.
+            const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
 
-            console.log(`[Fiscal] Enviando para Focus NFe: ${url}`);
+            console.log(`[Fiscal] Enviando Pedido #${orderId} para Focus NFe (${fiscal.environment})`);
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -299,30 +304,30 @@ exports.emitirNotaFiscal = functions.firestore
 
             const data = await response.json();
 
-            // 6. TRATAMENTO DA RESPOSTA E EXTRAÇÃO DA URL DO PDF
-            // A API v2 retorna 'autorizado' para sucesso imediato ou 'processando_autorizacao'
+            // 6. TRATAMENTO DA RESPOSTA E EXTRAÇÃO DA URL DINÂMICA
             if (data.status === 'autorizado' || data.status === 'processando_autorizacao') {
                 
-                // Regra de Ouro: A URL do PDF correta vem no campo 'caminho_danfe'
-                // Se estiver processando, o link pode demorar alguns segundos para ativar, mas o endereço já é retornado.
-                const pdfUrl = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : null;
+                // Pega o link real gerado pela API (caminho_danfe)
+                // Se não retornar de imediato, montamos o link de fallback de consulta
+                const pdfUrl = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : `${baseUrl}/v2/nfce/${orderId}.pdf`;
                 const xmlUrl = data.caminho_xml_nota_fiscal ? `${baseUrl}${data.caminho_xml_nota_fiscal}` : null;
 
                 await change.after.ref.update({ 
                     fiscalStatus: 'authorized', 
-                    nfeUrl: pdfUrl, // URL dinâmica correta
+                    nfeUrl: pdfUrl, 
                     nfeXml: xmlUrl,
                     nfeChave: data.chave_nfe,
                     nfeProtocolo: data.protocolo,
-                    lastFiscalResponse: data.mensagem || "Nota Autorizada com Sucesso"
+                    lastFiscalResponse: data.mensagem || "Nota Autorizada"
                 });
 
                 console.log(`[Fiscal] Sucesso Pedido #${orderId}: ${pdfUrl}`);
                 return true;
 
             } else {
-                // Caso a SEFAZ retorne erro de validação (ex: NCM inválido, CPF errado)
-                throw new Error(data.mensagem || "Erro desconhecido na emissão");
+                // Captura a mensagem de erro exata da SEFAZ para o lojista corrigir
+                const erroMsg = data.erros && data.erros.length > 0 ? data.erros[0].mensagem : (data.mensagem || "Erro na emissão");
+                throw new Error(erroMsg);
             }
 
         } catch (error) {
