@@ -221,51 +221,44 @@ exports.emitirNotaFiscal = functions.firestore
         const order = change.after.exists ? change.after.data() : null;
         const orderBefore = change.before.exists ? change.before.data() : null;
 
-        // 1. BLINDAGEM: Só dispara se o pedido existir, estiver PAGO e ainda não tiver sido processado.
         if (!order || order.paymentStatus !== 'paid') return null;
-        if (orderBefore && orderBefore.paymentStatus === 'paid') return null; // Evita loop duplo se o pedido for atualizado novamente
-        if (order.fiscalStatus) return null; // Já está na fila ou foi processado
+        if (orderBefore && orderBefore.paymentStatus === 'paid') return null;
+        if (order.fiscalStatus) return null;
 
         const storeId = order.storeId;
         const orderId = context.params.orderId;
 
         try {
-            // 2. Busca configurações da loja e a Matriz Fiscal
             const storeSettingsSnap = await admin.firestore().doc(`settings/${storeId}`).get();
             if (!storeSettingsSnap.exists) return null;
-            
             const settings = storeSettingsSnap.data();
             const fiscal = settings.fiscal;
 
-            // Se o módulo fiscal estiver desligado para esta loja, ignora silenciosamente
             if (!fiscal || !fiscal.enabled) return null;
-
-            // 3. IDEMPOTÊNCIA: Marca o pedido como "Processando" para evitar que outra instância tente emitir ao mesmo tempo
             await change.after.ref.update({ fiscalStatus: 'processing' });
 
-            // 4. MONTA O PAYLOAD (FOCUS NFE V2 - PADRÃO NFC-e)
-            // Filtra e prepara os itens conforme exigência da SEFAZ
+            // 4. MONTA O PAYLOAD (PADRÃO SEFAZ RS)
             const itensNfe = (order.items || []).map((item, index) => ({
                 numero_item: index + 1,
                 codigo_produto: item.id || `ITEM-${index}`,
-                descricao: item.name.substring(0, 120), // Limite de caracteres SEFAZ
+                descricao: item.name.substring(0, 120),
                 cfop: item.cfop || fiscal.defaultCFOP || "5102",
                 unidade_comercial: "UN",
                 quantidade_comercial: item.quantity,
                 valor_unitario_comercial: item.price,
-                valor_bruto: (item.price * item.quantity).toFixed(2), // Valor com 2 casas decimais
+                valor_bruto: (item.price * item.quantity).toFixed(2), // Exigência SEFAZ: 2 casas
                 codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
                 icms_origem: "0",
                 icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
             }));
 
-            // Identifica o CPF do cliente (se houver) para a nota
+            // Limpa o CPF que vem do front-end
             const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
 
             const payloadNFCe = {
                 natureza_operacao: "VENDA",
                 data_emissao: new Date().toISOString(),
-                tipo_documento: "2", // NFC-e
+                tipo_documento: "2", 
                 local_destino: "1", 
                 finalidade_emissao: "1", 
                 consumidor_final: "1", 
@@ -277,7 +270,6 @@ exports.emitirNotaFiscal = functions.firestore
                 itens: itensNfe,
                 pagamentos: [
                     {
-                        // Mapeamento: 01:Dinheiro, 17:PIX, 03:Cartão (Crédito), 04:Cartão (Débito)
                         forma_pagamento: order.paymentMethod === 'dinheiro' ? "01" : 
                                         order.paymentMethod.includes('pix') ? "17" : "03",
                         valor_pagamento: Number(order.total).toFixed(2)
@@ -285,13 +277,10 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // 5. ENVIO REAL PARA API FOCUS NFE
             const isProduction = fiscal.environment === 'production';
             const focusToken = fiscal.token;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
-
-            console.log(`[Fiscal] Enviando Pedido #${orderId} para Focus NFe (${fiscal.environment})`);
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -304,39 +293,25 @@ exports.emitirNotaFiscal = functions.firestore
 
             const data = await response.json();
 
-            // 6. TRATAMENTO DA RESPOSTA E EXTRAÇÃO DA URL DINÂMICA
             if (data.status === 'autorizado' || data.status === 'processando_autorizacao') {
-                
-                // Pega o link real gerado pela API (caminho_danfe)
-                // Se não retornar de imediato, montamos o link de fallback de consulta
+                // CORREÇÃO DO LINK: Pega o caminho real do PDF retornado pela Focus
                 const pdfUrl = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : `${baseUrl}/v2/nfce/${orderId}.pdf`;
-                const xmlUrl = data.caminho_xml_nota_fiscal ? `${baseUrl}${data.caminho_xml_nota_fiscal}` : null;
-
+                
                 await change.after.ref.update({ 
                     fiscalStatus: 'authorized', 
                     nfeUrl: pdfUrl, 
-                    nfeXml: xmlUrl,
                     nfeChave: data.chave_nfe,
-                    nfeProtocolo: data.protocolo,
-                    lastFiscalResponse: data.mensagem || "Nota Autorizada"
+                    nfeProtocolo: data.protocolo
                 });
-
-                console.log(`[Fiscal] Sucesso Pedido #${orderId}: ${pdfUrl}`);
                 return true;
-
             } else {
-                // Captura a mensagem de erro exata da SEFAZ para o lojista corrigir
-                const erroMsg = data.erros && data.erros.length > 0 ? data.erros[0].mensagem : (data.mensagem || "Erro na emissão");
+                const erroMsg = data.erros && data.erros.length > 0 ? data.erros[0].mensagem : (data.mensagem || "Erro SEFAZ");
                 throw new Error(erroMsg);
             }
 
         } catch (error) {
-            console.error(`[Fiscal] Erro crítico ao emitir NFC-e do pedido ${orderId}:`, error);
-            // Salva o erro no pedido para o lojista ver no painel e tentar novamente
-            await change.after.ref.update({ 
-                fiscalStatus: 'error', 
-                fiscalError: error.message 
-            });
+            console.error(`[Fiscal] Erro pedido ${orderId}:`, error);
+            await change.after.ref.update({ fiscalStatus: 'error', fiscalError: error.message });
             return null;
         }
     });
