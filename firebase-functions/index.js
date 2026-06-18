@@ -221,9 +221,10 @@ exports.emitirNotaFiscal = functions.firestore
         const order = change.after.exists ? change.after.data() : null;
         const orderBefore = change.before.exists ? change.before.data() : null;
 
+        // Só dispara se o pedido estiver PAGO e ainda não tiver status fiscal
         if (!order || order.paymentStatus !== 'paid') return null;
         if (orderBefore && orderBefore.paymentStatus === 'paid') return null;
-        if (order.fiscalStatus) return null;
+        if (order.fiscalStatus && order.fiscalStatus !== 'error') return null; 
 
         const storeId = order.storeId;
         const orderId = context.params.orderId;
@@ -231,13 +232,16 @@ exports.emitirNotaFiscal = functions.firestore
         try {
             const storeSettingsSnap = await admin.firestore().doc(`settings/${storeId}`).get();
             if (!storeSettingsSnap.exists) return null;
+            
             const settings = storeSettingsSnap.data();
             const fiscal = settings.fiscal;
 
             if (!fiscal || !fiscal.enabled) return null;
+
+            // Marca como processando para evitar duplicidade
             await change.after.ref.update({ fiscalStatus: 'processing' });
 
-            // 4. MONTA O PAYLOAD (PADRÃO SEFAZ RS)
+            // 1. Monta os itens conforme regra da SEFAZ RS
             const itensNfe = (order.items || []).map((item, index) => ({
                 numero_item: index + 1,
                 codigo_produto: item.id || `ITEM-${index}`,
@@ -246,32 +250,33 @@ exports.emitirNotaFiscal = functions.firestore
                 unidade_comercial: "UN",
                 quantidade_comercial: item.quantity,
                 valor_unitario_comercial: item.price,
-                valor_bruto: (item.price * item.quantity).toFixed(2), // Exigência SEFAZ: 2 casas
+                valor_bruto: (item.price * item.quantity).toFixed(2),
                 codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
                 icms_origem: "0",
                 icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
             }));
 
-            // Limpa o CPF que vem do front-end
+            // 2. Limpa o CPF (se houver)
             const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
 
+            // 3. Monta o Payload Final
             const payloadNFCe = {
                 natureza_operacao: "VENDA",
                 data_emissao: new Date().toISOString(),
-                tipo_documento: "2", 
+                tipo_documento: "2", // NFC-e
                 local_destino: "1", 
                 finalidade_emissao: "1", 
                 consumidor_final: "1", 
-                presenca_comprador: order.tipo === 'local' || order.tipo === 'pickup' ? "1" : "4",
+                presenca_comprador: (order.source === 'manual_pdv' || order.tipo === 'pickup') ? "1" : "4",
                 cliente: {
                     nome_completo: order.customerName || "Consumidor Final",
-                    cpf: cpfLimpo && cpfLimpo.length === 11 ? cpfLimpo : null
+                    cpf: (cpfLimpo && cpfLimpo.length === 11) ? cpfLimpo : null
                 },
                 itens: itensNfe,
                 pagamentos: [
                     {
                         forma_pagamento: order.paymentMethod === 'dinheiro' ? "01" : 
-                                        order.paymentMethod.includes('pix') ? "17" : "03",
+                                        (order.paymentMethod && order.paymentMethod.includes('pix')) ? "17" : "03",
                         valor_pagamento: Number(order.total).toFixed(2)
                     }
                 ]
@@ -282,6 +287,7 @@ exports.emitirNotaFiscal = functions.firestore
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
 
+            // Envia para a Focus NFe
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -294,14 +300,15 @@ exports.emitirNotaFiscal = functions.firestore
             const data = await response.json();
 
             if (data.status === 'autorizado' || data.status === 'processando_autorizacao') {
-                // CORREÇÃO DO LINK: Pega o caminho real do PDF retornado pela Focus
+                // Captura a URL real ou fallback
                 const pdfUrl = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : `${baseUrl}/v2/nfce/${orderId}.pdf`;
                 
                 await change.after.ref.update({ 
                     fiscalStatus: 'authorized', 
                     nfeUrl: pdfUrl, 
-                    nfeChave: data.chave_nfe,
-                    nfeProtocolo: data.protocolo
+                    nfeChave: data.chave_nfe || null,
+                    nfeProtocolo: data.protocolo || null,
+                    fiscalError: null
                 });
                 return true;
             } else {
