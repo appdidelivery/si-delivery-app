@@ -276,17 +276,54 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // TODO: Na Fase 4, aqui entrará o fetch() real para a API da Focus NFe.
-            console.log(`[Fiscal] Emitindo NFC-e para loja ${storeId}, Pedido #${orderId}`);
-            
-            // Simulação de Sucesso da SEFAZ para manter o fluxo rodando na nossa fase de testes
-            await change.after.ref.update({ 
-                fiscalStatus: 'authorized', 
-                nfeUrl: 'https://homologacao.focusnfe.com.br/relatorios/danfe.pdf', // Link fake de teste
-                nfeChave: '35230900000000000000650010000000011000000001'
+            // 5. ENVIO REAL PARA API FOCUS NFE (V2)
+            const isProduction = fiscal.environment === 'production';
+            const focusToken = fiscal.token;
+            const baseUrl = isProduction 
+                ? "https://api.focusnfe.com.br" 
+                : "https://homologacao.focusnfe.com.br";
+
+            // A referência deve ser única por pedido. Usamos o orderId do Firebase.
+            const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
+
+            console.log(`[Fiscal] Enviando para Focus NFe: ${url}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payloadNFCe)
             });
 
-            return true;
+            const data = await response.json();
+
+            // 6. TRATAMENTO DA RESPOSTA E EXTRAÇÃO DA URL DO PDF
+            // A API v2 retorna 'autorizado' para sucesso imediato ou 'processando_autorizacao'
+            if (data.status === 'autorizado' || data.status === 'processando_autorizacao') {
+                
+                // Regra de Ouro: A URL do PDF correta vem no campo 'caminho_danfe'
+                // Se estiver processando, o link pode demorar alguns segundos para ativar, mas o endereço já é retornado.
+                const pdfUrl = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : null;
+                const xmlUrl = data.caminho_xml_nota_fiscal ? `${baseUrl}${data.caminho_xml_nota_fiscal}` : null;
+
+                await change.after.ref.update({ 
+                    fiscalStatus: 'authorized', 
+                    nfeUrl: pdfUrl, // URL dinâmica correta
+                    nfeXml: xmlUrl,
+                    nfeChave: data.chave_nfe,
+                    nfeProtocolo: data.protocolo,
+                    lastFiscalResponse: data.mensagem || "Nota Autorizada com Sucesso"
+                });
+
+                console.log(`[Fiscal] Sucesso Pedido #${orderId}: ${pdfUrl}`);
+                return true;
+
+            } else {
+                // Caso a SEFAZ retorne erro de validação (ex: NCM inválido, CPF errado)
+                throw new Error(data.mensagem || "Erro desconhecido na emissão");
+            }
 
         } catch (error) {
             console.error(`[Fiscal] Erro crítico ao emitir NFC-e do pedido ${orderId}:`, error);
