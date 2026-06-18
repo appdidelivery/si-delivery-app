@@ -1211,7 +1211,8 @@ const educationalBanners = [
                     promotionalPrice: prod.promotionalPrice || '',
                     stock: prod.stock !== undefined ? prod.stock : '',
                     category: prod.category || '',
-                    gtin: prod.gtin || ''
+                    gtin: prod.gtin || '',
+                    ncm: prod.ncm || ''
                 };
             }
         });
@@ -1231,7 +1232,8 @@ const educationalBanners = [
                     promotionalPrice: parseFloat(draft.promotionalPrice) || 0,
                     stock: draft.stock === '' ? '' : parseInt(draft.stock),
                     category: draft.category || '',
-                    gtin: draft.gtin || ''
+                    gtin: draft.gtin || '',
+                    ncm: draft.ncm ? String(draft.ncm).replace(/\D/g, '') : ''
                 });
             });
             await Promise.all(batchPromises);
@@ -14270,7 +14272,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar bg-slate-50 border border-slate-200 rounded-3xl relative z-10">
-                                <table className="w-full text-left min-w-[800px]">
+                                <table className="w-full text-left min-w-[1000px]">
                                     <thead className="sticky top-0 bg-slate-100 z-10 shadow-sm">
                                         <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
                                             <th className="p-4 font-black">Produto</th>
@@ -14279,6 +14281,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <th className="p-4 font-black w-24">Estoque</th>
                                             <th className="p-4 font-black w-48">Categoria</th>
                                             <th className="p-4 font-black w-40">EAN (Cód Barras)</th>
+                                            <th className="p-4 font-black w-32">NCM</th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-sm font-bold text-slate-700 divide-y divide-slate-100">
@@ -14336,6 +14339,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             value={draft.gtin} 
                                                             onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, gtin: e.target.value}})}
                                                             className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 font-mono text-xs"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="NCM"
+                                                            maxLength="8"
+                                                            value={draft.ncm} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, ncm: e.target.value.replace(/\D/g, '')}})}
+                                                            className="w-full p-2 bg-purple-50 border border-purple-100 rounded-lg outline-none focus:ring-2 ring-purple-400 text-purple-900 font-mono text-xs font-black"
                                                         />
                                                     </td>
                                                 </tr>
