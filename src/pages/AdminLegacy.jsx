@@ -5560,6 +5560,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             {o.tipo === 'local' && (
                                                                 <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-purple-200">🍽️ MESA {o.mesa}</span>
                                                             )}
+                                                            
+                                                            {/* --- TAG FISCAL (STATUS SEFAZ) --- */}
+                                                            {o.fiscalStatus === 'processing' && (
+                                                                <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-amber-200" title="Processando na SEFAZ"><Loader2 size={10} className="animate-spin"/> Emitindo NFC-e</span>
+                                                            )}
+                                                            {o.fiscalStatus === 'authorized' && (
+                                                                <a href={o.nfeUrl} target="_blank" rel="noopener noreferrer" className="bg-slate-900 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md hover:bg-slate-800 transition-colors" title="Baixar Nota Fiscal (PDF)"><Receipt size={10}/> NFC-e Emitida</a>
+                                                            )}
+                                                            {o.fiscalStatus === 'error' && (
+                                                                <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-red-200" title={o.fiscalError}><XCircle size={10}/> Erro SEFAZ</span>
+                                                            )}
+                                                            
                                                             <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                                         </div>
 

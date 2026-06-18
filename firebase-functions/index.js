@@ -211,3 +211,90 @@ exports.gerarCopyProduto = onCall(
         }
     }
 );
+
+// =========================================================================
+// 🧾 MOTOR FISCAL (VELO DELIVERY x FOCUS NFE) - BACKGROUND TASK
+// =========================================================================
+exports.emitirNotaFiscal = functions.firestore
+    .document('orders/{orderId}')
+    .onWrite(async (change, context) => {
+        const order = change.after.exists ? change.after.data() : null;
+        const orderBefore = change.before.exists ? change.before.data() : null;
+
+        // 1. BLINDAGEM: Só dispara se o pedido existir, estiver PAGO e ainda não tiver sido processado.
+        if (!order || order.paymentStatus !== 'paid') return null;
+        if (orderBefore && orderBefore.paymentStatus === 'paid') return null; // Evita loop duplo se o pedido for atualizado novamente
+        if (order.fiscalStatus) return null; // Já está na fila ou foi processado
+
+        const storeId = order.storeId;
+        const orderId = context.params.orderId;
+
+        try {
+            // 2. Busca configurações da loja e a Matriz Fiscal
+            const storeSettingsSnap = await admin.firestore().doc(`settings/${storeId}`).get();
+            if (!storeSettingsSnap.exists) return null;
+            
+            const settings = storeSettingsSnap.data();
+            const fiscal = settings.fiscal;
+
+            // Se o módulo fiscal estiver desligado para esta loja, ignora silenciosamente
+            if (!fiscal || !fiscal.enabled) return null;
+
+            // 3. IDEMPOTÊNCIA: Marca o pedido como "Processando" para evitar que outra instância tente emitir ao mesmo tempo
+            await change.after.ref.update({ fiscalStatus: 'processing' });
+
+            // 4. MONTA O PAYLOAD (FOCUS NFE - PADRÃO SAAS)
+            // Lê cada item do pedido. Se o item não tiver NCM/CFOP, usa a Matriz Padrão da Loja
+            const itensNfe = (order.items || []).map((item, index) => ({
+                numero_item: index + 1,
+                codigo_produto: item.id || `ITEM-${index}`,
+                descricao: item.name,
+                cfop: item.cfop || fiscal.defaultCFOP || "5102",
+                unidade_comercial: "UN",
+                quantidade_comercial: item.quantity,
+                valor_unitario_comercial: item.price,
+                valor_bruto: item.price * item.quantity,
+                codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
+                icms_origem: "0",
+                icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
+            }));
+
+            const payloadNFCe = {
+                natureza_operacao: "VENDA DE MERCADORIAS",
+                data_emissao: new Date().toISOString(),
+                tipo_documento: "2", // 2 = NFC-e (Cupom Fiscal)
+                local_destino: "1", // Operação interna
+                finalidade_emissao: "1", // Normal
+                consumidor_final: "1", // Sim
+                presenca_comprador: order.tipo === 'local' || order.tipo === 'pickup' ? "1" : "4", // 1 = Presencial, 4 = Delivery
+                itens: itensNfe,
+                pagamentos: [
+                    {
+                        forma_pagamento: order.paymentMethod === 'dinheiro' ? "01" : order.paymentMethod.includes('cartao') ? "03" : "17", // 17 = PIX
+                        valor_pagamento: order.total
+                    }
+                ]
+            };
+
+            // TODO: Na Fase 4, aqui entrará o fetch() real para a API da Focus NFe.
+            console.log(`[Fiscal] Emitindo NFC-e para loja ${storeId}, Pedido #${orderId}`);
+            
+            // Simulação de Sucesso da SEFAZ para manter o fluxo rodando na nossa fase de testes
+            await change.after.ref.update({ 
+                fiscalStatus: 'authorized', 
+                nfeUrl: 'https://homologacao.focusnfe.com.br/relatorios/danfe.pdf', // Link fake de teste
+                nfeChave: '35230900000000000000650010000000011000000001'
+            });
+
+            return true;
+
+        } catch (error) {
+            console.error(`[Fiscal] Erro crítico ao emitir NFC-e do pedido ${orderId}:`, error);
+            // Salva o erro no pedido para o lojista ver no painel e tentar novamente
+            await change.after.ref.update({ 
+                fiscalStatus: 'error', 
+                fiscalError: error.message 
+            });
+            return null;
+        }
+    });
