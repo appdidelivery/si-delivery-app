@@ -213,9 +213,12 @@ export default function Admin() {
 
     // Função que verifica se a loja logada tem acesso a uma aba/funcionalidade
     const hasFeatureAccess = (featureKey) => {
-        // Se a loja não tem plano definido no banco, assume o Start (Mais básico)
+        // Regra Especial: Módulo Fiscal é um Add-on pago à parte
+        if (featureKey === 'fiscal') {
+            return storeStatus?.fiscalModuleActive === true;
+        }
+
         const currentPlan = storeStatus?.plan || 'start';
-        // Overrides Manuais: Se o SuperAdmin ligou/desligou algo específico para esta loja na mão
         const customOverrides = storeStatus?.customFeatures || {};
 
         if (customOverrides[featureKey] !== undefined) return customOverrides[featureKey];
@@ -1420,9 +1423,13 @@ const educationalBanners = [
             const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
             const getPlanPrice = (p) => {
-                if (p === 'infinity') return 249.90;
-                if (p === 'pro') return 149.90;
-                return 49.90;
+                let base = 49.90;
+                if (p === 'infinity') base = 249.90;
+                else if (p === 'pro') base = 149.90;
+                
+                // Soma o Add-on Fiscal se estiver ativo no banco (R$ 180,00)
+                const fiscalAddon = storeStatus?.fiscalModuleActive ? 180.00 : 0;
+                return base + fiscalAddon;
             };
             const currentPlanPrice = getPlanPrice(storeStatus?.plan);
 
@@ -9500,13 +9507,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Tudo do Crescimento, mais:</p>
-                                        <ul className="space-y-3 text-xs font-bold text-slate-300 mb-8">
+                                        <ul className="space-y-3 text-xs font-bold text-slate-300 mb-4">
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Gamificação (Roleta e Cashback)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Insights (Consultoria IA)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Ficha Técnica e Controle de Insumos</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Hub Parceiros (Afiliados/Influencers)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Radar GPS e Previsão IA</li>
                                         </ul>
+                                        
+                                        {/* Informativo do Add-on Fiscal */}
+                                        <div className="mb-8 p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl">
+                                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Opcional Disponível:</p>
+                                            <p className="text-xs font-bold text-white mt-1">Módulo Fiscal (NFC-e): + R$ 180,00/mês</p>
+                                            <p className="text-[9px] text-slate-400 leading-tight mt-1">Ativação sob consulta com a equipe técnica.</p>
+                                        </div>
                                     </div>
                                     <button 
                                         onClick={() => handleUpgradePlanCheckout('infinity', billingCycle === 'semestral' ? 1274.49 : 249.90, billingCycle)}
