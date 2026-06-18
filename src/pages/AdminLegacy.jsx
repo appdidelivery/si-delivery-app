@@ -5094,43 +5094,39 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             try {
                                                 let certBase64 = null;
                                                 
-                                                // Se o lojista selecionou um arquivo, converte para Base64 no navegador
                                                 if (certFile) {
                                                     certBase64 = await new Promise((resolve, reject) => {
                                                         const reader = new FileReader();
                                                         reader.readAsDataURL(certFile);
-                                                        // Tira o cabeçalho 'data:application/x-pkcs12;base64,' e manda só o código puro
                                                         reader.onload = () => resolve(reader.result.split(',')[1]);
                                                         reader.onerror = error => reject(error);
                                                     });
                                                 }
 
-                                                // Dispara para o nosso cofre na Vercel (Backend)
-                                                const response = await fetch('/api/fiscal-setup', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({
-                                                        storeId: storeId,
-                                                        fiscalData: fiscalForm,
-                                                        certBase64: certBase64
-                                                    })
-                                                });
+                                                // 1. Salva os dados públicos da empresa na coleção 'settings'
+                                                const safeFiscalData = { ...fiscalForm };
+                                                delete safeFiscalData.certPassword; // Remove a senha do objeto público
+                                                await setDoc(doc(db, "settings", storeId), { fiscal: safeFiscalData }, { merge: true });
 
-                                                const result = await response.json();
-
-                                                if (!response.ok) {
-                                                    throw new Error(result.error || "Erro no servidor fiscal.");
-                                                }
-
-                                                // Feedback Visual
-                                                if (certBase64) {
+                                                // 2. Salva o Certificado e a Senha no "Cofre" (Subcoleção 'private')
+                                                if (certBase64 || fiscalForm.certPassword) {
+                                                    const privateRef = doc(db, "settings", storeId, "private", "fiscal_cert");
+                                                    const privatePayload = { updatedAt: serverTimestamp() };
+                                                    
+                                                    if (certBase64) privatePayload.certBase64 = certBase64;
+                                                    if (fiscalForm.certPassword) privatePayload.certPassword = fiscalForm.certPassword;
+                                                    
+                                                    await setDoc(privateRef, privatePayload, { merge: true });
+                                                    
+                                                    // Atualiza o status visual
+                                                    await setDoc(doc(db, "settings", storeId), { fiscal: { certStatus: 'uploaded' } }, { merge: true });
                                                     setFiscalForm(prev => ({ ...prev, certStatus: 'uploaded' }));
-                                                    setCertFile(null); // Limpa o arquivo da memória
+                                                    setCertFile(null);
                                                 }
 
                                                 alert("✅ Configurações e Certificado Digital salvos com segurança máxima!");
                                             } catch (error) {
-                                                alert("❌ Falha de comunicação com o cofre fiscal: " + error.message);
+                                                alert("❌ Erro ao salvar dados fiscais: " + error.message);
                                                 console.error("Erro no envio:", error);
                                             } finally {
                                                 setIsSavingFiscal(false);
