@@ -1254,9 +1254,9 @@ const educationalBanners = [
     };
     // --- ESTADOS FINANCEIROS (NOVO) ---
     const [invoiceData, setInvoiceData] = useState({
-        basePlan: 49.90,
-        total: 49.90,
-        status: 'open'
+        basePlan: 0,
+        total: 0,
+        status: 'loading' // Mudamos para loading para saber que o cálculo ainda não terminou
     });
     const [showPixModal, setShowPixModal] = useState(false);
     const [pixData, setPixData] = useState({ qrCodeBase64: null, copiaECola: null }); // NOVO ESTADO
@@ -1358,7 +1358,9 @@ const educationalBanners = [
 
     // Efeito para calcular a fatura em tempo real e Saldo VeloPay dinâmico
     useEffect(() => {
-        if(orders.length > 0 || products.length > 0) {
+        // Agora ele roda se tiver pedidos OU se o status da loja (plano) já tiver carregado
+        if(orders.length > 0 || products.length > 0 || storeStatus?.plan) {
+            // ... resto da lógica (mantenha todo o conteúdo interno que já temos)
             // --- LÓGICA DE CICLO ROTATIVO (SAAS) CORRIGIDA ---
             let diaVencimento = storeStatus?.billingDay || 9; // Fallback para o dia do seu ciclo
             
@@ -12900,7 +12902,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </p>
                         <div className="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-200">
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
-                            <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
+                            {invoiceData.total > 0 ? (
+                                <p className="text-5xl font-black text-slate-800 animate-in fade-in duration-500">
+                                    R$ {invoiceData.total.toFixed(2)}
+                                </p>
+                            ) : (
+                                <div className="h-[60px] flex items-center justify-center">
+                                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-2 w-full">
                             <button onClick={() => handleGeneratePixInvoice()} className="flex-[1.5] bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
