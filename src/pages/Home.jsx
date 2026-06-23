@@ -3243,7 +3243,7 @@ if (window.fbq) {
 
       {/* --- INÍCIO: VITRINE INTELIGENTE --- */}
       {(() => {
-          // Validação da configuração do lojista
+          // Validação da configuração do lojista (Oculta se estiver desativado no Admin)
           if (storeSettings?.smartShowcaseEnabled === false) return null;
 
           // Lógica da Vitrine Inteligente
