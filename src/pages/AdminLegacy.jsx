@@ -213,9 +213,12 @@ export default function Admin() {
 
     // Função que verifica se a loja logada tem acesso a uma aba/funcionalidade
     const hasFeatureAccess = (featureKey) => {
-        // Se a loja não tem plano definido no banco, assume o Start (Mais básico)
+        // Regra Especial: Módulo Fiscal é um Add-on pago à parte
+        if (featureKey === 'fiscal') {
+            return storeStatus?.fiscalModuleActive === true;
+        }
+
         const currentPlan = storeStatus?.plan || 'start';
-        // Overrides Manuais: Se o SuperAdmin ligou/desligou algo específico para esta loja na mão
         const customOverrides = storeStatus?.customFeatures || {};
 
         if (customOverrides[featureKey] !== undefined) return customOverrides[featureKey];
@@ -1211,7 +1214,9 @@ const educationalBanners = [
                     promotionalPrice: prod.promotionalPrice || '',
                     stock: prod.stock !== undefined ? prod.stock : '',
                     category: prod.category || '',
-                    gtin: prod.gtin || ''
+                    gtin: prod.gtin || '',
+                    ncm: prod.ncm || '',
+                    cfop: prod.cfop || ''
                 };
             }
         });
@@ -1226,12 +1231,14 @@ const educationalBanners = [
                 const draft = bulkEditData[id];
                 if (!draft) return Promise.resolve();
 
-                return updateDoc(doc(db, "products", id), {
+               return updateDoc(doc(db, "products", id), {
                     price: parseFloat(draft.price) || 0,
                     promotionalPrice: parseFloat(draft.promotionalPrice) || 0,
                     stock: draft.stock === '' ? '' : parseInt(draft.stock),
                     category: draft.category || '',
-                    gtin: draft.gtin || ''
+                    gtin: draft.gtin || '',
+                    ncm: draft.ncm ? String(draft.ncm).replace(/\D/g, '') : '',
+                    cfop: draft.cfop ? String(draft.cfop).replace(/\D/g, '') : ''
                 });
             });
             await Promise.all(batchPromises);
@@ -1247,9 +1254,9 @@ const educationalBanners = [
     };
     // --- ESTADOS FINANCEIROS (NOVO) ---
     const [invoiceData, setInvoiceData] = useState({
-        basePlan: 49.90,
-        total: 49.90,
-        status: 'open'
+        basePlan: 0,
+        total: 0,
+        status: 'loading' // Mudamos para loading para saber que o cálculo ainda não terminou
     });
     const [showPixModal, setShowPixModal] = useState(false);
     const [pixData, setPixData] = useState({ qrCodeBase64: null, copiaECola: null }); // NOVO ESTADO
@@ -1351,7 +1358,9 @@ const educationalBanners = [
 
     // Efeito para calcular a fatura em tempo real e Saldo VeloPay dinâmico
     useEffect(() => {
-        if(orders.length > 0 || products.length > 0) {
+        // Agora ele roda se tiver pedidos OU se o status da loja (plano) já tiver carregado
+        if(orders.length > 0 || products.length > 0 || storeStatus?.plan) {
+            // ... resto da lógica (mantenha todo o conteúdo interno que já temos)
             // --- LÓGICA DE CICLO ROTATIVO (SAAS) CORRIGIDA ---
             let diaVencimento = storeStatus?.billingDay || 9; // Fallback para o dia do seu ciclo
             
@@ -1418,9 +1427,13 @@ const educationalBanners = [
             const isCortesiaAtual = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'cortesia' || storeStatus?.billingStatus === 'isento';
 
             const getPlanPrice = (p) => {
-                if (p === 'infinity') return 249.90;
-                if (p === 'pro') return 149.90;
-                return 49.90;
+                let base = 49.90;
+                if (p === 'infinity') base = 249.90;
+                else if (p === 'pro') base = 149.90;
+                
+                // Soma o Add-on Fiscal se estiver ativo no banco (R$ 180,00)
+                const fiscalAddon = storeStatus?.fiscalModuleActive ? 180.00 : 0;
+                return base + fiscalAddon;
             };
             const currentPlanPrice = getPlanPrice(storeStatus?.plan);
 
@@ -5106,43 +5119,39 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             try {
                                                 let certBase64 = null;
                                                 
-                                                // Se o lojista selecionou um arquivo, converte para Base64 no navegador
                                                 if (certFile) {
                                                     certBase64 = await new Promise((resolve, reject) => {
                                                         const reader = new FileReader();
                                                         reader.readAsDataURL(certFile);
-                                                        // Tira o cabeçalho 'data:application/x-pkcs12;base64,' e manda só o código puro
                                                         reader.onload = () => resolve(reader.result.split(',')[1]);
                                                         reader.onerror = error => reject(error);
                                                     });
                                                 }
 
-                                                // Dispara para o nosso cofre na Vercel (Backend)
-                                                const response = await fetch('/api/fiscal-setup', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({
-                                                        storeId: storeId,
-                                                        fiscalData: fiscalForm,
-                                                        certBase64: certBase64
-                                                    })
-                                                });
+                                                // 1. Salva os dados públicos da empresa na coleção 'settings'
+                                                const safeFiscalData = { ...fiscalForm };
+                                                delete safeFiscalData.certPassword; // Remove a senha do objeto público
+                                                await setDoc(doc(db, "settings", storeId), { fiscal: safeFiscalData }, { merge: true });
 
-                                                const result = await response.json();
-
-                                                if (!response.ok) {
-                                                    throw new Error(result.error || "Erro no servidor fiscal.");
-                                                }
-
-                                                // Feedback Visual
-                                                if (certBase64) {
+                                                // 2. Salva o Certificado e a Senha no "Cofre" (Subcoleção 'private')
+                                                if (certBase64 || fiscalForm.certPassword) {
+                                                    const privateRef = doc(db, "settings", storeId, "private", "fiscal_cert");
+                                                    const privatePayload = { updatedAt: serverTimestamp() };
+                                                    
+                                                    if (certBase64) privatePayload.certBase64 = certBase64;
+                                                    if (fiscalForm.certPassword) privatePayload.certPassword = fiscalForm.certPassword;
+                                                    
+                                                    await setDoc(privateRef, privatePayload, { merge: true });
+                                                    
+                                                    // Atualiza o status visual
+                                                    await setDoc(doc(db, "settings", storeId), { fiscal: { certStatus: 'uploaded' } }, { merge: true });
                                                     setFiscalForm(prev => ({ ...prev, certStatus: 'uploaded' }));
-                                                    setCertFile(null); // Limpa o arquivo da memória
+                                                    setCertFile(null);
                                                 }
 
                                                 alert("✅ Configurações e Certificado Digital salvos com segurança máxima!");
                                             } catch (error) {
-                                                alert("❌ Falha de comunicação com o cofre fiscal: " + error.message);
+                                                alert("❌ Erro ao salvar dados fiscais: " + error.message);
                                                 console.error("Erro no envio:", error);
                                             } finally {
                                                 setIsSavingFiscal(false);
@@ -5576,6 +5585,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             {o.tipo === 'local' && (
                                                                 <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-purple-200">🍽️ MESA {o.mesa}</span>
                                                             )}
+                                                            
+                                                            {/* --- TAG FISCAL (STATUS SEFAZ) --- */}
+                                                            {o.fiscalStatus === 'processing' && (
+                                                                <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-amber-200" title="Processando na SEFAZ"><Loader2 size={10} className="animate-spin"/> Emitindo NFC-e</span>
+                                                            )}
+                                                            {o.fiscalStatus === 'authorized' && (
+                                                                <a href={o.nfeUrl} target="_blank" rel="noopener noreferrer" className="bg-slate-900 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md hover:bg-slate-800 transition-colors" title="Baixar Nota Fiscal (PDF)"><Receipt size={10}/> NFC-e Emitida</a>
+                                                            )}
+                                                            {o.fiscalStatus === 'error' && (
+                                                                <span className="bg-red-100 text-red-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-red-200" title={o.fiscalError}><XCircle size={10}/> Erro SEFAZ</span>
+                                                            )}
+                                                            
                                                             <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><Clock size={12} />{o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                                                         </div>
 
@@ -9502,13 +9523,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Tudo do Crescimento, mais:</p>
-                                        <ul className="space-y-3 text-xs font-bold text-slate-300 mb-8">
+                                        <ul className="space-y-3 text-xs font-bold text-slate-300 mb-4">
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Gamificação (Roleta e Cashback)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Insights (Consultoria IA)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Ficha Técnica e Controle de Insumos</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Hub Parceiros (Afiliados/Influencers)</li>
                                             <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Radar GPS e Previsão IA</li>
                                         </ul>
+                                        
+                                        {/* Informativo do Add-on Fiscal */}
+                                        <div className="mb-8 p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl">
+                                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Opcional Disponível:</p>
+                                            <p className="text-xs font-bold text-white mt-1">Módulo Fiscal (NFC-e): + R$ 180,00/mês</p>
+                                            <p className="text-[9px] text-slate-400 leading-tight mt-1">Ativação sob consulta com a equipe técnica.</p>
+                                        </div>
                                     </div>
                                     <button 
                                         onClick={() => handleUpgradePlanCheckout('infinity', billingCycle === 'semestral' ? 1274.49 : 249.90, billingCycle)}
@@ -12906,7 +12934,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </p>
                         <div className="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-200">
                             <p className="text-xs font-black uppercase text-slate-400 mb-1">Valor Pendente</p>
-                            <p className="text-5xl font-black text-slate-800">R$ {invoiceData?.total?.toFixed(2) || '0.00'}</p>
+                            {invoiceData.total > 0 ? (
+                                <p className="text-5xl font-black text-slate-800 animate-in fade-in duration-500">
+                                    R$ {invoiceData.total.toFixed(2)}
+                                </p>
+                            ) : (
+                                <div className="h-[60px] flex items-center justify-center">
+                                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-2 w-full">
                             <button onClick={() => handleGeneratePixInvoice()} className="flex-[1.5] bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
@@ -14294,7 +14330,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar bg-slate-50 border border-slate-200 rounded-3xl relative z-10">
-                                <table className="w-full text-left min-w-[800px]">
+                                <table className="w-full text-left min-w-[1150px]">
                                     <thead className="sticky top-0 bg-slate-100 z-10 shadow-sm">
                                         <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
                                             <th className="p-4 font-black">Produto</th>
@@ -14303,6 +14339,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <th className="p-4 font-black w-24">Estoque</th>
                                             <th className="p-4 font-black w-48">Categoria</th>
                                             <th className="p-4 font-black w-40">EAN (Cód Barras)</th>
+                                            <th className="p-4 font-black w-32">NCM</th>
+                                            <th className="p-4 font-black w-24">CFOP</th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-sm font-bold text-slate-700 divide-y divide-slate-100">
@@ -14360,6 +14398,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             value={draft.gtin} 
                                                             onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, gtin: e.target.value}})}
                                                             className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 font-mono text-xs"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="NCM"
+                                                            maxLength="8"
+                                                            value={draft.ncm} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, ncm: e.target.value.replace(/\D/g, '')}})}
+                                                            className="w-full p-2 bg-purple-50 border border-purple-100 rounded-lg outline-none focus:ring-2 ring-purple-400 text-purple-900 font-mono text-xs font-black"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="CFOP"
+                                                            maxLength="4"
+                                                            value={draft.cfop} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, cfop: e.target.value.replace(/\D/g, '')}})}
+                                                            className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 font-mono text-xs text-center"
                                                         />
                                                     </td>
                                                 </tr>

@@ -152,7 +152,34 @@ export default function AdminSaaS() {
         } catch (error) { alert('Erro: ' + error.message); } 
         finally { setActionLoading(null); }
     };
+const handleToggleFiscalSaaS = async (loja) => {
+        const novoStatus = !loja.fiscalModuleActive;
+        const valorAddon = 180.00;
+        
+        const confirmMsg = novoStatus 
+            ? `Deseja ATIVAR o Módulo Fiscal para ${loja.name}?\n\nIsso somará + R$ 180,00 no valor base da fatura mensal.`
+            : `Deseja DESATIVAR o Módulo Fiscal de ${loja.name}?\n\nIsso removerá a cobrança de R$ 180,00 do valor base.`;
 
+        if (!window.confirm(confirmMsg)) return;
+
+        setActionLoading(`fiscal_${loja.id}`);
+        try {
+            // Calcula o novo valor base somando ou subtraindo o addon
+            const precoBaseAtual = Number(loja.billingBasePrice || 49.90);
+            const novoPrecoBase = novoStatus 
+                ? precoBaseAtual + valorAddon 
+                : precoBaseAtual - valorAddon;
+
+            await updateDoc(doc(db, 'stores', loja.id), { 
+                fiscalModuleActive: novoStatus,
+                billingBasePrice: novoPrecoBase 
+            });
+            
+            await fetchSaaSData(); 
+            alert(`✅ Módulo Fiscal ${novoStatus ? 'ATIVADO' : 'DESATIVADO'} e valor da fatura atualizado.`);
+        } catch (error) { alert('Erro: ' + error.message); } 
+        finally { setActionLoading(null); }
+    };
     const handleMagicUnlock = async (storeId) => {
         if (!window.confirm("🪄 ATENÇÃO: Isso ativará o plano INFINITY (Líder Pro) com acesso total e marcará a loja como CORTESIA VITALÍCIA (Isenta de faturas).\n\nDeseja continuar?")) return;
         setActionLoading(`magic_${storeId}`);
@@ -549,7 +576,7 @@ export default function AdminSaaS() {
                                         </td>
                                         <td className="p-4">
                                             <div className="flex flex-col gap-4 min-w-[280px]">
-                                                {/* SELETOR DE PLANOS */}
+                                               {/* SELETOR DE PLANOS */}
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Plano Ativo:</span>
                                                     <select 
@@ -564,6 +591,20 @@ export default function AdminSaaS() {
                                                     </select>
                                                     {actionLoading === `plan_${loja.id}` && <Loader2 size={16} className="animate-spin text-blue-500"/>}
                                                 </div>
+
+                                                {/* --- NOVO: TOGGLE MÓDULO FISCAL --- */}
+                                                <button 
+                                                    onClick={() => handleToggleFiscalSaaS(loja)}
+                                                    disabled={actionLoading === `fiscal_${loja.id}`}
+                                                    className={`w-fit flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                                                        loja.fiscalModuleActive 
+                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 border border-blue-400' 
+                                                        : 'bg-slate-800 text-slate-500 border border-slate-700 hover:border-slate-500'
+                                                    }`}
+                                                >
+                                                    {actionLoading === `fiscal_${loja.id}` ? <Loader2 size={14} className="animate-spin"/> : <Zap size={14} className={loja.fiscalModuleActive ? 'fill-white' : ''}/>}
+                                                    {loja.fiscalModuleActive ? 'Módulo Fiscal: ATIVO (+ R$ 180)' : 'Ativar Módulo Fiscal (+ R$ 180)'}
+                                                </button>
 
                                                 {/* BOTÃO MÁGICO DE TESTE/LIBERAÇÃO */}
                                                 <button 
