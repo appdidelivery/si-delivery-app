@@ -239,7 +239,7 @@ export default function WppWebview() {
   const cartTotal = Math.max(0, cartSub + (deliveryMethod === 'delivery' ? deliveryFee : 0));
   const cartCount = cart.reduce((a, i) => a + i.quantity, 0);
 
-  // Finalização do Pedido
+  /// Finalização do Pedido
   const finalizeOrder = async () => {
       if (submitLock.current) return;
       if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
@@ -267,47 +267,11 @@ export default function WppWebview() {
               createdAt: serverTimestamp(), 
               storeId: slug, 
               tipo: deliveryMethod === 'pickup' ? "retirada" : "delivery", 
-              source: 'whatsapp_bot' // <--- ALTERADO PARA RECONHECIMENTO NO PAINEL
+              source: 'whatsapp_bot' 
           };
 
-          // === 🚨 VALIDAÇÃO DE ESTOQUE DA FICHA TÉCNICA (WEBVIEW) ===
-          const requiredIngredients = {};
-          cart.forEach(cartItem => {
-              if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
-                  cartItem.consumedIngredients.forEach(ci => {
-                      if (!requiredIngredients[ci.ingredientId]) requiredIngredients[ci.ingredientId] = 0;
-                      requiredIngredients[ci.ingredientId] += Number(cartItem.quantity) * Number(ci.qty);
-                  });
-              }
-          });
-
-          const ingredientIds = Object.keys(requiredIngredients);
-          if (ingredientIds.length > 0) {
-              let hasStockError = false;
-              let stockErrorMsg = '';
-
-              for (const ingId of ingredientIds) {
-                  const ingSnap = await getDoc(doc(db, "ingredients", ingId));
-                  if (ingSnap.exists()) {
-                      const currentStock = Number(ingSnap.data().stock || 0);
-                      if (currentStock < requiredIngredients[ingId]) {
-                          hasStockError = true;
-                          stockErrorMsg = `Infelizmente, um dos insumos do seu pedido esgotou agorinha (Restam: ${currentStock}).`;
-                          break;
-                      }
-                  }
-              }
-
-              if (hasStockError) {
-                  setIsSubmitting(false);
-                  submitLock.current = false;
-                  return alert(`⚠️ ESTOQUE INSUFICIENTE:\n\n${stockErrorMsg}\n\nPor favor, remova o item do carrinho.`);
-              }
-          }
-
-          // A baixa de estoque via Frontend foi removida para evitar o erro de permissão do Firebase.
-          // O estoque agora deve ser baixado apenas pelo Backend quando o pedido for pago.
-          // =========================================================
+          // 🚨 A Baixa de Estoque via Frontend foi removida daqui para evitar o Erro de Permissão do Firebase.
+          // O backend fará a baixa do estoque automaticamente quando o PIX for pago.
 
           // Trava de segurança: somente métodos online permitidos no Webview WPP
           if (!['velopay_pix', 'mercadopago_pix', 'mercadopago_link'].includes(customer.payment)) {
@@ -320,7 +284,10 @@ export default function WppWebview() {
           if (customer.payment === 'velopay_pix') {
               await setDoc(orderRef, { ...oData, paymentStatus: 'processing' });
               const res = await fetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
-              if (!res.ok) throw new Error((await res.json()).error);
+              if (!res.ok) {
+                  const errData = await res.json();
+                  throw new Error(errData.error || "Falha na API VeloPay");
+              }
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
               return window.location.href = `/track/${orderRef.id}?payment=pix_pending`;
           }
@@ -328,6 +295,13 @@ export default function WppWebview() {
           // Mercado Pago Pix (Transparente Direto)
           if (customer.payment === 'mercadopago_pix') {
               try {
+                  // Salva o pedido PRIMEIRO, antes de chamar a API
+                  await setDoc(orderRef, oData);
+                  
+                  // Separa o nome para o Mercado Pago não dar erro 400
+                  let firstName = customer.name.split(' ')[0];
+                  let lastName = customer.name.split(' ').slice(1).join(' ') || 'Velo';
+
                   const res = await fetch('/api/processar-pagamento-transparente-velo', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -337,9 +311,10 @@ export default function WppWebview() {
                           transaction_amount: cartTotal,
                           payment_method_id: 'pix',
                           payer: { 
-                              email: 'cliente@velodelivery.com.br', 
-                              first_name: customer.name,
-                              phone: customer.phone // OBRIGATÓRIO PARA O ZAP FUNCIONAR
+                              email: `cliente_${orderRef.id.slice(-5)}@velodelivery.com.br`, 
+                              first_name: firstName,
+                              last_name: lastName,
+                              phone: customer.phone 
                           }
                       })
                   });
@@ -347,7 +322,6 @@ export default function WppWebview() {
                   const data = await res.json();
 
                   if (res.ok && data.success) {
-                      await setDoc(orderRef, oData);
                       setCart([]); 
                       localStorage.removeItem(`veloCart_${slug}`);
                       return window.location.href = `/track/${orderRef.id}?payment=pix_generated`;
