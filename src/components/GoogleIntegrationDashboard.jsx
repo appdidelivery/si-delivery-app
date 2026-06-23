@@ -50,12 +50,20 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
             const res = await fetch(`/api/google-gmb?action=getProfile&storeId=${storeId}`);
             const data = await res.json();
             
-            if (data.success && data.profile) {
-                let rawDescription = data.profile.profile?.description || '';
+            // LOG DE DEBUG: Exibe no console o que o backend realmente mandou (Aperte F12 no Chrome para ver)
+            console.log("🕵️ Resposta da API Google Profile:", data);
+            
+            // BLINDAGEM: Verifica se existe 'profile' ou 'location' (O Google varia a resposta dependendo da versão da API)
+            if (data.success && (data.profile || data.location || data.data)) {
+                
+                // Pega o objeto principal, não importa como o backend o chame
+                const gmbData = data.profile || data.location || data.data || {};
+                
+                // Fallbacks estruturais para a descrição
+                let rawDescription = gmbData.profile?.description || gmbData.description || '';
                 let extractedVouchers = [];
                 
-                // Inteligência: Se a descrição já tiver os Vales injetados do salvamento anterior,
-                // nós retiramos do texto limpo e usamos para marcar as caixinhas automaticamente!
+                // Extração dos vales
                 if (rawDescription.includes('💳 Aceitamos Vales e Benefícios:')) {
                     const parts = rawDescription.split('💳 Aceitamos Vales e Benefícios:');
                     rawDescription = parts[0].trim();
@@ -63,15 +71,22 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                     extractedVouchers = vouchersString.split(',').map(v => v.trim());
                 }
 
+                // Fallbacks estruturais para título e telefone (Cobre v1 e v4.9 da API do GMB)
+                const safeTitle = gmbData.title || gmbData.name || gmbData.locationName || '';
+                const safePhone = gmbData.primaryPhone || gmbData.phoneNumbers?.primaryPhone || gmbData.regularHours?.primaryPhone || '';
+
                 setProfileData({
-                    title: data.profile.title || '',
+                    title: safeTitle,
                     description: rawDescription,
-                    phone: data.profile.primaryPhone || '',
+                    phone: safePhone,
                     vouchers: extractedVouchers
                 });
+            } else if (data.error) {
+                console.error("❌ Erro retornado pela API:", data.error);
+                alert("Ocorreu um erro ao ler o perfil no Google. Verifique o console.");
             }
         } catch (error) { 
-            console.error("Erro ao buscar perfil", error); 
+            console.error("❌ Falha crítica de conexão ao buscar perfil:", error); 
         } finally {
             setIsFetchingProfile(false);
         }
@@ -415,29 +430,31 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                             <motion.div key="feed" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                                 <h2 className="text-2xl font-black uppercase text-slate-800 flex items-center gap-2 mb-6"><MessageSquare className="text-blue-600"/> Feed de Novidades</h2>
                                 
-                                {/* UPDATE 2026: FUNÇÃO SEGUIR NO MAPS */}
-                                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-3xl mb-6 shadow-lg text-white flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div>
-                                        <h3 className="font-black uppercase tracking-widest flex items-center gap-2 text-sm mb-1"><Users size={18} className="text-blue-200"/> Nutrição de Seguidores (Maps)</h3>
-                                        <p className="text-[10px] font-medium text-blue-100 leading-relaxed max-w-lg">O Google Maps agora permite que clientes "Sigam" sua loja. Use este feed semanalmente para nutrir sua base com links do Clube VIP e cupons, transformando pesquisas em recorrência.</p>
+                                {/* --- BANNER EDUCATIVO SEO/GEO (SUBSTITUIU A CAIXA AZUL) --- */}
+                                <div className="bg-gradient-to-r from-blue-50 to-white border border-blue-200 p-6 md:p-8 rounded-[2rem] shadow-sm relative overflow-hidden mb-8">
+                                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                        <FaGoogle size={100} className="text-blue-600" />
                                     </div>
-                                    <button 
-                                        type="button"
-                                        onClick={() => {
-                                            setPostData({
-                                                ...postData,
-                                                topicType: 'OFFER',
-                                                summary: `🎁 Benefício Exclusivo para nossos Seguidores!\n\nVocê que acompanha a ${storeStatus?.name || 'nossa loja'} por aqui, acabou de ganhar acesso ao nosso Clube de Vantagens.\n\nFaça seu pedido no nosso app oficial e acumule pontos que valem descontos e produtos gratuitos na hora!\n\n👉 Acesse o link do nosso App, cadastre-se e aproveite!`,
-                                                startDate: new Date().toISOString().split('T')[0],
-                                                endDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0] // +7 dias
-                                            });
-                                            alert("Template de nutrição de seguidores gerado! Selecione uma foto chamativa e publique.");
-                                        }}
-                                        className="bg-white text-blue-700 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md hover:bg-blue-50 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap"
-                                    >
-                                        <Sparkles size={14}/> Gerar Post p/ Seguidores
-                                    </button>
+                                    <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center gap-5">
+                                        <div className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg shrink-0">
+                                            <FaBullhorn size={28} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-blue-900 uppercase tracking-tight mb-2">
+                                                Transforme Pesquisas em Vendas
+                                            </h3>
+                                            <p className="text-xs font-bold text-slate-600 leading-relaxed max-w-3xl">
+                                                Mantenha o perfil da sua loja ativo postando <strong>Ofertas, Combos e Novidades</strong> regularmente. 
+                                                O algoritmo do Google lê essas postagens (Dados Estruturados) e entende que sua loja é relevante, 
+                                                colocando você <strong>acima dos concorrentes</strong> nas buscas locais.
+                                            </p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mt-3 bg-blue-100/50 w-fit px-3 py-1 rounded-md border border-blue-200 flex items-center gap-1">
+                                                <CheckCircle size={12}/> Meta de Ouro: Publique pelo menos 1 vez por semana.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
+                                {/* --- FIM DO BANNER EDUCATIVO --- */}
 
                                 <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 mb-6">
                                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 block ml-1">Vincular Produto (Ofertas e Combos)</label>
@@ -512,32 +529,39 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                         </div>
                                     )}
                                     
-                                    <div className="bg-slate-50 p-1 rounded-3xl border border-slate-200">
-                                        <div className="flex justify-between items-end mb-2 px-3 pt-3">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1">
-                                                <Edit3 size={12}/> Texto da Postagem
-                                            </label>
+                                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                                                <Edit3 size={14}/> Texto da Postagem
+                                            </h4>
                                             
+                                            {/* --- NOVO BOTÃO DE IA (DISCRETO E CONTEXTUAL) --- */}
                                             {selectedProduct && (
                                                 <button 
                                                     type="button"
-                                                    onClick={handleGenerateAICopy} 
+                                                    onClick={handleGenerateAICopy}
                                                     disabled={isGeneratingAI} 
-                                                    className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:from-purple-700 hover:to-indigo-700 shadow-md active:scale-95 transition-all disabled:opacity-50"
+                                                    className="bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 active:scale-95 shadow-sm disabled:opacity-50"
+                                                    title="A IA criará um texto persuasivo baseado no produto selecionado acima."
                                                 >
-                                                    {isGeneratingAI ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} 
-                                                    {isGeneratingAI ? 'Escrevendo...' : 'Gerar Copy com IA'}
+                                                    {isGeneratingAI ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>}
+                                                    {isGeneratingAI ? 'Gerando...' : 'Sugerir Texto IA'}
                                                 </button>
                                             )}
                                         </div>
+                                        
                                         <textarea 
-                                            rows="6" 
-                                            required 
-                                            placeholder="Escreva a novidade para seus clientes ou selecione um produto e clique em 'Gerar Copy com IA'..." 
-                                            value={postData.summary} 
-                                            onChange={e => setPostData({...postData, summary: e.target.value})} 
-                                            className="w-full p-5 bg-white rounded-[1.5rem] font-medium text-slate-700 outline-none focus:ring-2 ring-blue-500 resize-none custom-scrollbar"
+                                            rows="4"
+                                            required
+                                            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 ring-blue-500 resize-y"
+                                            placeholder="Escreva a novidade para seus clientes aqui. Lembre-se de destacar os benefícios!"
+                                            value={postData.summary}
+                                            onChange={(e) => setPostData({...postData, summary: e.target.value})}
                                         ></textarea>
+                                        
+                                        <p className="text-[10px] font-bold text-slate-400 mt-2 ml-2">
+                                            Dica: Use palavras-chave da sua região e evite textos muito curtos. O Google adora detalhes!
+                                        </p>
                                     </div>
                                     
                                     <button type="submit" disabled={isSaving} className="w-full bg-blue-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
