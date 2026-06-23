@@ -2753,18 +2753,23 @@ const handleGenerateProductCopy = async () => {
         const historicoCount = orders.filter(pedido => String(pedido.customerPhone || '').replace(/\D/g, '') === telefoneLimpo && pedido.status !== 'canceled').length || 1;
 
         const itemsHtml = (o.items ||[]).map(i => {
-            let html = `<li style="margin-bottom: 4px; font-size: 14px;">• <strong>${i.quantity}x ${i.name} (R$ ${Number(i.price || 0).toFixed(2)})</strong>`;
+            const precoUnitario = Number(i.price || 0);
+            const precoTotalItem = precoUnitario * Number(i.quantity || 1);
+            
+            let html = `<li style="margin-bottom: 12px; font-size: 16px; border-bottom: 1px dotted #ccc; padding-bottom: 8px;">
+                <strong>${i.quantity}x ${i.name}</strong><br>
+                <small style="font-size: 13px; color: #333;">Valor Unit.: R$ ${precoUnitario.toFixed(2)} &nbsp;|&nbsp; <strong>Total Item: R$ ${precoTotalItem.toFixed(2)}</strong></small>`;
             
             if (i.selectedComplements && i.selectedComplements.length > 0) {
-                 html += `<ul style="margin: 2px 0 4px 12px; padding: 0; list-style: none; font-size: 12px;">`;
+                 html += `<ul style="margin: 6px 0 6px 12px; padding: 0; list-style: none; font-size: 14px;">`;
                  i.selectedComplements.forEach(comp => {
-                     html += `<li>- ${comp.quantity || 1}x ${comp.name}</li>`;
+                     html += `<li>+ ${comp.quantity || 1}x ${comp.name}</li>`;
                  });
                  html += `</ul>`;
             }
 
             if (i.observation) {
-                html += `<br><span style="font-size: 12px; border: 1px solid #000; padding: 2px 4px; display: inline-block; margin-top: 2px;"><strong>OBS:</strong> ${i.observation}</span>`;
+                html += `<br><span style="font-size: 14px; border: 1px solid #000; padding: 4px 6px; display: inline-block; margin-top: 6px;"><strong>OBS:</strong> ${i.observation}</span>`;
             }
             html += `</li>`;
             return html;
@@ -2789,34 +2794,41 @@ const handleGenerateProductCopy = async () => {
                                ['failed', 'rejected'].includes(o.paymentStatus) ? '❌ RECUSADO' : 
                                '⏳ AGUARDANDO PAGTO';
         
-        // Formata a data
-        const dataPedido = o.createdAt?.toDate ? new Date(o.createdAt.toDate()).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+        // Formata a data e hora destacada
+        const dataOriginal = o.createdAt?.toDate ? new Date(o.createdAt.toDate()) : new Date();
+        const dataPedido = dataOriginal.toLocaleDateString('pt-BR');
+        const horaPedido = dataOriginal.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
         const gerarVia = (titulo, temCorte) => `
             <div style="width: 280px; padding: 10px; font-family: sans-serif; border-bottom: ${temCorte ? '2px dashed #000' : 'none'}; padding-bottom: 20px; margin-bottom: 40px;">
                 <center>
-                    <small>-- ${titulo} --</small>
-                    <h2>${currentStoreStatus.name || 'DELIVERY'}</h2>
-                    <small>${dataPedido}</small>
-                    ${o.tipo !== 'local' ? `<br><strong style="font-size: 14px; background: #000; color: #fff; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 6px;">🎯 ${historicoCount}º PEDIDO NA LOJA</strong>` : ''}
+                    <small style="font-size: 12px; color: #555;">-- ${titulo} --</small>
+                    <h1 style="margin: 8px 0; font-size: 26px;">${currentStoreStatus.name || 'DELIVERY'}</h1>
+                    ${currentStoreStatus.cnpj ? `<small style="font-size: 13px;">CNPJ: ${currentStoreStatus.cnpj}</small><br>` : ''}
+                    ${currentStoreStatus.whatsapp ? `<small style="font-size: 13px;">Tel/Wpp: ${currentStoreStatus.whatsapp}</small><br>` : ''}
+                    <br>
+                    <strong style="font-size: 18px; background: #eee; padding: 6px 10px; border-radius: 4px; display: inline-block;">${dataPedido} às ${horaPedido}</strong>
+                    ${o.tipo !== 'local' ? `<br><strong style="font-size: 16px; background: #000; color: #fff; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 8px;">🎯 ${historicoCount}º PEDIDO NA LOJA</strong>` : ''}
                 </center>
                 <hr>
-                <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
-                <strong>CLIENTE:</strong> ${o.customerName}<br>
-                ${o.tipo === 'local' ? `<strong>MESA:</strong> ${o.mesa}<br><strong>GARÇOM:</strong> ${o.waiterName || 'Não identificado'}<br>` : `<strong>TEL:</strong> ${o.customerPhone || o.phone || ''}<br><strong>ENDEREÇO:</strong> ${o.address || o.customerAddress || 'Retirada'}<br>`}
-                <strong>PAGTO:</strong> ${pagto}<br>
-                <strong>STATUS:</strong> ${statusPagtoStr}<br>
-                ${o.customerChangeFor ? `<p><strong>TROCO PARA:</strong> ${o.customerChangeFor}</p>` : ''}
+                <div style="font-size: 16px; line-height: 1.4;">
+                    <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
+                    <strong>CLIENTE:</strong> ${o.customerName}<br>
+                    ${o.tipo === 'local' ? `<strong>MESA:</strong> ${o.mesa}<br><strong>GARÇOM:</strong> ${o.waiterName || 'Não identificado'}<br>` : `<strong>TEL:</strong> ${o.customerPhone || o.phone || ''}<br><strong>ENDEREÇO:</strong> ${o.address || o.customerAddress || 'Retirada'}<br>`}
+                    <strong>PAGTO:</strong> ${pagto}<br>
+                    <strong>STATUS:</strong> ${statusPagtoStr}<br>
+                    ${o.customerChangeFor ? `<strong>TROCO PARA:</strong> ${o.customerChangeFor}<br>` : ''}
+                </div>
                 <hr>
-                <ul style="list-style:none; padding:0;">${itemsHtml}</ul>
+                <ul style="list-style:none; padding:0; margin: 10px 0;">${itemsHtml}</ul>
                 <hr>
                 
-                ${o.observation ? `<div style="background:#eee; padding:5px; margin: 10px 0; border:1px solid #000;"><strong>OBS: ${o.observation}</strong></div>` : ''}
+                ${o.observation ? `<div style="background:#eee; padding:8px; margin: 15px 0; border:1px solid #000; font-size: 16px;"><strong>OBS DO PEDIDO: ${o.observation}</strong></div>` : ''}
 
-                <div style="text-align:right; font-size:18px;">
-                    <small>Frete: R$ ${Number(o.shippingFee || 0).toFixed(2)}</small><br>
-                    ${o.discountAmount > 0 ? `<small>Desconto: - R$ ${Number(o.discountAmount).toFixed(2)}</small><br>` : ''}
-                    <strong>TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong>
+                <div style="text-align:right; font-size:20px; margin-top: 15px;">
+                    <small style="font-size: 14px;">Frete: R$ ${Number(o.shippingFee || 0).toFixed(2)}</small><br>
+                    ${o.discountAmount > 0 ? `<small style="font-size: 14px;">Desconto: - R$ ${Number(o.discountAmount).toFixed(2)}</small><br>` : ''}
+                    <strong style="font-size: 24px; display: block; margin-top: 8px;">TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong>
                 </div>
                 ${temCorte ? '<center><br>✂--- CORTE AQUI ---✂</center>' : ''}
             </div>
@@ -10072,6 +10084,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
+        {/* VITRINE INTELIGENTE (NOVO TOGGLE) */}
+        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
+            <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2"><Sparkles size={16} className="text-purple-500"/> Modo de Exibição (Vitrine)</h3>
+            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.smartShowcaseEnabled !== false ? 'bg-white border-purple-400 shadow-sm' : 'bg-white/50 border-transparent opacity-70 hover:bg-white/80'}`}>
+                <div className="flex flex-col">
+                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.smartShowcaseEnabled !== false ? 'text-purple-800' : 'text-slate-500'}`}>
+                        Vitrine Inteligente (IA)
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-bold mt-0.5">Destaca ofertas e o histórico do cliente.</span>
+                </div>
+                <input 
+                    type="checkbox" 
+                    checked={storeStatus.smartShowcaseEnabled !== false} 
+                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { smartShowcaseEnabled: e.target.checked }, { merge: true })} 
+                    className="w-5 h-5 rounded-md accent-purple-600 cursor-pointer" 
+                />
+            </label>
+            <p className="text-[10px] text-slate-400 font-bold mt-2 leading-tight">Desative se preferir que os clientes vejam APENAS o cardápio padrão na ordem das categorias.</p>
+        </div>
+
         {/* COMPORTAMENTO DO CARRINHO */}
         <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
             <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2"><ShoppingCart size={16} className="text-blue-500"/> Ação ao Adicionar Produto</h3>
@@ -13816,100 +13848,101 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <RefreshCw size={16}/> Gerar Outra Opção
                                     </button>
 
-                                    {/* --- GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
-                                            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mt-4">
-                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
-                                                    <h3 className="text-sm font-black text-blue-800 uppercase flex items-center gap-2">
-                                                        <FaGoogle size={16} /> Postar no Google Maps
+                                   {/* --- GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
+                                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 mt-6 shadow-md relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 bg-blue-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest shadow-sm">
+                                                    Recomendado para Vendas
+                                                </div>
+                                                
+                                                <div className="flex flex-col mb-4">
+                                                    <h3 className="text-lg font-black text-blue-900 uppercase flex items-center gap-2 mb-1">
+                                                        <FaGoogle size={20} className="text-blue-600" /> Atraia Clientes Locais
                                                     </h3>
-                                                    
-                                                    <div className="flex items-center gap-2 w-full md:w-auto">
-                                                        <select 
-                                                            value={promoCopyResult.gmbType || 'STANDARD'} 
-                                                            onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
-                                                            className="flex-1 p-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none border border-blue-200 text-blue-800 bg-white cursor-pointer shadow-sm"
-                                                        >
-                                                            <option value="STANDARD">📢 Atualização</option>
-                                                            <option value="OFFER">🏷️ Oferta</option>
-                                                            <option value="EVENT">📅 Agendamento/Evento</option>
-                                                        </select>
+                                                    <p className="text-xs font-bold text-blue-700/80 leading-relaxed">
+                                                        Você sabia? Lojas que postam produtos e ofertas no Google Maps atraem até <strong>3x mais cliques gratuitos</strong>. A IA já preparou tudo, publique esta oferta agora mesmo no seu Perfil da Empresa no Google!
+                                                    </p>
+                                                </div>
+                                                
+                                                <div className="flex flex-col md:flex-row items-center gap-3 w-full bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
+                                                    <select 
+                                                        value={promoCopyResult.gmbType || 'STANDARD'} 
+                                                        onChange={(e) => setPromoCopyResult({...promoCopyResult, gmbType: e.target.value})}
+                                                        className="w-full md:w-1/3 p-3 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none border border-slate-200 text-blue-800 bg-slate-50 cursor-pointer shadow-inner focus:ring-2 ring-blue-500"
+                                                    >
+                                                        <option value="STANDARD">📢 Atualização</option>
+                                                        <option value="OFFER">🏷️ Oferta</option>
+                                                        <option value="EVENT">📅 Agendamento/Evento</option>
+                                                    </select>
 
-                                                        <button 
-                                                            onClick={async (e) => {
-                                                                if (!settings?.integrations?.google_my_business?.locationId) {
-                                                                    return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
-                                                                }
-                                                                // 1. Correção: Verifica se tem IMAGEM OU VÍDEO
-                                                                if (!promoCopyProduct?.imageUrl && !promoCopyProduct?.videoUrl) {
-                                                                    return alert("⚠️ O produto precisa ter uma imagem ou vídeo cadastrado para ser postado no Google.");
-                                                                }
-                                                                if ((promoCopyResult.gmbType === 'OFFER' || promoCopyResult.gmbType === 'EVENT') && (!promoCopyResult.gmbStartDate || !promoCopyResult.gmbEndDate)) {
-                                                                    return alert("⚠️ Para Ofertas e Eventos, as datas de Início e Fim são obrigatórias.");
-                                                                }
+                                                    <button 
+                                                        onClick={async (e) => {
+                                                            if (!settings?.integrations?.google_my_business?.locationId) {
+                                                                return alert("⚠️ Configure o ID da sua loja do Google Meu Negócio na aba de 'Integrações' primeiro.");
+                                                            }
+                                                            if (!promoCopyProduct?.imageUrl && !promoCopyProduct?.videoUrl) {
+                                                                return alert("⚠️ O produto precisa ter uma imagem ou vídeo cadastrado para ser postado no Google.");
+                                                            }
+                                                            if ((promoCopyResult.gmbType === 'OFFER' || promoCopyResult.gmbType === 'EVENT') && (!promoCopyResult.gmbStartDate || !promoCopyResult.gmbEndDate)) {
+                                                                return alert("⚠️ Para Ofertas e Eventos, as datas de Início e Fim são obrigatórias.");
+                                                            }
+                                                            
+                                                            try {
+                                                                const btn = e.currentTarget;
+                                                                const oldText = btn.innerHTML;
+                                                                btn.innerHTML = '⏳ Publicando...';
+                                                                btn.disabled = true;
+
+                                                                const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                                const safeSlug = promoCopyProduct.name.toString().toLowerCase()
+                                                                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                                                                    .replace(/[^a-z0-9 -]/g, '')
+                                                                    .replace(/\s+/g, '-')
+                                                                    .replace(/-+/g, '-')
+                                                                    .replace(/^-+/, '').replace(/-+$/, '');
+
+                                                                const res = await fetch('/api/post-google-update', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                        storeId: storeId,
+                                                                        locationId: settings.integrations.google_my_business.locationId,
+                                                                        summary: promoCopyResult.instagram, 
+                                                                        imageUrl: promoCopyProduct.imageUrl,
+                                                                        videoUrl: promoCopyProduct.videoUrl,
+                                                                        productUrl: `${baseUrl}/p/${safeSlug}`,
+                                                                        topicType: promoCopyResult.gmbType || 'STANDARD',
+                                                                        startDate: promoCopyResult.gmbStartDate,
+                                                                        endDate: promoCopyResult.gmbEndDate,
+                                                                        couponCode: promoCopyResult.gmbCoupon
+                                                                    })
+                                                                });
                                                                 
-                                                                try {
-                                                                    const btn = e.currentTarget;
-                                                                    const oldText = btn.innerHTML;
-                                                                    btn.innerHTML = '⏳ Publicando...';
-                                                                    btn.disabled = true;
+                                                                const data = await res.json();
+                                                                btn.innerHTML = oldText;
+                                                                btn.disabled = false;
 
-                                                                    // Gera a URL exata do produto usando o slug e o domínio correto
-                                                                    const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
-                                                                    const safeSlug = promoCopyProduct.name.toString().toLowerCase()
-                                                                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                                                                        .replace(/[^a-z0-9 -]/g, '')
-                                                                        .replace(/\s+/g, '-')
-                                                                        .replace(/-+/g, '-')
-                                                                        .replace(/^-+/, '').replace(/-+$/, '');
-
-                                                                    const res = await fetch('/api/post-google-update', {
-                                                                        method: 'POST',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({
-                                                                            storeId: storeId,
-                                                                            locationId: settings.integrations.google_my_business.locationId,
-                                                                            summary: promoCopyResult.instagram, 
-                                                                            imageUrl: promoCopyProduct.imageUrl,
-                                                                            videoUrl: promoCopyProduct.videoUrl, // 2. Correção: Envia o Vídeo para o Backend!
-                                                                            productUrl: `${baseUrl}/p/${safeSlug}`,
-                                                                            topicType: promoCopyResult.gmbType || 'STANDARD',
-                                                                            startDate: promoCopyResult.gmbStartDate,
-                                                                            endDate: promoCopyResult.gmbEndDate,
-                                                                            couponCode: promoCopyResult.gmbCoupon
-                                                                        })
-                                                                    });
-                                                                    
-                                                                    const data = await res.json();
-                                                                    
-                                                                    btn.innerHTML = oldText;
-                                                                    btn.disabled = false;
-
-                                                                    if (res.ok) {
-                                                                        alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
-                                                                    } else {
-                                                                        alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
-                                                                    }
-                                                                } catch (err) {
-                                                                    alert("Erro de conexão ao tentar postar no Google.");
-                                                                }
-                                                            }} 
-                                                            className="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1 active:scale-95 whitespace-nowrap"
-                                                        >
-                                                            <UploadCloud size={14}/> Publicar
-                                                        </button>
-                                                    </div>
+                                                                if (res.ok) alert("✅ Oferta postada com sucesso no seu Perfil do Google Maps!");
+                                                                else alert(`❌ Erro ao postar: ${data.error || 'Falha na comunicação com o Google.'}`);
+                                                            } catch (err) {
+                                                                alert("Erro de conexão ao tentar postar no Google.");
+                                                            }
+                                                        }} 
+                                                        className="w-full md:flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95 whitespace-nowrap"
+                                                    >
+                                                        <UploadCloud size={16}/> Publicar no Google
+                                                    </button>
                                                 </div>
 
                                                 {/* --- NOVOS CAMPOS DINÂMICOS PARA OFERTA E EVENTO --- */}
                                                 {(promoCopyResult.gmbType === 'OFFER' || promoCopyResult.gmbType === 'EVENT') && (
-                                                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 border-t border-blue-200/50 pt-3 animate-in fade-in">
+                                                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 border-t border-blue-200/50 pt-4 animate-in fade-in">
                                                         <div className="flex flex-col gap-1">
                                                             <label className="text-[9px] font-black uppercase text-blue-700 tracking-widest">Data de Início *</label>
                                                             <input 
                                                                 type="date" 
                                                                 value={promoCopyResult.gmbStartDate || ''} 
                                                                 onChange={e => setPromoCopyResult({...promoCopyResult, gmbStartDate: e.target.value})} 
-                                                                className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 bg-white" 
+                                                                className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 bg-white shadow-sm" 
                                                             />
                                                         </div>
                                                         <div className="flex flex-col gap-1">
@@ -13918,7 +13951,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 type="date" 
                                                                 value={promoCopyResult.gmbEndDate || ''} 
                                                                 onChange={e => setPromoCopyResult({...promoCopyResult, gmbEndDate: e.target.value})} 
-                                                                className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 bg-white" 
+                                                                className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 bg-white shadow-sm" 
                                                             />
                                                         </div>
                                                         {promoCopyResult.gmbType === 'OFFER' && (
@@ -13929,16 +13962,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     placeholder="Ex: PROMO10" 
                                                                     value={promoCopyResult.gmbCoupon || ''} 
                                                                     onChange={e => setPromoCopyResult({...promoCopyResult, gmbCoupon: e.target.value.toUpperCase()})} 
-                                                                    className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 uppercase bg-white" 
+                                                                    className="p-2.5 rounded-lg text-xs font-bold text-slate-700 border border-blue-200 outline-none focus:ring-2 ring-blue-400 uppercase bg-white shadow-sm" 
                                                                 />
                                                             </div>
                                                         )}
                                                     </div>
                                                 )}
-                                                {/* --------------------------------------------------- */}
-
-                                                <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                                                    Escolha o tipo da postagem (Atualização, Oferta ou Evento). O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto.
+                                                
+                                                <p className="text-[10px] font-bold text-slate-500 leading-tight mt-4">
+                                                    O cliente verá a foto, o texto e um botão "Saiba Mais" que levará direto para a página do produto na sua loja online.
                                                 </p>
                                             </div>
                                             {/* --- FIM: GOOGLE MEU NEGÓCIO --- */}

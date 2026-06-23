@@ -3243,6 +3243,9 @@ if (window.fbq) {
 
       {/* --- INÍCIO: VITRINE INTELIGENTE --- */}
       {(() => {
+          // Validação da configuração do lojista
+          if (storeSettings?.smartShowcaseEnabled === false) return null;
+
           // Lógica da Vitrine Inteligente
           let smartTitle = "Sugerido para você";
           let smartProducts = [];
