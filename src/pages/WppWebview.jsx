@@ -305,10 +305,8 @@ export default function WppWebview() {
               }
           }
 
-          // Baixa de Estoque Ficha Técnica Segura
-          const proms = [];
-          cart.forEach(c => c.consumedIngredients?.forEach(ci => proms.push(updateDoc(doc(db, "ingredients", ci.ingredientId), { stock: increment(-(c.quantity * ci.qty)) }))));
-          if(proms.length) await Promise.all(proms).catch(()=>{});
+          // A baixa de estoque via Frontend foi removida para evitar o erro de permissão do Firebase.
+          // O estoque agora deve ser baixado apenas pelo Backend quando o pedido for pago.
           // =========================================================
 
           // Trava de segurança: somente métodos online permitidos no Webview WPP

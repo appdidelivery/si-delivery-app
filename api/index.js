@@ -3017,6 +3017,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
    // ------------------------------------------------------------------------
     // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
     // ------------------------------------------------------------------------
+   // ------------------------------------------------------------------------
+    // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
+    // ------------------------------------------------------------------------
     else if (path === '/api/processar-pagamento-transparente-velo') {
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -3031,7 +3034,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             installments, payment_method_id, issuer_id, payer
         } = req.body;
 
-        // Validação: Token só é obrigatório se NÃO FOR PIX
         if (!storeId || !payment_method_id || !payer) {
             return res.status(400).json({ error: 'Faltam dados obrigatórios para processar o pagamento.' });
         }
@@ -3049,23 +3051,37 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
 
+            // --- TRATAMENTO OBRIGATÓRIO DE NOME PARA O MERCADO PAGO ---
+            let firstName = 'Cliente';
+            let lastName = 'Velo';
+
+            if (payer.first_name) {
+                const nameParts = String(payer.first_name).trim().split(' ');
+                firstName = nameParts[0];
+                if (nameParts.length > 1) {
+                    lastName = nameParts.slice(1).join(' ');
+                }
+            }
+
             const paymentPayload = {
-                transaction_amount: Number(transaction_amount),
-                description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo Delivery`,
+                transaction_amount: Number(Number(transaction_amount).toFixed(2)),
+                description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`,
                 payment_method_id: payment_method_id,
                 payer: {
-                    // Gera um e-mail único por pedido para não acionar o bloqueio de "Múltiplas tentativas do mesmo usuário"
                     email: payer.email && payer.email.includes('@') ? payer.email : `cliente_${orderId.slice(-6)}@velodelivery.com.br`,
-                    first_name: payer.first_name || 'Cliente',
-                    identification: payer.identification || undefined
+                    first_name: firstName,
+                    last_name: lastName
                 },
                 external_reference: orderId,
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,
-                application_fee: marketplaceFee > 0 ? marketplaceFee : undefined,
                 statement_descriptor: "VELO DELIVERY"
             };
 
-            // Se for cartão, adiciona os dados específicos
+            // Só adiciona a taxa da Velo se for maior que zero (evita erro de validação do MP)
+            if (marketplaceFee > 0) {
+                paymentPayload.application_fee = marketplaceFee;
+            }
+
             if (payment_method_id !== 'pix') {
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
@@ -3085,11 +3101,11 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const data = await mpResponse.json();
 
             if (!mpResponse.ok) {
-                console.error("❌ Erro MP Transparent:", data);
+                // Deixa um log claro na Vercel para sabermos o motivo exato se falhar novamente
+                console.error("❌ Erro MP Transparent - Motivo:", JSON.stringify(data.cause || data));
                 return res.status(400).json({ error: "Erro ao processar pagamento no Mercado Pago.", details: data });
             }
 
-           // SE FOR PIX: Extrai o QR Code e salva no Firebase para a tela de Tracking exibir
             if (payment_method_id === 'pix') {
                 if (!data.point_of_interaction?.transaction_data?.qr_code) {
                     return res.status(400).json({ error: "O Mercado Pago não conseguiu gerar a chave PIX." });
@@ -3105,16 +3121,13 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
                 }, { merge: true });
 
-                // 🚀 ENVIA O CÓDIGO PIX DIRETO NO ZAP DO CLIENTE
                 const waConfig = settingsDoc.data()?.integrations?.whatsapp;
                 if (payer.phone && waConfig?.apiToken && waConfig?.phoneNumberId) {
                     const phoneClient = String(payer.phone).replace(/\D/g, '');
                     const safePhone = phoneClient.startsWith('55') ? phoneClient : `55${phoneClient}`;
                     
                     const msgPixInstrucoes = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*\n\nCopie o código PIX na mensagem abaixo para pagar 👇\n\n*A cozinha será avisada assim que você pagar!* 🚀`;
-                    const msgPixCodigoLimpo = pixCodigo;
                     
-                    // Disparo Duplo: Primeiro as instruções, depois o código isolado para o "Copia e Cola"
                     (async () => {
                         try {
                             await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
@@ -3124,7 +3137,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                             
                             await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
                                 method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: msgPixCodigoLimpo } })
+                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: pixCodigo } })
                             });
                         } catch (e) {
                             console.error("Erro ao enviar PIX no Zap:", e);
@@ -3135,7 +3148,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: true, isPix: true, id: data.id });
             }
 
-            // SE FOR CARTÃO
             await db.collection('orders').doc(orderId).set({
                 paymentIntentId: String(data.id),
                 mpPaymentStatus: data.status,

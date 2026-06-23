@@ -2098,14 +2098,9 @@ export default function Home() {
           }
       }
 
-      // 4. Se passou na validação, efetua a baixa com segurança
-      const promisesBaixaEstoque = [];
+      // 4. Pausa de Meta Ads (A baixa de estoque do Firebase no FrontEnd foi removida para evitar erro de permissão)
       sanitizedCart.forEach(cartItem => {
-          // 📦 Baixa do Produto Principal
           if (cartItem.stock !== undefined && cartItem.stock !== null && cartItem.stock !== '') {
-              const productRef = doc(db, "products", cartItem.id);
-              promisesBaixaEstoque.push(updateDoc(productRef, { stock: increment(-Number(cartItem.quantity)) }));
-              
               // 🛑 GATILHO DE PROTEÇÃO DE BOLSO (META ADS AUTO-PAUSE)
               // Desliga a campanha silenciosamente se o cliente comprar as últimas unidades
               if (cartItem.metaCampaignId && (Number(cartItem.stock) - Number(cartItem.quantity) <= 0)) {
@@ -2116,19 +2111,7 @@ export default function Home() {
                   }).catch(e => console.error("Aviso: Falha ao tentar auto-pausar campanha Meta.", e));
               }
           }
-
-          // 🍔 Baixa dos Insumos da Ficha Técnica
-          if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
-              cartItem.consumedIngredients.forEach(ci => {
-                  const ingRef = doc(db, "ingredients", ci.ingredientId);
-                  const totalGasto = Number(cartItem.quantity) * Number(ci.qty);
-                  promisesBaixaEstoque.push(updateDoc(ingRef, { stock: increment(-totalGasto) }));
-              });
-          }
       });
-      if (promisesBaixaEstoque.length > 0) {
-          await Promise.all(promisesBaixaEstoque).catch(err => console.error("Erro ao dar baixa no estoque/insumos:", err));
-      }
       // =========================================================
 if (window.fbq) { 
           window.fbq('track', 'Purchase', { value: finalTotal, currency: 'BRL' }); 
