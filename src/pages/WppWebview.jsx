@@ -239,7 +239,7 @@ export default function WppWebview() {
   const cartTotal = Math.max(0, cartSub + (deliveryMethod === 'delivery' ? deliveryFee : 0));
   const cartCount = cart.reduce((a, i) => a + i.quantity, 0);
 
-  /// Finalização do Pedido
+  // Finalização do Pedido
   const finalizeOrder = async () => {
       if (submitLock.current) return;
       if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
@@ -252,11 +252,16 @@ export default function WppWebview() {
       
       try {
           const orderRef = doc(collection(db, "orders"));
+
+          // 🚨 CORREÇÃO CRÍTICA: O sistema de rastreio (Track) exige que a palavra seja exatamente 'pix'
+          // Se mandarmos 'mercadopago_pix' ou 'velopay_pix', a tela de status fica em branco escondendo o QR Code!
+          const mappedPaymentMethod = customer.payment.includes('pix') ? 'pix' : 'cartao';
+
           const oData = {
               customerName: customer.name, 
               customerAddress: addr, 
               customerPhone: customer.phone,
-              paymentMethod: customer.payment, 
+              paymentMethod: mappedPaymentMethod, // <-- AQUI ESTÁ O SEGREDO QUE DESTRAVA A TELA
               paymentStatus: 'pending', 
               customerChangeFor: customer.changeFor || "",
               items: cart, 
@@ -270,9 +275,6 @@ export default function WppWebview() {
               source: 'whatsapp_bot' 
           };
 
-          // 🚨 A Baixa de Estoque via Frontend foi removida daqui para evitar o Erro de Permissão do Firebase.
-          // O backend fará a baixa do estoque automaticamente quando o PIX for pago.
-
           // Trava de segurança: somente métodos online permitidos no Webview WPP
           if (!['velopay_pix', 'mercadopago_pix', 'mercadopago_link'].includes(customer.payment)) {
               setIsSubmitting(false);
@@ -282,23 +284,23 @@ export default function WppWebview() {
 
           // VeloPay Pix Nativo
           if (customer.payment === 'velopay_pix') {
-              await setDoc(orderRef, { ...oData, paymentStatus: 'processing' });
+              await setDoc(orderRef, oData);
               const res = await fetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
-              if (!res.ok) {
-                  const errData = await res.json();
-                  throw new Error(errData.error || "Falha na API VeloPay");
-              }
+              if (!res.ok) throw new Error((await res.json()).error);
+              
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
-              return window.location.href = `/track/${orderRef.id}?payment=pix_pending`;
+              // Timeout rápido para o Firebase sincronizar antes de mudar de tela
+              setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_pending`; }, 500);
+              return;
           }
 
           // Mercado Pago Pix (Transparente Direto)
           if (customer.payment === 'mercadopago_pix') {
               try {
-                  // Salva o pedido PRIMEIRO, antes de chamar a API
+                  // Salva o pedido PRIMEIRO
                   await setDoc(orderRef, oData);
                   
-                  // Separa o nome para o Mercado Pago não dar erro 400
+                  // Formata o nome blindado para o Mercado Pago
                   let firstName = customer.name.split(' ')[0];
                   let lastName = customer.name.split(' ').slice(1).join(' ') || 'Velo';
 
@@ -322,9 +324,10 @@ export default function WppWebview() {
                   const data = await res.json();
 
                   if (res.ok && data.success) {
-                      setCart([]); 
-                      localStorage.removeItem(`veloCart_${slug}`);
-                      return window.location.href = `/track/${orderRef.id}?payment=pix_generated`;
+                      setCart([]); localStorage.removeItem(`veloCart_${slug}`);
+                      // Timeout rápido para garantir que o QR Code subiu pro Firebase
+                      setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_generated`; }, 500);
+                      return;
                   } else {
                       throw new Error(data.error || "Falha ao gerar PIX Mercado Pago.");
                   }
@@ -338,9 +341,9 @@ export default function WppWebview() {
           // Cartão de Crédito Mercado Pago (Link / Checkout Pro)
           if (customer.payment === 'mercadopago_link') {
               await setDoc(orderRef, oData);
-              setCart([]); 
-              localStorage.removeItem(`veloCart_${slug}`);
-              return window.location.href = `/track/${orderRef.id}?payment=mp_link`;
+              setCart([]); localStorage.removeItem(`veloCart_${slug}`);
+              setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=mp_link`; }, 500);
+              return;
           }
 
       } catch (e) { alert(`Erro: ${e.message}`); submitLock.current = false; setIsSubmitting(false); }
