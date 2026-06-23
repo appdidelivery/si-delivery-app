@@ -3017,9 +3017,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
    // ------------------------------------------------------------------------
     // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
     // ------------------------------------------------------------------------
-   // ------------------------------------------------------------------------
-    // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
-    // ------------------------------------------------------------------------
     else if (path === '/api/processar-pagamento-transparente-velo') {
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -3051,7 +3048,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
 
-            // --- TRATAMENTO OBRIGATÓRIO DE NOME PARA O MERCADO PAGO ---
             let firstName = 'Cliente';
             let lastName = 'Velo';
 
@@ -3077,7 +3073,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 statement_descriptor: "VELO DELIVERY"
             };
 
-            // Só adiciona a taxa da Velo se for maior que zero (evita erro de validação do MP)
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
@@ -3101,8 +3096,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const data = await mpResponse.json();
 
             if (!mpResponse.ok) {
-                // Deixa um log claro na Vercel para sabermos o motivo exato se falhar novamente
-                console.error("❌ Erro MP Transparent - Motivo:", JSON.stringify(data.cause || data));
+                console.error("❌ Erro MP Transparent:", JSON.stringify(data.cause || data));
                 return res.status(400).json({ error: "Erro ao processar pagamento no Mercado Pago.", details: data });
             }
 
@@ -3121,6 +3115,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
                 }, { merge: true });
 
+                // 🚀 DISPARO DO WHATSAPP BLINDADO PARA VERCEL (Com await obrigatório)
                 const waConfig = settingsDoc.data()?.integrations?.whatsapp;
                 if (payer.phone && waConfig?.apiToken && waConfig?.phoneNumberId) {
                     const phoneClient = String(payer.phone).replace(/\D/g, '');
@@ -3128,21 +3123,21 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     
                     const msgPixInstrucoes = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*\n\nCopie o código PIX na mensagem abaixo para pagar 👇\n\n*A cozinha será avisada assim que você pagar!* 🚀`;
                     
-                    (async () => {
-                        try {
-                            await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
-                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: msgPixInstrucoes } })
-                            });
-                            
-                            await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
-                                method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: pixCodigo } })
-                            });
-                        } catch (e) {
-                            console.error("Erro ao enviar PIX no Zap:", e);
-                        }
-                    })();
+                    try {
+                        // Manda a primeira mensagem (Texto explicativo)
+                        await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                            method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: msgPixInstrucoes } })
+                        });
+                        
+                        // Manda a segunda mensagem (Apenas o Código Pix Copia e Cola)
+                        await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                            method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: pixCodigo } })
+                        });
+                    } catch (e) {
+                        console.error("Erro ao enviar PIX no Zap:", e);
+                    }
                 }
 
                 return res.status(200).json({ success: true, isPix: true, id: data.id });

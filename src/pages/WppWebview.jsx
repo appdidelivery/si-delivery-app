@@ -253,15 +253,14 @@ export default function WppWebview() {
       try {
           const orderRef = doc(collection(db, "orders"));
 
-          // 🚨 CORREÇÃO CRÍTICA: O sistema de rastreio (Track) exige que a palavra seja exatamente 'pix'
-          // Se mandarmos 'mercadopago_pix' ou 'velopay_pix', a tela de status fica em branco escondendo o QR Code!
+          // 🚨 A MÁGICA DO QR CODE: Força a palavra 'pix' no banco de dados para a tela de rastreio exibir a imagem
           const mappedPaymentMethod = customer.payment.includes('pix') ? 'pix' : 'cartao';
 
           const oData = {
               customerName: customer.name, 
               customerAddress: addr, 
               customerPhone: customer.phone,
-              paymentMethod: mappedPaymentMethod, // <-- AQUI ESTÁ O SEGREDO QUE DESTRAVA A TELA
+              paymentMethod: mappedPaymentMethod, 
               paymentStatus: 'pending', 
               customerChangeFor: customer.changeFor || "",
               items: cart, 
@@ -275,10 +274,9 @@ export default function WppWebview() {
               source: 'whatsapp_bot' 
           };
 
-          // Trava de segurança: somente métodos online permitidos no Webview WPP
+          // Trava de segurança: somente métodos online
           if (!['velopay_pix', 'mercadopago_pix', 'mercadopago_link'].includes(customer.payment)) {
-              setIsSubmitting(false);
-              submitLock.current = false;
+              setIsSubmitting(false); submitLock.current = false;
               return alert("Esta forma de pagamento não é permitida neste canal. Escolha PIX ou Cartão Online.");
           }
 
@@ -287,9 +285,7 @@ export default function WppWebview() {
               await setDoc(orderRef, oData);
               const res = await fetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
               if (!res.ok) throw new Error((await res.json()).error);
-              
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
-              // Timeout rápido para o Firebase sincronizar antes de mudar de tela
               setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_pending`; }, 500);
               return;
           }
@@ -297,10 +293,9 @@ export default function WppWebview() {
           // Mercado Pago Pix (Transparente Direto)
           if (customer.payment === 'mercadopago_pix') {
               try {
-                  // Salva o pedido PRIMEIRO
                   await setDoc(orderRef, oData);
                   
-                  // Formata o nome blindado para o Mercado Pago
+                  // Formata nome para Mercado Pago não travar
                   let firstName = customer.name.split(' ')[0];
                   let lastName = customer.name.split(' ').slice(1).join(' ') || 'Velo';
 
@@ -316,7 +311,7 @@ export default function WppWebview() {
                               email: `cliente_${orderRef.id.slice(-5)}@velodelivery.com.br`, 
                               first_name: firstName,
                               last_name: lastName,
-                              phone: customer.phone 
+                              phone: customer.phone // TELEFONE PASSADO AQUI PARA O BOT DISPARAR
                           }
                       })
                   });
@@ -325,7 +320,6 @@ export default function WppWebview() {
 
                   if (res.ok && data.success) {
                       setCart([]); localStorage.removeItem(`veloCart_${slug}`);
-                      // Timeout rápido para garantir que o QR Code subiu pro Firebase
                       setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_generated`; }, 500);
                       return;
                   } else {
@@ -338,7 +332,7 @@ export default function WppWebview() {
               }
           }
 
-          // Cartão de Crédito Mercado Pago (Link / Checkout Pro)
+          // Cartão MP Link
           if (customer.payment === 'mercadopago_link') {
               await setDoc(orderRef, oData);
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
