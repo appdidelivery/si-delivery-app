@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaGoogle, FaStore, FaStar, FaImage, FaList, FaBullhorn } from 'react-icons/fa6';
-import { Loader2, ExternalLink, Save, CheckCircle, Send, RefreshCw, MessageSquare, Search, Sparkles, UploadCloud, X, Edit3, Users, ShieldCheck, Clock } from 'lucide-react';
+import { Loader2, ExternalLink, Save, CheckCircle, Send, RefreshCw, MessageSquare, Search, Sparkles, UploadCloud, X, Edit3, Users, ShieldCheck, Clock, TrendingUp } from 'lucide-react';
 
-export default function GoogleIntegrationDashboard({ storeId, products, storeStatus, uploadImageToCloudinary }) {
+export default function GoogleIntegrationDashboard({ storeId, products, storeStatus, settings, uploadImageToCloudinary }) {
     const [isLoading, setIsLoading] = useState(true);
     const [isConnected, setIsConnected] = useState(false);
     const [activeTab, setActiveTab] = useState('profile');
 
     const [profileData, setProfileData] = useState({ title: '', description: '', phone: '', vouchers: [] });
-    const [postData, setPostData] = useState({ summary: '', imageUrl: '', topicType: 'STANDARD', startDate: '', endDate: '' });    const [productSearch, setProductSearch] = useState('');
+    const [postData, setPostData] = useState({ summary: '', imageUrl: '', topicType: 'STANDARD', startDate: '', endDate: '' });    
+    const [productSearch, setProductSearch] = useState('');
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [imageFile, setImageFile] = useState(null);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -22,18 +23,28 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
+    // MÁGICA: Extrai e garante que o locationId SEMPRE comece com "locations/"
+    const getSafeLocationId = () => {
+        let locId = settings?.integrations?.google_my_business?.locationId || '';
+        if (locId && !locId.startsWith('locations/')) {
+            return `locations/${locId}`;
+        }
+        return locId;
+    };
+
     useEffect(() => {
         if (storeId) checkConnectionStatus();
-    }, [storeId]);
+    }, [storeId, settings]);
 
     const checkConnectionStatus = async () => {
         setIsLoading(true);
+        const safeLocId = getSafeLocationId();
         try {
-            const res = await fetch(`/api/google-gmb?action=checkStatus&storeId=${storeId}`);
+            const res = await fetch(`/api/google-gmb?action=checkStatus&storeId=${storeId}&locationId=${encodeURIComponent(safeLocId)}`);
             const data = await res.json();
             if (data.connected) {
                 setIsConnected(true);
-                fetchProfileData();
+                fetchProfileData(safeLocId);
             } else {
                 setIsConnected(false);
             }
@@ -44,26 +55,20 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         }
     };
 
-    const fetchProfileData = async () => {
+    const fetchProfileData = async (safeLocId = getSafeLocationId()) => {
         setIsFetchingProfile(true);
         try {
-            const res = await fetch(`/api/google-gmb?action=getProfile&storeId=${storeId}`);
+            const res = await fetch(`/api/google-gmb?action=getProfile&storeId=${storeId}&locationId=${encodeURIComponent(safeLocId)}`);
             const data = await res.json();
             
-            // LOG DE DEBUG: Exibe no console o que o backend realmente mandou (Aperte F12 no Chrome para ver)
             console.log("🕵️ Resposta da API Google Profile:", data);
-            
-            // BLINDAGEM: Verifica se existe 'profile' ou 'location' (O Google varia a resposta dependendo da versão da API)
+
             if (data.success && (data.profile || data.location || data.data)) {
-                
-                // Pega o objeto principal, não importa como o backend o chame
                 const gmbData = data.profile || data.location || data.data || {};
                 
-                // Fallbacks estruturais para a descrição
                 let rawDescription = gmbData.profile?.description || gmbData.description || '';
                 let extractedVouchers = [];
                 
-                // Extração dos vales
                 if (rawDescription.includes('💳 Aceitamos Vales e Benefícios:')) {
                     const parts = rawDescription.split('💳 Aceitamos Vales e Benefícios:');
                     rawDescription = parts[0].trim();
@@ -71,7 +76,6 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                     extractedVouchers = vouchersString.split(',').map(v => v.trim());
                 }
 
-                // Fallbacks estruturais para título e telefone (Cobre v1 e v4.9 da API do GMB)
                 const safeTitle = gmbData.title || gmbData.name || gmbData.locationName || '';
                 const safePhone = gmbData.primaryPhone || gmbData.phoneNumbers?.primaryPhone || gmbData.regularHours?.primaryPhone || '';
 
@@ -82,11 +86,11 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                     vouchers: extractedVouchers
                 });
             } else if (data.error) {
-                console.error("❌ Erro retornado pela API:", data.error);
-                alert("Ocorreu um erro ao ler o perfil no Google. Verifique o console.");
+                console.error("Erro do Google:", data.error);
+                alert(`Erro retornado pelo Google: ${data.error.message || data.error}`);
             }
         } catch (error) { 
-            console.error("❌ Falha crítica de conexão ao buscar perfil:", error); 
+            console.error("Falha ao buscar perfil:", error); 
         } finally {
             setIsFetchingProfile(false);
         }
@@ -95,8 +99,8 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         setIsSaving(true);
+        const safeLocId = getSafeLocationId();
         try {
-            // AEO (Answer Engine Optimization) - Injeta os Vales no final da descrição para o Google indexar nos filtros
             let finalDescription = profileData.description;
             if (profileData.vouchers?.length > 0) {
                 const voucherText = `\n\n💳 Aceitamos Vales e Benefícios: ${profileData.vouchers.join(', ')}.`;
@@ -107,7 +111,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
 
             const res = await fetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateBusinessInfo', storeId, ...profileData, description: finalDescription })
+                body: JSON.stringify({ action: 'updateBusinessInfo', storeId, locationId: safeLocId, ...profileData, description: finalDescription })
             });
             const data = await res.json();
             if (data.success) alert("✅ Perfil atualizado no Google!");
@@ -155,7 +159,6 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                 finalImageUrl = selectedProduct.imageUrl;
             }
 
-            // Descobre a URL base da loja e formata o slug do produto para o botão do Google
             let productUrl = null;
             if (selectedProduct) {
                 const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
@@ -430,7 +433,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                             <motion.div key="feed" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                                 <h2 className="text-2xl font-black uppercase text-slate-800 flex items-center gap-2 mb-6"><MessageSquare className="text-blue-600"/> Feed de Novidades</h2>
                                 
-                                {/* --- BANNER EDUCATIVO SEO/GEO (SUBSTITUIU A CAIXA AZUL) --- */}
+                                {/* --- BANNER EDUCATIVO SEO/GEO --- */}
                                 <div className="bg-gradient-to-r from-blue-50 to-white border border-blue-200 p-6 md:p-8 rounded-[2rem] shadow-sm relative overflow-hidden mb-8">
                                     <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                                         <FaGoogle size={100} className="text-blue-600" />
@@ -470,8 +473,8 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                     </div>
                                     
                                     {productSearch && (
-    <div className="max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-2xl p-2 shadow-xl absolute z-20 w-[calc(100%-4rem)] md:w-[calc(100%-8rem)] custom-scrollbar">
-        {(products || []).filter(p => (p.name || '').toLowerCase().includes((productSearch || '').toLowerCase())).map(p => (
+                                        <div className="max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-2xl p-2 shadow-xl absolute z-20 w-[calc(100%-4rem)] md:w-[calc(100%-8rem)] custom-scrollbar">
+                                            {(products || []).filter(p => (p.name || '').toLowerCase().includes((productSearch || '').toLowerCase())).map(p => (
                                                 <button key={p.id} onClick={() => { setSelectedProduct(p); setProductSearch(''); setPostData({...postData, topicType: 'OFFER'}) }} className="w-full text-left p-3 hover:bg-blue-50 text-sm font-bold rounded-xl flex items-center gap-3 transition-colors border-b border-slate-50 last:border-0">
                                                     {p.imageUrl ? <img src={p.imageUrl} className="w-8 h-8 rounded-lg object-cover border border-slate-100"/> : <div className="w-8 h-8 bg-slate-100 rounded-lg"></div>} 
                                                     {p.name}
@@ -529,7 +532,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                         </div>
                                     )}
                                     
-                                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative">
+                                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative">
                                         <div className="flex justify-between items-center mb-3">
                                             <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
                                                 <Edit3 size={14}/> Texto da Postagem

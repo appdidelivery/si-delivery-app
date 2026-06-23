@@ -11216,6 +11216,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             storeId={storeId} 
             products={products} 
             storeStatus={storeStatus} 
+            settings={settings} 
             uploadImageToCloudinary={uploadImageToCloudinary} 
         />
     </div>
