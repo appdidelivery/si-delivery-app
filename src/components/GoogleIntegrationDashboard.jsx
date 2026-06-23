@@ -23,13 +23,13 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
-    // MÁGICA: Extrai e garante que o locationId SEMPRE comece com "locations/"
+    // BLINDAGEM MESTRA: Garante que APENAS NÚMEROS sejam enviados para o Backend.
+    // Assim evitamos o erro "locations/locations/" no Google.
     const getSafeLocationId = () => {
         let locId = settings?.integrations?.google_my_business?.locationId || '';
-        if (locId && !locId.startsWith('locations/')) {
-            return `locations/${locId}`;
-        }
-        return locId;
+        if (!locId) return '';
+        // Remove tudo que não for número (ex: se o lojista colar "locations/123", vira só "123")
+        return locId.replace(/\D/g, ''); 
     };
 
     useEffect(() => {
