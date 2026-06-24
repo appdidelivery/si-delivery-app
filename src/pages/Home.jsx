@@ -2729,6 +2729,10 @@ if (window.fbq) {
                               let newOrderRef = null;
                               try {
                                   const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
+                                  
+                                  // NOVO: Extração do Upsell para pagamentos transparentes
+                                  const upsellGenerated = sanitizedCart.filter(i => i.isUpsell).reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
+
                                   newOrderRef = doc(collection(db, "orders"));
                                   const orderId = newOrderRef.id;
                                   
@@ -2750,7 +2754,8 @@ if (window.fbq) {
                                       tipo: "delivery",
                                       usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
                                       referredBy: localStorage.getItem('veloReferredBy') || null,
-                                      affiliateId: localStorage.getItem('veloAffiliateId') || null 
+                                      affiliateId: localStorage.getItem('veloAffiliateId') || null,
+                                      upsellAmount: upsellGenerated // INJETADO O FATURAMENTO DE UPSELL AQUI
                                   };
 
                                   if (appliedCoupon) {

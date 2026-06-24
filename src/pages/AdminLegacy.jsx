@@ -3960,9 +3960,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
                     const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
 
-                    // PASSO 5: Cálculo do Lucro Real (RESTAURADO)
+                    // Helper Blindado para checar "Hoje" impedindo erros de Invalid Date do Firebase
+                    const isToday = (timestamp) => {
+                        if (!timestamp) return false;
+                        const dateObj = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds ? timestamp.seconds * 1000 : timestamp);
+                        if (isNaN(dateObj)) return false;
+                        return dateObj.toDateString() === new Date().toDateString();
+                    };
+
+                    // PASSO 5: Cálculo do Lucro Real (RESTAURADO E BLINDADO)
                     const todaysProfit = orders
-                        .filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString())
+                        .filter(o => o.status !== 'canceled' && isToday(o.createdAt))
                         .reduce((totalProfit, order) => {
                             const orderProfit = (order.items ||[]).reduce((itemProfit, item) => {
                                 const salePrice = item.price || 0;
@@ -4221,7 +4229,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
                                         <p className="text-slate-400 font-bold text-[10px] uppercase mb-1 z-10 relative">Faturamento</p>
-                                        <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
+                                        <p className="text-4xl font-black text-green-500 italic z-10 relative">R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((a, b) => a + (Number(b.total) || 0), 0).toFixed(2)}</p>
                                         <div className="absolute -right-4 -bottom-4 text-green-50 opacity-20"><Trophy size={120}/></div>
                                     </div>
                                     <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
@@ -4231,7 +4239,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
                                         <p className="text-slate-400 font-bold text-[10px] uppercase mb-1">Pedidos Hoje</p>
-                                        <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).length}</p>
+                                        <p className="text-4xl font-black text-blue-600 italic">{orders.filter(o => isToday(o.createdAt)).length}</p>
                                     </div>
                                 </div>
 
@@ -4277,7 +4285,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="mt-1 z-10 relative">
                                             <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
                                             <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
-                                                R$ {orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate()).toDateString() === new Date().toDateString()).reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}
+                                                R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}
                                             </p>
                                             
                                             <div className="mt-3 pt-3 border-t border-indigo-400/50 flex justify-between items-end">
