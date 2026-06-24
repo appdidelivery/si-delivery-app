@@ -3115,47 +3115,103 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
                 }, { merge: true });
 
-                // 🚀 DISPARO DO WHATSAPP BLINDADO PARA VERCEL (Com await obrigatório)
+                // 🚀 DISPARO DO WHATSAPP BLINDADO PARA VERCEL (Com await obrigatório e Auto-Correção)
                 const waConfig = settingsDoc.data()?.integrations?.whatsapp;
                 if (payer.phone && waConfig?.apiToken && waConfig?.phoneNumberId) {
-                    const phoneClient = String(payer.phone).replace(/\D/g, '');
-                    const safePhone = phoneClient.startsWith('55') ? phoneClient : `55${phoneClient}`;
                     
-                    const msgPixInstrucoes = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*\n\nCopie o código PIX na mensagem abaixo para pagar 👇\n\n*A cozinha será avisada assim que você pagar!* 🚀`;
+                    // 1. Limpeza do telefone base
+                    let rawPhone = String(payer.phone).replace(/\D/g, '');
+                    if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
                     
-                    try {
-                        // Manda a primeira mensagem (Texto explicativo)
-                        await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                    // 2. Monta as duas versões do número (Com o 9 e Sem o 9) para driblar o bug da Meta
+                    const phoneWith9 = rawPhone.length === 10 ? `55${rawPhone.substring(0, 2)}9${rawPhone.substring(2)}` : `55${rawPhone}`;
+                    const phoneWithout9 = rawPhone.length === 11 ? `55${rawPhone.substring(0, 2)}${rawPhone.substring(3)}` : `55${rawPhone}`;
+
+                    const orderDoc = await db.collection('orders').doc(orderId).get();
+                    let resumoPedido = '';
+                    if (orderDoc.exists) {
+                        const items = orderDoc.data().items || [];
+                        resumoPedido = '\n\n🛒 *Resumo do Pedido:*\n' + items.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
+                    }
+
+                    const msgPixInstrucoes = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Recebido!*${resumoPedido}\n\n💰 *Total: R$ ${Number(transaction_amount).toFixed(2)}*\n\nCopie o código PIX na mensagem abaixo para pagar 👇\n\n*A cozinha será avisada automaticamente assim que você pagar!* 🚀`;
+                    
+                    // Função auxiliar para tentar enviar a mensagem
+                    const sendToMeta = async (targetPhone) => {
+                        const resInstrucoes = await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
                             method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: msgPixInstrucoes } })
+                            body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: targetPhone, type: "text", text: { body: msgPixInstrucoes } })
                         });
                         
-                        // Manda a segunda mensagem (Apenas o Código Pix Copia e Cola)
+                        if (!resInstrucoes.ok) return false; // Falhou (provavelmente 9º dígito ou janela 24h)
+
                         await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
                             method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: safePhone, type: "text", text: { body: pixCodigo } })
+                            body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: targetPhone, type: "text", text: { body: pixCodigo } })
                         });
+                        
+                        return true; // Sucesso!
+                    };
+
+                    try {
+                        // Tenta primeiro com a formatação normal (Com o 9)
+                        let sucesso = await sendToMeta(phoneWith9);
+                        let finalPhoneUsed = phoneWith9;
+                        
+                        // Se falhar, tenta com a versão alternativa (Sem o 9)
+                        if (!sucesso) {
+                            console.log("Meta falhou com o número original. Tentando formato alternativo...");
+                            sucesso = await sendToMeta(phoneWithout9);
+                            finalPhoneUsed = phoneWithout9;
+                        }
+
+                        // 3. Salva no Painel Omnichannel para o Lojista ver que o Zap foi enviado!
+                        if (sucesso) {
+                            const batch = db.batch();
+                            const logRef1 = db.collection('whatsapp_inbound').doc();
+                            const logRef2 = db.collection('whatsapp_inbound').doc();
+
+                            batch.set(logRef1, {
+                                storeId: storeId, to: finalPhoneUsed, phone: finalPhoneUsed, text: msgPixInstrucoes,
+                                receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                            });
+
+                            batch.set(logRef2, {
+                                storeId: storeId, to: finalPhoneUsed, phone: finalPhoneUsed, text: pixCodigo,
+                                receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
+                            });
+
+                            await batch.commit();
+                        } else {
+                            console.error("⚠️ WhatsApp não enviado. Janela de 24h pode estar fechada para o número:", rawPhone);
+                        }
+
                     } catch (e) {
-                        console.error("Erro ao enviar PIX no Zap:", e);
+                            console.error("Erro Crítico ao enviar PIX no Zap:", e);
+                        }
                     }
+
+                    // RETORNO PARA PIX: Responde ao frontend para evitar timeout na Vercel e garantir o disparo do WhatsApp
+                    return res.status(200).json({ 
+                        success: true, 
+                        paymentId: data.id, 
+                        pixCopiaECola: pixCodigo,
+                        pixQrCodeUrl: `data:image/jpeg;base64,${data.point_of_interaction.transaction_data.qr_code_base64}`
+                    });
                 }
 
-                return res.status(200).json({ success: true, isPix: true, id: data.id });
+                // RETORNO PARA CARTÃO: Caso o pagamento seja cartão, finaliza o processo com sucesso
+                return res.status(200).json({ 
+                    success: true, 
+                    paymentId: data.id, 
+                    status: data.status 
+                });
+
+            } catch (error) {
+                console.error("❌ Erro ao processar pagamento transparente:", error);
+                return res.status(500).json({ error: error.message });
             }
-
-            await db.collection('orders').doc(orderId).set({
-                paymentIntentId: String(data.id),
-                mpPaymentStatus: data.status,
-                mpPaymentStatusDetail: data.status_detail
-            }, { merge: true });
-
-            return res.status(200).json({ success: true, isPix: false, id: data.id, status: data.status });
-
-        } catch (error) {
-            console.error('❌ Erro ao processar MP Transparente:', error);
-            return res.status(500).json({ error: error.message });
         }
-    }
     // ------------------------------------------------------------------------
     // 16. MERCADO PAGO WEBHOOK (Mensalidades e Pedidos)
     // ------------------------------------------------------------------------
