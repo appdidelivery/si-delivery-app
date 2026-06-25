@@ -498,6 +498,7 @@ export default function Admin() {
         "encantolilas.app.br": "encantolilas",
         "macanudorex.com.br": "macanudorex",
         "ngconveniencia.com.br": "ng",
+        "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
     };
 
     let currentSubdomain = null;
