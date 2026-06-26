@@ -1240,23 +1240,42 @@ export default function Home() {
           }
 
           // 3. Google Analytics 4 (GA4) e Google Ads
-          const ga4Id = integrations?.ga4?.measurementId || storeSettings?.gaTrackingId; 
+          // BLINDAGEM ARQUITETURAL: Ignoramos o 'measurementId' numérico do backend.
+          // Buscamos a nova chave 'frontendMeasurementId' exclusiva para o gtag.js
+          const rawGa4Id = integrations?.ga4?.frontendMeasurementId || storeSettings?.gaTrackingId; 
+          
+          // TRAVA ANTI-VAZAMENTO: Só injeta no front se realmente for um ID de Métrica válido (G-XXX)
+          const ga4Id = (rawGa4Id && rawGa4Id.startsWith('G-')) ? rawGa4Id : null;
           const gadsId = integrations?.gads?.conversionId;
 
           if ((ga4Id || gadsId) && !document.getElementById('google-gtag-script')) {
               const script = document.createElement('script');
               script.id = 'google-gtag-script';
               script.async = true;
+              // Inicializa com o primeiro ID válido encontrado
               script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id || gadsId}`;
               document.head.appendChild(script);
 
               const script2 = document.createElement('script');
               script2.id = 'google-gtag-config';
-              let configHtml = `window.dataLayer = window.dataLayer ||[]; function gtag(){dataLayer.push(arguments);} gtag('js', new Date());`;
-              if (ga4Id) configHtml += ` gtag('config', '${ga4Id}');`;
+              
+              // BLINDAGEM DE SESSÃO MULTI-TENANT: Força o path da URL e reseta dados antigos
+              let configHtml = `
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  
+                  // Força o escopo de página para não herdar lixo de outra loja (SPA)
+                  gtag('set', 'page_path', window.location.pathname);
+                  gtag('js', new Date());
+              `;
+              
+              if (ga4Id) configHtml += ` gtag('config', '${ga4Id}', { send_page_view: true });`;
               if (gadsId) configHtml += ` gtag('config', '${gadsId}');`;
+              
               script2.innerHTML = configHtml;
               document.head.appendChild(script2);
+          } else if (!ga4Id && rawGa4Id && !rawGa4Id.startsWith('G-')) {
+              console.warn('Velo: GA4 Front-end ignorado. A loja configurou um ID Numérico de Backend, mas falta o Measurement ID (G-).');
           }
 
           // 4. Contador Nativo Velo
