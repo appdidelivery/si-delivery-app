@@ -1510,31 +1510,56 @@ const educationalBanners = [
         const now = new Date();
         let pastCycleStart, pastCycleEnd, pastDueDate;
 
-        // NOVO: Antecipa a geração da fatura em 7 dias (Ex: Se vence dia 17, gera dia 10)
-        // Isso permite que o lojista veja a fatura antes, pague com calma e receba o aviso amarelo de "Fatura Próxima"
-        if (now.getDate() >= (diaVencimento - 7)) {
-            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
-            pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
-            pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+        const history = [...(storeStatus.faturasHistorico || [])];
+        
+        // Extrai a data de criação real da loja, usando a data atual como fallback de segurança
+        const storeCreatedAt = storeStatus.createdAt?.toDate 
+            ? storeStatus.createdAt.toDate() 
+            : (storeStatus.createdAt ? new Date(storeStatus.createdAt) : new Date());
+
+        // REGRA SAAS (BLINDAGEM DE PRIMEIRA FATURA): 
+        // Impede que lojas novas nasçam bloqueadas e com faturas vencidas no passado.
+        if (history.length === 0) {
+            if (storeCreatedAt.getDate() > (diaVencimento - 7)) {
+                // Loja criada no final do ciclo. A 1ª fatura vai para o próximo mês.
+                pastCycleStart = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+                pastCycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento, 23, 59, 59);
+                pastDueDate = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento);
+            } else {
+                // Loja criada com folga no início do ciclo. A 1ª fatura será a do mês atual.
+                pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+                pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
+                pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+            }
         } else {
-            pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
-            pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
-            pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+            // FLUXO NORMAL: Antecipa a geração da fatura em 7 dias para envio de alertas
+            if (now.getDate() >= (diaVencimento - 7)) {
+                pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+                pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
+                pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
+            } else {
+                pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 2, diaVencimento);
+                pastCycleEnd = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento, 23, 59, 59);
+                pastDueDate = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
+            }
         }
 
-        const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
-        const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
+        const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+        const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
 
-        // 2. Lê o plano atual para gerar a fatura fixa
+        // 2. Lê o plano atual para gerar a fatura fixa
         const getPlanPrice = (p) => { if(p === 'infinity') return 249.90; if(p === 'pro') return 149.90; return 49.90; };
-        const totalAmount = getPlanPrice(storeStatus.plan);
+        const totalAmount = getPlanPrice(storeStatus.plan);
 
-        const history = [...(storeStatus.faturasHistorico || [])];
-        const faturaIndex = history.findIndex(f => f.month.toUpperCase() === pastMonthName);
-        let needsUpdate = false;
+        const faturaIndex = history.findIndex(f => f.month.toUpperCase() === pastMonthName);
+        let needsUpdate = false;
 
-        // Se não achar fatura, CRIA com o valor bruto real do plano
-        if (faturaIndex === -1 && pastDueDate < now) {
+        // Calcula o gatilho exato para disparar a fatura (Data de Vencimento - 7 dias de antecipação)
+        const triggerDate = new Date(pastDueDate);
+        triggerDate.setDate(triggerDate.getDate() - 7);
+
+        // Se não achar fatura, CRIA com o valor bruto real do plano na data de gatilho
+        if (faturaIndex === -1 && now >= triggerDate) {
             history.push({
                 id: `auto_${pastDueDate.getTime()}`,
                 month: pastMonthName,
