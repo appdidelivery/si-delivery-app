@@ -285,9 +285,13 @@ exports.emitirNotaFiscal = functions.firestore
             // --- INÍCIO DA MÁGICA SAAS (TOKEN FIXO NO BACKEND E POLLING DA SEFAZ) ---
             const isProduction = fiscal.focusEnvironment === 'producao';
             
-            // 🚨 COLE AQUI OS TOKENS MESTRES DA SUA CONTA PRINCIPAL (SOFTWARE HOUSE)
-            const tokenHomologacao = "COLE_O_TOKEN_MESTRE_DE_HOMOLOGACAO_AQUI";
-            const tokenProducao = "uuvsdKdc9sOiUsS6G9IxEKcsMbLCHlkj";
+            // 🚨 TOKENS DA FOCUS NFE
+            // O erro estava aqui! Substituí o texto falso pelo seu Token de Homologação verdadeiro.
+            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq";
+            
+            // ⚠️ ATENÇÃO: Esse token de produção parece estar incompleto (termina com lkj). 
+            // Quando for usar em produção, lembre de clicar no "olhinho" na Focus NFe, copiar ele inteiro e colar aqui!
+            const tokenProducao = "uuvsdKdc9sOiUsS6G9IxEKcsMbLCHlkj"; 
             
             const focusToken = isProduction ? tokenProducao : tokenHomologacao;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
@@ -298,17 +302,29 @@ exports.emitirNotaFiscal = functions.firestore
 
             console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | CNPJ: ${cnpjLojista}`);
 
+            // 🚨 BLINDAGEM DE TOKEN: Remove espaços vazios que possam ter sido copiados sem querer
+            const cleanToken = focusToken.trim();
+
             // Envia para a Focus NFe
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}`,
+                    'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payloadNFCe)
             });
 
-            let finalData = await response.json();
+            // 🚨 BLINDAGEM DE PARSE: Trata erro de texto puro (Access Denied da Focus)
+            const responseText = await response.text();
+            let finalData;
+            try {
+                finalData = JSON.parse(responseText);
+            } catch (e) {
+                console.error("[Fiscal DEBUG] Erro não-JSON da Focus:", responseText);
+                throw new Error(`Autenticação Recusada na Focus NFe. Verifique se o Ambiente (Homologação/Produção) selecionado no painel bate com o Token usado no código.`);
+            }
+
             console.log(`[Fiscal DEBUG] Resposta Focus:`, JSON.stringify(finalData));
 
             // 🚨 POLLING: Aguardar SEFAZ
@@ -316,16 +332,21 @@ exports.emitirNotaFiscal = functions.firestore
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
                     
-                    // Consulta COM o cnpj_emitente
+                    // Consulta COM o cnpj_emitente e Token limpo
                     const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}?cnpj_emitente=${cnpjLojista}`, {
-                        headers: { 'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}` }
+                        headers: { 'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}` }
                     });
                     
                     if (checkRes.ok) {
-                        const checkData = await checkRes.json();
-                        if (checkData.status !== 'processando_autorizacao') {
-                            finalData = checkData; 
-                            break;
+                        const checkText = await checkRes.text();
+                        try {
+                            const checkData = JSON.parse(checkText);
+                            if (checkData.status !== 'processando_autorizacao') {
+                                finalData = checkData; 
+                                break;
+                            }
+                        } catch (e) {
+                            console.error("[Fiscal DEBUG] Erro no Polling:", checkText);
                         }
                     }
                 }
