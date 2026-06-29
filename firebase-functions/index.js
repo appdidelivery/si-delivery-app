@@ -283,22 +283,20 @@ exports.emitirNotaFiscal = functions.firestore
             };
 
             // --- INÍCIO DA MÁGICA SAAS (TOKEN FIXO NO BACKEND E POLLING DA SEFAZ) ---
-            // Verifica o ambiente que o lojista salvou no painel
             const isProduction = fiscal.focusEnvironment === 'producao';
             
-            // TOKENS MESTRES DA SUA CONTA FOCUS NFE (Software House)
-            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq";
-            const tokenProducao = "vl5vMujpX9sESt2rvXmqIRD6u3p7zJUL";
+            // 🚨 COLE AQUI OS TOKENS MESTRES DA SUA CONTA PRINCIPAL (SOFTWARE HOUSE)
+            const tokenHomologacao = "COLE_O_TOKEN_MESTRE_DE_HOMOLOGACAO_AQUI";
+            const tokenProducao = "uuvsdKdc9sOiUsS6G9IxEKcsMbLCHlkj";
             
             const focusToken = isProduction ? tokenProducao : tokenHomologacao;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             
-            // 🚨 CORREÇÃO: Removemos o cnpj_emitente pois o seu Token atual é de Empresa Única.
-            const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
+            // 🚨 ROTEAMENTO SAAS: Retornamos o CNPJ na URL e usaremos o TOKEN MESTRE.
+            const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
+            const url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
 
-            // LOGS PARA O FIREBASE (Você pode ver no Firebase Console > Functions > Logs)
-            console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | URL: ${url}`);
-            console.log(`[Fiscal DEBUG] Payload Enviado:`, JSON.stringify(payloadNFCe));
+            console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | CNPJ: ${cnpjLojista}`);
 
             // Envia para a Focus NFe
             const response = await fetch(url, {
@@ -311,15 +309,15 @@ exports.emitirNotaFiscal = functions.firestore
             });
 
             let finalData = await response.json();
-            console.log(`[Fiscal DEBUG] Resposta Focus NFe:`, JSON.stringify(finalData));
+            console.log(`[Fiscal DEBUG] Resposta Focus:`, JSON.stringify(finalData));
 
-            // 🚨 POLLING: Aguardar SEFAZ se estiver processando
+            // 🚨 POLLING: Aguardar SEFAZ
             if (finalData.status === 'processando_autorizacao') {
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
                     
-                    // Consulta sem o cnpj_emitente
-                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}`, {
+                    // Consulta COM o cnpj_emitente
+                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}?cnpj_emitente=${cnpjLojista}`, {
                         headers: { 'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}` }
                     });
                     
