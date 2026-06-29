@@ -286,23 +286,21 @@ exports.emitirNotaFiscal = functions.firestore
             const isProduction = fiscal.focusEnvironment === 'producao';
             
             // 🚨 TOKENS DA FOCUS NFE
-            // O erro estava aqui! Substituí o texto falso pelo seu Token de Homologação verdadeiro.
-            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq";
-            
-            // ⚠️ ATENÇÃO: Esse token de produção parece estar incompleto (termina com lkj). 
-            // Quando for usar em produção, lembre de clicar no "olhinho" na Focus NFe, copiar ele inteiro e colar aqui!
-            const tokenProducao = "uuvsdKdc9sOiUsS6G9IxEKcsMbLCHlkj"; 
+            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq"; // Token da Filial (Santa Isabel)
+            const tokenProducao = "uuvsdKdc9sOiUsS6G9IxEKcsMbLCHlkj"; // Token Mestre de Produção (Velo)
             
             const focusToken = isProduction ? tokenProducao : tokenHomologacao;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             
-            // 🚨 ROTEAMENTO SAAS: Retornamos o CNPJ na URL e usaremos o TOKEN MESTRE.
+            // 🚨 ROTEAMENTO INTELIGENTE: Só envia o CNPJ na URL se estivermos usando o Token Mestre (Produção).
+            // A Focus NFe proíbe o envio de CNPJ quando se usa o token da própria filial (Homologação).
             const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
-            const url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
+            const urlQuery = isProduction ? `&cnpj_emitente=${cnpjLojista}` : "";
+            const url = `${baseUrl}/v2/nfce?ref=${orderId}${urlQuery}`;
 
-            console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | CNPJ: ${cnpjLojista}`);
+            console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | URL: ${url}`);
 
-            // 🚨 BLINDAGEM DE TOKEN: Remove espaços vazios que possam ter sido copiados sem querer
+            // 🚨 BLINDAGEM DE TOKEN: Remove espaços vazios
             const cleanToken = focusToken.trim();
 
             // Envia para a Focus NFe
@@ -332,8 +330,9 @@ exports.emitirNotaFiscal = functions.firestore
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
                     
-                    // Consulta COM o cnpj_emitente e Token limpo
-                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}?cnpj_emitente=${cnpjLojista}`, {
+                    // Consulta inteligente (com ou sem CNPJ dependendo do token)
+                    const urlCheckQuery = isProduction ? `?cnpj_emitente=${cnpjLojista}` : "";
+                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}${urlCheckQuery}`, {
                         headers: { 'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}` }
                     });
                     
