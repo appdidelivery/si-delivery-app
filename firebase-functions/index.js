@@ -282,8 +282,15 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            const isProduction = fiscal.environment === 'production';
-            const focusToken = fiscal.token;
+            // --- INÍCIO DA MÁGICA SAAS (TOKEN FIXO NO BACKEND E POLLING DA SEFAZ) ---
+            // Verifica o ambiente que o lojista salvou no painel
+            const isProduction = fiscal.focusEnvironment === 'producao';
+            
+            // TOKENS MESTRES DA SUA CONTA FOCUS NFE (Software House)
+            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq";
+            const tokenProducao = "vl5vMujpX9sESt2rvXmqIRD6u3p7zJUL";
+            
+            const focusToken = isProduction ? tokenProducao : tokenHomologacao;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
 
@@ -297,37 +304,46 @@ exports.emitirNotaFiscal = functions.firestore
                 body: JSON.stringify(payloadNFCe)
             });
 
-            const data = await response.json();
+            let finalData = await response.json();
 
-            // A Focus NFe devolve 'autorizado', 'processando_autorizacao' ou no máximo um erro de SEFAZ
-            if (data.status === 'autorizado' || data.status === 'processando_autorizacao') {
-                // 🚨 A MÁGICA ARQUITETURAL DA FOCUS: A URL real de consulta do PDF/XML
-                // Baseado na ref que nós mesmos mandamos: ?ref=orderId
-                // Atenção: Não usamos .pdf no final da URL de impressão da NFCe! É a URL da SEFAZ para a tela da Focus.
-                const urlConsultaDanfe = `${baseUrl}/v2/nfce/${orderId}?completa=1`;
-                
-                // Opcional: Se quiser que o botão baixe direto o PDF (Rota Focus: /v2/nfce/ID_NFCE.pdf)
-                // A Focus NFe precisa da chave_nfe ou da ref. A forma mais segura é:
-                const pdfUrlDireta = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : `${baseUrl}/v2/nfce/${orderId}.pdf`;
+            // 🚨 POLLING: Aguardar SEFAZ se estiver processando
+            if (finalData.status === 'processando_autorizacao') {
+                for (let i = 0; i < 3; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); 
+                    
+                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}`, {
+                        headers: { 'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}` }
+                    });
+                    
+                    if (checkRes.ok) {
+                        const checkData = await checkRes.json();
+                        if (checkData.status !== 'processando_autorizacao') {
+                            finalData = checkData; 
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (finalData.status === 'autorizado') {
+                // Força a URL correta do PDF baseada na chave da nota
+                let validPdfUrl = finalData.caminho_danfe;
+                if (!validPdfUrl || validPdfUrl === '/relatorios/danfe.pdf') {
+                    validPdfUrl = `${baseUrl}/v2/nfce/${finalData.chave_nfe || orderId}.pdf`;
+                } else if (!validPdfUrl.startsWith('http')) {
+                    validPdfUrl = `${baseUrl}${validPdfUrl}`;
+                }
 
                 await change.after.ref.update({ 
                     fiscalStatus: 'authorized', 
-                    // Se o caminho_danfe não vier (o que é comum na v2), usamos a URL direta construída acima
-                    nfeUrl: data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : pdfUrlDireta, 
-                    nfeChave: data.chave_nfe || null,
-                    nfeProtocolo: data.protocolo || null,
+                    nfeUrl: validPdfUrl, 
+                    nfeChave: finalData.chave_nfe || null,
+                    nfeProtocolo: finalData.protocolo || null,
                     fiscalError: null
                 });
                 return true;
             } else {
-                // Tratamento seguro caso data.erros não exista
-                let erroMsg = "Erro desconhecido na SEFAZ/Focus NFe";
-                if (data.erros && Array.isArray(data.erros) && data.erros.length > 0) {
-                    erroMsg = data.erros[0].mensagem;
-                } else if (data.mensagem) {
-                    erroMsg = data.mensagem;
-                }
-                
+                const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota (Verifique CSC e Dados da Empresa).");
                 throw new Error(erroMsg);
             }
 
