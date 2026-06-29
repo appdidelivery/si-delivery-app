@@ -282,21 +282,20 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // --- INÍCIO DA MÁGICA SAAS (TOKEN FIXO NO BACKEND E POLLING DA SEFAZ) ---
+            // --- INÍCIO DA MÁGICA (TOKENS DIRETOS DA EMPRESA) ---
             const isProduction = fiscal.focusEnvironment === 'producao';
             
-            // 🚨 TOKENS DA FOCUS NFE
-            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq"; // Token da Filial (Santa Isabel)
-            const tokenProducao = "uuvsdKdc9sOiUsS6G9IxEKcsMbLCHlkj"; // Token Mestre de Produção (Velo)
+            // 🚨 TOKENS DA FILIAL (Santa Isabel)
+            // Pegamos exatamente os tokens que você nos enviou no painel da Focus
+            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq";
+            const tokenProducao = "vl5vMujpX9sESt2rvXmqIRD6u3p7zjUL"; 
             
             const focusToken = isProduction ? tokenProducao : tokenHomologacao;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             
-            // 🚨 ROTEAMENTO INTELIGENTE: Só envia o CNPJ na URL se estivermos usando o Token Mestre (Produção).
-            // A Focus NFe proíbe o envio de CNPJ quando se usa o token da própria filial (Homologação).
-            const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
-            const urlQuery = isProduction ? `&cnpj_emitente=${cnpjLojista}` : "";
-            const url = `${baseUrl}/v2/nfce?ref=${orderId}${urlQuery}`;
+            // 🚨 CORREÇÃO DEFINITIVA: Como estamos usando os tokens diretos da filial,
+            // a Focus NFe PROÍBE o envio de '&cnpj_emitente'. Se enviarmos, dá o erro de CNPJ não autorizado!
+            const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
 
             console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | URL: ${url}`);
 
@@ -320,7 +319,7 @@ exports.emitirNotaFiscal = functions.firestore
                 finalData = JSON.parse(responseText);
             } catch (e) {
                 console.error("[Fiscal DEBUG] Erro não-JSON da Focus:", responseText);
-                throw new Error(`Autenticação Recusada na Focus NFe. Verifique se o Ambiente (Homologação/Produção) selecionado no painel bate com o Token usado no código.`);
+                throw new Error(`Autenticação Recusada na Focus NFe. Verifique o Token usado.`);
             }
 
             console.log(`[Fiscal DEBUG] Resposta Focus:`, JSON.stringify(finalData));
@@ -330,9 +329,8 @@ exports.emitirNotaFiscal = functions.firestore
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
                     
-                    // Consulta inteligente (com ou sem CNPJ dependendo do token)
-                    const urlCheckQuery = isProduction ? `?cnpj_emitente=${cnpjLojista}` : "";
-                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}${urlCheckQuery}`, {
+                    // Consulta SEM o cnpj_emitente
+                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}`, {
                         headers: { 'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}` }
                     });
                     
