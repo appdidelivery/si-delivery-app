@@ -212,7 +212,7 @@ exports.gerarCopyProduto = onCall(
     }
 );
 
-// =========================================================================
+/// =========================================================================
 // 🧾 MOTOR FISCAL (VELO DELIVERY x FOCUS NFE) - BACKGROUND TASK
 // =========================================================================
 exports.emitirNotaFiscal = functions.firestore
@@ -350,3 +350,10 @@ exports.emitirNotaFiscal = functions.firestore
                 const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota (Verifique CSC e Dados da Empresa).");
                 throw new Error(erroMsg);
             }
+
+        } catch (error) {
+            console.error(`[Fiscal] Erro pedido ${orderId}:`, error);
+            await change.after.ref.update({ fiscalStatus: 'error', fiscalError: error.message });
+            return null;
+        }
+    });
