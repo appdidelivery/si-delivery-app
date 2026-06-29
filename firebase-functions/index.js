@@ -292,7 +292,10 @@ exports.emitirNotaFiscal = functions.firestore
             
             const focusToken = isProduction ? tokenProducao : tokenHomologacao;
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
-            const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
+            
+            // 🚨 CORREÇÃO SAAS: Adicionamos o CNPJ do Lojista na URL para a Focus NFe rotear corretamente!
+            const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
+            const url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
 
             // Envia para a Focus NFe
             const response = await fetch(url, {
@@ -311,7 +314,8 @@ exports.emitirNotaFiscal = functions.firestore
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
                     
-                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}`, {
+                    // 🚨 CORREÇÃO SAAS: O Polling de consulta também precisa do CNPJ do lojista na URL
+                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}?cnpj_emitente=${cnpjLojista}`, {
                         headers: { 'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}` }
                     });
                     
@@ -346,10 +350,3 @@ exports.emitirNotaFiscal = functions.firestore
                 const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota (Verifique CSC e Dados da Empresa).");
                 throw new Error(erroMsg);
             }
-
-        } catch (error) {
-            console.error(`[Fiscal] Erro pedido ${orderId}:`, error);
-            await change.after.ref.update({ fiscalStatus: 'error', fiscalError: error.message });
-            return null;
-        }
-    });
