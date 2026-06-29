@@ -299,20 +299,35 @@ exports.emitirNotaFiscal = functions.firestore
 
             const data = await response.json();
 
+            // A Focus NFe devolve 'autorizado', 'processando_autorizacao' ou no máximo um erro de SEFAZ
             if (data.status === 'autorizado' || data.status === 'processando_autorizacao') {
-                // Captura a URL real ou fallback
-                const pdfUrl = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : `${baseUrl}/v2/nfce/${orderId}.pdf`;
+                // 🚨 A MÁGICA ARQUITETURAL DA FOCUS: A URL real de consulta do PDF/XML
+                // Baseado na ref que nós mesmos mandamos: ?ref=orderId
+                // Atenção: Não usamos .pdf no final da URL de impressão da NFCe! É a URL da SEFAZ para a tela da Focus.
+                const urlConsultaDanfe = `${baseUrl}/v2/nfce/${orderId}?completa=1`;
                 
+                // Opcional: Se quiser que o botão baixe direto o PDF (Rota Focus: /v2/nfce/ID_NFCE.pdf)
+                // A Focus NFe precisa da chave_nfe ou da ref. A forma mais segura é:
+                const pdfUrlDireta = data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : `${baseUrl}/v2/nfce/${orderId}.pdf`;
+
                 await change.after.ref.update({ 
                     fiscalStatus: 'authorized', 
-                    nfeUrl: pdfUrl, 
+                    // Se o caminho_danfe não vier (o que é comum na v2), usamos a URL direta construída acima
+                    nfeUrl: data.caminho_danfe ? `${baseUrl}${data.caminho_danfe}` : pdfUrlDireta, 
                     nfeChave: data.chave_nfe || null,
                     nfeProtocolo: data.protocolo || null,
                     fiscalError: null
                 });
                 return true;
             } else {
-                const erroMsg = data.erros && data.erros.length > 0 ? data.erros[0].mensagem : (data.mensagem || "Erro SEFAZ");
+                // Tratamento seguro caso data.erros não exista
+                let erroMsg = "Erro desconhecido na SEFAZ/Focus NFe";
+                if (data.erros && Array.isArray(data.erros) && data.erros.length > 0) {
+                    erroMsg = data.erros[0].mensagem;
+                } else if (data.mensagem) {
+                    erroMsg = data.mensagem;
+                }
+                
                 throw new Error(erroMsg);
             }
 
