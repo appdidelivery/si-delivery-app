@@ -10,7 +10,7 @@ export default async function middleware(request) {
     // 1. O SEGREDO DO WHATSAPP: REDIRECIONAR O ROBÔ DIRETO NO MIDDLEWARE
     // REMOVIDO Googlebot e buscadores. Eles PRECISAM ver o site inteiro para indexar SEO e Favicon.
     const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber/i.test(userAgent);
-    
+
     if (isBot) {
         // Redireciona a requisição do bot internamente para o api/social.js de forma transparente
         const apiSocialUrl = new URL(`/api/social`, request.url);
@@ -115,6 +115,15 @@ export default async function middleware(request) {
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']twitter:[^>]*>/gis, '');
+    // NOVO: Remove os favicons genéricos originais do index.html
+    html = html.replace(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*>/gis, '');
+    html = html.replace(/<link[^>]*rel=["']apple-touch-icon["'][^>]*>/gis, '');
+
+    // NOVO: Força o Cloudinary a entregar a logo exata em 96x96 para o Google aceitar o Favicon
+    let optimizedFavicon = logo;
+    if (logo && logo.includes('cloudinary.com')) {
+        optimizedFavicon = logo.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto:good,w_96,c_limit/v`);
+    }
 
     const tagsSEO = `
     <title>${name} | Delivery</title>
@@ -128,6 +137,9 @@ export default async function middleware(request) {
     <meta name="twitter:title" content="${name}" />
     <meta name="twitter:description" content="${slogan}" />
     <meta name="twitter:image" content="${logo}" />
+    <!-- INJEÇÃO DO FAVICON DINÂMICO NO MIDDLEWARE -->
+    <link rel="icon" type="image/png" href="${optimizedFavicon}" />
+    <link rel="apple-touch-icon" href="${optimizedFavicon}" />
     `;
 
     html = html.replace('<head>', `<head>\n${tagsSEO}`);
