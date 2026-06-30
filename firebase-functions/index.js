@@ -282,47 +282,37 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // --- INÍCIO DA MÁGICA DEFINITIVA (AUTO-CURA) ---
+           // --- INÍCIO DA INTEGRAÇÃO LIMPA E DEFINITIVA ---
             const isProduction = fiscal.focusEnvironment === 'producao';
+            const focusToken = fiscal.token || ''; // Puxa do banco de dados!
             
-            // TOKENS EXATOS (Copiados da sua imagem)
-            const tokenHomologacao = "rA5qXTn3DcUAUzsInVtmmcRZz028QGiq";
-            const tokenProducao = "vl5vMujpX9sESt2rvXmqIRD6u3p7zjUL"; 
-            
-            const primaryToken = isProduction ? tokenProducao : tokenHomologacao;
-            const fallbackToken = isProduction ? tokenHomologacao : tokenProducao;
+            if (!focusToken) {
+                throw new Error("Token da Focus NFe não configurado. Adicione o Token no painel da loja.");
+            }
+
+            const cleanToken = focusToken.trim();
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const url = `${baseUrl}/v2/nfce?ref=${orderId}`;
 
-            const attemptFetch = async (tokenToUse) => {
-                return await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(tokenToUse.trim() + ":").toString('base64')}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payloadNFCe)
-                });
-            };
+            console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | URL: ${url}`);
 
-            // 1ª Tentativa de Emissão
-            let response = await attemptFetch(primaryToken);
-            
-            // 🚨 SISTEMA DE AUTO-CURA: Se a Focus NFe der Acesso Negado (401), tenta com o outro Token automaticamente!
-            let usedToken = primaryToken;
-            if (response.status === 401 || response.status === 403) {
-                console.warn(`[Fiscal DEBUG] Token primário recusado. Tentando token de fallback...`);
-                response = await attemptFetch(fallbackToken);
-                usedToken = fallbackToken;
-            }
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payloadNFCe)
+            });
 
             const responseText = await response.text();
             let finalData;
+            
             try {
                 finalData = JSON.parse(responseText);
             } catch (e) {
-                console.error("[Fiscal DEBUG] Erro Fatal da Focus NFe:", responseText);
-                throw new Error(`A Focus NFe recusou a conexão. Os tokens configurados podem estar bloqueados na plataforma deles.`);
+                console.error("[Fiscal DEBUG] Erro de Autenticação:", responseText);
+                throw new Error(`Token Inválido (Acesso Negado). Verifique se o Token no painel bate com o Ambiente escolhido (${isProduction ? 'Produção' : 'Homologação'}).`);
             }
 
             console.log(`[Fiscal DEBUG] Resposta Focus:`, JSON.stringify(finalData));
@@ -332,7 +322,6 @@ exports.emitirNotaFiscal = functions.firestore
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
                     
-                    // Consulta SEM o cnpj_emitente
                     const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}`, {
                         headers: { 'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}` }
                     });
