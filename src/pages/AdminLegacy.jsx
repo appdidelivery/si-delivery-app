@@ -5143,16 +5143,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-green-500" 
                                             />
                                         </div>
-                                        <div className="pt-4 border-t border-slate-100 mt-4">
-                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Ambiente de Emissão</label>
-                                            <select 
-                                                value={fiscalForm.focusEnvironment || 'homologacao'} 
-                                                onChange={e => setFiscalForm({...fiscalForm, focusEnvironment: e.target.value})} 
-                                                className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer text-slate-700"
-                                            >
-                                                <option value="homologacao">🧪 Homologação (Testes sem valor fiscal)</option>
-                                                <option value="producao">🚀 Produção (NFC-e Oficial p/ SEFAZ)</option>
-                                            </select>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100 mt-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Token Focus NFe</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Cole o token da API..." 
+                                                    value={fiscalForm.token || ''} 
+                                                    onChange={e => setFiscalForm({...fiscalForm, token: e.target.value})} 
+                                                    className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">Ambiente</label>
+                                                <select 
+                                                    value={fiscalForm.focusEnvironment || 'homologacao'} 
+                                                    onChange={e => setFiscalForm({...fiscalForm, focusEnvironment: e.target.value})} 
+                                                    className="w-full p-4 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer text-slate-700"
+                                                >
+                                                    <option value="homologacao">🧪 Homologação (Testes)</option>
+                                                    <option value="producao">🚀 Produção (Oficial)</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
