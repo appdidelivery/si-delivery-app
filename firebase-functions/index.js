@@ -282,7 +282,7 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-          // --- INÍCIO DA INTEGRAÇÃO SAAS LIMPA ---
+           // --- INÍCIO DA INTEGRAÇÃO SAAS LIMPA ---
             const isProduction = fiscal.focusEnvironment === 'producao';
             const focusToken = fiscal.token ? fiscal.token.trim() : ''; 
             
@@ -363,34 +363,6 @@ exports.emitirNotaFiscal = functions.firestore
             } else {
                 const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota.");
                 throw new Error(`SEFAZ: ${erroMsg}`);
-            }
-
-        } catch (error) {
-            console.error(`[Fiscal] Erro pedido ${orderId}:`, error);
-            await change.after.ref.update({ fiscalStatus: 'error', fiscalError: error.message });
-            return null;
-        }
-    });
-
-            if (finalData.status === 'autorizado') {
-                let validPdfUrl = finalData.caminho_danfe;
-                if (!validPdfUrl || validPdfUrl === '/relatorios/danfe.pdf') {
-                    validPdfUrl = `${baseUrl}/v2/nfce/${finalData.chave_nfe || orderId}.pdf`;
-                } else if (!validPdfUrl.startsWith('http')) {
-                    validPdfUrl = `${baseUrl}${validPdfUrl}`;
-                }
-
-                await change.after.ref.update({ 
-                    fiscalStatus: 'authorized', 
-                    nfeUrl: validPdfUrl, 
-                    nfeChave: finalData.chave_nfe || null,
-                    nfeProtocolo: finalData.protocolo || null,
-                    fiscalError: null
-                });
-                return true;
-            } else {
-                const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota. Verifique o CSC no painel da Focus.");
-                throw new Error(erroMsg);
             }
 
         } catch (error) {
