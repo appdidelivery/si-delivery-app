@@ -282,52 +282,81 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-           // --- INÍCIO DA INTEGRAÇÃO SAAS LIMPA ---
+           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (AUTO-DISCOVERY) ---
             const isProduction = fiscal.focusEnvironment === 'producao';
-            const focusToken = fiscal.token ? fiscal.token.trim() : ''; 
+            
+            // Puxa do banco
+            const focusToken = fiscal.token || fiscal.focusToken || ''; 
             
             if (!focusToken) {
-                throw new Error("Token da Focus NFe ausente. Cole o Token no painel e salve.");
+                throw new Error("Token da Focus NFe ausente. Acesse a aba Fiscal, cole o Token e salve as configurações.");
             }
 
+            const cleanToken = focusToken.trim();
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
+
+            console.log(`[Fiscal DEBUG] Iniciando Emissão - Pedido: ${orderId} | Ambiente: ${isProduction ? 'PROD' : 'HOMOLOG'}`);
+
+            const attemptFetch = async (useCnpj) => {
+                const urlQuery = useCnpj ? `&cnpj_emitente=${cnpjLojista}` : "";
+                const url = `${baseUrl}/v2/nfce?ref=${orderId}${urlQuery}`;
+                
+                return await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payloadNFCe)
+                });
+            };
+
+            let usedCnpj = true; 
             
-            // No modelo SaaS (Software House), enviamos o CNPJ na URL usando o Token Mestre
-            const urlQuery = cnpjLojista ? `&cnpj_emitente=${cnpjLojista}` : "";
-            const url = `${baseUrl}/v2/nfce?ref=${orderId}${urlQuery}`;
-
-            console.log(`[Fiscal DEBUG] Emitindo NFC-e. Pedido: ${orderId} | URL: ${url}`);
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payloadNFCe)
-            });
-
-            const responseText = await response.text();
+            // 1ª Tentativa: Como Token Mestre (COM CNPJ na URL)
+            let response = await attemptFetch(true);
+            let responseText = await response.text();
             let finalData;
+
             try {
                 finalData = JSON.parse(responseText);
             } catch (e) {
-                throw new Error(`Token Rejeitado (401). Certifique-se de usar o "Token principal produção" da Focus NFe.`);
+                console.error("[Fiscal DEBUG] Erro Fatal (Não é JSON):", responseText);
+                throw new Error(`Token Inválido ou Ambiente Incorreto. A Focus retornou: ${responseText.substring(0, 50)}...`);
             }
 
-            if (finalData.codigo === 'nao_autorizado' || finalData.codigo === 'erro_validacao') {
-                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || "Erro de validação.";
-                throw new Error(`Focus: ${msg}`);
+            // 2ª Tentativa Automática: Se a Focus reclamar do CNPJ, sabemos que é um token de FILIAL!
+            if (response.status >= 400 && finalData.mensagem && finalData.mensagem.includes("CNPJ do emitente não autorizado")) {
+                console.warn(`[Fiscal DEBUG] Token de Filial detectado. Removendo cnpj_emitente da URL e tentando novamente...`);
+                usedCnpj = false;
+                response = await attemptFetch(false);
+                responseText = await response.text();
+                try {
+                    finalData = JSON.parse(responseText);
+                } catch(e) {
+                    throw new Error("Erro no processamento da segunda tentativa da Focus NFe.");
+                }
             }
 
-            // 🚨 POLLING: Aguardar SEFAZ processar a nota
+            console.log(`[Fiscal DEBUG] Resposta Focus Final:`, JSON.stringify(finalData));
+
+            // Tratamento de Erros Comuns da SEFAZ mapeados em JSON
+            if (finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado' || response.status >= 400) {
+                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || "Erro de validação na SEFAZ.";
+                throw new Error(`Recusado: ${msg}`);
+            }
+
+            // 🚨 POLLING: Aguardar SEFAZ
             if (finalData.status === 'processando_autorizacao') {
                 for (let i = 0; i < 3; i++) {
                     await new Promise(resolve => setTimeout(resolve, 2000)); 
-                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}${urlQuery}`, {
-                        headers: { 'Authorization': `Basic ${Buffer.from(focusToken + ":").toString('base64')}` }
+                    
+                    const urlCheckQuery = usedCnpj ? `?cnpj_emitente=${cnpjLojista}` : "";
+                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}${urlCheckQuery}`, {
+                        headers: { 'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}` }
                     });
+                    
                     if (checkRes.ok) {
                         const checkText = await checkRes.text();
                         try {
@@ -344,7 +373,6 @@ exports.emitirNotaFiscal = functions.firestore
             }
 
             if (finalData.status === 'autorizado') {
-                // Força a URL correta do PDF para não dar tela branca
                 let validPdfUrl = finalData.caminho_danfe;
                 if (!validPdfUrl || validPdfUrl === '/relatorios/danfe.pdf') {
                     validPdfUrl = `${baseUrl}/v2/nfce/${finalData.chave_nfe || orderId}.pdf`;
@@ -361,8 +389,8 @@ exports.emitirNotaFiscal = functions.firestore
                 });
                 return true;
             } else {
-                const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota.");
-                throw new Error(`SEFAZ: ${erroMsg}`);
+                const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota. Verifique o CSC no painel da Focus.");
+                throw new Error(erroMsg);
             }
 
         } catch (error) {
