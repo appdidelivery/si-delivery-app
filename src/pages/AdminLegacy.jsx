@@ -1170,6 +1170,41 @@ const educationalBanners = [
     const [productFilterCategory, setProductFilterCategory] = useState('all');
     const [productFilterStatus, setProductFilterStatus] = useState('all');
 
+    // --- ESTADOS DO MODAL DE MOVIMENTAÇÃO DE ESTOQUE ---
+    const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+    const [stockMovementProduct, setStockMovementProduct] = useState(null);
+    const [stockMovementType, setStockMovementType] = useState('add'); // 'add', 'remove', 'set'
+    const [stockMovementQuantity, setStockMovementQuantity] = useState('');
+    const [isSavingStock, setIsSavingStock] = useState(false);
+
+    const handleSaveStockMovement = async (e) => {
+        e.preventDefault();
+        if (!stockMovementProduct || stockMovementQuantity === '') return;
+        
+        setIsSavingStock(true);
+        try {
+            const productRef = doc(db, "products", stockMovementProduct.id);
+            const qty = Number(stockMovementQuantity);
+
+            if (stockMovementType === 'set') {
+                await updateDoc(productRef, { stock: qty });
+            } else if (stockMovementType === 'add') {
+                await updateDoc(productRef, { stock: increment(qty) });
+            } else if (stockMovementType === 'remove') {
+                await updateDoc(productRef, { stock: increment(-qty) });
+            }
+
+            setIsStockModalOpen(false);
+            setStockMovementProduct(null);
+            setStockMovementQuantity('');
+        } catch (error) {
+            console.error("Erro ao movimentar estoque:", error);
+            alert("Erro de conexão ao tentar atualizar o estoque.");
+        } finally {
+            setIsSavingStock(false);
+        }
+    };
+
     useEffect(() => {
         setCurrentProductPage(1);
     }, [productSearch, activeTab, productsPerPage, productFilterCategory, productFilterStatus]);
@@ -6368,8 +6403,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             const totalProductPagesList = Math.max(1, Math.ceil(filteredProductsList.length / productsPerPage));
                             const paginatedProductsList = filteredProductsList.slice((currentProductPage - 1) * productsPerPage, currentProductPage * productsPerPage);
 
+                            // Cálculos do Resumo de Estoque
+                            const summaryTotalUnits = filteredProductsList.reduce((acc, p) => acc + (p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0), 0);
+                            const summaryTotalCost = filteredProductsList.reduce((acc, p) => acc + ((Number(p.costPrice) || 0) * (p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0)), 0);
+                            const summaryTotalSales = filteredProductsList.reduce((acc, p) => {
+                                const activePrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price);
+                                return acc + ((activePrice || 0) * (p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0));
+                            }, 0);
+
                             return (
                                 <>
+                                    {/* CARDS DE RESUMO DE ESTOQUE */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Package size={14}/> Total de Unidades</p>
+                                            <p className="text-3xl font-black text-slate-800 italic">{summaryTotalUnits}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Soma física baseada no filtro atual.</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14}/> Custo Total (Imobilizado)</p>
+                                            <p className="text-3xl font-black text-red-500 italic">R$ {summaryTotalCost.toFixed(2)}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Capital parado no estoque.</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Landmark size={14}/> Previsão de Venda Bruta</p>
+                                            <p className="text-3xl font-black text-green-500 italic">R$ {summaryTotalSales.toFixed(2)}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Se todo o estoque for vendido hoje.</p>
+                                        </div>
+                                    </div>
+
                                     {filteredProductsList.length === 0 ? (
                                         <div className="bg-white p-12 rounded-[3rem] border-2 border-dashed border-slate-200 text-center flex flex-col items-center">
                                             <Package size={48} className="text-slate-300 mb-4" />
@@ -6438,7 +6500,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <button onClick={() => handleQuickToggleProduct(p)} className={`p-2.5 rounded-xl transition-all shadow-sm ${p.isActive === false ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'}`} title={p.isActive === false ? 'Oculto (Clique para Ativar)' : 'Ativo (Clique para Ocultar)'}>
                                                             {p.isActive === false ? <EyeOff size={18} className="mx-auto" /> : <Eye size={18} className="mx-auto" />}
                                                         </button>
-                                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: Array.isArray(p.consumedIngredients) ? p.consumedIngredients : [], complements: Array.isArray(p.complements) ? p.complements : [], quantityDiscounts: Array.isArray(p.quantityDiscounts) ? p.quantityDiscounts : [], recommendedIds: Array.isArray(p.recommendedIds) ? p.recommendedIds : [], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: Array.isArray(p.suitableForDiet) ? p.suitableForDiet : [], variations: Array.isArray(p.variations) ? p.variations.join(', ') : (p.variations || ''), removables: Array.isArray(p.removables) ? p.removables.join(', ') : (p.removables || ''), isActive: p.isActive !== false }); setIsModalOpen(true); }} className="p-2.5 bg-slate-50 rounded-xl text-blue-600 border border-slate-100 hover:bg-blue-100 transition-all shadow-sm">
+                                                        <button onClick={() => { setStockMovementProduct(p); setStockMovementType('add'); setStockMovementQuantity(''); setIsStockModalOpen(true); }} className="p-2.5 bg-slate-50 rounded-xl text-indigo-600 border border-slate-100 hover:bg-indigo-100 transition-all shadow-sm" title="Controle de Estoque">
+                                                            <Package size={18} className="mx-auto" />
+                                                        </button>
+                                                        <button onClick={() => { setEditingId(p.id); setForm({ ...p, consumedIngredients: Array.isArray(p.consumedIngredients) ? p.consumedIngredients : [], complements: Array.isArray(p.complements) ? p.complements : [], quantityDiscounts: Array.isArray(p.quantityDiscounts) ? p.quantityDiscounts : [], recommendedIds: Array.isArray(p.recommendedIds) ? p.recommendedIds : [], gtin: p.gtin || '', brand: p.brand || '', prepTime: p.prepTime || '', deliveryLeadTime: p.deliveryLeadTime || '', calories: p.calories || '', suitableForDiet: Array.isArray(p.suitableForDiet) ? p.suitableForDiet : [], variations: Array.isArray(p.variations) ? p.variations.join(', ') : (p.variations || ''), removables: Array.isArray(p.removables) ? p.removables.join(', ') : (p.removables || ''), isActive: p.isActive !== false }); setIsModalOpen(true); }} className="p-2.5 bg-slate-50 rounded-xl text-blue-600 border border-slate-100 hover:bg-blue-100 transition-all shadow-sm" title="Editar Produto">
                                                             <Edit3 size={18} className="mx-auto" />
                                                         </button>
                                                         <button onClick={() => window.confirm("Deseja excluir este produto?") && deleteDoc(doc(db, "products", p.id))} className="p-2.5 bg-slate-50 rounded-xl text-red-500 border border-slate-100 hover:bg-red-100 transition-all shadow-sm">
@@ -14381,8 +14446,104 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </AnimatePresence>
             {/* --- FIM: MODAL MÁGICO DE OFERTAS GOOGLE (SEO) --- */}
 
-            {/* --- INÍCIO: MODAL DE EDIÇÃO EM MASSA (EXCEL-LIKE) --- */}
+{/* --- INÍCIO: MODAL DE MOVIMENTAÇÃO DE ESTOQUE --- */}
             <AnimatePresence>
+                {isStockModalOpen && stockMovementProduct && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col">
+                            <button 
+                                onClick={() => setIsStockModalOpen(false)} 
+                                className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors z-20"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <div className="mb-6 border-b border-slate-100 pb-4">
+                                <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none mb-2 flex items-center gap-3">
+                                    <Package className="text-indigo-600" size={24}/> Controle de Estoque
+                                </h2>
+                                <p className="text-sm font-bold text-slate-500">
+                                    Gerenciando: <strong className="text-indigo-600">{stockMovementProduct.name}</strong>
+                                </p>
+                            </div>
+
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-6 flex justify-between items-center">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Estoque Atual</span>
+                                <span className="text-2xl font-black italic text-slate-800">
+                                    {stockMovementProduct.stock !== undefined && stockMovementProduct.stock !== '' ? stockMovementProduct.stock : '∞'}
+                                </span>
+                            </div>
+
+                            <form onSubmit={handleSaveStockMovement} className="space-y-6">
+                                
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setStockMovementType('add')}
+                                        className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${stockMovementType === 'add' ? 'bg-green-50 border-green-500 text-green-700 shadow-sm' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                    >
+                                        <PlusSquare size={20} />
+                                        <span className="text-[9px] font-black uppercase">Entrada</span>
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setStockMovementType('remove')}
+                                        className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${stockMovementType === 'remove' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                    >
+                                        <MinusSquare size={20} />
+                                        <span className="text-[9px] font-black uppercase">Saída/Quebra</span>
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setStockMovementType('set')}
+                                        className={`p-3 rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all ${stockMovementType === 'set' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                    >
+                                        <Edit3 size={20} />
+                                        <span className="text-[9px] font-black uppercase">Contagem Exata</span>
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 block ml-2">
+                                        {stockMovementType === 'add' ? 'Quantidade a Adicionar' : stockMovementType === 'remove' ? 'Quantidade a Remover' : 'Estoque Físico Contado'}
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        required
+                                        min="0"
+                                        autoFocus
+                                        value={stockMovementQuantity} 
+                                        onChange={(e) => setStockMovementQuantity(e.target.value)}
+                                        className={`w-full p-5 rounded-2xl font-black text-2xl text-center outline-none border focus:ring-4 transition-all shadow-inner ${
+                                            stockMovementType === 'add' ? 'bg-green-50 border-green-200 text-green-700 focus:ring-green-100' :
+                                            stockMovementType === 'remove' ? 'bg-red-50 border-red-200 text-red-700 focus:ring-red-100' :
+                                            'bg-indigo-50 border-indigo-200 text-indigo-700 focus:ring-indigo-100'
+                                        }`}
+                                        placeholder="0"
+                                    />
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    disabled={isSavingStock || !stockMovementQuantity}
+                                    className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${
+                                        stockMovementType === 'add' ? 'bg-green-600 hover:bg-green-700 shadow-green-200' :
+                                        stockMovementType === 'remove' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' :
+                                        'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+                                    }`}
+                                >
+                                    {isSavingStock ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
+                                    {isSavingStock ? 'Processando...' : 'Confirmar Lançamento'}
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE MOVIMENTAÇÃO DE ESTOQUE --- */}
+
+            {/* --- INÍCIO: MODAL DE EDIÇÃO EM MASSA (EXCEL-LIKE) --- */}
+                        <AnimatePresence>
                 {isBulkEditModalOpen && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-6xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col max-h-[90vh]">
