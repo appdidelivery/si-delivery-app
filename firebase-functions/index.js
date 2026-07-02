@@ -282,51 +282,23 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (FORÇA BRUTA NO LOG) ---
-            
-            const envString = String(fiscal.focusEnvironment || '').toLowerCase();
-            const isProduction = envString.includes('prod') || envString.includes('oficial');
+           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MOTOR AUTO-DISCOVERY) ---
             
             const cleanToken = (fiscal.token || fiscal.focusToken || '').trim();
             if (!cleanToken) throw new Error("Token ausente no banco de dados.");
 
-            const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
 
-            functions.logger.error(`🚨 INÍCIO DO RAIO-X FISCAL (PEDIDO: ${orderId}) 🚨`);
-            functions.logger.error(`🚨 CNPJ SALVO NA VELO: ${cnpjLojista}`);
-            functions.logger.error(`🚨 TOKEN SALVO NA VELO: ${cleanToken.substring(0, 5)}...${cleanToken.slice(-4)}`);
-            functions.logger.error(`🚨 AMBIENTE SALVO NA VELO: ${isProduction ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO'}`);
-            
-            // TENTATIVA 1: Sem CNPJ na URL (Exigido para tokens de Filial)
-            let url = `${baseUrl}/v2/nfce?ref=${orderId}`;
-            functions.logger.error(`🚨 DISPARO 1 (MÉTODO FILIAL): ${url}`);
-            
-            let response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payloadNFCe)
-            });
+            const envString = String(fiscal.focusEnvironment || '').toLowerCase();
+            const preferredEnv = envString.includes('prod') || envString.includes('oficial') ? 'prod' : 'homolog';
+            const alternateEnv = preferredEnv === 'prod' ? 'homolog' : 'prod';
 
-            let responseText = await response.text();
-            functions.logger.error(`🚨 RESPOSTA DA FOCUS 1 (Status ${response.status}): ${responseText}`);
-
-            let finalData;
-            try { finalData = JSON.parse(responseText); } catch (e) { finalData = { mensagem: responseText }; }
-
-            let usedCnpj = false;
-            const errorDump = JSON.stringify(finalData || {}).toLowerCase();
-            
-            // TENTATIVA 2: Com CNPJ na URL (Exigido para tokens Master)
-            if (response.status >= 400 && (errorDump.includes("cnpj") || errorDump.includes("autorizado") || errorDump.includes("obrigatório"))) {
-                usedCnpj = true;
-                url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
-                functions.logger.error(`🚨 DISPARO 2 (MÉTODO MASTER): ${url}`);
+            const tryFocus = async (env, useCnpj) => {
+                const bUrl = env === 'prod' ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
+                const qCnpj = useCnpj ? `&cnpj_emitente=${cnpjLojista}` : "";
+                const url = `${bUrl}/v2/nfce?ref=${orderId}${qCnpj}`;
                 
-                response = await fetch(url, {
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
@@ -335,60 +307,49 @@ exports.emitirNotaFiscal = functions.firestore
                     body: JSON.stringify(payloadNFCe)
                 });
                 
-                responseText = await response.text();
-                functions.logger.error(`🚨 RESPOSTA DA FOCUS 2 (Status ${response.status}): ${responseText}`);
-                try { finalData = JSON.parse(responseText); } catch (e) {}
-            }
+                const text = await response.text();
+                let data;
+                try { data = JSON.parse(text); } catch(e) { data = { mensagem: text }; }
+                return { status: response.status, data, url, useCnpj, env, bUrl };
+            };
 
-            if (response.status >= 400 || finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado' || finalData.codigo === 'permissao_negada') {
-                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || finalData.codigo || "Erro retornado pela API Focus.";
-                throw new Error(`Recusado: ${msg}`);
-            }
+            const isAuthError = (res) => {
+                if (res.status < 400) return false;
+                // A Focus NFe usa 401/403 para barrar Tokens e CNPJs na porta do servidor
+                if (res.status === 401 || res.status === 403) return true;
+                const dump = JSON.stringify(res.data || {}).toLowerCase();
+                return dump.includes("permissao_negada") || dump.includes("cnpj do emitente não");
+            };
 
-            // 🚨 POLLING: Aguardar SEFAZ
-            if (finalData.status === 'processando_autorizacao') {
-                for (let i = 0; i < 3; i++) {
-                    await new Promise(resolve => setTimeout(resolve, 2000)); 
+            functions.logger.error(`🚨 INICIANDO MOTOR DE INTELIGÊNCIA (Auto-Descobrindo Token da Loja)`);
+
+            // Combinação 1: Ambiente Preferido + Token de Filial
+            let res = await tryFocus(preferredEnv, false);
+            
+            if (isAuthError(res)) {
+                // Combinação 2: Ambiente Preferido + Token Master
+                res = await tryFocus(preferredEnv, true);
+                
+                if (isAuthError(res)) {
+                    // Combinação 3: Ambiente Alternativo + Token de Filial
+                    res = await tryFocus(alternateEnv, false);
                     
-                    const urlCheckQuery = usedCnpj ? `?cnpj_emitente=${cnpjLojista}` : "";
-                    const checkRes = await fetch(`${baseUrl}/v2/nfce/${orderId}${urlCheckQuery}`, {
-                        headers: { 'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}` }
-                    });
-                    
-                    if (checkRes.ok) {
-                        const checkText = await checkRes.text();
-                        try {
-                            const checkData = JSON.parse(checkText);
-                            if (checkData.status !== 'processando_autorizacao') {
-                                finalData = checkData; 
-                                break;
-                            }
-                        } catch (e) {
-                            console.error("[Fiscal DEBUG] Erro no Polling:", checkText);
-                        }
+                    if (isAuthError(res)) {
+                        // Combinação 4: Ambiente Alternativo + Token Master
+                        res = await tryFocus(alternateEnv, true);
                     }
                 }
             }
 
-            if (finalData.status === 'autorizado') {
-                let validPdfUrl = finalData.caminho_danfe;
-                if (!validPdfUrl || validPdfUrl === '/relatorios/danfe.pdf') {
-                    validPdfUrl = `${baseUrl}/v2/nfce/${finalData.chave_nfe || orderId}.pdf`;
-                } else if (!validPdfUrl.startsWith('http')) {
-                    validPdfUrl = `${baseUrl}${validPdfUrl}`;
-                }
+            functions.logger.error(`🚨 MOTOR CONCLUÍDO: Ambiente Real = ${res.env} | É Master = ${res.useCnpj} | Status = ${res.status}`);
 
-                await change.after.ref.update({ 
-                    fiscalStatus: 'authorized', 
-                    nfeUrl: validPdfUrl, 
-                    nfeChave: finalData.chave_nfe || null,
-                    nfeProtocolo: finalData.protocolo || null,
-                    fiscalError: null
-                });
-                return true;
-            } else {
-                const erroMsg = finalData.erros && finalData.erros.length > 0 ? finalData.erros[0].mensagem : (finalData.mensagem || "A SEFAZ rejeitou a nota. Verifique o CSC no painel da Focus.");
-                throw new Error(erroMsg);
+            let finalData = res.data;
+            let baseUrl = res.bUrl;
+            let usedCnpj = res.useCnpj;
+
+            if (res.status >= 400 || finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado' || finalData.codigo === 'permissao_negada') {
+                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || finalData.codigo || "Erro retornado pela API Focus.";
+                throw new Error(`Recusado: ${msg}`);
             }
 
         } catch (error) {
