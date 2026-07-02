@@ -1240,12 +1240,13 @@ const educationalBanners = [
     const [bulkEditData, setBulkEditData] = useState({});
     const [isSavingBulkEdit, setIsSavingBulkEdit] = useState(false);
 
-    const handleOpenBulkEdit = () => {
+   const handleOpenBulkEdit = () => {
         const initialData = {};
         selectedProductIds.forEach(id => {
             const prod = products.find(p => p.id === id);
             if (prod) {
                 initialData[id] = {
+                    costPrice: prod.costPrice || '',
                     price: prod.price || '',
                     promotionalPrice: prod.promotionalPrice || '',
                     stock: prod.stock !== undefined ? prod.stock : '',
@@ -1268,6 +1269,7 @@ const educationalBanners = [
                 if (!draft) return Promise.resolve();
 
                return updateDoc(doc(db, "products", id), {
+                    costPrice: parseFloat(draft.costPrice) || 0,
                     price: parseFloat(draft.price) || 0,
                     promotionalPrice: parseFloat(draft.promotionalPrice) || 0,
                     stock: draft.stock === '' ? '' : parseInt(draft.stock),
@@ -14568,6 +14570,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <thead className="sticky top-0 bg-slate-100 z-10 shadow-sm">
                                         <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
                                             <th className="p-4 font-black">Produto</th>
+                                            <th className="p-4 font-black w-28">Custo (R$)</th>
                                             <th className="p-4 font-black w-28">Preço (R$)</th>
                                             <th className="p-4 font-black w-28">Promo (R$)</th>
                                             <th className="p-4 font-black w-24">Estoque</th>
@@ -14594,7 +14597,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <td className="p-3">
                                                         <input 
                                                             type="number" step="0.01" 
-                                                            value={draft.price} 
+                                                            value={draft.costPrice} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, costPrice: e.target.value}})}
+                                                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-500 font-medium"
+                                                            placeholder="0.00"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="number" step="0.01" 
+                                                            value={draft.price}
                                                             onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, price: e.target.value}})}
                                                             className="w-full p-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700"
                                                         />
