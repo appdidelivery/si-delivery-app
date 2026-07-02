@@ -365,6 +365,27 @@ exports.emitirNotaFiscal = functions.firestore
                 throw new Error(`Recusado: ${msg}`);
             }
 
+            // ======= INÍCIO DO CÓDIGO NOVO A SER COLADO =======
+            
+            // Se o código chegou até aqui (passou pelo erro acima), é porque a nota autorizou!
+            if (finalData.status === "autorizado" || finalData.status === "processando_autorizacao") {
+                
+                // 1. Monta o link do PDF (DANFE) usando a URL base descoberta pelo seu motor
+                const urlPdf = baseUrl + (finalData.caminho_danfe || "");
+                const chaveNfe = finalData.chave_nfe;
+
+                // 2. Avisa o painel da Velo e salva o PDF!
+                await change.after.ref.update({
+                    fiscalStatus: 'autorizado', // Muda o status para sucesso (Botão Verde)
+                    url_pdf_nfe: urlPdf,        // Salva o link do PDF
+                    chave_nfe: chaveNfe
+                });
+
+                functions.logger.log(`✅ SUCESSO: Nota do pedido ${orderId} autorizada! Link gerado.`);
+                return null; // Termina a função com sucesso
+            }
+
+            // ======= FIM DO CÓDIGO NOVO A SER COLADO =======
         } catch (error) {
             console.error(`[Fiscal] Erro pedido ${orderId}:`, error);
             await change.after.ref.update({ fiscalStatus: 'error', fiscalError: error.message });
