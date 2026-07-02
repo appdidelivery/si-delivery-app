@@ -327,9 +327,14 @@ exports.emitirNotaFiscal = functions.firestore
             }
 
             // 2ª Tentativa Automática: Se a Focus reclamar do CNPJ, sabemos que é um token de FILIAL!
-            if (response.status >= 400 && finalData.mensagem && finalData.mensagem.includes("CNPJ do emitente não autorizado")) {
-                console.warn(`[Fiscal DEBUG] Token de Filial detectado. Removendo cnpj_emitente da URL e tentando novamente...`);
+            // BLINDAGEM: Converte todo o erro para string minúscula, pois a Focus pode jogar a mensagem dentro de "erros[0].mensagem"
+            const errorDump = JSON.stringify(finalData || {}).toLowerCase();
+            
+            if (response.status >= 400 && (errorDump.includes("cnpj do emitente") || finalData.codigo === 'nao_autorizado')) {
+                console.warn(`[Fiscal DEBUG] Token de Filial detectado ou erro de permissão. Removendo cnpj_emitente da URL e tentando novamente...`);
                 usedCnpj = false;
+                
+                // Dispara novamente, mas agora sem o CNPJ na URL (como a Focus exige para tokens de filial)
                 response = await attemptFetch(false);
                 responseText = await response.text();
                 try {
