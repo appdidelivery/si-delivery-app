@@ -282,7 +282,7 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MODO DEBUG EXTREMO) ---
+           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (FORÇA BRUTA NO LOG) ---
             
             const envString = String(fiscal.focusEnvironment || '').toLowerCase();
             const isProduction = envString.includes('prod') || envString.includes('oficial');
@@ -293,16 +293,14 @@ exports.emitirNotaFiscal = functions.firestore
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
 
-            console.log(`🚨🚨🚨 ========================================= 🚨🚨🚨`);
-            console.log(`🚨 [DEBUG] PEDIDO: ${orderId}`);
-            console.log(`🚨 [DEBUG] CNPJ LIDO: ${cnpjLojista}`);
-            console.log(`🚨 [DEBUG] TOKEN NO BANCO: ${cleanToken.substring(0, 5)}...${cleanToken.slice(-4)}`);
-            console.log(`🚨 [DEBUG] AMBIENTE NO BANCO: "${fiscal.focusEnvironment}" -> Resolvido para: ${isProduction ? 'PROD' : 'HOMOLOG'}`);
-            console.log(`🚨 [DEBUG] BASE URL ESCOLHIDA: ${baseUrl}`);
+            functions.logger.error(`🚨 INÍCIO DO RAIO-X FISCAL (PEDIDO: ${orderId}) 🚨`);
+            functions.logger.error(`🚨 CNPJ SALVO NA VELO: ${cnpjLojista}`);
+            functions.logger.error(`🚨 TOKEN SALVO NA VELO: ${cleanToken.substring(0, 5)}...${cleanToken.slice(-4)}`);
+            functions.logger.error(`🚨 AMBIENTE SALVO NA VELO: ${isProduction ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO'}`);
             
-            // TENTATIVA 1
+            // TENTATIVA 1: Sem CNPJ na URL (Exigido para tokens de Filial)
             let url = `${baseUrl}/v2/nfce?ref=${orderId}`;
-            console.log(`🚨 [DEBUG] DISPARO 1 URL: ${url}`);
+            functions.logger.error(`🚨 DISPARO 1 (MÉTODO FILIAL): ${url}`);
             
             let response = await fetch(url, {
                 method: 'POST',
@@ -314,7 +312,7 @@ exports.emitirNotaFiscal = functions.firestore
             });
 
             let responseText = await response.text();
-            console.log(`🚨 [DEBUG] RESPOSTA 1 (Status ${response.status}):`, responseText);
+            functions.logger.error(`🚨 RESPOSTA DA FOCUS 1 (Status ${response.status}): ${responseText}`);
 
             let finalData;
             try { finalData = JSON.parse(responseText); } catch (e) { finalData = { mensagem: responseText }; }
@@ -322,11 +320,11 @@ exports.emitirNotaFiscal = functions.firestore
             let usedCnpj = false;
             const errorDump = JSON.stringify(finalData || {}).toLowerCase();
             
-            // Se falhar pedindo CNPJ ou der não autorizado, tenta a TENTATIVA 2 com CNPJ na URL
-            if (response.status >= 400 && (errorDump.includes("cnpj") || errorDump.includes("autorizado"))) {
+            // TENTATIVA 2: Com CNPJ na URL (Exigido para tokens Master)
+            if (response.status >= 400 && (errorDump.includes("cnpj") || errorDump.includes("autorizado") || errorDump.includes("obrigatório"))) {
                 usedCnpj = true;
                 url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
-                console.log(`🚨 [DEBUG] DISPARO 2 URL (COM CNPJ): ${url}`);
+                functions.logger.error(`🚨 DISPARO 2 (MÉTODO MASTER): ${url}`);
                 
                 response = await fetch(url, {
                     method: 'POST',
@@ -338,11 +336,9 @@ exports.emitirNotaFiscal = functions.firestore
                 });
                 
                 responseText = await response.text();
-                console.log(`🚨 [DEBUG] RESPOSTA 2 (Status ${response.status}):`, responseText);
+                functions.logger.error(`🚨 RESPOSTA DA FOCUS 2 (Status ${response.status}): ${responseText}`);
                 try { finalData = JSON.parse(responseText); } catch (e) {}
             }
-
-            console.log(`🚨🚨🚨 ========================================= 🚨🚨🚨`);
 
             if (response.status >= 400 || finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado' || finalData.codigo === 'permissao_negada') {
                 const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || finalData.codigo || "Erro retornado pela API Focus.";
