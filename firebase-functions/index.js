@@ -241,37 +241,41 @@ exports.emitirNotaFiscal = functions.firestore
             // Marca como processando para evitar duplicidade
             await change.after.ref.update({ fiscalStatus: 'processing' });
 
-            // 1. Monta os itens conforme regra da SEFAZ RS
-            const itensNfe = (order.items || []).map((item, index) => ({
-                numero_item: index + 1,
-                codigo_produto: item.id || `ITEM-${index}`,
-                descricao: item.name.substring(0, 120),
-                cfop: item.cfop || fiscal.defaultCFOP || "5102",
-                unidade_comercial: "UN",
-                quantidade_comercial: item.quantity,
-                valor_unitario_comercial: item.price,
-                valor_bruto: (item.price * item.quantity).toFixed(2),
-                codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
-                icms_origem: "0",
-                icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
-            }));
+            // 1. Monta os itens blindados exatamente como o Suporte da Focus pediu
+            const itensNfe = (order.items || []).map((item, index) => {
+                const qty = item.quantity;
+                const price = Number(item.price);
+                return {
+                    numero_item: index + 1,
+                    codigo_produto: item.id || `ITEM-${index}`,
+                    descricao: item.name.substring(0, 120),
+                    cfop: item.cfop || fiscal.defaultCFOP || "5102",
+                    unidade_comercial: "UN",
+                    unidade_tributavel: "UN",
+                    quantidade_comercial: qty,
+                    quantidade_tributavel: qty,
+                    valor_unitario_comercial: price,
+                    valor_unitario_tributavel: price,
+                    valor_bruto: (price * qty).toFixed(2),
+                    codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
+                    icms_origem: "0",
+                    icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
+                };
+            });
 
             // 2. Limpa o CPF (se houver)
             const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
 
-            // 3. Monta o Payload Final
+            // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
             const payloadNFCe = {
-                natureza_operacao: "VENDA",
+                cnpj_emitente: (fiscal.cnpj || "").replace(/\D/g, ''),
+                natureza_operacao: "VENDA AO CONSUMIDOR",
                 data_emissao: new Date().toISOString(),
-                tipo_documento: "2", // NFC-e
+                tipo_documento: "1", 
                 local_destino: "1", 
                 finalidade_emissao: "1", 
                 consumidor_final: "1", 
                 presenca_comprador: (order.source === 'manual_pdv' || order.tipo === 'pickup') ? "1" : "4",
-                cliente: {
-                    nome_completo: order.customerName || "Consumidor Final",
-                    cpf: (cpfLimpo && cpfLimpo.length === 11) ? cpfLimpo : null
-                },
                 itens: itensNfe,
                 pagamentos: [
                     {
@@ -281,6 +285,14 @@ exports.emitirNotaFiscal = functions.firestore
                     }
                 ]
             };
+
+            // BLINDAGEM: A Focus odeia "null". Só enviamos o bloco cliente se o CPF for válido.
+            if (cpfLimpo && cpfLimpo.length === 11) {
+                payloadNFCe.cliente = {
+                    nome_completo: order.customerName || "Consumidor Final",
+                    cpf: cpfLimpo
+                };
+            }
 
            // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MOTOR AUTO-DISCOVERY) ---
             
