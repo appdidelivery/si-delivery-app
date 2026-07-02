@@ -374,10 +374,10 @@ exports.emitirNotaFiscal = functions.firestore
                 const urlPdf = baseUrl + (finalData.caminho_danfe || "");
                 const chaveNfe = finalData.chave_nfe;
 
-                // 2. Avisa o painel da Velo e salva o PDF!
+               // 2. Avisa o painel da Velo e salva o PDF!
                 await change.after.ref.update({
-                    fiscalStatus: 'autorizado', // Muda o status para sucesso (Botão Verde)
-                    url_pdf_nfe: urlPdf,        // Salva o link do PDF
+                    fiscalStatus: 'authorized', // <-- MUDOU PARA INGLÊS
+                    nfeUrl: urlPdf,             // <-- MUDOU O NOME DA VARIÁVEL
                     chave_nfe: chaveNfe
                 });
 
