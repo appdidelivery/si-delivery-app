@@ -266,7 +266,7 @@ exports.emitirNotaFiscal = functions.firestore
             // 2. Limpa o CPF (se houver)
             const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
 
-            // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
+           // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
             const payloadNFCe = {
                 cnpj_emitente: (fiscal.cnpj || "").replace(/\D/g, ''),
                 natureza_operacao: "VENDA AO CONSUMIDOR",
@@ -276,6 +276,7 @@ exports.emitirNotaFiscal = functions.firestore
                 finalidade_emissao: "1", 
                 consumidor_final: "1", 
                 presenca_comprador: (order.source === 'manual_pdv' || order.tipo === 'pickup') ? "1" : "4",
+                modalidade_frete: "9", // <-- INJETAMOS A REGRA AQUI
                 itens: itensNfe,
                 pagamentos: [
                     {
