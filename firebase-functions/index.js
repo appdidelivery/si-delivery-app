@@ -282,10 +282,12 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (AUTO-DISCOVERY) ---
-            const isProduction = fiscal.focusEnvironment === 'producao';
+           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MASTER TOKEN) ---
             
-            // Puxa do banco
+            // 1. BLINDAGEM DE AMBIENTE: Aceita "production", "producao", "PROD", etc.
+            const envString = String(fiscal.focusEnvironment || '').toLowerCase();
+            const isProduction = envString.includes('prod');
+            
             const focusToken = fiscal.token || fiscal.focusToken || ''; 
             
             if (!focusToken) {
@@ -296,61 +298,38 @@ exports.emitirNotaFiscal = functions.firestore
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
 
-            console.log(`[Fiscal DEBUG] Iniciando Emissão - Pedido: ${orderId} | Ambiente: ${isProduction ? 'PROD' : 'HOMOLOG'}`);
+            console.log(`[Fiscal DEBUG] Pedido: ${orderId} | Ambiente BD: ${envString} | Resolvido: ${isProduction ? 'PROD' : 'HOMOLOG'}`);
 
-            const attemptFetch = async (useCnpj) => {
-                const urlQuery = useCnpj ? `&cnpj_emitente=${cnpjLojista}` : "";
-                const url = `${baseUrl}/v2/nfce?ref=${orderId}${urlQuery}`;
-                
-                return await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payloadNFCe)
-                });
-            };
-
-            let usedCnpj = true; 
+            // 2. DISPARO ÚNICO DIRETO COM CNPJ (Obrigatório para Token Master)
+            const url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
             
-            // 1ª Tentativa: Como Token Mestre (COM CNPJ na URL)
-            let response = await attemptFetch(true);
-            let responseText = await response.text();
-            let finalData;
+            let response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payloadNFCe)
+            });
 
+            let responseText = await response.text();
+            console.log(`[Fiscal DEBUG] Resposta Focus (Status ${response.status}):`, responseText);
+
+            let finalData;
             try {
                 finalData = JSON.parse(responseText);
             } catch (e) {
                 console.error("[Fiscal DEBUG] Erro Fatal (Não é JSON):", responseText);
-                throw new Error(`Token Inválido ou Ambiente Incorreto. A Focus retornou: ${responseText.substring(0, 50)}...`);
+                throw new Error(`Erro na API Focus: ${responseText.substring(0, 50)}`);
             }
 
-            // 2ª Tentativa Automática: Se a Focus reclamar do CNPJ, sabemos que é um token de FILIAL!
-            // BLINDAGEM: Converte todo o erro para string minúscula, pois a Focus pode jogar a mensagem dentro de "erros[0].mensagem"
-            const errorDump = JSON.stringify(finalData || {}).toLowerCase();
-            
-            if (response.status >= 400 && (errorDump.includes("cnpj do emitente") || finalData.codigo === 'nao_autorizado')) {
-                console.warn(`[Fiscal DEBUG] Token de Filial detectado ou erro de permissão. Removendo cnpj_emitente da URL e tentando novamente...`);
-                usedCnpj = false;
-                
-                // Dispara novamente, mas agora sem o CNPJ na URL (como a Focus exige para tokens de filial)
-                response = await attemptFetch(false);
-                responseText = await response.text();
-                try {
-                    finalData = JSON.parse(responseText);
-                } catch(e) {
-                    throw new Error("Erro no processamento da segunda tentativa da Focus NFe.");
-                }
-            }
-
-            console.log(`[Fiscal DEBUG] Resposta Focus Final:`, JSON.stringify(finalData));
-
-            // Tratamento de Erros Comuns da SEFAZ mapeados em JSON
-            if (finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado' || response.status >= 400) {
-                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || "Erro de validação na SEFAZ.";
+            // Tratamento de Erros Direto da Fonte
+            if (response.status >= 400 || finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado') {
+                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || finalData.codigo || "Erro de validação na SEFAZ.";
                 throw new Error(`Recusado: ${msg}`);
             }
+
+            const usedCnpj = true; // Necessário para manter o funcionamento do Polling abaixo
 
             // 🚨 POLLING: Aguardar SEFAZ
             if (finalData.status === 'processando_autorizacao') {
