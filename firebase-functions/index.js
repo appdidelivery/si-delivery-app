@@ -282,27 +282,19 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MASTER TOKEN) ---
+           // --- INÍCIO DA INTEGRAÇÃO BLINDADA (AUTO-RESOLVE) ---
             
-            // 1. BLINDAGEM DE AMBIENTE: Aceita "production", "producao", "PROD", etc.
             const envString = String(fiscal.focusEnvironment || '').toLowerCase();
             const isProduction = envString.includes('prod');
             
-            const focusToken = fiscal.token || fiscal.focusToken || ''; 
-            
-            if (!focusToken) {
-                throw new Error("Token da Focus NFe ausente. Acesse a aba Fiscal, cole o Token e salve as configurações.");
-            }
+            const cleanToken = (fiscal.token || fiscal.focusToken || '').trim();
+            if (!cleanToken) throw new Error("Token ausente. Salve as configurações fiscais.");
 
-            const cleanToken = focusToken.trim();
             const baseUrl = isProduction ? "https://api.focusnfe.com.br" : "https://homologacao.focusnfe.com.br";
             const cnpjLojista = (fiscal.cnpj || "").replace(/\D/g, '');
 
-            console.log(`[Fiscal DEBUG] Pedido: ${orderId} | Ambiente BD: ${envString} | Resolvido: ${isProduction ? 'PROD' : 'HOMOLOG'}`);
-
-            // 2. DISPARO ÚNICO DIRETO COM CNPJ (Obrigatório para Token Master)
-            const url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
-            
+            // DISPARO 1: Focado em "Token da Filial" (Sem CNPJ na URL)
+            let url = `${baseUrl}/v2/nfce?ref=${orderId}`;
             let response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -313,24 +305,36 @@ exports.emitirNotaFiscal = functions.firestore
             });
 
             let responseText = await response.text();
-            console.log(`[Fiscal DEBUG] Resposta Focus (Status ${response.status}):`, responseText);
-
             let finalData;
-            try {
-                finalData = JSON.parse(responseText);
-            } catch (e) {
-                console.error("[Fiscal DEBUG] Erro Fatal (Não é JSON):", responseText);
-                throw new Error(`Erro na API Focus: ${responseText.substring(0, 50)}`);
+            try { finalData = JSON.parse(responseText); } catch (e) {}
+
+            let usedCnpj = false;
+
+            // DISPARO 2: Se a Focus reclamar que o CNPJ é obrigatório, é porque colaram Token Master! Tentamos de novo.
+            const errorDump = JSON.stringify(finalData || {}).toLowerCase();
+            if (response.status >= 400 && (errorDump.includes("cnpj_emitente") || errorDump.includes("obrigatório"))) {
+                usedCnpj = true;
+                url = `${baseUrl}/v2/nfce?ref=${orderId}&cnpj_emitente=${cnpjLojista}`;
+                
+                response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${Buffer.from(cleanToken + ":").toString('base64')}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payloadNFCe)
+                });
+                
+                responseText = await response.text();
+                try { finalData = JSON.parse(responseText); } catch (e) {}
             }
 
-            // Tratamento de Erros Direto da Fonte
-            if (response.status >= 400 || finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado') {
-                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || finalData.codigo || "Erro de validação na SEFAZ.";
+            // Validação de Erros Finais da Focus
+            if (response.status >= 400 || finalData.codigo === 'erro_validacao' || finalData.codigo === 'nao_autorizado' || finalData.codigo === 'permissao_negada') {
+                const msg = finalData.erros?.[0]?.mensagem || finalData.mensagem || finalData.codigo || "Erro retornado pela API da Focus NFe.";
                 throw new Error(`Recusado: ${msg}`);
             }
-
-            const usedCnpj = true; // Necessário para manter o funcionamento do Polling abaixo
-
+            
             // 🚨 POLLING: Aguardar SEFAZ
             if (finalData.status === 'processando_autorizacao') {
                 for (let i = 0; i < 3; i++) {
