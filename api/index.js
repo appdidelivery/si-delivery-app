@@ -3787,8 +3787,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada restaurada para a versão estável do Gemini
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
+                        method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: fullPrompt }] }]
@@ -3903,8 +3903,8 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
+                        method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
             });
@@ -3956,8 +3956,8 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             // CÓDIGO NOVO
 const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa de NO MÁXIMO 15 PALAVRAS. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, marcadores markdown (\`\`\`json) ou textos explicativos. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-// 🚀 MOTOR DE AUTO-CURA ANTI-404 (Tenta os modelos do mais barato para o mais antigo)
-const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-flash'];
+// 🚀 MOTOR DE AUTO-CURA ESTÁVEL
+const modelsToTry = ['gemini-1.5-flash-8b', 'gemini-1.5-flash-001', 'gemini-1.5-flash-latest'];
             let aiData = null;
             let responseOk = false;
 
@@ -4238,8 +4238,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
+                        method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }]
@@ -5468,8 +5468,8 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
               {"question": "Pergunta 2?", "answer": "Resposta 2."}
             ]`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
+                        method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }]
