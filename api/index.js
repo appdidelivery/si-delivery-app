@@ -3954,7 +3954,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             }
 
             // CÓDIGO NOVO
-const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa de NO MÁXIMO 15 PALAVRAS. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, marcadores markdown (\`\`\`json) ou textos explicativos. Formato exigido: {"nome": "...", "descricao": "..."}`;
+const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, explicações ou marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
 
 // 🚀 MOTOR DE AUTO-CURA ESTÁVEL
 const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
