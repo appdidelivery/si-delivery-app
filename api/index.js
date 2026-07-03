@@ -5521,10 +5521,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: 'Chave do Gemini não configurada na Vercel.' });
 
-            // Importação segura do Crypto dentro da rota (evita quebrar o index.js gigante)
-            const crypto = require('crypto');
-
             // CACHE: Verifica se já gerou isso antes para não gastar API
+            // (Usando a biblioteca crypto que já está importada no topo do arquivo)
             const cacheString = `${lojaNome}-${termoRaw}`.toLowerCase().trim();
             const cacheKey = crypto.createHash('md5').update(cacheString).digest('hex');
             const cacheRef = db.collection('ai_product_cache').doc(cacheKey);
@@ -5537,7 +5535,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa curta. Retorne APENAS um JSON válido. É PROIBIDO usar marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-            // CHAMADA LIMPA: Removemos os configs que o Google estava rejeitando
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -5548,7 +5545,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const aiData = await response.json();
             
-            // 🚨 A MÁGICA DOS LOGS: Se der erro, vai mostrar EXATAMENTE o que o Google reclamou no log da Vercel
             if (!response.ok) {
                 console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
                 throw new Error(aiData.error?.message || "O Google recusou a requisição.");
