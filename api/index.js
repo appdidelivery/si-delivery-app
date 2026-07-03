@@ -3787,8 +3787,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada restaurada para a versão estável do Gemini
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
-                        method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: fullPrompt }] }]
@@ -3903,8 +3903,8 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
-                        method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
             });
@@ -3957,7 +3957,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa de NO MÁXIMO 15 PALAVRAS. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, marcadores markdown (\`\`\`json) ou textos explicativos. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
 // 🚀 MOTOR DE AUTO-CURA ESTÁVEL
-const modelsToTry = ['gemini-1.5-flash-8b', 'gemini-1.5-flash-001', 'gemini-1.5-flash-latest'];
+const modelsToTry = ['gemini-1.5-flash'];
             let aiData = null;
             let responseOk = false;
 
@@ -4034,8 +4034,8 @@ const modelsToTry = ['gemini-1.5-flash-8b', 'gemini-1.5-flash-001', 'gemini-1.5-
               {"title": "Nome do Combo Criativo", "desc": "Descrição factual detalhando o que vem no combo, com gramaturas ou litros se aplicável.", "price": "Calcule um preço sugerido (ex: R$ 49,90)"}
             ]`;
 
-            // 🚀 MOTOR DE AUTO-CURA DEFINITIVO PARA OS COMBOS
-            let availableModels = ['gemini-1.5-flash', 'gemini-1.5-pro']; // Modelos modernos atualizados
+           // 🚀 MOTOR DE AUTO-CURA DEFINITIVO PARA OS COMBOS
+            let availableModels = ['gemini-1.5-flash']; // Uso exclusivo do modelo mais rápido e estável
             
             try {
                 // Pergunta pro Google quais modelos estão vivos na sua chave hoje
@@ -4044,7 +4044,7 @@ const modelsToTry = ['gemini-1.5-flash-8b', 'gemini-1.5-flash-001', 'gemini-1.5-
                     const listData = await listRes.json();
                     if (listData.models) {
                         const validModels = listData.models
-                            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('vision'))
+                            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name === 'models/gemini-1.5-flash')
                             .map(m => m.name.replace('models/', ''));
                         if (validModels.length > 0) availableModels = validModels;
                     }
@@ -4238,8 +4238,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
-                        method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }]
@@ -4259,8 +4259,10 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
                 const rawJsonText = candidate.content?.parts[0]?.text;
                 if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio." });
                 
+                const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                
                 try {
-                    const parsedResult = JSON.parse(rawJsonText);
+                    const parsedResult = JSON.parse(cleanJsonText);
                     return res.status(200).json({ success: true, whatsapp: parsedResult.whatsapp, instagram: parsedResult.instagram, hashtags: parsedResult.hashtags });
                 } catch (e) { return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); }
             } else {
@@ -5468,8 +5470,8 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
               {"question": "Pergunta 2?", "answer": "Resposta 2."}
             ]`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${GEMINI_KEY}`, {
-                        method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }]
