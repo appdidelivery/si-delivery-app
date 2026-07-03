@@ -5508,8 +5508,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         }
     }
 
-    // ------------------------------------------------------------------------
-    // ROTA NOVA: GERADOR DE NOME E DESCRIÇÃO DO PRODUTO (NOVO ITEM)
+   // ------------------------------------------------------------------------
+    // ROTA CORRIGIDA: GERADOR DE NOME E DESCRIÇÃO (NOVO ITEM)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-product-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -5520,6 +5520,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: 'Chave do Gemini não configurada na Vercel.' });
+
+            // Importação segura do Crypto dentro da rota (evita quebrar o index.js gigante)
+            const crypto = require('crypto');
 
             // CACHE: Verifica se já gerou isso antes para não gastar API
             const cacheString = `${lojaNome}-${termoRaw}`.toLowerCase().trim();
@@ -5532,27 +5535,39 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: true, nome: cachedData.nome, descricao: cachedData.descricao });
             }
 
-            const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa. Retorne APENAS um JSON válido. É PROIBIDO usar marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
+            const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa curta. Retorne APENAS um JSON válido. É PROIBIDO usar marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
 
+            // CHAMADA LIMPA: Removemos os configs que o Google estava rejeitando
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 150 }
+                    contents: [{ parts: [{ text: prompt }] }]
                 })
             });
 
             const aiData = await response.json();
-            if (!response.ok) throw new Error("Erro na API do Google");
+            
+            // 🚨 A MÁGICA DOS LOGS: Se der erro, vai mostrar EXATAMENTE o que o Google reclamou no log da Vercel
+            if (!response.ok) {
+                console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
+                throw new Error(aiData.error?.message || "O Google recusou a requisição.");
+            }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!rawJsonText) throw new Error("Resposta vazia da IA.");
 
             const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const jsonResult = JSON.parse(cleanText);
+            
+            let jsonResult;
+            try {
+                jsonResult = JSON.parse(cleanText);
+            } catch (parseError) {
+                console.error("🚨 ERRO DE CONVERSÃO DO JSON DA IA:", cleanText);
+                throw new Error("A IA não retornou um formato JSON válido.");
+            }
 
-            // Salva no banco de dados para não gastar na próxima vez (Fire and forget)
+            // Salva no banco de dados para economizar no futuro
             cacheRef.set({
                 nome: jsonResult.nome,
                 descricao: jsonResult.descricao,
@@ -5564,7 +5579,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             return res.status(200).json({ success: true, nome: jsonResult.nome, descricao: jsonResult.descricao });
 
         } catch (error) {
-            console.error("Erro na API do Gemini (Produto):", error);
+            console.error("🔴 Erro na Rota de IA (Produto):", error.message);
             return res.status(200).json({ success: false, error: 'Falha ao gerar texto. Tente novamente.' });
         }
     }
