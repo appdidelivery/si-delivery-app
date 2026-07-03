@@ -3929,7 +3929,104 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         }
     }
 
-  
+  // ------------------------------------------------------------------------
+    // 21.5 GERADOR DE COPY DE PRODUTOS (NOME E DESCRIÇÃO VIA IA)
+    // ------------------------------------------------------------------------
+   else if (path === '/api/generate-product-copy') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
+            if (!termoRaw) return res.status(400).json({ error: 'O termo do produto é obrigatório.' });
+
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
+
+            const prompt = `Atue como Especialista Sênior em SEO Local e Copywriting Humano para Delivery. 
+            O cliente buscou por: "${termoRaw}". 
+            Loja: ${lojaNome || 'Delivery'}. Nicho: ${lojaNicho || 'Geral'}. Localização/Região: ${lojaLocalizacao || 'na sua região'}.
+            
+            OBJETIVO: Criar Nome e Descrição do produto otimizados para o Google, focando em densidade factual (E-E-A-T e diretrizes MUVERA).
+            
+            REGRAS CRÍTICAS:
+            1. TOM HUMANO: É estritamente proibido usar clichês de IA (ex: "explosão de sabores", "desperte seus sentidos", "verdadeira experiência", "mergulhe nessa"). Seja factual, apetitoso, direto e pareça escrito por um humano.
+            2. SEO LOCAL (GEO): Insira a localidade de forma natural na descrição para indexação regional (ex: "Entrega rápida em [Região]", "A melhor pedida de [Região]").
+            3. ESTADO DO PRODUTO: Se for bebida (nicho conveniência/adega), destaque que chega "trincando de gelada na sua porta". Se for comida, destaque "quente e preparado na hora".
+            4. NOME DESCRITIVO: O Nome do produto deve ser claro para o Google Maps/Shopping (Ex ruim: "Cerveja Trincando", Ex bom: "Cerveja [Nome] [ML] Gelada").
+            
+            Retorne APENAS um JSON puro, sem blocos de código em volta: 
+            {"nome": "Nome Otimizado", "descricao": "Descrição factual, humana e com SEO local."}`;
+
+            // 🚀 MOTOR DE AUTO-CURA DEFINITIVO (Dinâmico e Blindado)
+            // Lê diretamente da sua chave de API quais modelos ela tem autorização para usar hoje
+            let availableModels = ['gemini-1.5-flash', 'gemini-1.0-pro']; 
+            
+            try {
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
+                if (listRes.ok) {
+                    const listData = await listRes.json();
+                    if (listData.models) {
+                        const validModels = listData.models
+                            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('vision'))
+                            .map(m => m.name.replace('models/', ''));
+                        if (validModels.length > 0) availableModels = validModels;
+                    }
+                }
+            } catch (e) {
+                console.warn("Aviso: Falha ao listar modelos da chave. Usando fallback.");
+            }
+
+            let aiData = null;
+            let responseOk = false;
+
+            // Roda a roleta apenas com os modelos reais da sua conta
+            for (const modelName of availableModels) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                aiData = await response.json();
+
+                if (response.ok) {
+                    responseOk = true;
+                    console.log(`✅ [IA Velo] Sucesso! Modelo utilizado: ${modelName}`);
+                    break;
+                } else {
+                    const errorMsg = aiData.error?.message?.toLowerCase() || '';
+                    if (errorMsg.includes('depleted') || errorMsg.includes('quota') || errorMsg.includes('billing')) {
+                        return res.status(200).json({ success: false, error: "Aviso Velo Delivery: O limite da sua conta Google Cloud foi atingido. Adicione saldo ou insira a descrição manualmente." });
+                    }
+                }
+            }
+
+            if (!responseOk) {
+                console.error("❌ Erro Google API (Todos falharam):", aiData);
+                return res.status(200).json({ success: false, error: `Erro na API do Google. Sua chave rejeitou os modelos. Detalhe: ${aiData?.error?.message}` });
+            }
+
+            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawJsonText) return res.status(200).json({ success: false, error: "A IA processou o pedido, mas devolveu um texto vazio." });
+            
+            // 🛡️ BLINDAGEM ANTI-MARKDOWN EXTREMA
+            let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const firstBrace = cleanJsonText.indexOf('{');
+            const lastBrace = cleanJsonText.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
+            }
+            
+            const parsedResult = JSON.parse(cleanJsonText);
+            return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
+            
+        } catch (error) {
+            console.error("❌ Erro de Parsing (IA Produtos):", error);
+            return res.status(200).json({ success: false, error: "O assistente falhou ao formatar o texto. Tente novamente." });
+        }
+    }
     // ------------------------------------------------------------------------
     // 21.8 GERADOR DE COMBOS MÁGICOS (GEMINI IA)
     // ------------------------------------------------------------------------
@@ -4117,6 +4214,65 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 success: false, 
                 error: 'Nossos servidores de imagem estão sobrecarregados no momento. Tente novamente em alguns minutos.' 
             });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/generate-promo-copy') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeName, storeNiche, productName, productDesc, productPrice, productId } = req.body;
+            if (!productName) return res.status(400).json({ error: 'Nome do produto é obrigatório.' });
+
+            const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
+            const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
+            const exactProductLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
+
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente na Vercel." });
+
+            const prompt = `Crie textos de vendas curtos para Delivery.
+Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
+O link direto de compra é: ${exactProductLink}
+
+Retorne APENAS um JSON com 3 chaves curtas:
+"whatsapp": (1 frase magnética com emojis e preço. No final, adicione OBRIGATORIAMENTE o link direto: ${exactProductLink}),
+"instagram": (2 frases com chamada para o link da bio),
+"hashtags": (#delivery #promo)`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            let aiData;
+            try { aiData = await response.json(); } 
+            catch (e) { return res.status(200).json({ success: false, error: "O tempo esgotou." }); }
+            
+            if (!response.ok) return res.status(200).json({ success: false, error: "O Google rejeitou a requisição." });
+
+            if (aiData.candidates && aiData.candidates[0]) {
+                const candidate = aiData.candidates[0];
+                if (candidate.finishReason === 'SAFETY') return res.status(200).json({ success: false, error: "Bloqueado por segurança." });
+
+                const rawJsonText = candidate.content?.parts[0]?.text;
+                if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio." });
+                
+                try {
+                    const parsedResult = JSON.parse(rawJsonText);
+                    return res.status(200).json({ success: true, whatsapp: parsedResult.whatsapp, instagram: parsedResult.instagram, hashtags: parsedResult.hashtags });
+                } catch (e) { return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); }
+            } else {
+                return res.status(200).json({ success: false, error: "Resposta vazia." });
+            }
+        } catch (error) {
+            return res.status(200).json({ success: false, error: `Erro no servidor: ${error.message}` });
         }
     }
 
@@ -5505,78 +5661,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         } catch (error) {
             console.error("❌ Erro na Prospecção:", error);
             return res.status(500).json({ error: error.message });
-        }
-    }
-
-   // ------------------------------------------------------------------------
-    // ROTA CORRIGIDA: GERADOR DE NOME E DESCRIÇÃO (NOVO ITEM)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/generate-product-copy') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
-
-        try {
-            const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
-            if (!termoRaw) return res.status(400).json({ success: false, error: 'O termo do produto é obrigatório.' });
-
-            const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: 'Chave do Gemini não configurada na Vercel.' });
-
-            // CACHE: Verifica se já gerou isso antes para não gastar API
-            // (Usando a biblioteca crypto que já está importada no topo do arquivo)
-            const cacheString = `${lojaNome}-${termoRaw}`.toLowerCase().trim();
-            const cacheKey = crypto.createHash('md5').update(cacheString).digest('hex');
-            const cacheRef = db.collection('ai_product_cache').doc(cacheKey);
-
-            const cacheSnap = await cacheRef.get();
-            if (cacheSnap.exists) {
-                const cachedData = cacheSnap.data();
-                return res.status(200).json({ success: true, nome: cachedData.nome, descricao: cachedData.descricao });
-            }
-
-            const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa curta. Retorne APENAS um JSON válido. É PROIBIDO usar marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
-
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            });
-
-            const aiData = await response.json();
-            
-            if (!response.ok) {
-                console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
-                throw new Error(aiData.error?.message || "O Google recusou a requisição.");
-            }
-
-            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawJsonText) throw new Error("Resposta vazia da IA.");
-
-            const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            
-            let jsonResult;
-            try {
-                jsonResult = JSON.parse(cleanText);
-            } catch (parseError) {
-                console.error("🚨 ERRO DE CONVERSÃO DO JSON DA IA:", cleanText);
-                throw new Error("A IA não retornou um formato JSON válido.");
-            }
-
-            // Salva no banco de dados para economizar no futuro
-            cacheRef.set({
-                nome: jsonResult.nome,
-                descricao: jsonResult.descricao,
-                termoRaw: termoRaw,
-                lojaNome: lojaNome,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.error('[Cache Error]:', err));
-
-            return res.status(200).json({ success: true, nome: jsonResult.nome, descricao: jsonResult.descricao });
-
-        } catch (error) {
-            console.error("🔴 Erro na Rota de IA (Produto):", error.message);
-            return res.status(200).json({ success: false, error: 'Falha ao gerar texto. Tente novamente.' });
         }
     }
 
