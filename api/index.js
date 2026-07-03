@@ -3787,8 +3787,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada restaurada para a versão estável do Gemini
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: fullPrompt }] }]
@@ -3903,8 +3903,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
             });
@@ -3953,10 +3953,11 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(200).json({ success: true, nome: cachedData.nome, descricao: cachedData.descricao });
             }
 
-            const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa curta. Retorne APENAS um JSON válido. É PROIBIDO usar marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
+            // CÓDIGO NOVO
+const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa de NO MÁXIMO 15 PALAVRAS. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, marcadores markdown (\`\`\`json) ou textos explicativos. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-            // 🚀 MOTOR DE AUTO-CURA ANTI-404 (Tenta os modelos do mais barato para o mais antigo)
-            const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.0-pro'];
+// 🚀 MOTOR DE AUTO-CURA ANTI-404 (Tenta os modelos do mais barato para o mais antigo)
+const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-flash'];
             let aiData = null;
             let responseOk = false;
 
@@ -4218,8 +4219,18 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente na Vercel." });
 
-            const prompt = `Crie textos de vendas curtos para Delivery.
-Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
+// CACHE: Verifica se já gerou uma copy para esse produto hoje
+            if (productId) {
+                const cacheRef = db.collection('ai_promo_cache').doc(productId);
+                const cacheSnap = await cacheRef.get();
+                if (cacheSnap.exists) {
+                    const cachedData = cacheSnap.data();
+                    return res.status(200).json({ success: true, whatsapp: cachedData.whatsapp, instagram: cachedData.instagram, hashtags: cachedData.hashtags });
+                }
+            }
+
+            const prompt = `Crie textos de vendas MUITO curtos (economia de palavras) para Delivery.
+            Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
 O link direto de compra é: ${exactProductLink}
 
 Retorne APENAS um JSON com 3 chaves curtas:
@@ -4227,8 +4238,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }]
@@ -5457,8 +5468,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
               {"question": "Pergunta 2?", "answer": "Resposta 2."}
             ]`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     contents: [{ parts: [{ text: prompt }] }]
