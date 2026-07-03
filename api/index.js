@@ -3930,94 +3930,85 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     }
 
   // ------------------------------------------------------------------------
-    // 21.5 GERADOR DE COPY DE PRODUTOS (NOME E DESCRIÇÃO VIA IA) - OTIMIZADO
+    // ROTA CORRIGIDA E BLINDADA: GERADOR DE NOME E DESCRIÇÃO (NOVO ITEM)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-product-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
             const { termoRaw, lojaNome, lojaNicho, lojaLocalizacao } = req.body;
-            if (!termoRaw) return res.status(400).json({ error: 'O termo do produto é obrigatório.' });
+            if (!termoRaw) return res.status(400).json({ success: false, error: 'O termo do produto é obrigatório.' });
 
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
+            if (!GEMINI_KEY) return res.status(200).json({ success: false, error: 'Chave do Gemini não configurada na Vercel.' });
 
-            // 1. CACHE MULTI-TENANT (Redução de custo para R$ 0,00 em buscas repetidas)
-            const safeStoreName = lojaNome || 'loja';
-            const cacheString = `${safeStoreName}-${termoRaw}`.toLowerCase().trim();
+            // CACHE: Verifica se já gerou isso antes para não gastar API
+            const cacheString = `${lojaNome}-${termoRaw}`.toLowerCase().trim();
             const cacheKey = crypto.createHash('md5').update(cacheString).digest('hex');
             const cacheRef = db.collection('ai_product_cache').doc(cacheKey);
 
             const cacheSnap = await cacheRef.get();
             if (cacheSnap.exists) {
                 const cachedData = cacheSnap.data();
-                console.log(`🟢 [CACHE HIT] Produto recuperado sem custo API: ${termoRaw}`);
                 return res.status(200).json({ success: true, nome: cachedData.nome, descricao: cachedData.descricao });
             }
 
-            // 2. ENGENHARIA DE PROMPT OTIMIZADA (Menos tokens de Input)
-            const prompt = `Atue como Copywriter SEO Local p/ Delivery.
-Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho||'Delivery'}). Local: ${lojaLocalizacao||'Região'}.
-Crie Nome e Descrição com alta densidade factual.
-Regras OBRIGATÓRIAS:
-1. SEM clichês ("explosão de sabores"). Seja factual e humano.
-2. Cite o local na descrição.
-3. Retorne APENAS um JSON válido. PROIBIDO o uso de markdown (\`\`\`json).
-Formato: {"nome": "...", "descricao": "..."}`;
+            const prompt = `Atue como Especialista em SEO para Delivery. O cliente quer cadastrar o produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}). Crie um nome otimizado para buscas e uma descrição apetitosa curta. Retorne APENAS um JSON válido. É PROIBIDO usar marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-            // 3. CHAMADA DIRETA E TRAVADA (Downsizing e Limite de Output)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { 
-                        temperature: 0.7,
-                        maxOutputTokens: 150 // 🚨 TRAVA DE CUSTO OBRIGATÓRIA
-                    }
-                })
-            });
+            // 🚀 MOTOR DE AUTO-CURA ANTI-404 (Tenta os modelos do mais barato para o mais antigo)
+            const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.0-pro'];
+            let aiData = null;
+            let responseOk = false;
 
-            const aiData = await response.json();
+            for (const model of modelsToTry) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
 
-            if (!response.ok) {
-                console.error("❌ Erro Google API:", aiData);
-                return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Verifique o saldo ou a chave API." });
+                aiData = await response.json();
+
+                if (response.ok) {
+                    responseOk = true;
+                    break; // Se deu certo, para o loop e segue o baile!
+                }
+            }
+
+            if (!responseOk) {
+                console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
+                throw new Error(aiData.error?.message || "O Google recusou a requisição em todos os modelos.");
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawJsonText) return res.status(200).json({ success: false, error: "A IA devolveu um texto vazio." });
+            if (!rawJsonText) throw new Error("Resposta vazia da IA.");
+
+            const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
             
-            // 4. BLINDAGEM ANTI-MARKDOWN EXTREMA
-            let cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const firstBrace = cleanJsonText.indexOf('{');
-            const lastBrace = cleanJsonText.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
-            }
-            
-            let parsedResult;
+            let jsonResult;
             try {
-                parsedResult = JSON.parse(cleanJsonText);
-            } catch (e) {
-                console.error("❌ Erro de Parsing:", cleanJsonText);
-                return res.status(200).json({ success: false, error: "Falha ao formatar texto da IA." });
+                jsonResult = JSON.parse(cleanText);
+            } catch (parseError) {
+                console.error("🚨 ERRO DE CONVERSÃO DO JSON DA IA:", cleanText);
+                throw new Error("A IA não retornou um formato JSON válido.");
             }
 
-            // 5. SALVAR NO CACHE (Fire-and-forget, não atrasa o retorno)
+            // Salva no banco de dados para economizar no futuro
             cacheRef.set({
-                nome: parsedResult.nome,
-                descricao: parsedResult.descricao,
+                nome: jsonResult.nome,
+                descricao: jsonResult.descricao,
                 termoRaw: termoRaw,
-                storeName: safeStoreName,
+                lojaNome: lojaNome,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.error('🔴 [Firestore Cache Error]:', err));
+            }).catch(err => console.error('[Cache Error]:', err));
 
-            return res.status(200).json({ success: true, nome: parsedResult.nome, descricao: parsedResult.descricao });
-            
+            return res.status(200).json({ success: true, nome: jsonResult.nome, descricao: jsonResult.descricao });
+
         } catch (error) {
-            console.error("❌ Erro Fatal (IA Produtos):", error);
-            return res.status(200).json({ success: false, error: "Erro interno no servidor de IA." });
+            console.error("🔴 Erro na Rota de IA (Produto):", error.message);
+            return res.status(200).json({ success: false, error: 'Falha ao gerar texto. Tente novamente.' });
         }
     }
     // ------------------------------------------------------------------------
