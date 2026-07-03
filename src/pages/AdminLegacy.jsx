@@ -1250,11 +1250,12 @@ const educationalBanners = [
                     price: prod.price || '',
                     promotionalPrice: prod.promotionalPrice || '',
                     stock: prod.stock !== undefined ? prod.stock : '',
-                    category: prod.category || '',
-                    gtin: prod.gtin || '',
-                    ncm: prod.ncm || '',
-                    cfop: prod.cfop || ''
-                };
+                                category: prod.category || '',
+                                gtin: prod.gtin || '',
+                                ncm: prod.ncm || '',
+                                cfop: prod.cfop || '',
+                                csosn_cst: prod.csosn_cst || ''
+                            };
             }
         });
         setBulkEditData(initialData);
@@ -1276,9 +1277,11 @@ const educationalBanners = [
                     category: draft.category || '',
                     gtin: draft.gtin || '',
                     ncm: draft.ncm ? String(draft.ncm).replace(/\D/g, '') : '',
-                    cfop: draft.cfop ? String(draft.cfop).replace(/\D/g, '') : ''
-                });
-            });
+                    cfop: draft.cfop ? String(draft.cfop).replace(/\D/g, '') : '',
+                    csosn_cst: draft.csosn_cst ? String(draft.csosn_cst).replace(/\D/g, '') : ''
+               });
+            }); // <-- FALTAVA ESSA LINHA PARA FECHAR O .MAP()
+
             await Promise.all(batchPromises);
             setIsBulkEditModalOpen(false);
             setSelectedProductIds([]); // Zera a seleção após salvar
@@ -6463,9 +6466,40 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <button onClick={() => {setProductFilterCategory('all'); setProductFilterStatus('all'); setProductSearch('');}} className="mt-4 text-blue-600 font-black text-xs uppercase tracking-widest hover:underline">Limpar Filtros</button>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                           {paginatedProductsList.map(p => (                             
-                                                <div key={p.id} className={`bg-white p-5 md:p-6 rounded-[2.5rem] border-2 flex items-stretch gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
+                                        <>
+                                            <div className="flex flex-col md:flex-row items-center justify-between mb-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm gap-4">
+                                                <label className="flex items-center gap-3 cursor-pointer select-none">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={paginatedProductsList.length > 0 && paginatedProductsList.every(p => selectedProductIds.includes(p.id))}
+                                                        onChange={(e) => {
+                                                            const pageIds = paginatedProductsList.map(p => p.id);
+                                                            if(e.target.checked) {
+                                                                const newIds = pageIds.filter(id => !selectedProductIds.includes(id));
+                                                                setSelectedProductIds(prev => [...prev, ...newIds]);
+                                                            } else {
+                                                                setSelectedProductIds(prev => prev.filter(id => !pageIds.includes(id)));
+                                                            }
+                                                        }}
+                                                        className="w-5 h-5 accent-blue-600 cursor-pointer rounded"
+                                                    />
+                                                    <span className="font-bold text-slate-700 text-sm">Selecionar Todos (Nesta Página)</span>
+                                                </label>
+                                                
+                                                <button 
+                                                    onClick={() => {
+                                                        const allIds = filteredProductsList.map(p => p.id);
+                                                        setSelectedProductIds(allIds);
+                                                    }}
+                                                    className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline bg-blue-50 px-4 py-2 rounded-xl transition-all"
+                                                >
+                                                    Selecionar Toda a Categoria ({filteredProductsList.length} itens)
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                               {paginatedProductsList.map(p => (                             
+                                                    <div key={p.id} className={`bg-white p-5 md:p-6 rounded-[2.5rem] border-2 flex items-stretch gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
                                     
                                                     {/* COLUNA 1: Checkbox + Foto (Tamanho Fixo para não amassar) */}
                                                     <div className="flex flex-col items-center gap-3 flex-shrink-0 w-16 md:w-20">
@@ -6537,6 +6571,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                             ))}
                                         </div>
+                                        </>
                                     )}
 
                                     {totalProductPagesList > 1 && (
@@ -14600,6 +14635,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <th className="p-4 font-black w-40">EAN (Cód Barras)</th>
                                             <th className="p-4 font-black w-32">NCM</th>
                                             <th className="p-4 font-black w-24">CFOP</th>
+                                            <th className="p-4 font-black w-32">CSOSN/CST</th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-sm font-bold text-slate-700 divide-y divide-slate-100">
@@ -14685,6 +14721,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             maxLength="4"
                                                             value={draft.cfop} 
                                                             onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, cfop: e.target.value.replace(/\D/g, '')}})}
+                                                            className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 font-mono text-xs text-center"
+                                                        />
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="CSOSN/CST"
+                                                            maxLength="3"
+                                                            value={draft.csosn_cst} 
+                                                            onChange={(e) => setBulkEditData({...bulkEditData, [id]: {...draft, csosn_cst: e.target.value.replace(/\D/g, '')}})}
                                                             className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg outline-none focus:ring-2 ring-purple-400 text-slate-700 font-mono text-xs text-center"
                                                         />
                                                     </td>
