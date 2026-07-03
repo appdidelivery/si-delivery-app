@@ -5758,6 +5758,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         )}
                                                     </div>
 
+                                                    {/* ALERTA DE ERRO FISCAL (SEFAZ) EM DESTAQUE */}
+                                                    {o.fiscalStatus === 'error' && o.fiscalError && (
+                                                        <div className="bg-red-50 p-4 rounded-2xl border border-red-200 mt-2 flex flex-col gap-1 shadow-sm animate-in fade-in">
+                                                            <span className="text-[10px] font-black uppercase text-red-800 tracking-widest flex items-center gap-1">
+                                                                <XCircle size={14} className="text-red-500" /> Falha na Emissão da Nota
+                                                            </span>
+                                                            <span className="text-xs font-bold text-red-600 leading-relaxed">
+                                                                {o.fiscalError}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
                                                     {/* BLOCO 3: RODAPÉ (Total e Ações) */}
                                                     <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-2 pt-4 border-t border-slate-100"> 
                                                         
@@ -6058,6 +6070,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[10px] text-orange-700 bg-orange-50 p-2.5 rounded-xl font-bold mb-4 line-clamp-2 border border-orange-100">
                                                                 Obs: {o.observation}
                                                             </p>
+                                                        )}
+
+                                                        {/* ALERTA FISCAL NO KANBAN */}
+                                                        {o.fiscalStatus === 'error' && o.fiscalError && (
+                                                            <div className="bg-red-50 p-3 rounded-xl border border-red-200 mb-4 flex flex-col gap-1 shadow-sm">
+                                                                <span className="text-[9px] font-black uppercase text-red-800 tracking-widest">Erro SEFAZ:</span>
+                                                                <span className="text-[10px] font-bold text-red-600 leading-tight">
+                                                                    {o.fiscalError}
+                                                                </span>
+                                                            </div>
                                                         )}
 
                                                         {o.recipientName && (
