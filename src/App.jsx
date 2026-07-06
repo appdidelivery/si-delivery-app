@@ -16,6 +16,8 @@ import DriverPanel from './pages/DriverPanel';
 import InfluencerDashboard from './components/InfluencerDashboard'; // Ou './pages/InfluencerDashboard' dependendo de onde você salvou
 import WppWebview from './pages/WppWebview'; // <-- NOVO: Importação da Webview Slim
 import ProspeccaoKanban from './pages/ProspeccaoKanban';
+import VeloLeanEngine from './pages/VeloLeanEngine';
+
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
@@ -145,6 +147,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/driver/:storeId/:orderId" element={<DriverPanel />} />
             <Route path="/parceiro/:partnerId" element={<InfluencerDashboard />} />
+            <Route path="/admin/mvp" element={<VeloLeanEngine />} />
+
             <Route
               path="/admin"
               element={
