@@ -1472,8 +1472,8 @@ const educationalBanners = [
                 if (p === 'infinity') base = 249.90;
                 else if (p === 'pro') base = 149.90;
                 
-                // Soma o Add-on Fiscal se estiver ativo no banco (R$ 180,00)
-                const fiscalAddon = storeStatus?.fiscalModuleActive ? 180.00 : 0;
+                // CORREÇÃO: Busca da coleção 'settings', que é onde o botão do painel realmente salva o status
+                const fiscalAddon = settings?.fiscal?.enabled ? 180.00 : 0;
                 return base + fiscalAddon;
             };
             const currentPlanPrice = getPlanPrice(storeStatus?.plan);
@@ -1530,7 +1530,7 @@ const educationalBanners = [
 
             setVelopayBalance(Math.max(0, totalPixRecebido - totalSacado));
         }
-    }, [orders, products, generalBanners, withdrawalsList, storeStatus]); // 🚨 CORREÇÃO MESTRA: 'storeStatus' adicionado aqui. Agora a tela atualiza na hora que a fatura chega do Firebase!
+}, [orders, products, generalBanners, withdrawalsList, storeStatus, settings]); // 🚨 CORREÇÃO: 'settings' adicionado para a fatura recalcular se o NFC-e for ligado/desligado!
 
     // --- NOVO MOTOR: SOBRESCRITA FORÇADA DA FATURA ERRADA (SAAS) ---
     useEffect(() => {
@@ -1587,14 +1587,14 @@ const educationalBanners = [
         const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
         const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
 
-        // 2. Lê o plano atual para gerar a fatura fixa (Com verificação de Módulo Fiscal)
+       // 2. Lê o plano atual para gerar a fatura fixa
         const getPlanPrice = (p) => {
             let base = 49.90;
             if (p === 'infinity') base = 249.90;
             else if (p === 'pro') base = 149.90;
 
-            // Verifica o Add-on e garante o fallback seguro (R$ 180,00)
-            const fiscalAddon = storeStatus?.fiscalModuleActive === true ? 180.00 : 0;
+            // CORREÇÃO: Usa a mesma leitura correta da coleção 'settings'
+            const fiscalAddon = settings?.fiscal?.enabled ? 180.00 : 0;
             return base + fiscalAddon;
         };
         const totalAmount = getPlanPrice(storeStatus.plan);
@@ -1636,7 +1636,7 @@ const educationalBanners = [
         if (needsUpdate) {
             updateDoc(doc(db, "stores", storeId), { faturasHistorico: history }).catch(e => console.error(e));
         }
-    }, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, orders]); // Trocado orders.length por orders para forçar renderização
+}, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, orders, settings?.fiscal?.enabled]); // Atualiza no banco imediatamente se o Módulo Fiscal mudar
 
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
