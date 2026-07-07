@@ -1587,8 +1587,16 @@ const educationalBanners = [
         const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
         const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
 
-        // 2. Lê o plano atual para gerar a fatura fixa
-        const getPlanPrice = (p) => { if(p === 'infinity') return 249.90; if(p === 'pro') return 149.90; return 49.90; };
+        // 2. Lê o plano atual para gerar a fatura fixa (Com verificação de Módulo Fiscal)
+        const getPlanPrice = (p) => {
+            let base = 49.90;
+            if (p === 'infinity') base = 249.90;
+            else if (p === 'pro') base = 149.90;
+
+            // Verifica o Add-on e garante o fallback seguro (R$ 180,00)
+            const fiscalAddon = storeStatus?.fiscalModuleActive === true ? 180.00 : 0;
+            return base + fiscalAddon;
+        };
         const totalAmount = getPlanPrice(storeStatus.plan);
 
         const faturaIndex = history.findIndex(f => f.month.toUpperCase() === pastMonthName);
