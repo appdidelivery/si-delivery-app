@@ -1472,8 +1472,8 @@ const educationalBanners = [
                 if (p === 'infinity') base = 249.90;
                 else if (p === 'pro') base = 149.90;
                 
-                // CORREÇÃO: Busca da coleção 'settings', que é onde o botão do painel realmente salva o status
-                const fiscalAddon = settings?.fiscal?.enabled ? 180.00 : 0;
+                // 🚨 LÊ DE AMBOS OS LUGARES PARA GARANTIR A PRECISÃO
+                const fiscalAddon = (storeStatus?.fiscalModuleActive || settings?.fiscal?.enabled) ? 180.00 : 0;
                 return base + fiscalAddon;
             };
             const currentPlanPrice = getPlanPrice(storeStatus?.plan);
@@ -1483,24 +1483,21 @@ const educationalBanners = [
             let finalBasePlan = isCortesiaAtual ? 0 : currentPlanPrice;
 
             if (faturasPendentes.length > 0) {
-                // Pega a fatura mais urgente
                 const faturaAtual = faturasPendentes.reduce((a, b) => new Date(a.dueDate) < new Date(b.dueDate) ? a : b); 
                 
                 if (faturaAtual.amount !== undefined) {
-                    // 🚨 BLINDAGEM MÁXIMA DE PARSE DE MOEDA
-                    if (typeof faturaAtual.amount === 'number') {
-                        finalTotal = faturaAtual.amount;
-                    } else {
-                        // Limpa "R$", espaços, e converte formato "1.340,50" para "1340.50"
-                        let limpo = String(faturaAtual.amount).replace(/[R$\s]/g, '');
-                        if (limpo.includes(',') && limpo.includes('.')) {
-                            limpo = limpo.replace(/\./g, '').replace(',', '.');
-                        } else if (limpo.includes(',')) {
-                            limpo = limpo.replace(',', '.');
-                        }
-                        finalTotal = Number(limpo) || 49.90;
-                    }
-                }
+                    let valorBanco = 49.90;
+                    if (typeof faturaAtual.amount === 'number') {
+                        valorBanco = faturaAtual.amount;
+                    } else {
+                        let limpo = String(faturaAtual.amount).replace(/[R$\s]/g, '');
+                        if (limpo.includes(',') && limpo.includes('.')) limpo = limpo.replace(/\./g, '').replace(',', '.');
+                        else if (limpo.includes(',')) limpo = limpo.replace(',', '.');
+                        valorBanco = Number(limpo) || 49.90;
+                    }
+                    // 🚨 TRAVA ANTI-PISCAR (RACE CONDITION): Se o banco (backend) devolver um valor menor que o real, a tela força o valor alto e ignora o backend!
+                    finalTotal = valorBanco < currentPlanPrice ? currentPlanPrice : valorBanco;
+                }
                 if (faturaAtual.breakdown) {
                     finalBasePlan = faturaAtual.breakdown.basePlan || currentPlanPrice;
                 }
@@ -1532,47 +1529,41 @@ const educationalBanners = [
         }
 }, [orders, products, generalBanners, withdrawalsList, storeStatus, settings]); // 🚨 CORREÇÃO: 'settings' adicionado para a fatura recalcular se o NFC-e for ligado/desligado!
 
-    // --- NOVO MOTOR: SOBRESCRITA FORÇADA DA FATURA ERRADA (SAAS) ---
-    useEffect(() => {
-        // 1. Só roda se todos os pedidos (1900+) estiverem carregados
-        if (!storeId || !storeStatus || orders.length < 50) return;
-        if (storeStatus.billingStatus === 'gratis_vitalicio' || storeStatus.billingStatus === 'isento') return;
+   // --- NOVO MOTOR: SOBRESCRITA FORÇADA DA FATURA ERRADA (SAAS) ---
+    useEffect(() => {
+        // 🚨 BLINDAGEM ANTI-PISCAR (RACE CONDITION): Só roda se TUDO (Plano e Configurações) já tiver carregado do Firebase
+        if (!storeId || !storeStatus || !storeStatus.plan || !settings || orders.length < 50) return;
+        if (storeStatus.billingStatus === 'gratis_vitalicio' || storeStatus.billingStatus === 'isento') return;
 
-        let diaVencimento = storeStatus.billingDay || 10;
-        if (storeStatus.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
-            const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
-            if (faturaReferencia.dueDate) {
-                const dataRef = new Date(faturaReferencia.dueDate);
-                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
-            }
-        }
+        let diaVencimento = storeStatus.billingDay || 10;
+        if (storeStatus.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
+            const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
+            if (faturaReferencia.dueDate) {
+                const dataRef = new Date(faturaReferencia.dueDate);
+                if (!isNaN(dataRef)) diaVencimento = dataRef.getDate();
+            }
+        }
 
-        const now = new Date();
+        const now = new Date();
         let pastCycleStart, pastCycleEnd, pastDueDate;
 
         const history = [...(storeStatus.faturasHistorico || [])];
         
-        // Extrai a data de criação real da loja, usando a data atual como fallback de segurança
         const storeCreatedAt = storeStatus.createdAt?.toDate 
             ? storeStatus.createdAt.toDate() 
             : (storeStatus.createdAt ? new Date(storeStatus.createdAt) : new Date());
 
-        // REGRA SAAS (BLINDAGEM DE PRIMEIRA FATURA): 
-        // Impede que lojas novas nasçam bloqueadas e com faturas vencidas no passado.
         if (history.length === 0) {
             if (storeCreatedAt.getDate() > (diaVencimento - 7)) {
-                // Loja criada no final do ciclo. A 1ª fatura vai para o próximo mês.
                 pastCycleStart = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
                 pastCycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento, 23, 59, 59);
                 pastDueDate = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento);
             } else {
-                // Loja criada com folga no início do ciclo. A 1ª fatura será a do mês atual.
                 pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
                 pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
                 pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
             }
         } else {
-            // FLUXO NORMAL: Antecipa a geração da fatura em 7 dias para envio de alertas
             if (now.getDate() >= (diaVencimento - 7)) {
                 pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
                 pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
@@ -1587,13 +1578,12 @@ const educationalBanners = [
         const mesNomes = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
         const pastMonthName = `${mesNomes[pastDueDate.getMonth()]} DE ${pastDueDate.getFullYear()}`;
 
-       // 2. Lê o plano atual para gerar a fatura fixa
+        // 2. Lê o plano atual para gerar a fatura fixa
         const getPlanPrice = (p) => {
             let base = 49.90;
             if (p === 'infinity') base = 249.90;
             else if (p === 'pro') base = 149.90;
 
-            // CORREÇÃO: Usa a mesma leitura correta da coleção 'settings'
             const fiscalAddon = settings?.fiscal?.enabled ? 180.00 : 0;
             return base + fiscalAddon;
         };
@@ -1602,41 +1592,40 @@ const educationalBanners = [
         const faturaIndex = history.findIndex(f => f.month.toUpperCase() === pastMonthName);
         let needsUpdate = false;
 
-        // Calcula o gatilho exato para disparar a fatura (Data de Vencimento - 7 dias de antecipação)
         const triggerDate = new Date(pastDueDate);
         triggerDate.setDate(triggerDate.getDate() - 7);
 
-        // Se não achar fatura, CRIA com o valor bruto real do plano na data de gatilho
         if (faturaIndex === -1 && now >= triggerDate) {
-            history.push({
-                id: `auto_${pastDueDate.getTime()}`,
-                month: pastMonthName,
-                amount: totalAmount,
-                status: 'PENDENTE',
-                dueDate: pastDueDate.toISOString(),
-                isAuto: true,
-                breakdown: { basePlan: totalAmount, discount: 0 }
-            });
-            needsUpdate = true;
-        } else if (faturaIndex !== -1) {
-            // A MARRETA: Garante que a fatura pendente reflita o plano atual caso o lojista tenha feito upgrade/downgrade
-            const fatura = history[faturaIndex];
-            const isValorIncorreto = Number(fatura.amount) !== totalAmount;
+            history.push({
+                id: `auto_${pastDueDate.getTime()}`,
+                month: pastMonthName,
+                amount: totalAmount,
+                status: 'PENDENTE',
+                dueDate: pastDueDate.toISOString(),
+                isAuto: true,
+                breakdown: { basePlan: totalAmount, discount: 0 }
+            });
+            needsUpdate = true;
+        } else if (faturaIndex !== -1) {
+            const fatura = history[faturaIndex];
+            
+            // 🚨 BLINDAGEM MATEMÁTICA: Math.abs impede loop infinito causado por dizimas como 429.89999 vs 429.90
+            const isValorIncorreto = Math.abs(Number(fatura.amount) - totalAmount) > 0.01;
 
-            if (fatura.status === 'PENDENTE' && isValorIncorreto) {
-                history[faturaIndex] = {
-                    ...fatura,
-                    amount: totalAmount,
-                    breakdown: { basePlan: totalAmount, discount: 0 }
-                };
-                needsUpdate = true;
-            }
-        }
+            if (fatura.status === 'PENDENTE' && isValorIncorreto) {
+                history[faturaIndex] = {
+                    ...fatura,
+                    amount: totalAmount,
+                    breakdown: { basePlan: totalAmount, discount: 0 }
+                };
+                needsUpdate = true;
+            }
+        }
 
-        if (needsUpdate) {
-            updateDoc(doc(db, "stores", storeId), { faturasHistorico: history }).catch(e => console.error(e));
-        }
-}, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, orders, settings?.fiscal?.enabled]); // Atualiza no banco imediatamente se o Módulo Fiscal mudar
+        if (needsUpdate) {
+            updateDoc(doc(db, "stores", storeId), { faturasHistorico: history }).catch(e => console.error(e));
+        }
+    }, [storeId, storeStatus?.billingDay, storeStatus?.faturasHistorico, storeStatus?.plan, orders, settings?.fiscal?.enabled]); // 🚨 GATILHOS OBRIGATÓRIOS CORRIGIDOS
 
     // --- ESTADOS DE MODAIS E FORMULÁRIOS ---
     // Produtos
