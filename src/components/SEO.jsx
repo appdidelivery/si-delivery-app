@@ -345,26 +345,31 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
-                   // A) BASE DA ENTIDADE DA LOJA 
-                   const baseStoreSchema = {
-                    "@id": `${safeBaseUrl}#store`,
-                    "@type": googleBusinessType,
-                    "name": fetchedName,
-                    "image": absoluteFetchedImage,
-                    "description": fetchedAbout || fetchedDescStore,
-                    "url": `https://${hostname}`,
-                    "telephone": safeTelephone,
-                    "priceRange": fetchedPriceRange,
-                    "paymentAccepted": ["Cash", "Credit Card", "Pix"],
-                    "address": addressObj,
-                    ...(geoSchema ? { "geo": geoSchema } : {}),
-                    ...(openingHoursSchema.length > 0 ? { "openingHoursSpecification": openingHoursSchema } : {}),
-                    "acceptsReservations": store?.posPickupEnabled !== false ? "True" : "False",
-                    "sameAs": socialProfiles,
-                    ...( !isRetail ? { "servesCuisine": storeCuisine } : {} ),
-                    ...menuData
-                };
-                
+                   // A) BASE DA ENTIDADE DA LOJA (AGORA COM FAQ FORÇADO E DESCRIÇÃO RICA)
+                    
+                    // MÁGICA 1: Junta o Slogan com a História da Loja para o Google ler tudo!
+                    const fullDescription = fetchedAbout ? `${fetchedDesc}. ${fetchedAbout}` : fetchedDesc;
+
+                    const baseStoreSchema = {
+                        "@context": "https://schema.org",
+                        "@id": `${safeBaseUrl}#store`,
+                        "@type": googleBusinessType,
+                        "name": fetchedName,
+                        "image": absoluteFetchedImage,
+                        "description": fullDescription,
+                        "url": `https://${hostname}`,
+                        "telephone": safeTelephone,
+                        "priceRange": fetchedPriceRange,
+                        "paymentAccepted": ["Cash", "Credit Card", "Pix"],
+                        "address": addressObj,
+                        ...(typeof geoSchema !== 'undefined' && geoSchema ? { "geo": geoSchema } : {}),
+                        ...(typeof openingHoursSchema !== 'undefined' && openingHoursSchema.length > 0 ? { "openingHoursSpecification": openingHoursSchema } : {}),
+                        "acceptsReservations": store?.posPickupEnabled !== false ? "True" : "False",
+                        "sameAs": socialProfiles,
+                        ...( !isRetail ? { "servesCuisine": storeCuisine } : {} ),
+                        ...menuData
+                    };
+
                     // Se for Varejo (Conveniência/Bebidas), mantém a aba genérica de Produtos (containsPlace)
                     if (isRetail && seoProducts.length > 0) {
                         baseStoreSchema.containsPlace = seoProducts.slice(0, 30).map((prod) => ({
@@ -374,10 +379,7 @@ export default function SEO({ title, description, image, productData }) {
                             "description": prod.description || prod.descricao || fetchedDesc,
                             "sku": prod.id || "SKU-PADRAO",
                             "identifierExists": false,
-                            "brand": {
-                                "@type": "Brand",
-                                "name": fetchedName || "Marca Própria"
-                            },
+                            "brand": { "@type": "Brand", "name": fetchedName || "Marca Própria" },
                             "offers": {
                                 "@type": "Offer",
                                 "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
@@ -398,12 +400,11 @@ export default function SEO({ title, description, image, productData }) {
                         };
                     }
 
-                    let structuredData;
-
-                    // --- CONSTRUÇÃO DO NÓ DE FAQ (ADITIVO) ---
+                    // --- MÁGICA 2: NÓ DE FAQ (FORÇADO COMO ENTIDADE INDEPENDENTE) ---
                     let faqSchemaNode = null;
                     if (finalFaq && finalFaq.length > 0) {
                         faqSchemaNode = {
+                            "@context": "https://schema.org",
                             "@type": "FAQPage",
                             "@id": `${safeBaseUrl}#faq`,
                             "mainEntity": finalFaq.map(item => ({
@@ -417,116 +418,85 @@ export default function SEO({ title, description, image, productData }) {
                         };
                     }
 
+                    let structuredData;
+
                     // B) ESTRUTURA COMPLETA DE PRODUTO (RESTAURADA 100% ORIGINAL)
                     if (productData) {
                         const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
 
-                        structuredData = {
-                            "@context": "https://schema.org",
-                            "@graph": [
-                                baseStoreSchema,
-                               {
-                                    "@type": ["Product", "MenuItem"],
-                                    "@id": `${baseUrl}#product`,
-                                    // DADOS BASE DO PRODUTO
-                                    "name": productData.name || "Produto",
-                                    "description": productData.description || fetchedDesc || "Produto oficial da loja.",
-                                   "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
-                                    "sku": productData.sku || productData.id || "SKU-PADRAO",
-                                    // Evita o erro fatal de "gtin" vazio e avisa o Google que o produto é de fabricação própria
-                                    ...(productData.gtin13 || productData.gtin ? { 
-                                        "gtin13": productData.gtin13 || productData.gtin 
-                                    } : { 
-                                        "identifierExists": false 
-                                    }),
-                                    "brand": {
-                                        "@type": "Brand",
-                                        "name": productData.brand || fetchedName || "Marca Própria"
-                                    },
-                                    ...(productData.category ? { "category": productData.category } : {}),
-                                    
-                                    // LOGÍSTICA E PREPARO
-                                    ...(productData.prepTime ? { "prepTime": `PT${productData.prepTime}M` } : {}),
-                                    
-                                    // ALIMENTAÇÃO E CUSTOMIZAÇÃO
-                                    ...(productData.suitableForDiet && productData.suitableForDiet.length > 0 ? { "suitableForDiet": productData.suitableForDiet } : {}),
-                                    ...(productData.menuAddOn && productData.menuAddOn.length > 0 ? { "menuAddOn": productData.menuAddOn } : {}),
-                                    ...(productData.calories ? {
-                                        "nutrition": {
-                                            "@type": "NutritionInformation",
-                                            "calories": `${productData.calories} kcal`
-                                        }
-                                    } : {}),
-                                    
-                                    // PROVA SOCIAL DO PRODUTO
-                                    ...(productData.ratingValue ? {
-                                        "aggregateRating": {
-                                            "@type": "AggregateRating",
-                                            "ratingValue": Number(productData.ratingValue).toFixed(1),
-                                            "reviewCount": String(productData.reviewCount || 1)
-                                        }
-                                    } : {}),
-                                    
-                                   // OFERTA E VENDA
-                                    "offers": {
-                                        "@type": "Offer",
-                                        "url": currentUrl,
-                                        "priceCurrency": "BRL",
-                                        "price": Number(rawPrice).toFixed(2),
-                                        "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                                        "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-                                        "itemCondition": "https://schema.org/NewCondition",
-                                        "seller": { 
-                                            "@type": "Organization",
-                                            "name": fetchedName,
-                                            "@id": `${baseUrl}#store` 
-                                        },
-                                        // Puxa as regras de Devolução (Refund) com País que arrumamos antes
-                                        "hasMerchantReturnPolicy": merchantCenterRules.hasMerchantReturnPolicy,
-                                        // E aqui injetamos o TEMPO DE ENTREGA direto do seu Painel Admin!
-                                        "shippingDetails": {
-                                            ...merchantCenterRules.shippingDetails,
-                                            "deliveryTime": {
-                                                "@type": "ShippingDeliveryTime",
-                                                "handlingTime": {
-                                                    "@type": "QuantitativeValue",
-                                                    "minValue": 0,
-                                                    "maxValue": 15,
-                                                    "unitCode": "MIN"
-                                                },
-                                                "transitTime": {
-                                                    "@type": "QuantitativeValue",
-                                                    "minValue": 15,
-                                                    "maxValue": Number(productData.deliveryLeadTime || 50), // 👈 MÁGICA AQUI: Puxa o campo "Tempo de Entrega (min)", ou usa 50 min como segurança se ficar vazio.
-                                                    "unitCode": "MIN"
-                                                }
-                                            }
+                        // O Google lê melhor quando enviamos um Array de Entidades em vez de @graph
+                        structuredData = [
+                            baseStoreSchema,
+                            {
+                                "@context": "https://schema.org",
+                                "@type": ["Product", "MenuItem"],
+                                "@id": `${baseUrl}#product`,
+                                // DADOS BASE DO PRODUTO
+                                "name": productData.name || "Produto",
+                                "description": productData.description || fullDescription || "Produto oficial da loja.",
+                                "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
+                                "sku": productData.sku || productData.id || "SKU-PADRAO",
+                                ...(productData.gtin13 || productData.gtin ? { "gtin13": productData.gtin13 || productData.gtin } : { "identifierExists": false }),
+                                "brand": { "@type": "Brand", "name": productData.brand || fetchedName || "Marca Própria" },
+                                ...(productData.category ? { "category": productData.category } : {}),
+                                
+                                // LOGÍSTICA E PREPARO
+                                ...(productData.prepTime ? { "prepTime": `PT${productData.prepTime}M` } : {}),
+                                
+                                // ALIMENTAÇÃO E CUSTOMIZAÇÃO
+                                ...(productData.suitableForDiet && productData.suitableForDiet.length > 0 ? { "suitableForDiet": productData.suitableForDiet } : {}),
+                                ...(productData.menuAddOn && productData.menuAddOn.length > 0 ? { "menuAddOn": productData.menuAddOn } : {}),
+                                ...(productData.calories ? { "nutrition": { "@type": "NutritionInformation", "calories": `${productData.calories} kcal` } } : {}),
+                                
+                                // PROVA SOCIAL DO PRODUTO
+                                ...(productData.ratingValue ? {
+                                    "aggregateRating": {
+                                        "@type": "AggregateRating",
+                                        "ratingValue": Number(productData.ratingValue).toFixed(1),
+                                        "reviewCount": String(productData.reviewCount || 1)
+                                    }
+                                } : {}),
+                                
+                                // OFERTA E VENDA
+                                "offers": {
+                                    "@type": "Offer",
+                                    "url": currentUrl,
+                                    "priceCurrency": "BRL",
+                                    "price": Number(rawPrice).toFixed(2),
+                                    "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                                    "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+                                    "itemCondition": "https://schema.org/NewCondition",
+                                    "seller": { "@type": "Organization", "name": fetchedName, "@id": `${baseUrl}#store` },
+                                    "hasMerchantReturnPolicy": merchantCenterRules.hasMerchantReturnPolicy,
+                                    "shippingDetails": {
+                                        ...merchantCenterRules.shippingDetails,
+                                        "deliveryTime": {
+                                            "@type": "ShippingDeliveryTime",
+                                            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 15, "unitCode": "MIN" },
+                                            "transitTime": { "@type": "QuantitativeValue", "minValue": 15, "maxValue": Number(productData.deliveryLeadTime || 50), "unitCode": "MIN" }
                                         }
                                     }
+                                }
+                            },
+                            {
+                                "@context": "https://schema.org",
+                                "@type": "OrderAction",
+                                "target": {
+                                    "@type": "EntryPoint",
+                                    "urlTemplate": `${safeOrigin}/loja/${storeId}/checkout?productId=${productData.id || ''}`,
+                                    "inLanguage": "pt-BR",
+                                    "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]
                                 },
-                                // Ação de Pedido Direto
-                                {
-                                    "@type": "OrderAction",
-                                    "target": {
-                                        "@type": "EntryPoint",
-                                        "urlTemplate": `${safeOrigin}/loja/${storeId}/checkout?productId=${productData.id || ''}`,
-                                        "inLanguage": "pt-BR",
-                                        "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]
-                                    },
-                                    "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModeDirectDownload"
-                                },
-                                ...(faqSchemaNode ? [faqSchemaNode] : [])
-                            ]
-                        };
+                                "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModeDirectDownload"
+                            },
+                            ...(faqSchemaNode ? [faqSchemaNode] : [])
+                        ];
                     } else {
-                        // C) PÁGINA INICIAL DA LOJA (AGORA USANDO GRAPH PARA SUPORTAR MÚLTIPLAS ENTIDADES)
-                        structuredData = {
-                            "@context": "https://schema.org",
-                            "@graph": [
-                                baseStoreSchema,
-                                ...(faqSchemaNode ? [faqSchemaNode] : [])
-                            ]
-                        };
+                        // C) PÁGINA INICIAL DA LOJA (Enviando Array Múltiplo para o Google ler o FAQ fora do escopo da loja)
+                        structuredData = [
+                            baseStoreSchema,
+                            ...(faqSchemaNode ? [faqSchemaNode] : [])
+                        ];
                     }
 
                     if (isMounted) {
