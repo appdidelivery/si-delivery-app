@@ -457,8 +457,17 @@ export default function SEO({ title, description, image, productData }) {
 
                     if (isMounted) {
                         const safeJsonLd = JSON.stringify(structuredData).replace(/</g, '\\u003c');
-                        // EM VEZ DE MANIPULAR O DOM DIRETAMENTE, SALVAMOS NO ESTADO PARA O HELMET
-                        setSchemaDataState(safeJsonLd);
+                        
+                        // MÁGICA RESTAURADA: Injetamos o JSON-LD direto no DOM raiz.
+                        // O Helmet falha ao renderizar scripts dinâmicos a tempo para o Googlebot.
+                        let scriptTag = document.getElementById('velo-seo-schema');
+                        if (!scriptTag) {
+                            scriptTag = document.createElement('script');
+                            scriptTag.id = 'velo-seo-schema';
+                            scriptTag.type = 'application/ld+json';
+                            document.head.appendChild(scriptTag);
+                        }
+                        scriptTag.text = safeJsonLd;
                     }
                 }
             } catch (error) {
@@ -470,7 +479,9 @@ export default function SEO({ title, description, image, productData }) {
 
         return () => {
             isMounted = false;
-            // 🚨 REMOVIDA A LINHA QUE DELETAVA O SCRIPT (O Helmet cuida disso nativamente agora)
+            // Deletamos o script manualmente ao desmontar a página para não duplicar dados
+            const scriptTag = document.getElementById('velo-seo-schema');
+            if (scriptTag) scriptTag.remove();
         };
     }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin, store]);
 
@@ -505,10 +516,7 @@ export default function SEO({ title, description, image, productData }) {
                 </>
             )}
 
-            {/* A MÁGICA: O HELMET INJETA O SCRIPT SEM DEIXAR O REACT APAGAR */}
-            {schemaDataState && (
-                <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: schemaDataState }} />
-            )}
+            {/* O JSON-LD agora é injetado via DOM Vanilla no useEffect, o Helmet cuida apenas das meta tags */}
         </Helmet>
     );
 }
