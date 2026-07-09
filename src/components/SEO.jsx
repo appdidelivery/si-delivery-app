@@ -1,9 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 export default function SEO({ title, description, image, productData }) {
+    // ESTADO PARA BLINDAR O SCRIPT NO HELMET
+    const [schemaDataState, setSchemaDataState] = useState(null);
+
     // 1. Pega os dados do Banco de Dados (SaaS) para uso na UI
     const { store } = useStore();
 
@@ -449,18 +452,8 @@ export default function SEO({ title, description, image, productData }) {
 
                     if (isMounted) {
                         const safeJsonLd = JSON.stringify(structuredData).replace(/</g, '\\u003c');
-                        
-                        const scriptId = 'google-schema-forced';
-                        let scriptTag = document.getElementById(scriptId);
-                        
-                        if (!scriptTag) {
-                            scriptTag = document.createElement('script');
-                            scriptTag.type = 'application/ld+json';
-                            scriptTag.id = scriptId;
-                            document.head.appendChild(scriptTag);
-                        }
-                        
-                        scriptTag.innerHTML = safeJsonLd;
+                        // EM VEZ DE MANIPULAR O DOM DIRETAMENTE, SALVAMOS NO ESTADO PARA O HELMET
+                        setSchemaDataState(safeJsonLd);
                     }
                 }
             } catch (error) {
@@ -472,8 +465,7 @@ export default function SEO({ title, description, image, productData }) {
 
         return () => {
             isMounted = false;
-            const existingScript = document.getElementById('google-schema-forced');
-            if (existingScript) existingScript.remove();
+            // 🚨 REMOVIDA A LINHA QUE DELETAVA O SCRIPT (O Helmet cuida disso nativamente agora)
         };
     }, [productData, currentUrl, baseUrl, siteName, finalImage, finalDesc, safeOrigin, store]);
 
@@ -506,6 +498,13 @@ export default function SEO({ title, description, image, productData }) {
                     <meta property="product:price:currency" content="BRL" />
                     <meta property="product:availability" content={(productData.stock === undefined || Number(productData.stock) > 0) ? "instock" : "oos"} />
                 </>
+            )}
+
+            {/* A MÁGICA: O HELMET INJETA O SCRIPT SEM DEIXAR O REACT APAGAR */}
+            {schemaDataState && (
+                <script type="application/ld+json">
+                    {schemaDataState}
+                </script>
             )}
         </Helmet>
     );
