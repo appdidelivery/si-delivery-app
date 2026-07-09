@@ -41,12 +41,33 @@ export default function SEO({ title, description, image, productData }) {
                 const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
                 
                 const response = await fetch(url);
-                if (!response.ok) {
-                    console.error("SEO Falhou: Firebase retornou erro " + response.status);
-                    return;
-                }
+                let data;
                 
-                const data = await response.json();
+                if (!response.ok) {
+                    console.warn(`SEO Aviso: API REST falhou (Status ${response.status}). Usando fallback da memória (store) para garantir o JSON-LD.`);
+                    
+                    // BLINDAGEM: Cria um objeto "fake" idêntico ao do Firebase usando os dados já carregados pelo App
+                    data = {
+                        fields: {
+                            name: { stringValue: store?.name || siteName },
+                            storeLogoUrl: { stringValue: store?.storeLogoUrl || store?.logoUrl || finalImage },
+                            slogan: { stringValue: store?.slogan || store?.message || finalDesc },
+                            aboutText: { stringValue: store?.aboutText || "" },
+                            authorityLinks: { stringValue: store?.authorityLinks || "" },
+                            whatsapp: { stringValue: store?.whatsapp || "" },
+                            instagramUrl: { stringValue: store?.instagramUrl || "" },
+                            facebookUrl: { stringValue: store?.facebookUrl || "" },
+                            priceRange: { stringValue: store?.priceRange || "$$" },
+                            seoCategory: { stringValue: store?.seoCategory || store?.storeNiche || "" },
+                            address: { stringValue: typeof store?.address === 'string' ? store.address : "Endereço não informado" },
+                            delivery_fee: { doubleValue: store?.delivery_fee || 5.00 },
+                            rating_aggregate: { doubleValue: store?.rating_aggregate || 0 },
+                            rating_count: { integerValue: store?.rating_count || 0 }
+                        }
+                    };
+                } else {
+                    data = await response.json();
+                }
 
                 if (data && data.fields) {
                     const fields = data.fields;
