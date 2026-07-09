@@ -31,9 +31,8 @@ export default function SEO({ title, description, image, productData }) {
             try {
                 const hostname = window.location.hostname;
                 
-                // CORREÇÃO 1: Consome o ID cravado pelo Middleware (Edge) para impedir erro 404 em domínios customizados (Fallback para o helper)
-                const metaStoreId = document.querySelector('meta[name="x-store-id"]')?.getAttribute('content');
-                const storeId = metaStoreId || getStoreIdFromHostname();
+                // CORREÇÃO 1: Usa a função oficial para pegar o ID da loja, suportando domínios customizados (ex: cowburguer)
+                const storeId = getStoreIdFromHostname();
                 
                const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
                 
@@ -278,9 +277,9 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
-                   // A) BASE DA ENTIDADE DA LOJA (ID Sincronizado estritamente com o Middleware)
+                  // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
-                        "@id": `${safeOrigin}#store`,
+                        "@id": `${safeBaseUrl}#store`,
                         "@type": googleBusinessType,
                         "name": fetchedName,
                         "image": absoluteFetchedImage,
@@ -405,11 +404,11 @@ export default function SEO({ title, description, image, productData }) {
                                         "price": Number(rawPrice).toFixed(2),
                                         "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                                         "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-                                        "itemCondition": "https://schema.org/NewCondition",
+                                       "itemCondition": "https://schema.org/NewCondition",
                                         "seller": { 
                                             "@type": "Organization",
                                             "name": fetchedName,
-                                            "@id": `${safeOrigin}#store` 
+                                            "@id": `${baseUrl}#store` 
                                         },
                                         // Puxa as regras de Devolução (Refund) com País que arrumamos antes
                                         "hasMerchantReturnPolicy": merchantCenterRules.hasMerchantReturnPolicy,

@@ -147,15 +147,13 @@ export default async function middleware(request) {
     }
 
    // Geração do Objeto JSON-LD Estrutural na Borda (Bypassa o delay do React)
-    const exactOrigin = `https://${host.toLowerCase().trim()}`;
     const baseSchema = {
         "@context": "https://schema.org",
         "@type": seoCategory,
-        "@id": `${exactOrigin}#store`,
         "name": name,
         "image": optimizedFavicon,
         "description": slogan,
-        "url": exactOrigin,
+        "url": `https://${cleanHost}`,
         "telephone": whatsapp ? `+55${whatsapp.replace(/\D/g, '')}` : undefined,
         "address": {
             "@type": "PostalAddress",
@@ -176,13 +174,11 @@ export default async function middleware(request) {
     <meta name="twitter:title" content="${name}" />
     <meta name="twitter:description" content="${slogan}" />
     <meta name="twitter:image" content="${logo}" />
-    <!-- BLINDAGEM TENANT: Repassa o ID resolvido pela Borda direto pro Front-end -->
-    <meta name="x-store-id" content="${storeId}" />
     <!-- INJEÇÃO DO FAVICON DINÂMICO NO MIDDLEWARE -->
     <link rel="icon" type="image/png" href="${optimizedFavicon}" />
     <link rel="apple-touch-icon" href="${optimizedFavicon}" />
-    <!-- JSON-LD DE BORDA (ID INJETADO PARA O REACT FAZER O UPGRADE DO SCHEMA) -->
-    <script type="application/ld+json" id="google-schema-forced">
+    <!-- JSON-LD DE BORDA (GARANTE A INDEXAÇÃO INSTANTÂNEA) -->
+    <script type="application/ld+json">
     ${JSON.stringify(baseSchema)}
     </script>
     `;
