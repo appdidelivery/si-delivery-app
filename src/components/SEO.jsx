@@ -167,7 +167,13 @@ export default function SEO({ title, description, image, productData }) {
                                     limit: { value: 40 } // Expansão do limite para indexação de catálogo rico
                                 }
                             };
-                            const prodRes = await fetch(queryUrl, { method: 'POST', body: JSON.stringify(queryBody) });
+                            // 🚨 CORREÇÃO CRÍTICA: O Firebase bloqueia requisições POST na REST API se não declararmos o Content-Type como JSON.
+                            const prodRes = await fetch(queryUrl, { 
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(queryBody) 
+                            });
+                            
                             if (prodRes.ok) {
                                 const prodData = await prodRes.json();
                                 seoProducts = prodData.map(item => {
