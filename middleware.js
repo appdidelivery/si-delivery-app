@@ -59,6 +59,11 @@ export default async function middleware(request) {
     let slogan = 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png'; 
     let debugStatus = 'fallback-initialized';
+    
+    // Variáveis auxiliares para o JSON-LD Básico na Borda
+    let seoCategory = 'ConvenienceStore';
+    let address = 'Endereço não informado';
+    let whatsapp = '';
 
     // 4. BUSCA NO FIREBASE (EDGE COMPATIBLE)
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
@@ -88,6 +93,24 @@ export default async function middleware(request) {
                 if (fetchedLogo) {
                     logo = fetchedLogo.startsWith('http') ? fetchedLogo : `https://${host}${fetchedLogo}`;
                 }
+
+                // Resgate de Dados Estruturais para o JSON-LD Server-Side
+                let rawNiche = data.fields.seoCategory?.stringValue || data.fields.storeNiche?.stringValue || 'default';
+                const schemaTypes = {
+                    'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'drinks': 'LiquorStore',
+                    'sweet': 'IceCreamShop', 'natural': 'GroceryStore', 'default': 'ConvenienceStore',
+                    'restaurant': 'Restaurant', 'floricultura': 'Florist'
+                };
+                seoCategory = schemaTypes[rawNiche] || 'LocalBusiness';
+                whatsapp = data.fields.whatsapp?.stringValue || '';
+                
+                if (data.fields.address?.stringValue) {
+                    address = data.fields.address.stringValue;
+                } else if (data.fields.address?.mapValue?.fields) {
+                    const addrFields = data.fields.address.mapValue.fields;
+                    address = `${addrFields.street?.stringValue || ''}, ${addrFields.number?.stringValue || ''}`.trim();
+                }
+
                 debugStatus = 'firebase-success';
             } else {
                 debugStatus = 'firebase-document-empty';
@@ -110,20 +133,34 @@ export default async function middleware(request) {
     }
 
     // 6. LIMPEZA VORAZ DE META-TAGS ANTIGAS
-    // Usamos a flag 'gis' para garantir que ele apague mesmo se a tag quebrar linha
     html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']twitter:[^>]*>/gis, '');
-    // NOVO: Remove os favicons genéricos originais do index.html
     html = html.replace(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*>/gis, '');
     html = html.replace(/<link[^>]*rel=["']apple-touch-icon["'][^>]*>/gis, '');
 
-    // NOVO: Força o Cloudinary a entregar a logo exata em 96x96 para o Google aceitar o Favicon
+    // Força o Cloudinary a entregar a logo exata em 96x96 para o Google aceitar o Favicon
     let optimizedFavicon = logo;
     if (logo && logo.includes('cloudinary.com')) {
         optimizedFavicon = logo.replace(/\/upload\/([a-zA-Z0-9_,]+\/)?v/, `/upload/f_auto,q_auto:good,w_96,c_limit/v`);
     }
+
+    // Geração do Objeto JSON-LD Estrutural na Borda (Bypassa o delay do React)
+    const baseSchema = {
+        "@context": "https://schema.org",
+        "@type": seoCategory,
+        "name": name,
+        "image": optimizedFavicon,
+        "description": slogan,
+        "url": `https://${cleanHost}`,
+        "telephone": whatsapp ? `+55${whatsapp.replace(/\D/g, '')}` : undefined,
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": address,
+            "addressCountry": "BR"
+        }
+    };
 
     const tagsSEO = `
     <title>${name} | Delivery</title>
@@ -140,9 +177,14 @@ export default async function middleware(request) {
     <!-- INJEÇÃO DO FAVICON DINÂMICO NO MIDDLEWARE -->
     <link rel="icon" type="image/png" href="${optimizedFavicon}" />
     <link rel="apple-touch-icon" href="${optimizedFavicon}" />
+    <!-- JSON-LD DE BORDA (GARANTE A INDEXAÇÃO INSTANTÂNEA) -->
+    <script type="application/ld+json">
+    ${JSON.stringify(baseSchema)}
+    </script>
     `;
 
-    html = html.replace('<head>', `<head>\n${tagsSEO}`);
+    // Regex blindado para injetar na tag <head> mesmo que ela tenha atributos (ex: <head lang="pt-BR">)
+    html = html.replace(/<head[^>]*>/i, (match) => `${match}\n${tagsSEO}`);
 
     return new Response(html, {
         status: 200,
