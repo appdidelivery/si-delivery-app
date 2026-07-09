@@ -172,24 +172,24 @@ export default function SEO({ title, description, image, productData }) {
                     // --- TRATAMENTO DE NICHOS PARA INDEXAÇÃO: VAREJO VS FOOD SERVICE ---
                     const isRetail = ['LiquorStore', 'GroceryStore', 'ConvenienceStore'].includes(googleBusinessType);
                     
-                    // --- BUSCA DIRETA DE PRODUTOS PARA O GOOGLEBOT (BLINDAGEM CONTRA RACE CONDITION) ---
+                    // --- BUSCA DIRETA DE PRODUTOS PARA O GOOGLEBOT (BLINDADA CONTRA ERRO 429) ---
                     let seoProducts = [];
                     const contextProducts = store?.products || store?.produtos || store?.produtosPrincipais;
                     
                     if (contextProducts && Array.isArray(contextProducts) && contextProducts.length > 0) {
                         seoProducts = contextProducts;
                     } else {
-                        // Resgate Direto REST API: Se o robô for mais rápido que o React, buscamos os produtos à força!
                         try {
-                           const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${authParam}`;
+                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${authParam}`;
                             const queryBody = {
                                 structuredQuery: {
                                     from: [{ collectionId: "products" }],
                                     where: { fieldFilter: { field: { fieldPath: "storeId" }, op: "EQUAL", value: { stringValue: storeId } } },
-                                    limit: { value: 30 }
+                                    limit: { value: 40 }
                                 }
                             };
                             const prodRes = await fetch(queryUrl, { method: 'POST', body: JSON.stringify(queryBody) });
+                            
                             if (prodRes.ok) {
                                 const prodData = await prodRes.json();
                                 seoProducts = prodData.map(item => {
@@ -201,19 +201,30 @@ export default function SEO({ title, description, image, productData }) {
                                         description: pf.description?.stringValue || '',
                                         imageUrl: pf.imageUrl?.stringValue || '',
                                         price: pf.price?.doubleValue || pf.price?.integerValue || 0,
-                                        promotionalPrice: pf.promoPrice?.doubleValue || pf.promoPrice?.integerValue || 0,
-                                        stock: pf.stock?.integerValue !== undefined ? pf.stock.integerValue : 1
+                                        promotionalPrice: pf.promotionalPrice?.doubleValue || pf.promotionalPrice?.integerValue || pf.promoPrice?.doubleValue || 0,
+                                        stock: pf.stock?.integerValue !== undefined ? pf.stock.integerValue : 1,
+                                        ratingValue: pf.ratingValue?.doubleValue || pf.ratingValue?.integerValue || 0,
+                                        reviewCount: pf.reviewCount?.integerValue || 0
                                     };
                                 }).filter(Boolean);
+                            } else {
+                                console.warn(`SEO Aviso: API de Produtos falhou (Status ${prodRes.status}). Usando fallback.`);
                             }
-                        } catch (e) { console.error("Erro no resgate de produtos pro SEO:", e); }
+                        } catch (e) { 
+                            console.error("Erro no resgate de produtos pro SEO:", e); 
+                        }
+                    }
+
+                    // FALLBACK DE SEGURANÇA MÁXIMA: Se a API falhou, força a leitura do Contexto
+                    if (seoProducts.length === 0 && contextProducts && contextProducts.length > 0) {
+                        seoProducts = contextProducts;
                     }
 
                     const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                     
-                   // --- REGRAS PADRÃO DO MERCHANT CENTER (FRETE E DEVOLUÇÃO) ---
-                    const baseDeliveryFee = fields.delivery_fee?.doubleValue || fields.delivery_fee?.integerValue || 5.00; // Taxa de entrega padrão de segurança
-                   const merchantCenterRules = {
+                    // --- REGRAS PADRÃO DO MERCHANT CENTER (FRETE E DEVOLUÇÃO) ---
+                    const baseDeliveryFee = data?.fields?.delivery_fee?.doubleValue || store?.delivery_fee || 5.00;
+                    const merchantCenterRules = {
                         "hasMerchantReturnPolicy": {
                             "@type": "MerchantReturnPolicy",
                             "applicableCountry": "BR",
@@ -223,34 +234,17 @@ export default function SEO({ title, description, image, productData }) {
                         },
                         "shippingDetails": {
                             "@type": "OfferShippingDetails",
-                            "shippingRate": {
-                                "@type": "MonetaryAmount",
-                                "value": baseDeliveryFee,
-                                "currency": "BRL"
-                            },
-                            "shippingDestination": {
-                                "@type": "DefinedRegion",
-                                "addressCountry": "BR"
-                            },
+                            "shippingRate": { "@type": "MonetaryAmount", "value": baseDeliveryFee, "currency": "BRL" },
+                            "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "BR" },
                             "deliveryTime": {
                                 "@type": "ShippingDeliveryTime",
-                                "handlingTime": {
-                                    "@type": "QuantitativeValue",
-                                    "minValue": 0,
-                                    "maxValue": 15,
-                                    "unitCode": "MIN"
-                                },
-                                "transitTime": {
-                                    "@type": "QuantitativeValue",
-                                    "minValue": 15,
-                                    "maxValue": 60,
-                                    "unitCode": "MIN"
-                                }
+                                "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 15, "unitCode": "MIN" },
+                                "transitTime": { "@type": "QuantitativeValue", "minValue": 15, "maxValue": 60, "unitCode": "MIN" }
                             }
                         }
                     };
 
-                    // Constrói o objeto do Cardápio (Menu) se for Restaurante/Hamburgueria
+                    // --- CONSTRUTOR DE MENU COM AVALIAÇÕES E URLS INJETADAS ---
                     let menuData = {};
                     if (!isRetail) {
                         if (seoProducts.length > 0) {
@@ -263,18 +257,39 @@ export default function SEO({ title, description, image, productData }) {
                                         {
                                             "@type": "MenuSection",
                                             "name": "Destaques do Cardápio",
-                                            "hasMenuItem": seoProducts.slice(0, 40).map((prod) => ({
-                                                "@type": "MenuItem",
-                                                "name": prod.name || prod.nome || "",
-                                                "description": prod.description || prod.descricao || fetchedDesc,
-                                                "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
-                                                "offers": {
-                                                    "@type": "Offer",
-                                                    "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
-                                                    "priceCurrency": "BRL",
-                                                    ...merchantCenterRules
+                                            "hasMenuItem": seoProducts.slice(0, 40).map((prod) => {
+                                                const itemPrice = Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2);
+                                                const prodUrl = `${safeBaseUrl}/produto/${prod.id}`;
+                                                
+                                                // MÁGICA: Array duplo de tipo para o Google aceitar o Menu E as Avaliações juntas
+                                                const menuItem = {
+                                                    "@type": ["Product", "MenuItem"],
+                                                    "name": prod.name || prod.nome || "",
+                                                    "description": prod.description || prod.descricao || fetchedDesc,
+                                                    "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
+                                                    "url": prodUrl,
+                                                    "offers": {
+                                                        "@type": "Offer",
+                                                        "price": itemPrice,
+                                                        "priceCurrency": "BRL",
+                                                        "url": prodUrl,
+                                                        ...merchantCenterRules
+                                                    }
+                                                };
+
+                                                // Injeta as notas de avaliação (Reviews) no lanche se existirem
+                                                const rValue = Number(prod.ratingValue || 0);
+                                                const rCount = Number(prod.reviewCount || 0);
+                                                if (rValue > 0 && rCount > 0) {
+                                                    menuItem.aggregateRating = {
+                                                        "@type": "AggregateRating",
+                                                        "ratingValue": rValue.toFixed(1),
+                                                        "reviewCount": String(rCount)
+                                                    };
                                                 }
-                                            }))
+
+                                                return menuItem;
+                                            })
                                         }
                                     ]
                                 }
