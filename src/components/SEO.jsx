@@ -38,10 +38,15 @@ export default function SEO({ title, description, image, productData }) {
                 const storeId = getStoreIdFromHostname();
                 
                 const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
-                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
+                const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || ''; 
+                const authParam = apiKey ? `?key=${apiKey}` : '';
+                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
                 
                 const response = await fetch(url);
-                if (!response.ok) return;
+                if (!response.ok) {
+                    console.error("SEO Falhou: Firebase retornou erro " + response.status);
+                    return;
+                }
                 
                 const data = await response.json();
 
@@ -157,7 +162,7 @@ export default function SEO({ title, description, image, productData }) {
                     } else {
                         // Resgate Direto REST API: Se o robô for mais rápido que o React, buscamos os produtos à força!
                         try {
-                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+                           const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${authParam}`;
                             const queryBody = {
                                 structuredQuery: {
                                     from: [{ collectionId: "products" }],
@@ -502,9 +507,7 @@ export default function SEO({ title, description, image, productData }) {
 
             {/* A MÁGICA: O HELMET INJETA O SCRIPT SEM DEIXAR O REACT APAGAR */}
             {schemaDataState && (
-                <script type="application/ld+json">
-                    {schemaDataState}
-                </script>
+                <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: schemaDataState }} />
             )}
         </Helmet>
     );
