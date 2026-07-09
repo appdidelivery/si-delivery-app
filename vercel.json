@@ -100,7 +100,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|Googlebot|Bingbot|Slurp|DuckDuckBot|YandexBot).*"
+          "value": ".*(WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber).*"
         }
       ],
       "destination": "/api/social?route=/$1"
