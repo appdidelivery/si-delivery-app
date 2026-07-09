@@ -5,8 +5,6 @@ import { getStoreIdFromHostname } from '../utils/domainHelper';
 
 export default function SEO({ title, description, image, productData }) {
     // ESTADO PARA BLINDAR O SCRIPT NO HELMET
-    const [schemaDataState, setSchemaDataState] = useState(null);
-
     // 1. Pega os dados do Banco de Dados (SaaS) para uso na UI
     const { store } = useStore();
 
