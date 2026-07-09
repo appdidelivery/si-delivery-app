@@ -34,8 +34,13 @@ export default function SEO({ title, description, image, productData }) {
                 // CORREÇÃO 1: Usa a função oficial para pegar o ID da loja, suportando domínios customizados (ex: cowburguer)
                 const storeId = getStoreIdFromHostname();
                 
-                const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
-                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
+               const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
+                
+                // BLINDAGEM DE ACESSO: Injeção da API Key para evitar bloqueio 403 do Firestore na Borda/Cliente
+                const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || ''; 
+                const authParam = apiKey ? `?key=${apiKey}` : '';
+                
+                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
                 
                 const response = await fetch(url);
                 if (!response.ok) return;
