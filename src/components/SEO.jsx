@@ -154,12 +154,12 @@ export default function SEO({ title, description, image, productData }) {
                     } else {
                         // Resgate Direto REST API: Se o robô for mais rápido que o React, buscamos os produtos à força!
                         try {
-                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${authParam}`;
                             const queryBody = {
                                 structuredQuery: {
                                     from: [{ collectionId: "products" }],
                                     where: { fieldFilter: { field: { fieldPath: "storeId" }, op: "EQUAL", value: { stringValue: storeId } } },
-                                    limit: { value: 30 }
+                                    limit: { value: 40 } // Expansão do limite para indexação de catálogo rico
                                 }
                             };
                             const prodRes = await fetch(queryUrl, { method: 'POST', body: JSON.stringify(queryBody) });
