@@ -7353,11 +7353,75 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
                                                         <button onClick={() => {
                                                             if (i.quantity <= 1) setManualCart(manualCart.filter(item => item.id !== i.id));
-                                                            else setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: item.quantity - 1 } : item));
+                                                            else setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: (Number(item.quantity) || 1) - 1 } : item));
                                                         }} className="w-6 h-6 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-500 hover:text-red-500 font-bold active:scale-95">-</button>
-                                                        <span className="font-black text-slate-800 text-xs w-4 text-center">{i.quantity}</span>
+                                                        
+                                                        <input 
+                                                            type="number"
+                                                            value={i.quantity}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                if (val === '') {
+                                                                    setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: '' } : item));
+                                                                    return;
+                                                                }
+                                                                
+                                                                let num = parseInt(val, 10);
+                                                                if (isNaN(num)) return;
+                                                                
+                                                                // Trava de Estoque Físico
+                                                                if (i.stock !== undefined && i.stock !== '' && num > Number(i.stock)) {
+                                                                    alert(`Estoque máximo do produto atingido! (Máx: ${i.stock})`);
+                                                                    num = Number(i.stock);
+                                                                }
+
+                                                                // Trava de Insumos (Ficha Técnica)
+                                                                if (settings?.enableIngredientsControl && i.consumedIngredients?.length > 0) {
+                                                                    let maxAllowed = num;
+                                                                    let stockError = '';
+                                                                    
+                                                                    i.consumedIngredients.forEach(ci => {
+                                                                        const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                                                                        if (ingMem) {
+                                                                            let usedByOthers = 0;
+                                                                            manualCart.forEach(mc => {
+                                                                                if (mc.id !== i.id && mc.consumedIngredients) {
+                                                                                    mc.consumedIngredients.forEach(mci => {
+                                                                                        if (mci.ingredientId === ci.ingredientId) usedByOthers += (Number(mc.quantity) || 0) * Number(mci.qty);
+                                                                                    });
+                                                                                }
+                                                                            });
+                                                                            
+                                                                            const availableForThisItem = Number(ingMem.stock || 0) - usedByOthers;
+                                                                            const maxForThisIngredient = Math.floor(availableForThisItem / Number(ci.qty));
+                                                                            
+                                                                            if (maxForThisIngredient < maxAllowed) {
+                                                                                maxAllowed = maxForThisIngredient;
+                                                                                stockError = `O insumo "${ingMem.name}" limitou a quantidade máxima permitida.`;
+                                                                            }
+                                                                        }
+                                                                    });
+                                                                    
+                                                                    if (maxAllowed < num) {
+                                                                        if (stockError) alert(`⚠️ Estoque de Insumos Insuficiente para essa quantidade!\n${stockError}`);
+                                                                        num = Math.max(1, maxAllowed);
+                                                                    }
+                                                                }
+                                                                
+                                                                setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: num } : item));
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                let num = parseInt(e.target.value, 10);
+                                                                // Restaura para 1 se deixar vazio, negativo ou zero
+                                                                if (isNaN(num) || num <= 0) {
+                                                                    setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: 1 } : item));
+                                                                }
+                                                            }}
+                                                            className="w-8 bg-transparent text-center font-black text-slate-800 text-xs outline-none focus:border-b-2 focus:border-blue-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        />
+
                                                         <button onClick={() => {
-                                                            if (i.stock !== undefined && i.stock !== '' && i.quantity >= Number(i.stock)) return alert('Estoque máximo do produto atingido!');
+                                                            if (i.stock !== undefined && i.stock !== '' && (Number(i.quantity) || 0) >= Number(i.stock)) return alert('Estoque máximo do produto atingido!');
                                                             
                                                             // 🚨 TRAVA DE INSUMOS NO BOTÃO + DO PDV
                                                             if (settings?.enableIngredientsControl && i.consumedIngredients?.length > 0) {
@@ -7369,7 +7433,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                         manualCart.forEach(mc => {
                                                                             if (mc.consumedIngredients) {
                                                                                 mc.consumedIngredients.forEach(mci => {
-                                                                                    if (mci.ingredientId === ci.ingredientId) usedSoFar += Number(mc.quantity) * Number(mci.qty);
+                                                                                    if (mci.ingredientId === ci.ingredientId) usedSoFar += (Number(mc.quantity) || 0) * Number(mci.qty);
                                                                                 });
                                                                             }
                                                                         });
@@ -7381,7 +7445,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 if (stockError) return alert(`⚠️ Estoque Insuficiente!\n${stockError}`);
                                                             }
 
-                                                            setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: item.quantity + 1 } : item));
+                                                            setManualCart(manualCart.map(item => item.id === i.id ? { ...item, quantity: (Number(item.quantity) || 0) + 1 } : item));
                                                         }} className="w-6 h-6 flex items-center justify-center bg-white rounded-lg shadow-sm text-slate-500 hover:text-blue-600 font-bold active:scale-95">+</button>
                                                     </div>
                                                     <button onClick={() => setManualCart(manualCart.filter(item => item.id !== i.id))} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-600 px-2 py-1 rounded-lg transition-all"><Trash2 size={16}/></button>
