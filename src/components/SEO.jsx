@@ -34,13 +34,8 @@ export default function SEO({ title, description, image, productData }) {
                 // CORREÇÃO 1: Usa a função oficial para pegar o ID da loja, suportando domínios customizados (ex: cowburguer)
                 const storeId = getStoreIdFromHostname();
                 
-               const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
-                
-                // BLINDAGEM DE ACESSO: Injeção da API Key para evitar bloqueio 403 do Firestore na Borda/Cliente
-                const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || ''; 
-                const authParam = apiKey ? `?key=${apiKey}` : '';
-                
-                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
+                const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
+                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}`;
                 
                 const response = await fetch(url);
                 if (!response.ok) return;
@@ -159,21 +154,15 @@ export default function SEO({ title, description, image, productData }) {
                     } else {
                         // Resgate Direto REST API: Se o robô for mais rápido que o React, buscamos os produtos à força!
                         try {
-                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery${authParam}`;
+                            const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
                             const queryBody = {
                                 structuredQuery: {
                                     from: [{ collectionId: "products" }],
                                     where: { fieldFilter: { field: { fieldPath: "storeId" }, op: "EQUAL", value: { stringValue: storeId } } },
-                                    limit: { value: 40 } // Expansão do limite para indexação de catálogo rico
+                                    limit: { value: 30 }
                                 }
                             };
-                            // 🚨 CORREÇÃO CRÍTICA: O Firebase bloqueia requisições POST na REST API se não declararmos o Content-Type como JSON.
-                            const prodRes = await fetch(queryUrl, { 
-                                method: 'POST', 
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(queryBody) 
-                            });
-                            
+                            const prodRes = await fetch(queryUrl, { method: 'POST', body: JSON.stringify(queryBody) });
                             if (prodRes.ok) {
                                 const prodData = await prodRes.json();
                                 seoProducts = prodData.map(item => {
@@ -277,7 +266,7 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
-                  // A) BASE DA ENTIDADE DA LOJA 
+                   // A) BASE DA ENTIDADE DA LOJA 
                     const baseStoreSchema = {
                         "@id": `${safeBaseUrl}#store`,
                         "@type": googleBusinessType,
@@ -404,7 +393,7 @@ export default function SEO({ title, description, image, productData }) {
                                         "price": Number(rawPrice).toFixed(2),
                                         "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                                         "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-                                       "itemCondition": "https://schema.org/NewCondition",
+                                        "itemCondition": "https://schema.org/NewCondition",
                                         "seller": { 
                                             "@type": "Organization",
                                             "name": fetchedName,
