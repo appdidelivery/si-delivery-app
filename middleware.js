@@ -9,8 +9,9 @@ export default async function middleware(request) {
 
     // 1. O SEGREDO DO WHATSAPP: REDIRECIONAR O ROBÔ DIRETO NO MIDDLEWARE
     // Como o middleware roda ANTES do vercel.json, precisamos repassar o bot aqui.
-    const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|Googlebot|Bingbot|Slurp|DuckDuckBot|YandexBot/i.test(userAgent);
-
+// Deixamos apenas redes sociais. Os buscadores (Google, Bing) PRECISAM passar direto para ler o HTML e o SEO.jsx
+    const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber/i.test(userAgent);
+    
     if (isBot) {
         // Redireciona a requisição do bot internamente para o api/social.js de forma transparente
         const apiSocialUrl = new URL(`/api/social`, request.url);
