@@ -146,7 +146,44 @@ export default function SEO({ title, description, image, productData }) {
                     }
 
                     // CORREÇÃO 4: TELEFONE DE SEGURANÇA
-                    const safeTelephone = fetchedWhatsapp ? `+${fetchedWhatsapp.replace(/\D/g, '')}` : "+5500000000000";
+// --- INJEÇÃO AVANÇADA 1: HORÁRIOS DE FUNCIONAMENTO (SEO LOCAL) ---
+                let openingHoursSchema = [];
+                if (store?.schedule) {
+                    const daysMap = {
+                        0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
+                        4: "Thursday", 5: "Friday", 6: "Saturday"
+                    };
+                    Object.keys(store.schedule).forEach(key => {
+                        const dayData = store.schedule[key];
+                        if (dayData.open && dayData.start && dayData.end) {
+                            openingHoursSchema.push({
+                                "@type": "OpeningHoursSpecification",
+                                "dayOfWeek": daysMap[key],
+                                "opens": dayData.start,
+                                "closes": dayData.end
+                            });
+                            // Se tiver o segundo turno (Ex: Almoço e Janta)
+                            if (dayData.splitShift && dayData.start2 && dayData.end2) {
+                                openingHoursSchema.push({
+                                    "@type": "OpeningHoursSpecification",
+                                    "dayOfWeek": daysMap[key],
+                                    "opens": dayData.start2,
+                                    "closes": dayData.end2
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // --- INJEÇÃO AVANÇADA 2: COORDENADAS GPS (GOOGLE MAPS) ---
+                let geoSchema = null;
+                if (store?.lat && store?.lng) {
+                    geoSchema = {
+                        "@type": "GeoCoordinates",
+                        "latitude": Number(store.lat),
+                        "longitude": Number(store.lng)
+                    };
+                }
 
                     // --- LEITURA DO FAQ PARA O GOOGLEBOT (ADITIVO E BLINDADO) ---
                     // 1. Perguntas Padrão do Sistema (Sempre indexadas para garantir o Rich Snippet)
@@ -309,22 +346,25 @@ export default function SEO({ title, description, image, productData }) {
                     const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
                    // A) BASE DA ENTIDADE DA LOJA 
-                    const baseStoreSchema = {
-                        "@id": `${safeBaseUrl}#store`,
-                        "@type": googleBusinessType,
-                        "name": fetchedName,
-                        "image": absoluteFetchedImage,
-                        "description": fetchedAbout || fetchedDesc,
-                        "url": `https://${hostname}`,
-                        "telephone": safeTelephone,
-                        "priceRange": fetchedPriceRange, // Agora dinâmico!
-                        "paymentAccepted": ["Cash", "Credit Card", "Pix"],
-                        "address": addressObj,
-                        "sameAs": socialProfiles, // Associa as redes sociais ao site
-                        ...( !isRetail ? { "servesCuisine": storeCuisine } : {} ),
-                        ...menuData
-                    };
-
+                   const baseStoreSchema = {
+                    "@id": `${safeBaseUrl}#store`,
+                    "@type": googleBusinessType,
+                    "name": fetchedName,
+                    "image": absoluteFetchedImage,
+                    "description": fetchedAbout || fetchedDescStore,
+                    "url": `https://${hostname}`,
+                    "telephone": safeTelephone,
+                    "priceRange": fetchedPriceRange,
+                    "paymentAccepted": ["Cash", "Credit Card", "Pix"],
+                    "address": addressObj,
+                    ...(geoSchema ? { "geo": geoSchema } : {}),
+                    ...(openingHoursSchema.length > 0 ? { "openingHoursSpecification": openingHoursSchema } : {}),
+                    "acceptsReservations": store?.posPickupEnabled !== false ? "True" : "False",
+                    "sameAs": socialProfiles,
+                    ...( !isRetail ? { "servesCuisine": storeCuisine } : {} ),
+                    ...menuData
+                };
+                
                     // Se for Varejo (Conveniência/Bebidas), mantém a aba genérica de Produtos (containsPlace)
                     if (isRetail && seoProducts.length > 0) {
                         baseStoreSchema.containsPlace = seoProducts.slice(0, 30).map((prod) => ({
