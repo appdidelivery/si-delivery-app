@@ -31,10 +31,11 @@ export default function SEO({ title, description, image, productData }) {
             try {
                 const hostname = window.location.hostname;
                 
-                // CORREÇÃO 1: Usa a função oficial para pegar o ID da loja, suportando domínios customizados (ex: cowburguer)
-                const storeId = getStoreIdFromHostname();
+                // CORREÇÃO 1: Consome o ID cravado pelo Middleware (Edge) para impedir erro 404 em domínios customizados (Fallback para o helper)
+                const metaStoreId = document.querySelector('meta[name="x-store-id"]')?.getAttribute('content');
+                const storeId = metaStoreId || getStoreIdFromHostname();
                 
-               const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp'; 
+               const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
                 
                 // BLINDAGEM DE ACESSO: Injeção da API Key para evitar bloqueio 403 do Firestore na Borda/Cliente
                 const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || ''; 
@@ -277,9 +278,9 @@ export default function SEO({ title, description, image, productData }) {
                     };
                     const storeCuisine = cuisineMap[niche] || 'Comida Rápida, Delivery';
 
-                   // A) BASE DA ENTIDADE DA LOJA 
+                   // A) BASE DA ENTIDADE DA LOJA (ID Sincronizado estritamente com o Middleware)
                     const baseStoreSchema = {
-                        "@id": `${safeBaseUrl}#store`,
+                        "@id": `${safeOrigin}#store`,
                         "@type": googleBusinessType,
                         "name": fetchedName,
                         "image": absoluteFetchedImage,
@@ -408,7 +409,7 @@ export default function SEO({ title, description, image, productData }) {
                                         "seller": { 
                                             "@type": "Organization",
                                             "name": fetchedName,
-                                            "@id": `${baseUrl}#store` 
+                                            "@id": `${safeOrigin}#store` 
                                         },
                                         // Puxa as regras de Devolução (Refund) com País que arrumamos antes
                                         "hasMerchantReturnPolicy": merchantCenterRules.hasMerchantReturnPolicy,
