@@ -1254,10 +1254,26 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
         if (!storeId) return res.status(400).json({ error: 'StoreId é obrigatório' });
 
         try {
-            const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
-            if (!storeSettingsDoc.exists) return res.status(404).json({ error: 'Configuração não encontrada' });
+            // 🚨 BLINDAGEM DE COTA: Usa o Cache em Memória RAM da Vercel (Reduz 99% das leituras)
+            let settingsData = null;
+            const cacheKey = `settings_wa_${storeId}`;
+            
+            // Se existir no cache e tiver menos de 2 minutos, usa a RAM em vez do Firebase!
+            if (global._veloVercelCache && global._veloVercelCache.has(cacheKey) && (Date.now() - global._veloVercelCache.get(cacheKey).time < 120000)) {
+                settingsData = global._veloVercelCache.get(cacheKey).data;
+            } else {
+                // Se não tem no cache, vai no Firebase uma única vez
+                const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
+                if (!storeSettingsDoc.exists) return res.status(404).json({ error: 'Configuração não encontrada' });
+                
+                settingsData = storeSettingsDoc.data();
+                
+                // Salva na memória global da Vercel
+                if (!global._veloVercelCache) global._veloVercelCache = new Map();
+                global._veloVercelCache.set(cacheKey, { data: settingsData, time: Date.now() });
+            }
 
-            const waConfig = storeSettingsDoc.data().integrations?.whatsapp;
+            const waConfig = settingsData.integrations?.whatsapp;
             if (!waConfig || !waConfig.phoneNumberId || !waConfig.apiToken) {
                 return res.status(400).json({ error: 'WhatsApp não configurado.' });
             }
