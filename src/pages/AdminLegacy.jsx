@@ -2135,41 +2135,48 @@ const educationalBanners = [
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
         let initialChat = true;
-        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), async (s) => {
-            let shouldPlaySound = false;
-            let isHandoffAlert = false; 
-            let senderName = "Cliente";
-            let handoffMessageText = "";
+        const sessionCache = new Map();
+        
+        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), async (s) => {
+            let shouldPlaySound = false;
+            let isHandoffAlert = false; 
+            let senderName = "Cliente";
+            let handoffMessageText = "";
 
-            // Lê a exata string que o botão de "Falar com Humano" envia (ou assume um padrão)
-            const handoffTriggerText = settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
+            // Lê a exata string que o botão de "Falar com Humano" envia (ou assume um padrão)
+            const handoffTriggerText = settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
 
-            // Descobre qual conversa o lojista está olhando agora
-            const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
+            // Descobre qual conversa o lojista está olhando agora
+            const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
 
-            if (!initialChat) {
-                // Como precisamos checar as sessões no banco para saber se o bot tá pausado, 
-                // mapeamos as mudanças de forma assíncrona
-                for (const change of s.docChanges()) {
-                    const data = change.doc.data();
-                    if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
-                        // Normaliza o número
-                        let senderPhone = String(data.from || '').replace(/\D/g, '');
-                        if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
+            if (!initialChat) {
+                for (const change of s.docChanges()) {
+                    const data = change.doc.data();
+                    if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
+                        // Normaliza o número
+                        let senderPhone = String(data.from || '').replace(/\D/g, '');
+                        if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
 
-                        // VERIFICA SE O BOT ESTÁ PAUSADO PARA ESSE CLIENTE ESPECÍFICO
+                        // VERIFICA SE O BOT ESTÁ PAUSADO PARA ESSE CLIENTE ESPECÍFICO (COM CACHE)
                         let isBotPaused = false;
-                        try {
-                            const sessionSnap = await getDoc(doc(db, "whatsapp_sessions", `${storeId}_${senderPhone}`));
-                            if (sessionSnap.exists() && sessionSnap.data().botPaused === true) {
-                                isBotPaused = true;
-                            }
-                        } catch (e) {}
+                        const sessionKey = `${storeId}_${senderPhone}`;
+                        
+                        if (sessionCache.has(sessionKey)) {
+                            isBotPaused = sessionCache.get(sessionKey);
+                        } else {
+                            try {
+                                const sessionSnap = await getDoc(doc(db, "whatsapp_sessions", sessionKey));
+                                if (sessionSnap.exists()) {
+                                    isBotPaused = sessionSnap.data().botPaused === true;
+                                    sessionCache.set(sessionKey, isBotPaused); // Guarda no cache
+                                }
+                            } catch (e) {}
+                        }
 
-                        // VERIFICAÇÃO DE TRANSBORDO: Se a mensagem contiver a palavra-chave configurada
-                        if (data.text && String(data.text).toLowerCase().includes(handoffTriggerText.toLowerCase())) {
-                            isHandoffAlert = true;
-                            handoffMessageText = data.text;
+                        // VERIFICAÇÃO DE TRANSBORDO: Se a mensagem contiver a palavra-chave configurada
+                        if (data.text && String(data.text).toLowerCase().includes(handoffTriggerText.toLowerCase())) {
+                            isHandoffAlert = true;
+                            handoffMessageText = data.text;
                             shouldPlaySound = true; // O Alerta de Handoff SEMPRE toca
                             senderName = data.pushName || data.name || "Cliente";
                             

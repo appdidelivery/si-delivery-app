@@ -1103,57 +1103,56 @@ export default function Home() {
   const[loyaltyPoints, setLoyaltyPoints] = useState(0);
 
   useEffect(() => {
-    if (marketingSettings?.loyaltyActive) {
+   if (marketingSettings?.loyaltyActive) {
       const phone = localStorage.getItem('customerPhone');
       if (phone) {
-        // 1. Calcula Pontos das Compras
-        const qOrders = query(collection(db, "orders"), where("storeId", "==", storeId), where("customerPhone", "==", phone), where("status", "==", "completed"));
-        const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-          const totalSpent = snapshot.docs.reduce((acc, doc) => acc + Number(doc.data().total || 0), 0);
-          const basePoints = Math.floor(totalSpent * (marketingSettings.pointsPerReal || 1));
-          
-          // 2. Calcula Pontos das Missões (Bônus)
-          const qMissions = query(collection(db, "loyalty_missions"), where("storeId", "==", storeId), where("customerPhone", "==", phone), where("status", "==", "approved"));
-          getDocs(qMissions).then((missionSnap) => {
-              const bonusPoints = missionSnap.docs.reduce((acc, doc) => acc + Number(doc.data().pointsAwarded || 0), 0);
-              setLoyaltyPoints(basePoints + bonusPoints);
-          });
-          
-          // --- GAMIFICAÇÃO: NÍVEIS VIP (TIERS) ---
-          if (marketingSettings?.gamification?.tiers) {
-              let tier = { name: 'Bronze', next: 'Prata', missing: 200 - totalSpent, progress: (totalSpent/200)*100, color: 'text-amber-600', bg: 'bg-amber-100' };
-              if (totalSpent >= 200 && totalSpent < 1000) tier = { name: 'Prata', next: 'Ouro', missing: 1000 - totalSpent, progress: ((totalSpent-200)/800)*100, color: 'text-slate-400', bg: 'bg-slate-200' };
-              if (totalSpent >= 1000 && totalSpent < 3000) tier = { name: 'Ouro', next: 'Diamante', missing: 3000 - totalSpent, progress: ((totalSpent-1000)/2000)*100, color: 'text-yellow-500', bg: 'bg-yellow-100' };
-              if (totalSpent >= 3000) tier = { name: 'Diamante 💎', next: 'Máximo', missing: 0, progress: 100, color: 'text-cyan-500', bg: 'bg-cyan-100' };
-              setUserTier(tier);
-          }
+        // OTIMIZAÇÃO: Substitui onSnapshot por getDocs. Histórico passado não muda durante a navegação.
+        const fetchLoyaltyData = async () => {
+            const qOrders = query(collection(db, "orders"), where("storeId", "==", storeId), where("customerPhone", "==", phone), where("status", "==", "completed"));
+            const snapshot = await getDocs(qOrders);
+            
+            const totalSpent = snapshot.docs.reduce((acc, doc) => acc + Number(doc.data().total || 0), 0);
+            const basePoints = Math.floor(totalSpent * (marketingSettings.pointsPerReal || 1));
+            
+            // 2. Calcula Pontos das Missões (Bônus)
+            const qMissions = query(collection(db, "loyalty_missions"), where("storeId", "==", storeId), where("customerPhone", "==", phone), where("status", "==", "approved"));
+            const missionSnap = await getDocs(qMissions);
+            const bonusPoints = missionSnap.docs.reduce((acc, doc) => acc + Number(doc.data().pointsAwarded || 0), 0);
+            setLoyaltyPoints(basePoints + bonusPoints);
+            
+            // --- GAMIFICAÇÃO: NÍVEIS VIP (TIERS) ---
+            if (marketingSettings?.gamification?.tiers) {
+                let tier = { name: 'Bronze', next: 'Prata', missing: 200 - totalSpent, progress: (totalSpent/200)*100, color: 'text-amber-600', bg: 'bg-amber-100' };
+                if (totalSpent >= 200 && totalSpent < 1000) tier = { name: 'Prata', next: 'Ouro', missing: 1000 - totalSpent, progress: ((totalSpent-200)/800)*100, color: 'text-slate-400', bg: 'bg-slate-200' };
+                if (totalSpent >= 1000 && totalSpent < 3000) tier = { name: 'Ouro', next: 'Diamante', missing: 3000 - totalSpent, progress: ((totalSpent-1000)/2000)*100, color: 'text-yellow-500', bg: 'bg-yellow-100' };
+                if (totalSpent >= 3000) tier = { name: 'Diamante 💎', next: 'Máximo', missing: 0, progress: 100, color: 'text-cyan-500', bg: 'bg-cyan-100' };
+                setUserTier(tier);
+            }
 
-          // --- GAMIFICAÇÃO: SELOS DE CONQUISTA (BADGES) ---
-          if (marketingSettings?.gamification?.badges) {
-              const badges = [];
-              const ordersList = snapshot.docs.map(d => d.data());
-              if (ordersList.length >= 1) badges.push({ icon: '🎉', name: 'Primeira Compra' });
-              if (ordersList.length >= 5) badges.push({ icon: '🏆', name: 'Fiel (5+)' });
-              
-              const hasNightOrder = ordersList.some(o => {
-                  if(!o.createdAt) return false;
-                  const h = o.createdAt.toDate().getHours();
-                  return h >= 22 || h <= 4;
-              });
-              if (hasNightOrder) badges.push({ icon: '🦉', name: 'Coruja' });
-              setUserBadges(badges);
-          }
+            // --- GAMIFICAÇÃO: SELOS DE CONQUISTA (BADGES) ---
+            if (marketingSettings?.gamification?.badges) {
+                const badges = [];
+                const ordersList = snapshot.docs.map(d => d.data());
+                if (ordersList.length >= 1) badges.push({ icon: '🎉', name: 'Primeira Compra' });
+                if (ordersList.length >= 5) badges.push({ icon: '🏆', name: 'Fiel (5+)' });
+                
+                const hasNightOrder = ordersList.some(o => {
+                    if(!o.createdAt) return false;
+                    const h = o.createdAt.toDate().getHours();
+                    return h >= 22 || h <= 4;
+                });
+                if (hasNightOrder) badges.push({ icon: '🦉', name: 'Coruja' });
+                setUserBadges(badges);
+            }
 
-          // A leitura do Cashback Real agora é feita em um useEffect independente abaixo.
-
-          // 3. Gatilho da Avaliação Interna (Acha o último não avaliado)
-          const unreviewed = snapshot.docs.find(doc => !doc.data().hasBeenReviewed);
-          if (unreviewed && !sessionStorage.getItem(`review_skipped_${unreviewed.id}`)) {
-              setPendingReviewOrder({ id: unreviewed.id, ...unreviewed.data() });
-              setShowReviewPopup(true);
-          }
-        });
-        return () => unsubOrders();
+            // 3. Gatilho da Avaliação Interna (Acha o último não avaliado)
+            const unreviewed = snapshot.docs.find(doc => !doc.data().hasBeenReviewed);
+            if (unreviewed && !sessionStorage.getItem(`review_skipped_${unreviewed.id}`)) {
+                setPendingReviewOrder({ id: unreviewed.id, ...unreviewed.data() });
+                setShowReviewPopup(true);
+            }
+        };
+        fetchLoyaltyData();
       }
     }
   }, [marketingSettings, storeId]);
@@ -1326,24 +1325,31 @@ export default function Home() {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
-    const unsubCategories = onSnapshot(query(collection(db, "categories"), where("storeId", "==", storeId)), (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))));
+    // OTIMIZAÇÃO DE COTA (ERROR 429): Busca dados estáticos via getDocs (Leitura única)
+    const fetchStaticCatalogData = async () => {
+        try {
+            const [catSnap, ingSnap, coupSnap, shipSnap, banSnap] = await Promise.all([
+                getDocs(query(collection(db, "categories"), where("storeId", "==", storeId))),
+                getDocs(query(collection(db, "ingredients"), where("storeId", "==", storeId))),
+                getDocs(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId))),
+                getDocs(query(collection(db, "shipping_rates"), where("storeId", "==", storeId))),
+                getDocs(query(collection(db, "banners"), where("storeId", "==", storeId), where("isActive", "==", true), orderBy("order", "asc")))
+            ]);
 
-    // NOVO: Lê o estoque de pães/carnes (Insumos) em tempo real para o app do cliente
-    const unsubIngredients = onSnapshot(query(collection(db, "ingredients"), where("storeId", "==", storeId)), (s) => setIngredients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+            setCategories(catSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)));
+            setIngredients(ingSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setAvailableCoupons(coupSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setShippingRates(shipSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setGeneralBanners(banSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (error) {
+            console.error("Erro ao carregar catálogo estático:", error);
+        }
+    };
+    
+    fetchStaticCatalogData();
 
-    const unsubCoupons = onSnapshot(query(collection(db, "coupons"), where("active", "==", true), where("storeId", "==", storeId)), (s) => {
-        setAvailableCoupons(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    const unsubShippingRates = onSnapshot(query(collection(db, "shipping_rates"), where("storeId", "==", storeId)), (s) => {
-      setShippingRates(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    const unsubGeneralBanners = onSnapshot(query(collection(db, "banners"), where("storeId", "==", storeId), where("isActive", "==", true), orderBy("order", "asc")), (s) => {
-      setGeneralBanners(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    const storeSettingsRef = doc(db, "stores", storeId); 
+    // Mantém em tempo real APENAS o status da loja (Aberto/Fechado) e Configs
+    const storeSettingsRef = doc(db, "stores", storeId);
 
     const unsubStoreSettings = onSnapshot(storeSettingsRef, (d) => {
       if (d.exists()) {
