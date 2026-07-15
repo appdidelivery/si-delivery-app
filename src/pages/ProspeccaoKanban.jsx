@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock } from 'lucide-react';
+import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
 import CentralOmnichannel from '../components/CentralOmnichannel'; // <-- Importando a Central Omnichannel
@@ -17,7 +17,9 @@ export default function ProspeccaoKanban() {
         onlyWithPhone: false,
         noWebsite: false,      // Ideal para vender a criação da loja
         noOrderLink: false,    // Identifica quem não tem cardápio digital
-        hasInstagram: false    // Bom para saber se o lead é engajado
+        hasInstagram: false,   // Bom para saber se o lead é engajado
+        maxReviews: '',        // NOVO: Filtrar quem tem poucas ou zero avaliações
+        segment: ''            // NOVO: Filtrar por palavra-chave (ex: Pizza)
     });
     
     // Estado para controlar qual lead está com o Chat aberto
@@ -104,6 +106,9 @@ export default function ProspeccaoKanban() {
                     else if (allUrls.includes('aiqfome')) detectedMarketplace = 'Aiqfome';
                     else if (allUrls.includes('goomer') || allUrls.includes('anotaai') || allUrls.includes('menudino') || allUrls.includes('ola.click')) detectedMarketplace = 'Usa App Terceiro';
 
+                    // Busca a categoria principal fornecida pelo Apify/Google
+                    const leadCategory = place.categoryName || place.category || (place.categories ? place.categories[0] : 'Desconhecido');
+
                     await addDoc(collection(db, 'leads_prospeccao'), {
                         name: leadName,
                         phone: cleanPhone,
@@ -115,6 +120,7 @@ export default function ProspeccaoKanban() {
                         reviewsCount: place.reviewsCount || 0,
                         isOpen: place.isOpen !== undefined ? place.isOpen : null,
                         marketplace: detectedMarketplace,
+                        category: leadCategory, // NOVO DADO GRAVADO
                         status: 'extracted',
                         createdAt: serverTimestamp()
                     });
@@ -200,6 +206,12 @@ export default function ProspeccaoKanban() {
 
             {/* NOVOS DADOS ENRIQUECIDOS (Marketplace, SEO e Disponibilidade) */}
             <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {lead.category && lead.category !== 'Desconhecido' && (
+                    <div className="flex items-center gap-1 bg-purple-50 text-purple-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-purple-200 shadow-sm" title="Segmento no Google">
+                        <Tag size={10} />
+                        {lead.category}
+                    </div>
+                )}
                 {lead.rating && (
                     <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-yellow-200 shadow-sm" title="Avaliação no Google">
                         <Star size={10} className="fill-yellow-500 text-yellow-500" />
@@ -348,6 +360,27 @@ export default function ProspeccaoKanban() {
                 >
                     Tem Instagram
                 </button>
+
+                {/* NOVO: Input de Máximo de Avaliações */}
+                <div className="flex items-center gap-2 border-l border-slate-200 pl-4 ml-2">
+                    <input
+                        type="number"
+                        placeholder="Máx. Avaliações (Ex: 10)"
+                        value={filters.maxReviews}
+                        onChange={(e) => setFilters(f => ({ ...f, maxReviews: e.target.value }))}
+                        className="text-[10px] font-bold px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-36 transition-all"
+                        title="Restaurantes novos ou com pouca relevância no Google"
+                    />
+
+                    {/* NOVO: Input de Segmento */}
+                    <input
+                        type="text"
+                        placeholder="Segmento (Ex: Pizza)"
+                        value={filters.segment}
+                        onChange={(e) => setFilters(f => ({ ...f, segment: e.target.value }))}
+                        className="text-[10px] font-bold px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-32 transition-all"
+                    />
+                </div>
             </div>
 
             {/* Kanban Board (Oculto na aba inbox) */}
@@ -361,6 +394,20 @@ export default function ProspeccaoKanban() {
                             if (filters.noWebsite && l.website) return false;
                             if (filters.noOrderLink && l.orderUrl) return false;
                             if (filters.hasInstagram && !l.instagram) return false;
+                            
+                            // NOVO: Filtro de Máximo de Avaliações (Invisíveis no Google)
+                            if (filters.maxReviews !== '') {
+                                const max = parseInt(filters.maxReviews, 10);
+                                if (!isNaN(max) && (l.reviewsCount || 0) > max) return false;
+                            }
+
+                            // NOVO: Filtro de Segmento (Ex: Pizza, Sushi)
+                            if (filters.segment !== '') {
+                                if (!l.category || !l.category.toLowerCase().includes(filters.segment.toLowerCase())) {
+                                    return false;
+                                }
+                            }
+
                             return true;
                         });
 
