@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock, Tag } from 'lucide-react';
+import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock, Tag, MessageSquareText, ExternalLink, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
 import CentralOmnichannel from '../components/CentralOmnichannel'; // <-- Importando a Central Omnichannel
@@ -24,6 +24,25 @@ export default function ProspeccaoKanban() {
     
     // Estado para controlar qual lead está com o Chat aberto
     const [activeChatLead, setActiveChatLead] = useState(null);
+
+    // NOVO: Controle do Modal de Abordagem Manual
+    const [approachLead, setApproachLead] = useState(null);
+
+    // NOVO: Textos de Prospecção Prontos (Você pode editar esses textos aqui no código depois)
+    const PROMO_TEMPLATES = [
+        {
+            title: "Tirar do iFood (Taxas)",
+            text: "Opa [Nome], tudo bem? Vi a [Nicho] de vocês no iFood. Vocês já têm um link próprio para fugir daquelas taxas de 27% ou estão dependendo só do app deles?"
+        },
+        {
+            title: "Sem Cardápio / WhatsApp",
+            text: "Oi [Nome], tudo joia? Achei vocês aqui no Google, mas vi que não tem um cardápio com link direto. Vocês estão tirando os pedidos no texto mesmo? Tenho uma ferramenta que automatiza isso pra você."
+        },
+        {
+            title: "Foco em SEO / Google",
+            text: "Fala [Nome]! Vi a página de vocês aqui no Google, mas notei que estão com poucas avaliações. Sabia que isso derruba vocês nas buscas da cidade? Nosso sistema resolve isso no automático."
+        }
+    ];
     
     // Carregar leads do Firebase
     useEffect(() => {
@@ -162,15 +181,45 @@ export default function ProspeccaoKanban() {
         }
     };
 
-    // 3. Disparar Mensagem Fria (Nova Arquitetura Assíncrona)
-    const handleSendColdMessage = async (lead) => {
+    // 3. Abrir Modal de Abordagem Manual
+    const handleSendColdMessage = (lead) => {
+        setApproachLead(lead);
+    };
+
+    // 4. Executar Redirecionamento para WhatsApp Web
+    const executeManualApproach = async (templateText) => {
+        if (!approachLead) return;
+
         try {
-            // O frontend não faz mais requisições bloqueantes. 
-            // Apenas atualiza o status do Firestore e a UI responde instantaneamente.
-            // A Cloud Function cuidará de identificar a mudança e disparar o Template da Meta.
-            await handleChangeStatus(lead.id, 'contacted');
+            // 1. Prepara o nome do cliente (pega o primeiro nome) e a categoria
+            const firstName = approachLead.name ? approachLead.name.split(' ')[0] : 'pessoal';
+            const categoryName = approachLead.category && approachLead.category !== 'Desconhecido' ? approachLead.category.toLowerCase() : 'loja';
+
+            // 2. Substitui as variáveis mágicas no texto
+            let finalMessage = templateText
+                .replace(/\[Nome\]/gi, firstName)
+                .replace(/\[Nicho\]/gi, categoryName);
+
+            // 3. Codifica para o formato URL (converte espaços e emojis)
+            const encodedMessage = encodeURIComponent(finalMessage);
+
+            // 4. Limpa o telefone
+            let cleanPhone = String(approachLead.phone).replace(/\D/g, '');
+            if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) cleanPhone = `55${cleanPhone}`;
+
+            // 5. Monta a URL oficial do WhatsApp (Abre o app no Mac ou o Web)
+            const waUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+
+            // 6. Abre numa nova aba
+            window.open(waUrl, '_blank');
+
+            // 7. Move o card para "Abordagem Inicial" no Kanban automaticamente
+            await handleChangeStatus(approachLead.id, 'contacted');
+
+            // 8. Fecha o modal
+            setApproachLead(null);
         } catch (error) {
-            alert(`Erro ao acionar abordagem: ${error.message}`);
+            alert(`Erro ao redirecionar para o WhatsApp: ${error.message}`);
         }
     };
 
@@ -424,8 +473,68 @@ export default function ProspeccaoKanban() {
                             </div>
                         );
                     })}
-                </div>
+               </div>
             </main>
+
+            {/* MODAL DE ABORDAGEM MANUAL (WHATSAPP WEB) */}
+            <AnimatePresence>
+                {approachLead && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col border border-slate-200"
+                        >
+                            {/* Header */}
+                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div>
+                                    <h3 className="text-slate-800 font-black uppercase tracking-widest text-sm flex items-center gap-2">
+                                        <MessageSquareText size={16} className="text-blue-600" />
+                                        Escolher Abordagem
+                                    </h3>
+                                    <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-wider">
+                                        Destino: <span className="text-blue-600">{approachLead.name}</span> ({approachLead.phone})
+                                    </p>
+                                </div>
+                                <button onClick={() => setApproachLead(null)} className="text-slate-400 hover:text-slate-700 transition-colors bg-white p-2 rounded-full shadow-sm">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            
+                            {/* Templates de Mensagem */}
+                            <div className="p-4 flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                <p className="text-xs text-slate-500 font-medium mb-2">
+                                    Clique em uma das mensagens abaixo. O sistema vai preencher os dados do lead e abrir seu WhatsApp Web ou App.
+                                </p>
+
+                                {PROMO_TEMPLATES.map((template, idx) => (
+                                    <button 
+                                        key={idx}
+                                        onClick={() => executeManualApproach(template.text)}
+                                        className="text-left bg-white border border-slate-200 p-4 rounded-2xl hover:border-blue-400 hover:ring-2 hover:ring-blue-100 transition-all group relative"
+                                    >
+                                        <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-2 flex justify-between items-center">
+                                            {template.title}
+                                            <ExternalLink size={14} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                                        </h4>
+                                        <p className="text-sm text-slate-600 leading-relaxed">
+                                            {template.text
+                                                .replace(/\[Nome\]/gi, `<strong class="text-blue-600">${approachLead.name?.split(' ')[0] || 'pessoal'}</strong>`)
+                                                .replace(/\[Nicho\]/gi, `<strong class="text-blue-600">${approachLead.category !== 'Desconhecido' ? approachLead.category : 'loja'}</strong>`)
+                                            }
+                                        </p>
+                                        {/* Apenas para renderizar o negrito nas variáveis dinâmicas */}
+                                        <div dangerouslySetInnerHTML={{ __html: '' }} />
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 }
