@@ -367,23 +367,37 @@ exports.emitirNotaFiscal = functions.firestore
 
             // ======= INÍCIO DO CÓDIGO NOVO A SER COLADO =======
             
-            // Se o código chegou até aqui (passou pelo erro acima), é porque a nota autorizou!
+            // 1. Se a SEFAZ autorizou de primeira ou entrou na fila:
             if (finalData.status === "autorizado" || finalData.status === "processando_autorizacao") {
-                
-                // 1. Monta o link do PDF (DANFE) usando a URL base descoberta pelo seu motor
                 const urlPdf = baseUrl + (finalData.caminho_danfe || "");
                 const chaveNfe = finalData.chave_nfe;
 
-               // 2. Avisa o painel da Velo e salva o PDF!
                 await change.after.ref.update({
-                    fiscalStatus: 'authorized', // <-- MUDOU PARA INGLÊS
-                    nfeUrl: urlPdf,             // <-- MUDOU O NOME DA VARIÁVEL
+                    fiscalStatus: 'authorized', 
+                    nfeUrl: urlPdf,             
                     chave_nfe: chaveNfe
                 });
 
-                functions.logger.log(`✅ SUCESSO: Nota do pedido ${orderId} autorizada! Link gerado.`);
-                return null; // Termina a função com sucesso
+                functions.logger.log(`✅ SUCESSO: Nota do pedido ${orderId} autorizada ou na fila!`);
+                return null;
             }
+
+            // 2. NOVA BLINDAGEM: Se a Focus devolveu o erro DA SEFAZ de cara
+            if (finalData.status === "erro_autorizacao") {
+                // A mensagem real da Sefaz fica escondida dentro do objeto 'mensagem_sefaz' da Focus
+                const errorMessageSefaz = finalData.mensagem_sefaz || "Rejeitada pela SEFAZ. Verifique os dados.";
+                
+                await change.after.ref.update({
+                    fiscalStatus: 'error',
+                    fiscalError: `Sefaz: ${errorMessageSefaz}`
+                });
+
+                functions.logger.log(`❌ ERRO SEFAZ (Pedido ${orderId}): ${errorMessageSefaz}`);
+                return null;
+            }
+
+            // Fallback para qualquer outro status desconhecido
+            throw new Error(`Status não mapeado: ${finalData.status}`);
 
             // ======= FIM DO CÓDIGO NOVO A SER COLADO =======
         } catch (error) {
