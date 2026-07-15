@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle } from 'lucide-react';
+import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
 import CentralOmnichannel from '../components/CentralOmnichannel'; // <-- Importando a Central Omnichannel
@@ -95,6 +95,15 @@ export default function ProspeccaoKanban() {
                     console.log(`🔁 [Descartado] ${leadName} - Motivo: O telefone ${cleanPhone} JÁ EXISTE no seu Kanban.`);
                 } else {
                     console.log(`✅ [Adicionado] ${leadName} - Telefone limpo e válido: ${cleanPhone}`);
+                    
+                    // Lógica de Identificação de Marketplaces e Concorrentes
+                    const allUrls = [place.website, place.orderUrl].filter(Boolean).join(' ').toLowerCase();
+                    let detectedMarketplace = null;
+                    if (allUrls.includes('ifood')) detectedMarketplace = 'iFood';
+                    else if (allUrls.includes('rappi')) detectedMarketplace = 'Rappi';
+                    else if (allUrls.includes('aiqfome')) detectedMarketplace = 'Aiqfome';
+                    else if (allUrls.includes('goomer') || allUrls.includes('anotaai') || allUrls.includes('menudino') || allUrls.includes('ola.click')) detectedMarketplace = 'Usa App Terceiro';
+
                     await addDoc(collection(db, 'leads_prospeccao'), {
                         name: leadName,
                         phone: cleanPhone,
@@ -102,6 +111,10 @@ export default function ProspeccaoKanban() {
                         website: place.website || '',
                         orderUrl: place.orderUrl || '',
                         instagram: place.instagram || '',
+                        rating: place.rating || null,
+                        reviewsCount: place.reviewsCount || 0,
+                        isOpen: place.isOpen !== undefined ? place.isOpen : null,
+                        marketplace: detectedMarketplace,
                         status: 'extracted',
                         createdAt: serverTimestamp()
                     });
@@ -184,6 +197,28 @@ export default function ProspeccaoKanban() {
                     <MapPin size={12} className="shrink-0 mt-0.5"/> {lead.address}
                 </div>
             )}
+
+            {/* NOVOS DADOS ENRIQUECIDOS (Marketplace, SEO e Disponibilidade) */}
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {lead.rating && (
+                    <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-yellow-200 shadow-sm" title="Avaliação no Google">
+                        <Star size={10} className="fill-yellow-500 text-yellow-500" />
+                        {lead.rating} ({lead.reviewsCount || 0})
+                    </div>
+                )}
+                {lead.marketplace && (
+                    <div className="flex items-center gap-1 bg-red-50 text-red-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-red-200 shadow-sm" title="Marketplace Detectado">
+                        <Store size={10} />
+                        {lead.marketplace}
+                    </div>
+                )}
+                {lead.isOpen !== null && lead.isOpen !== undefined && (
+                    <div className={`flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-md border shadow-sm ${lead.isOpen ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                        <Clock size={10} />
+                        {lead.isOpen ? 'Aberto Agora' : 'S.I / Fechado'}
+                    </div>
+                )}
+            </div>
 
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 {/* Botões de Mover no Kanban */}

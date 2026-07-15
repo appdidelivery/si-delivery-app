@@ -5565,7 +5565,12 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     // Puxa o link do iFood/Cardápio se ele existir nos botões do Google
                     orderUrl: place.menu || place.orderUrl || place.reserveTableUrl || null,
                     // Faz uma varredura para achar o Instagram (seja no campo de redes ou no próprio site)
-                    instagram: place.socialMedia?.instagram || (place.website?.includes('instagram.com') ? place.website : null)
+                    instagram: place.socialMedia?.instagram || (place.website?.includes('instagram.com') ? place.website : null),
+                    // NOVOS DADOS ENRIQUECIDOS (SEO e Status)
+                    rating: place.rating || null,
+                    reviewsCount: place.reviewsCount || place.numberOfReviews || 0,
+                    // Apify as vezes retorna isClosed ou openingHours, tratamos para um boolean simples
+                    isOpen: place.openingHours && place.openingHours.length > 0 ? true : false
                 }));
 
                 console.log(`🤖 [Apify] Extração concluída: ${leads.length} leads mapeados.`);
