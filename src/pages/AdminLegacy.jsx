@@ -1329,8 +1329,36 @@ const educationalBanners = [
     const [storeCustomersDB, setStoreCustomersDB] = useState([]);
     const [fiadoPaymentAmount, setFiadoPaymentAmount] = useState('');
     const [activeReviewTab, setActiveReviewTab] = useState('missions');
-    const [vipMissions, setVipMissions] = useState([]);
+const [vipMissions, setVipMissions] = useState([]);
+    
+    // --- NOVO: ESTADOS DO EXTRATO DE PONTOS (LEDGER) ---
+    const [customerLedger, setCustomerLedger] = useState([]);
+    const [isFetchingLedger, setIsFetchingLedger] = useState(false);
 
+    useEffect(() => {
+        if (isVipModalOpen && editingVip && editingVip.phone) {
+            setIsFetchingLedger(true);
+            const cleanPhone = String(editingVip.phone).replace(/\D/g, '');
+            const ledgerQuery = query(
+                collection(db, "loyalty_ledger"),
+                where("storeId", "==", storeId),
+                where("customerPhone", "==", cleanPhone),
+                orderBy("createdAt", "desc")
+            );
+
+            const unsubLedger = onSnapshot(ledgerQuery, (s) => {
+                setCustomerLedger(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                setIsFetchingLedger(false);
+            }, (error) => {
+                console.error("Erro ao buscar extrato:", error);
+                setIsFetchingLedger(false);
+            });
+
+            return () => unsubLedger();
+        } else {
+            setCustomerLedger([]);
+        }
+    }, [isVipModalOpen, editingVip?.phone, storeId]);
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
     useEffect(() => {
         const rescueLostUser = async () => {
@@ -2934,8 +2962,32 @@ const handleGenerateProductCopy = async () => {
             printLabel({ ...order, status: newStatus }); // Passa o pedido com o status atualizado para a impressora
         }
 
-        // 1. Atualiza o status do pedido no banco de dados primeiro
+       // 1. Atualiza o status do pedido no banco de dados primeiro
         await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+
+        // --- NOVO: GRAVAÇÃO NO EXTRATO DE PONTOS (LEDGER) PARA PEDIDOS ---
+        if (settings?.loyaltyActive && order.customerPhone && (newStatus === 'completed' || newStatus === 'canceled')) {
+            try {
+                const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
+                const pointsPerReal = settings.pointsPerReal || 1;
+                const earnedPoints = Math.floor((Number(order.total) || 0) * pointsPerReal);
+                
+                if (earnedPoints > 0) {
+                    const ledgerRef = doc(db, "loyalty_ledger", `ledger_order_${storeId}_${order.id}_${newStatus}`);
+                    await setDoc(ledgerRef, {
+                        storeId: storeId,
+                        customerPhone: cleanPhone,
+                        type: newStatus === 'completed' ? 'earn_order' : 'rollback_cancel',
+                        points: newStatus === 'completed' ? earnedPoints : -earnedPoints,
+                        description: newStatus === 'completed' ? `Pedido #${order.id.slice(-5).toUpperCase()}` : `Estorno Pedido #${order.id.slice(-5).toUpperCase()}`,
+                        orderId: order.id,
+                        createdAt: serverTimestamp()
+                    });
+                }
+            } catch (error) {
+                console.error("Erro ao gravar no extrato (pedido):", error);
+            }
+        }
         
         // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
         if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
@@ -3136,6 +3188,26 @@ const handleGenerateProductCopy = async () => {
                 pointsAwarded: action === 'approved' ? mission.pointsExpected : 0,
                 resolvedAt: serverTimestamp()
             });
+
+            // --- NOVO: GRAVAÇÃO NO EXTRATO DE PONTOS (LEDGER) PARA MISSÕES ---
+            if (action === 'approved' && mission.customerPhone) {
+                try {
+                    const cleanPhone = String(mission.customerPhone).replace(/\D/g, '');
+                    const ledgerRef = doc(db, "loyalty_ledger", `ledger_mission_${storeId}_${mission.id}`);
+                    await setDoc(ledgerRef, {
+                        storeId: storeId,
+                        customerPhone: cleanPhone,
+                        type: 'earn_mission',
+                        points: mission.pointsExpected,
+                        description: `Missão VIP: ${mission.missionType === 'internal_review' ? 'Avaliação no App' : 'Avaliação/Print Externo'}`,
+                        missionId: mission.id,
+                        createdAt: serverTimestamp()
+                    });
+                } catch (error) {
+                    console.error("Erro ao gravar no extrato (missão):", error);
+                }
+            }
+
             alert(`Missão ${action === 'approved' ? 'Aprovada! Pontos creditados e média do produto atualizada.' : 'Recusada.'}`);
         } catch (error) {
             alert("Erro ao processar a missão.");
@@ -3282,13 +3354,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         if (window.confirm(confirmationMessage)) {
             try {
                 // Adiciona um novo documento na coleção de resgates
-                await addDoc(collection(db, "loyalty_redemptions"), {
+                const newRedemptionRef = doc(collection(db, "loyalty_redemptions"));
+                await setDoc(newRedemptionRef, {
                     storeId: storeId,
                     customerPhone: customer.phone, // Usamos o telefone como ID único do cliente
                     customerName: customer.name,
                     pointsRedeemed: loyaltyGoal,
                     redeemedAt: serverTimestamp()
                 });
+
+                // --- NOVO: GRAVAÇÃO NO EXTRATO DE PONTOS (LEDGER) PARA RESGATES ---
+                try {
+                    const cleanPhone = String(customer.phone).replace(/\D/g, '');
+                    const ledgerRef = doc(db, "loyalty_ledger", `ledger_redeem_${storeId}_${newRedemptionRef.id}`);
+                    await setDoc(ledgerRef, {
+                        storeId: storeId,
+                        customerPhone: cleanPhone,
+                        type: 'redeem_reward',
+                        points: -loyaltyGoal,
+                        description: `Resgate de Prêmio VIP`,
+                        redemptionId: newRedemptionRef.id,
+                        createdAt: serverTimestamp()
+                    });
+                } catch (error) {
+                    console.error("Erro ao gravar no extrato (resgate):", error);
+                }
+
                 alert("Resgate de prêmio registrado com sucesso!");
             } catch (error) {
                 console.error("Erro ao registrar resgate de fidelidade:", error);
@@ -3296,7 +3387,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             }
         }
     };
-    // ✅ LÓGICA DE CLIENTES REFEITA PARA INTEGRAR CLUBE FIDELIDADE
+   // ✅ LÓGICA DE CLIENTES REFEITA PARA INTEGRAR CLUBE FIDELIDADE
     const customers = React.useMemo(() => {
         const loyaltyEnabled = settings.loyaltyActive;
         const pointsPerReal = settings.pointsPerReal || 1;
@@ -3304,7 +3395,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
         const spendingByCustomer = orders.reduce((acc, o) => {
 
-            if (o.status === 'canceled') return acc; // Ignora pedidos cancelados
+            // CORREÇÃO CRÍTICA: Só soma no ranking de gastos/pontos se o pedido estiver REALMENTE finalizado!
+            if (o.status !== 'completed' && o.status !== 'paid') return acc; 
+            
             const p = o.customerPhone || 'N/A';
             if (p === 'N/A') return acc;
 
@@ -3335,6 +3428,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             }
         });
 
+        // Agrega o total de pontos BÔNUS ganhos em missões (avaliações) aprovadas
+        const missionsByCustomer = vipMissions.reduce((acc, m) => {
+            if (m.status !== 'approved') return acc;
+            const phone = m.customerPhone || 'N/A';
+            acc[phone] = (acc[phone] || 0) + (Number(m.pointsAwarded) || 0);
+            return acc;
+        }, {});
+
         // 2. Agrega o total de pontos já resgatados por cliente
         const redemptionsByCustomer = loyaltyRedemptions.reduce((acc, r) => {
             const phone = r.customerPhone || 'N/A';
@@ -3345,8 +3446,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         // 3. Combina os dados, calcula os pontos atuais e retorna o array final
         const customerList = Object.values(spendingByCustomer).map(customer => {
             const totalEarnedPoints = Math.floor(customer.totalSpent * pointsPerReal);
+            const bonusPoints = missionsByCustomer[customer.phone] || 0;
             const totalRedeemedPoints = redemptionsByCustomer[customer.phone] || 0;
-            const currentPoints = totalEarnedPoints - totalRedeemedPoints;
+            
+            // Soma gastos + bônus de missões - resgates
+            const currentPoints = (totalEarnedPoints + bonusPoints) - totalRedeemedPoints;
 
             // Busca os dados da caderneta salvos no banco
             const dbData = storeCustomersDB.find(c => c.phone === customer.phone) || {};
@@ -3365,7 +3469,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
        // 4. Ordena por pontos se o clube estiver ativo, senão, por total gasto
         return customerList.sort((a, b) => loyaltyEnabled ? b.points - a.points : b.totalSpent - a.totalSpent);
         
-    }, [orders, loyaltyRedemptions, settings, storeCustomersDB]);
+    }, [orders, loyaltyRedemptions, settings, storeCustomersDB, vipMissions]);
 
     const handleAddProductToEditingOrder = (productToAdd) => {
         // 1. Trava inicial: Verifica se tem estoque
@@ -14414,6 +14518,113 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 )}
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* --- NOVO: AUDITORIA DO PASSADO (PEDIDOS E MISSÕES ANTIGAS) --- */}
+                                {settings?.loyaltyActive && !editingVip.isNew && (() => {
+                                    const cleanPhone = String(editingVip.phone).replace(/\D/g, '');
+                                    
+                                    // 1. Puxa TODOS os pedidos pagos/concluídos dessa pessoa
+                                    const pastOrders = orders.filter(o => 
+                                        (o.status === 'completed' || o.status === 'paid') && 
+                                        String(o.customerPhone).replace(/\D/g, '') === cleanPhone
+                                    ).sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                                    
+                                    // 2. Puxa TODAS as missões VIP aprovadas dessa pessoa
+                                    const pastMissions = vipMissions.filter(m => 
+                                        m.status === 'approved' && 
+                                        String(m.customerPhone).replace(/\D/g, '') === cleanPhone
+                                    );
+                                    
+                                    // 3. Faz a matemática exata
+                                    const totalFromOrders = pastOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
+                                    const ptsFromOrders = Math.floor(totalFromOrders * (settings.pointsPerReal || 1));
+                                    const ptsFromMissions = pastMissions.reduce((acc, m) => acc + (Number(m.pointsAwarded) || 0), 0);
+                                    
+                                    return (
+                                        <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl mb-4 mt-6">
+                                            <details className="group [&_summary::-webkit-details-marker]:hidden">
+                                                <summary className="flex justify-between items-center cursor-pointer outline-none">
+                                                    <span className="font-black uppercase tracking-tight text-xs text-slate-800 flex items-center gap-2">
+                                                        <Search size={16} className="text-blue-600"/> Auditoria do Passado 
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">
+                                                        Como cheguei em {editingVip.points} pts? ▼
+                                                    </span>
+                                                </summary>
+                                                <div className="mt-4 pt-4 border-t border-slate-200 animate-in fade-in slide-in-from-top-2">
+                                                    
+                                                    <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-2 bg-white p-2 rounded-lg">
+                                                        <span>Total Gasto ({pastOrders.length} pedidos)</span>
+                                                        <span className="text-slate-800">R$ {totalFromOrders.toFixed(2)} <strong className="text-blue-600 ml-1">({ptsFromOrders} pts)</strong></span>
+                                                    </div>
+                                                    
+                                                    <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-4 bg-white p-2 rounded-lg">
+                                                        <span>Bônus de Missões VIP ({pastMissions.length} missões)</span>
+                                                        <span className="text-blue-600 font-black">+{ptsFromMissions} pts</span>
+                                                    </div>
+                                                    
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Lista de Pedidos Contabilizados:</p>
+                                                    <div className="max-h-40 overflow-y-auto custom-scrollbar border border-slate-200 rounded-xl p-2 bg-white space-y-1">
+                                                        {pastOrders.length === 0 ? (
+                                                            <p className="text-center text-[10px] text-slate-400 py-2">Nenhum pedido encontrado.</p>
+                                                        ) : pastOrders.map(o => (
+                                                            <div key={o.id} className="flex justify-between items-center text-[10px] font-bold text-slate-600 p-2 hover:bg-slate-50 rounded-lg border-b border-slate-50 last:border-0 transition-colors cursor-pointer" title={o.items?.map(i => i.name).join(', ')}>
+                                                                <span className="flex items-center gap-2">
+                                                                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">#{o.id.slice(-5)}</span>
+                                                                    {o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('pt-BR') : ''}
+                                                                </span>
+                                                                <span className="text-green-600 font-black">R$ {Number(o.total).toFixed(2)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* --- NOVO: SEÇÃO DE EXTRATO DE PONTOS (LEDGER) --- */}
+                                {settings?.loyaltyActive && !editingVip.isNew && (
+                                    <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl mb-4 mt-6">
+                                        <div className="flex justify-between items-center mb-4 border-b border-slate-200/50 pb-3">
+                                            <span className="font-black uppercase tracking-tight text-xs text-slate-800 flex items-center gap-2">
+                                                <List size={16} className="text-purple-600"/> Extrato de Pontos
+                                            </span>
+                                            <span className="text-[10px] font-black bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
+                                                Saldo: {editingVip.points} pts
+                                            </span>
+                                        </div>
+
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                                            {isFetchingLedger ? (
+                                                <div className="flex justify-center items-center py-4">
+                                                    <Loader2 className="animate-spin text-purple-500" size={20} />
+                                                </div>
+                                            ) : customerLedger.length === 0 ? (
+                                                <div className="text-center py-4">
+                                                    <p className="text-[10px] font-bold text-slate-400">Nenhuma transação recente encontrada.</p>
+                                                    <p className="text-[9px] text-slate-400 mt-1">*O histórico começa a ser gravado a partir da ativação deste recurso.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {customerLedger.map((log) => (
+                                                        <div key={log.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-bold text-slate-700">{log.description}</span>
+                                                                <span className="text-[9px] text-slate-400 font-medium">
+                                                                    {log.createdAt?.toDate ? log.createdAt.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Recente'}
+                                                                </span>
+                                                            </div>
+                                                            <span className={`text-xs font-black px-2 py-1 rounded-lg ${log.points > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                                                                {log.points > 0 ? '+' : ''}{log.points}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
