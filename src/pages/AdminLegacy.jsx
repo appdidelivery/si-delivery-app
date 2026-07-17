@@ -4243,9 +4243,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     )}
                                 </div>
                                 
-                                <button onClick={() => setIsReportModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95">
-                                    <Printer size={20}/> Fechar Caixa / Relatório
-                                </button>
+                                {hasPermission('finance') && (
+                                    <button onClick={() => setIsReportModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95">
+                                        <Printer size={20}/> Fechar Caixa / Relatório
+                                    </button>
+                                )}
                             </div>
 
                             {/* --- BANNER DE AVISO: TESTE OU FATURA --- */}
@@ -14133,198 +14135,221 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </AnimatePresence>
             {/* --- MODAL DE FECHAMENTO DE CAIXA / RELATÓRIO --- */}
             <AnimatePresence>
-                {isReportModalOpen && (
+                {/* 1. SE NÃO TIVER PERMISSÃO, MOSTRA TELA DE BLOQUEIO */}
+                {isReportModalOpen && !hasPermission('finance') && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 text-center shadow-2xl relative">
+                            <button onClick={() => setIsReportModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
+                            <ShieldCheck size={64} className="text-red-500 mx-auto mb-4" />
+                            <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none mb-2">Acesso Restrito</h2>
+                            <p className="text-slate-500 font-bold">Você não tem permissão para visualizar relatórios financeiros da loja.</p>
+                        </motion.div>
+                    </motion.div>
+                )}
+
+                {/* 2. SE TIVER PERMISSÃO, MOSTRA O RELATÓRIO NORMALMENTE */}
+                {isReportModalOpen && hasPermission('finance') && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsReportModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             
-                            <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-6">
-                                <div className="bg-slate-900 text-white p-4 rounded-2xl">
-                                    <Printer size={28} />
+                            {!hasPermission('finance') ? (
+                                <div className="text-center py-12">
+                                    <ShieldCheck size={64} className="text-red-500 mx-auto mb-4" />
+                                    <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none mb-2">Acesso Restrito</h2>
+                                    <p className="text-slate-500 font-bold">Você não tem permissão para visualizar os relatórios financeiros da loja.</p>
                                 </div>
-                                <div>
-                                    <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">Fechamento de Caixa</h2>
-                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Resumo Financeiro da Loja</p>
-                                </div>
-                            </div>
-
-                            {/* FILTROS DE PERÍODO */}
-                            <div className="mb-8">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">1. Selecione o Período</label>
-                                <div className="flex flex-wrap gap-3 mb-4">
-                                    {[
-                                        { id: 'hoje', label: 'Hoje (Diário)' },
-                                        { id: '7dias', label: 'Últimos 7 Dias' },
-                                        { id: 'mes', label: 'Este Mês Atual' },
-                                        { id: '30dias', label: 'Últimos 30 Dias' },
-                                        { id: 'personalizado', label: '⏱️ Horário Personalizado' },
-                                    ].map(period => (
-                                        <button 
-                                            key={period.id}
-                                            onClick={() => { setReportDateRange(period.id); setShowReportResults(false); }}
-                                            className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border-2 ${
-                                                reportDateRange === period.id 
-                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
-                                                : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
-                                            }`}
-                                        >
-                                            {period.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                
-                                {reportDateRange === 'personalizado' && (
-                                    <div className="flex flex-col md:flex-row gap-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-in fade-in">
-                                        <div className="flex-1">
-                                            <label className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Início (Data e Hora)</label>
-                                            <input 
-                                                type="datetime-local" 
-                                                value={reportCustomStart} 
-                                                onChange={(e) => { setReportCustomStart(e.target.value); setShowReportResults(false); }}
-                                                className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-slate-700 focus:ring-2 ring-blue-400"
-                                            />
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-6">
+                                        <div className="bg-slate-900 text-white p-4 rounded-2xl">
+                                            <Printer size={28} />
                                         </div>
-                                        <div className="flex-1">
-                                            <label className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Fim (Data e Hora)</label>
-                                            <input 
-                                                type="datetime-local" 
-                                                value={reportCustomEnd} 
-                                                onChange={(e) => { setReportCustomEnd(e.target.value); setShowReportResults(false); }}
-                                                className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-slate-700 focus:ring-2 ring-blue-400"
-                                            />
+                                        <div>
+                                            <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">Fechamento de Caixa</h2>
+                                            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Resumo Financeiro da Loja</p>
                                         </div>
                                     </div>
-                                )}
-                            </div>
 
-                           {/* FILTRO DE VENDEDOR / EQUIPE */}
-                            <div className="mb-8">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">2. Filtrar por Vendedor</label>
-                                <select 
-                                    value={reportSeller} 
-                                    onChange={(e) => { setReportSeller(e.target.value); setShowReportResults(false); }}
-                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
-                                >
-                                    <option value="todos">📊 Todos os Pedidos (App + Balcão Geral)</option>
-                                    <option value="online">📱 Pedidos do App (Sem Vendedor)</option>
-                                    <optgroup label="Vendedores (Lançamento Manual)">
-                                        <option value="owner">👑 Lojista Principal (Dono)</option>
-                                        {teamMembers.map(member => (
-                                            <option key={member.id} value={member.email}>
-                                                🧑‍💻 {member.name}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                </select>
-                            </div>
-
-                            {/* BOTÃO PARA GERAR O RELATÓRIO NA TELA */}
-                            <button 
-                                onClick={() => setShowReportResults(true)}
-                                className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8"
-                            >
-                                <Printer size={18}/> Gerar Relatório
-                            </button>
-
-                            {/* RESULTADOS SÓ APARECEM SE O BOTÃO FOR CLICADO */}
-                            <AnimatePresence>
-                                {showReportResults && (
-                                    <motion.div 
-                                        initial={{ opacity: 0, height: 0 }} 
-                                        animate={{ opacity: 1, height: 'auto' }} 
-                                        exit={{ opacity: 0, height: 0 }}
-                                        className="space-y-4 border-t border-slate-100 pt-8"
-                                    >
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">3. Resultados do Período</label>
-                                            <button onClick={handlePrintReport} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                                <Printer size={16}/> Imprimir
-                                            </button>
+                                    {/* FILTROS DE PERÍODO */}
+                                    <div className="mb-8">
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">1. Selecione o Período</label>
+                                        <div className="flex flex-wrap gap-3 mb-4">
+                                            {[
+                                                { id: 'hoje', label: 'Hoje (Diário)' },
+                                                { id: '7dias', label: 'Últimos 7 Dias' },
+                                                { id: 'mes', label: 'Este Mês Atual' },
+                                                { id: '30dias', label: 'Últimos 30 Dias' },
+                                                { id: 'personalizado', label: '⏱️ Horário Personalizado' },
+                                            ].map(period => (
+                                                <button 
+                                                    key={period.id}
+                                                    onClick={() => { setReportDateRange(period.id); setShowReportResults(false); }}
+                                                    className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border-2 ${
+                                                        reportDateRange === period.id 
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                                                        : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                                    }`}
+                                                >
+                                                    {period.label}
+                                                </button>
+                                            ))}
                                         </div>
                                         
-                                        {/* DESTAQUE TOTAL GERAL */}
-                                        <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
-                                            <div>
-                                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Faturamento Bruto</p>
-                                                <p className="text-4xl font-black italic text-green-400">R$ {reportTotals.totalGeral.toFixed(2)}</p>
+                                        {reportDateRange === 'personalizado' && (
+                                            <div className="flex flex-col md:flex-row gap-4 p-4 bg-blue-50 rounded-2xl border border-blue-100 animate-in fade-in">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Início (Data e Hora)</label>
+                                                    <input 
+                                                        type="datetime-local" 
+                                                        value={reportCustomStart} 
+                                                        onChange={(e) => { setReportCustomStart(e.target.value); setShowReportResults(false); }}
+                                                        className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-slate-700 focus:ring-2 ring-blue-400"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Fim (Data e Hora)</label>
+                                                    <input 
+                                                        type="datetime-local" 
+                                                        value={reportCustomEnd} 
+                                                        onChange={(e) => { setReportCustomEnd(e.target.value); setShowReportResults(false); }}
+                                                        className="w-full p-3 rounded-xl border-none outline-none font-bold text-sm text-slate-700 focus:ring-2 ring-blue-400"
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Volume</p>
-                                                <p className="text-3xl font-black text-white">{reportTotals.qtdPedidos}</p>
-                                                <p className="text-slate-500 font-bold text-[9px] uppercase">Pedidos Pagos</p>
-                                            </div>
-                                        </div>
+                                        )}
+                                    </div>
 
-                                        {/* DIVISÃO POR MÉTODO DE PAGAMENTO */}
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                                            <div className="bg-cyan-50 p-4 rounded-3xl border border-cyan-100 text-center">
-                                                <QrCode size={20} className="text-cyan-600 mx-auto mb-1"/>
-                                                <p className="text-[9px] font-black uppercase text-cyan-800 tracking-widest">Via PIX</p>
-                                                <p className="text-lg font-black text-cyan-600 italic">R$ {reportTotals.pix.total.toFixed(2)}</p>
-                                                <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-2 py-0.5 rounded-md">{reportTotals.pix.count} pedidos</span>
-                                            </div>
-                                            
-                                            <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center">
-                                                <CreditCard size={20} className="text-blue-600 mx-auto mb-1"/>
-                                                <p className="text-[9px] font-black uppercase text-blue-800 tracking-widest">Via Cartão</p>
-                                                <p className="text-lg font-black text-blue-600 italic">R$ {reportTotals.cartao.total.toFixed(2)}</p>
-                                                <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">{reportTotals.cartao.count} pedidos</span>
-                                            </div>
-                                            
-                                            <div className="bg-green-50 p-4 rounded-3xl border border-green-100 text-center">
-                                                <Banknote size={20} className="text-green-600 mx-auto mb-1"/>
-                                                <p className="text-[9px] font-black uppercase text-green-800 tracking-widest">Em Dinheiro</p>
-                                                <p className="text-lg font-black text-green-600 italic">R$ {reportTotals.dinheiro.total.toFixed(2)}</p>
-                                                <span className="text-[9px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-md">{reportTotals.dinheiro.count} pedidos</span>
-                                            </div>
+                                   {/* FILTRO DE VENDEDOR / EQUIPE */}
+                                    <div className="mb-8">
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">2. Filtrar por Vendedor</label>
+                                        <select 
+                                            value={reportSeller} 
+                                            onChange={(e) => { setReportSeller(e.target.value); setShowReportResults(false); }}
+                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
+                                        >
+                                            <option value="todos">📊 Todos os Pedidos (App + Balcão Geral)</option>
+                                            <option value="online">📱 Pedidos do App (Sem Vendedor)</option>
+                                            <optgroup label="Vendedores (Lançamento Manual)">
+                                                <option value="owner">👑 Lojista Principal (Dono)</option>
+                                                {teamMembers.map(member => (
+                                                    <option key={member.id} value={member.email}>
+                                                        🧑‍💻 {member.name}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        </select>
+                                    </div>
 
-                                            <div className="bg-slate-100 p-4 rounded-3xl border border-slate-200 text-center">
-                                                <Package size={20} className="text-slate-500 mx-auto mb-1"/>
-                                                <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest">Outros/Mesa</p>
-                                                <p className="text-lg font-black text-slate-600 italic">R$ {reportTotals.outros.total.toFixed(2)}</p>
-                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-md">{reportTotals.outros.count} pedidos</span>
-                                            </div>
-                                        </div>
+                                    {/* BOTÃO PARA GERAR O RELATÓRIO NA TELA */}
+                                    <button 
+                                        onClick={() => setShowReportResults(true)}
+                                        className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8"
+                                    >
+                                        <Printer size={18}/> Gerar Relatório
+                                    </button>
 
-                                        {/* LISTAGEM DETALHADA DOS PEDIDOS DO CAIXA */}
-                                        <div className="mt-6 border-t border-slate-200 pt-6">
-                                            <h4 className="text-sm font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
-                                                <List size={18}/> Lista de Pedidos ({reportSeller === 'todos' ? 'Geral' : reportSeller})
-                                            </h4>
-                                            <div className="max-h-60 overflow-y-auto custom-scrollbar bg-slate-50 rounded-2xl border border-slate-200 p-2">
-                                                {filteredReportOrders.length === 0 ? (
-                                                    <p className="text-center text-slate-400 font-bold p-4 text-xs">Nenhum pedido encontrado neste filtro.</p>
-                                                ) : (
-                                                    <table className="w-full text-left border-collapse">
-                                                        <thead>
-                                                            <tr className="text-[9px] text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                                                                <th className="p-2">ID</th>
-                                                                <th className="p-2">Hora</th>
-                                                                <th className="p-2">Cliente</th>
-                                                                <th className="p-2">Pagamento</th>
-                                                                <th className="p-2 text-right">Valor</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="text-xs font-bold text-slate-700">
-                                                            {filteredReportOrders.map(o => (
-                                                                <tr key={o.id} className="border-b border-slate-100 hover:bg-white">
-                                                                    <td className="p-2 text-blue-600">#{o.id.slice(-5).toUpperCase()}</td>
-                                                                    <td className="p-2">{o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                                                    <td className="p-2 truncate max-w-[100px]">{o.customerName}</td>
-                                                                    <td className="p-2 text-[9px] uppercase">{o.paymentMethod}</td>
-                                                                    <td className="p-2 text-right text-green-600">R$ {Number(o.total || 0).toFixed(2)}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                )}
-                                            </div>
-                                        </div>
+                                    {/* RESULTADOS SÓ APARECEM SE O BOTÃO FOR CLICADO */}
+                                    <AnimatePresence>
+                                        {showReportResults && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, height: 0 }} 
+                                                animate={{ opacity: 1, height: 'auto' }} 
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="space-y-4 border-t border-slate-100 pt-8"
+                                            >
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">3. Resultados do Período</label>
+                                                    <button onClick={handlePrintReport} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                        <Printer size={16}/> Imprimir
+                                                    </button>
+                                                </div>
+                                                
+                                                {/* DESTAQUE TOTAL GERAL */}
+                                                <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+                                                    <div>
+                                                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Faturamento Bruto</p>
+                                                        <p className="text-4xl font-black italic text-green-400">R$ {reportTotals.totalGeral.toFixed(2)}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Volume</p>
+                                                        <p className="text-3xl font-black text-white">{reportTotals.qtdPedidos}</p>
+                                                        <p className="text-slate-500 font-bold text-[9px] uppercase">Pedidos Pagos</p>
+                                                    </div>
+                                                </div>
 
-                                        <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">Valores baseados em pedidos não cancelados. Taxas de entrega inclusas.</p>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                                                {/* DIVISÃO POR MÉTODO DE PAGAMENTO */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                                                    <div className="bg-cyan-50 p-4 rounded-3xl border border-cyan-100 text-center">
+                                                        <QrCode size={20} className="text-cyan-600 mx-auto mb-1"/>
+                                                        <p className="text-[9px] font-black uppercase text-cyan-800 tracking-widest">Via PIX</p>
+                                                        <p className="text-lg font-black text-cyan-600 italic">R$ {reportTotals.pix.total.toFixed(2)}</p>
+                                                        <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-2 py-0.5 rounded-md">{reportTotals.pix.count} pedidos</span>
+                                                    </div>
+                                                    
+                                                    <div className="bg-blue-50 p-4 rounded-3xl border border-blue-100 text-center">
+                                                        <CreditCard size={20} className="text-blue-600 mx-auto mb-1"/>
+                                                        <p className="text-[9px] font-black uppercase text-blue-800 tracking-widest">Via Cartão</p>
+                                                        <p className="text-lg font-black text-blue-600 italic">R$ {reportTotals.cartao.total.toFixed(2)}</p>
+                                                        <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">{reportTotals.cartao.count} pedidos</span>
+                                                    </div>
+                                                    
+                                                    <div className="bg-green-50 p-4 rounded-3xl border border-green-100 text-center">
+                                                        <Banknote size={20} className="text-green-600 mx-auto mb-1"/>
+                                                        <p className="text-[9px] font-black uppercase text-green-800 tracking-widest">Em Dinheiro</p>
+                                                        <p className="text-lg font-black text-green-600 italic">R$ {reportTotals.dinheiro.total.toFixed(2)}</p>
+                                                        <span className="text-[9px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-md">{reportTotals.dinheiro.count} pedidos</span>
+                                                    </div>
+
+                                                    <div className="bg-slate-100 p-4 rounded-3xl border border-slate-200 text-center">
+                                                        <Package size={20} className="text-slate-500 mx-auto mb-1"/>
+                                                        <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest">Outros/Mesa</p>
+                                                        <p className="text-lg font-black text-slate-600 italic">R$ {reportTotals.outros.total.toFixed(2)}</p>
+                                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-md">{reportTotals.outros.count} pedidos</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* LISTAGEM DETALHADA DOS PEDIDOS DO CAIXA */}
+                                                <div className="mt-6 border-t border-slate-200 pt-6">
+                                                    <h4 className="text-sm font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
+                                                        <List size={18}/> Lista de Pedidos ({reportSeller === 'todos' ? 'Geral' : reportSeller})
+                                                    </h4>
+                                                    <div className="max-h-60 overflow-y-auto custom-scrollbar bg-slate-50 rounded-2xl border border-slate-200 p-2">
+                                                        {filteredReportOrders.length === 0 ? (
+                                                            <p className="text-center text-slate-400 font-bold p-4 text-xs">Nenhum pedido encontrado neste filtro.</p>
+                                                        ) : (
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead>
+                                                                    <tr className="text-[9px] text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                                                                        <th className="p-2">ID</th>
+                                                                        <th className="p-2">Hora</th>
+                                                                        <th className="p-2">Cliente</th>
+                                                                        <th className="p-2">Pagamento</th>
+                                                                        <th className="p-2 text-right">Valor</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="text-xs font-bold text-slate-700">
+                                                                    {filteredReportOrders.map(o => (
+                                                                        <tr key={o.id} className="border-b border-slate-100 hover:bg-white">
+                                                                            <td className="p-2 text-blue-600">#{o.id.slice(-5).toUpperCase()}</td>
+                                                                            <td className="p-2">{o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
+                                                                            <td className="p-2 truncate max-w-[100px]">{o.customerName}</td>
+                                                                            <td className="p-2 text-[9px] uppercase">{o.paymentMethod}</td>
+                                                                            <td className="p-2 text-right text-green-600">R$ {Number(o.total || 0).toFixed(2)}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">Valores baseados em pedidos não cancelados. Taxas de entrega inclusas.</p>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}
