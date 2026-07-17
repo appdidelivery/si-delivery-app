@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Menu, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -565,8 +565,9 @@ export default function Admin() {
         cnpj: '', 
     });
 
-    // --- ESTADOS GERAIS ---
+   // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // <-- NOVO CONTROLE MOBILE
     const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' ou 'semestral'
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
     const [orderSearchTerm, setOrderSearchTerm] = useState(''); // Estado para busca de pedidos
@@ -4158,8 +4159,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
             </aside>
 
-            <main className="flex-1 p-6 lg:p-12 overflow-y-auto pb-24 lg:pb-12">
-                {storeId && (
+               <main className="flex-1 p-4 md:p-6 lg:p-12 overflow-y-auto pb-28 lg:pb-12 w-full max-w-[100vw] overflow-x-hidden">
+                    {storeId && (
                     <div className="lg:hidden mb-6">
                         <a 
                             href={`https://${storeId}.velodelivery.com.br`} 
@@ -7229,7 +7230,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </button>
         </div>
     ) : (
-    <div className="flex flex-col xl:flex-row gap-6 h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-100px)] xl:h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
                         
                         {/* COLUNA ESQUERDA: CATÁLOGO PDV */}
                         <div className="flex-1 flex flex-col bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -11647,38 +11648,185 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 )}
             </main>
 
-            {/* --- RODAPÉ MOBILE:1 ESTRUTURA REVISADA --- */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-0 flex flex-col lg:hidden z-50"> 
-               {/* Barra da Versão e Atualização Mobile */}
-               <div className="w-full flex justify-between items-center px-3 pt-1.5 pb-1 border-b border-slate-50/10">
-                    <span className="text-[8px] font-medium text-slate-300">Veloapp V{systemUpdate.version}</span>
-                    <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[8px] font-bold text-blue-500 hover:text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full transition-all">
-                        <RefreshCw size={10} /> Atualizar Painel
+            {/* --- NOVO APP BAR MOBILE (ESTILO IFOOD/INSTAGRAM) --- */}
+            <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-200 pb-safe lg:hidden z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                {/* Micro barra superior do App Bar (Versão) */}
+                <div className="w-full flex justify-between items-center px-4 py-1 bg-slate-50 border-b border-slate-100">
+                    <span className="text-[8px] font-black uppercase text-slate-400">V{systemUpdate.version}</span>
+                    <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[8px] font-black uppercase text-blue-500 hover:text-blue-600">
+                        <RefreshCw size={8} /> Sync
                     </button>
                 </div>
-                {/* Botões de Navegação */}
-                <div className="flex justify-around overflow-x-auto whitespace-nowrap p-2 gap-2">
-                    {allNavItems
-                        .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
-                        .filter(item => hasPermission(item.id)) // <--- FILTRO DE PERMISSÃO APLICADO AQUI
-                        .map(item => {
+
+                <div className="grid grid-cols-5 gap-1 p-2 items-end">
+                    {/* Botões Core (Acesso Rápido) */}
+                    {[
+                        { id: 'dashboard', icon: <LayoutDashboard size={22}/>, name: 'Início' },
+                        { id: 'orders', icon: <ShoppingBag size={22}/>, name: 'Pedidos' },
+                        { id: 'manual', icon: <Store size={22}/>, name: 'PDV' },
+                        { id: 'products', icon: <Package size={22}/>, name: 'Cardápio' }
+                    ].map(item => {
+                        const isAllowed = hasPermission(item.id);
+                        if (!isAllowed) return <div key={item.id}></div>; // Placeholder para manter o grid
+
+                        const isActive = activeTab === item.id;
                         const badgeCount = getBadgeCount(item.id);
+
                         return (
-                            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center relative px-3 py-1 rounded-lg flex-shrink-0 ${activeTab === item.id ? 'text-blue-600' : 'text-slate-400'}`}>
+                            <button 
+                                key={item.id} 
+                                onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} 
+                                className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${isActive ? 'text-blue-600' : 'text-slate-500'}`}
+                            >
                                 <div className="relative">
-                                    {item.mobileIcon}
+                                    <div className={`${isActive ? 'scale-110 mb-1 drop-shadow-md' : 'scale-100 mb-0'} transition-transform duration-300`}>
+                                        {item.icon}
+                                    </div>
                                     {badgeCount > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black border border-white animate-pulse">
+                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black border-2 border-white animate-pulse">
                                             {badgeCount > 99 ? '99+' : badgeCount}
                                         </span>
                                     )}
                                 </div>
-                                <span className="text-[9px] font-bold mt-1">{item.name}</span>
+                                <span className={`text-[9px] font-black tracking-widest uppercase transition-all ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+                                    {item.name}
+                                </span>
                             </button>
                         );
                     })}
+
+                    {/* BOTÃO MENU (Abre Gaveta) */}
+                    <button 
+                        onClick={() => setIsMobileMenuOpen(true)} 
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-800 transition-all ${isMobileMenuOpen ? 'bg-slate-100 text-slate-800' : ''}`}
+                    >
+                        <div className="relative mb-0.5">
+                            <Menu size={22} />
+                            {/* Bolinha global se tiver aviso em algum lugar oculto */}
+                            {(getBadgeCount('chat') > 0 || getBadgeCount('abandoned') > 0 || getBadgeCount('customers') > 0) && (
+                                <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-ping"></div>
+                            )}
+                        </div>
+                        <span className="text-[9px] font-black tracking-widest uppercase opacity-80">
+                            Menu
+                        </span>
+                    </button>
                 </div>
             </nav>
+
+            {/* GAVETA DO MENU MOBILE (BOTTOM SHEET) */}
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <>
+                        {/* Overlay escuro */}
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }} 
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[45] lg:hidden"
+                        />
+
+                        {/* Painel que sobe */}
+                        <motion.div 
+                            initial={{ y: '100%' }} 
+                            animate={{ y: 0 }} 
+                            exit={{ y: '100%' }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] z-[50] lg:hidden max-h-[85vh] flex flex-col shadow-[0_-20px_40px_rgba(0,0,0,0.15)] pb-safe"
+                        >
+                            {/* Puxador (Tracejadinho no topo) */}
+                            <div className="w-full flex justify-center pt-4 pb-2" onTouchStart={() => setIsMobileMenuOpen(false)}>
+                                <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+                            </div>
+                            
+                            <div className="flex justify-between items-center px-6 pb-2 border-b border-slate-100">
+                                <h3 className="font-black text-xl italic uppercase text-slate-800">Menu Principal</h3>
+                                <button onClick={() => setIsMobileMenuOpen(false)} className="bg-slate-100 p-2 rounded-full text-slate-500"><X size={16}/></button>
+                            </div>
+
+                            <div className="overflow-y-auto p-4 custom-scrollbar flex-1 mb-20 space-y-2">
+                                {allNavItems
+                                    .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
+                                    .filter(item => hasPermission(item.id))
+                                    .map(item => {
+                                        const badgeCount = getBadgeCount(item.id);
+                                        const isLockedByPlan = !hasFeatureAccess(item.id);
+
+                                        return (
+                                            <button 
+                                                key={item.id} 
+                                                onClick={() => {
+                                                    if (isLockedByPlan) {
+                                                        setUpgradeModalFeature(item.name);
+                                                    } else {
+                                                        setActiveTab(item.id);
+                                                        setIsMobileMenuOpen(false);
+                                                    }
+                                                }} 
+                                                className={`w-full flex items-center justify-between p-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${
+                                                    activeTab === item.id 
+                                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                                    : isLockedByPlan
+                                                        ? 'bg-slate-50 text-slate-400 opacity-60'
+                                                        : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-100'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-xl ${activeTab === item.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {item.icon}
+                                                    </div>
+                                                    {item.name}
+                                                </div>
+                                                
+                                                {isLockedByPlan ? (
+                                                    <Lock size={14} className="text-slate-400"/>
+                                                ) : badgeCount > 0 && (
+                                                    <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-md">
+                                                        {badgeCount > 99 ? '99+' : badgeCount} Novo
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                })}
+
+                                <div className="mt-6 border-t border-slate-200 pt-6 px-2 space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-sm">
+                                            {auth.currentUser?.displayName ? auth.currentUser.displayName.charAt(0).toUpperCase() : 'U'}
+                                        </div>
+                                        <div className="flex flex-col flex-1 truncate">
+                                            <span className="text-xs font-black text-slate-800 uppercase truncate">
+                                                {auth.currentUser?.displayName || 'Usuário'}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-400 truncate">
+                                                {auth.currentUser?.email}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3 mt-4">
+                                        <a 
+                                            href={`https://${storeId}.velodelivery.com.br`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="bg-blue-600 text-white p-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-center flex items-center justify-center gap-1 shadow-md active:scale-95"
+                                        >
+                                            <ExternalLink size={12} /> Ver Loja
+                                        </a>
+                                        <button 
+                                            onClick={handleLogout} 
+                                            className="bg-red-50 text-red-600 p-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-center flex items-center justify-center gap-1 active:scale-95"
+                                        >
+                                            <LogOut size={12} /> Sair
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
 
             {/* MODAIS (CÓDIGO MANTIDO IGUAL AO SEU) */}
            <AnimatePresence>
