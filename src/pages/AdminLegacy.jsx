@@ -15128,7 +15128,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 flex items-center gap-2">
-                                            <Truck size={14} className="text-orange-500"/> Dinheiro com Motoboy/Bolsa (R$)
+                                            <Truck size={14} className="text-orange-500"/> Dinheiro Bolsa (R$)
                                         </label>
                                         <input 
                                             type="number" 
