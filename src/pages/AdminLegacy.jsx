@@ -928,27 +928,73 @@ const educationalBanners = [
     });
     const [posLogs, setPosLogs] = useState([]); // Guarda os logs de quem abriu/fechou o caixa
     const [isCaixaAberto, setIsCaixaAberto] = useState(() => localStorage.getItem('caixa_status') === 'aberto');
+    
+    // --- ESTADOS DO MODAL DE FECHAMENTO DE CAIXA ---
+    const [isCloseRegisterModalOpen, setIsCloseRegisterModalOpen] = useState(false);
+    const [closeRegisterForm, setCloseRegisterForm] = useState({ valorCaixa: '', valorBolsa: '' });
+    const [isClosingRegister, setIsClosingRegister] = useState(false);
 
     const handleToggleCaixa = async () => {
-        const newStatus = isCaixaAberto ? 'fechado' : 'aberto';
-        const actionText = isCaixaAberto ? 'FECHAR O CAIXA' : 'ABRIR O CAIXA';
+        // Se já está aberto e quer fechar, interceptamos com o Modal
+        if (isCaixaAberto) {
+            setIsCloseRegisterModalOpen(true);
+            return;
+        }
         
-        if(!window.confirm(`Deseja registrar que você ${actionText} agora?`)) return;
+        // Se está fechado e quer ABRIR, mantém o fluxo rápido com confirmação nativa
+        if(!window.confirm(`Deseja registrar que você vai ABRIR O CAIXA agora?`)) return;
 
         try {
             await addDoc(collection(db, "pos_logs"), {
                 storeId: storeId,
                 userEmail: auth.currentUser?.email || 'Desconhecido',
                 userName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe',
-                action: isCaixaAberto ? 'FECHOU O CAIXA' : 'ABRIU O CAIXA',
+                action: 'ABRIU O CAIXA',
                 timestamp: serverTimestamp()
             });
             
-            setIsCaixaAberto(!isCaixaAberto);
-            localStorage.setItem('caixa_status', newStatus);
-            alert(`✅ Sucesso: Registro salvo para auditoria do administrador!`);
+            setIsCaixaAberto(true);
+            localStorage.setItem('caixa_status', 'aberto');
+            alert(`✅ Caixa aberto com sucesso! Boas vendas!`);
         } catch (error) {
-            alert("Erro ao registrar no caixa: " + error.message);
+            alert("Erro ao abrir o caixa: " + error.message);
+        }
+    };
+
+    const submitCloseRegister = async (e) => {
+        e.preventDefault();
+        setIsClosingRegister(true);
+
+        try {
+            // 1. Salva a auditoria financeira de fechamento no Firestore
+            await addDoc(collection(db, "pos_logs"), {
+                storeId: storeId,
+                userEmail: auth.currentUser?.email || 'Desconhecido',
+                userName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe',
+                action: 'FECHOU O CAIXA',
+                valorCaixa: Number(closeRegisterForm.valorCaixa),
+                valorBolsa: Number(closeRegisterForm.valorBolsa),
+                timestamp: serverTimestamp()
+            });
+
+            // 2. Atualiza estado local
+            localStorage.setItem('caixa_status', 'fechado');
+            setIsCaixaAberto(false);
+            setIsCloseRegisterModalOpen(false);
+            
+            // 3. Força a impressão do Relatório Financeiro automaticamente
+            handlePrintReport();
+
+            // 4. Executa Logout em cascata (Aguarda a impressão ser disparada)
+            setTimeout(async () => {
+                await signOut(auth);
+                navigate('/login');
+            }, 1500);
+
+        } catch (error) {
+            console.error("Erro no fechamento:", error);
+            alert("Erro ao fechar o caixa. Verifique sua conexão.");
+            setIsClosingRegister(false);
         }
     };
 
@@ -1990,31 +2036,29 @@ const [vipMissions, setVipMissions] = useState([]);
                 s.docChanges().forEach(async (change) => {
                     const newOrderData = { id: change.doc.id, ...change.doc.data() };
                     
+                    // --- MÁGICA DA IMPRESSÃO CONDICIONAL ---
+                    const isOnlinePayment = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago', 'mp_transparent', 'misto'].includes(newOrderData.paymentMethod);
+                    const isPaid = ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(newOrderData.paymentStatus);
+                    
+                    // Regra: Se for pagamento online e ainda não estiver pago, bloqueia a impressão
+                    const isPaymentBlocking = isOnlinePayment && !isPaid;
+                    const matchesPrintTrigger = autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status;
+
                     // 1. PEDIDO NOVO ("AO RECEBER")
                     if (change.type === "added") {
                         // 🔇 BLINDAGEM SONORA
                         if (newOrderData.source !== 'manual' && newOrderData.source !== 'manual_pdv') {
                             new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
                         }
-                        
-                        // 🖨️ GATILHO DE IMPRESSÃO
-                        if (autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status) {
-                            if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
-                                sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
-                                printLabel(newOrderData);
-                            }
-                        }
                     }
 
-                    // 2. 🚀 O SEGREDO DO IFOOD: MUDANÇA DE STATUS EM BACKGROUND
-                    // Exemplo: O cliente pagou via Mercado Pago, o webhook atualizou pra "Preparando"
-                    if (change.type === "modified") {
-                        if (autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status) {
-                            // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina
-                            if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
-                                sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
-                                printLabel(newOrderData);
-                            }
+                    // 2. GATILHO DE IMPRESSÃO (Válido para 'added' e 'modified')
+                    // Ouve mudanças via Webhook ou cliques manuais no PDV
+                    if (matchesPrintTrigger && !isPaymentBlocking) {
+                        // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina
+                        if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
+                            sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
+                            printLabel(newOrderData);
                         }
                     }
                 });
@@ -15038,6 +15082,81 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
             </AnimatePresence>
             {/* --- FIM: MODAL DE EDIÇÃO EM MASSA (EXCEL-LIKE) --- */}
+
+            {/* --- INÍCIO: MODAL DE FECHAMENTO DE CAIXA --- */}
+            <AnimatePresence>
+                {isCloseRegisterModalOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col overflow-hidden">
+                            <button 
+                                onClick={() => !isClosingRegister && setIsCloseRegisterModalOpen(false)} 
+                                disabled={isClosingRegister}
+                                className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors z-20 disabled:opacity-50"
+                            >
+                                <X size={20}/>
+                            </button>
+                            
+                            <div className="mb-8 border-b border-slate-100 pb-6 text-center">
+                                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+                                    <Lock size={32} />
+                                </div>
+                                <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none mb-2">
+                                    Fechar Caixa
+                                </h2>
+                                <p className="text-sm font-bold text-slate-500">
+                                    Informe os valores físicos antes de encerrar o turno. Você será deslogado após confirmar.
+                                </p>
+                            </div>
+
+                            <form onSubmit={submitCloseRegister} className="space-y-6 relative z-10">
+                                <div className="space-y-4">
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 flex items-center gap-2">
+                                            <Store size={14} className="text-blue-500"/> Dinheiro na Gaveta (R$)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            required
+                                            disabled={isClosingRegister}
+                                            value={closeRegisterForm.valorCaixa} 
+                                            onChange={(e) => setCloseRegisterForm({...closeRegisterForm, valorCaixa: e.target.value})}
+                                            className="w-full p-4 bg-white rounded-xl font-black text-xl text-slate-800 outline-none border border-slate-100 focus:ring-2 ring-blue-500 shadow-sm transition-all"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 flex items-center gap-2">
+                                            <Truck size={14} className="text-orange-500"/> Dinheiro com Motoboy/Bolsa (R$)
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            required
+                                            disabled={isClosingRegister}
+                                            value={closeRegisterForm.valorBolsa} 
+                                            onChange={(e) => setCloseRegisterForm({...closeRegisterForm, valorBolsa: e.target.value})}
+                                            className="w-full p-4 bg-white rounded-xl font-black text-xl text-slate-800 outline-none border border-slate-100 focus:ring-2 ring-orange-500 shadow-sm transition-all"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    disabled={isClosingRegister}
+                                    className="w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 bg-slate-900 hover:bg-slate-800 shadow-slate-900/30"
+                                >
+                                    {isClosingRegister ? <Loader2 size={18} className="animate-spin"/> : <Printer size={18}/>}
+                                    {isClosingRegister ? 'Encerrando...' : 'Confirmar e Imprimir'}
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DE FECHAMENTO DE CAIXA --- */}
 
             <VeloSupportWidget />
         </div>
