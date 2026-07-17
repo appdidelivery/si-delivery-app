@@ -1825,6 +1825,7 @@ const [vipMissions, setVipMissions] = useState([]);
     // Pedido Manual e Complementos PDV
     const [pdvActiveProduct, setPdvActiveProduct] = useState(null); // NOVO: Controle de complementos no PDV
     const [manualCart, setManualCart] = useState([]);
+    const [isMobileCartOpen, setIsMobileCartOpen] = useState(false); // <-- NOVO: Controle da Comanda no Mobile
     const [manualCustomer, setManualCustomer] = useState({ name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'delivery', splitPayments: [] });
     const[manualCouponCode, setManualCouponCode] = useState('');
     const [manualDiscountAmount, setManualDiscountAmount] = useState(0);
@@ -7230,7 +7231,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </button>
         </div>
     ) : (
-    <div className="flex flex-col xl:flex-row gap-6 min-h-[calc(100vh-100px)] xl:h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)] lg:h-[calc(100vh-100px)] animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-20 lg:pb-0">
                         
                         {/* COLUNA ESQUERDA: CATÁLOGO PDV */}
                         <div className="flex-1 flex flex-col bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -7451,11 +7452,33 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
+                        {/* --- BOTÃO FLUTUANTE MOBILE (VER COMANDA) --- */}
+                        {!isMobileCartOpen && (
+                            <div className="lg:hidden absolute bottom-4 left-4 right-4 z-30 animate-in slide-in-from-bottom-4">
+                                <button 
+                                    onClick={() => setIsMobileCartOpen(true)}
+                                    className={`w-full p-4 rounded-[1.5rem] font-black text-sm uppercase tracking-widest transition-all flex justify-between items-center border-2 ${manualCart.length > 0 ? 'bg-green-500 text-white shadow-[0_10px_30px_rgba(34,197,94,0.4)] hover:bg-green-600 border-green-400 active:scale-95' : 'bg-slate-900 text-white border-slate-800 shadow-xl'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <ShoppingBag size={20} />
+                                        <span>Comanda ({manualCart.reduce((a, b) => a + (Number(b.quantity) || 1), 0)})</span>
+                                    </div>
+                                    <span>R$ {manualCart.reduce((a, b) => a + ((Number(b.price) || 0) * (Number(b.quantity) || 1)), 0).toFixed(2)}</span>
+                                </button>
+                            </div>
+                        )}
+
                         {/* COLUNA DIREITA: O TICKET / COMANDA (CARRINHO) */}
-                        <div className="w-full xl:w-[450px] flex flex-col bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex-shrink-0 relative">
+                        <div className={`${isMobileCartOpen ? 'fixed inset-0 z-[100] m-4 mb-24 flex' : 'hidden lg:flex'} w-auto lg:w-[400px] xl:w-[450px] lg:static flex-col bg-white rounded-[3rem] shadow-2xl lg:shadow-xl border border-slate-100 overflow-hidden flex-shrink-0`}>
                             {/* Topo do Ticket */}
-                            <div className="p-6 border-b border-slate-100 bg-slate-900 text-white">
-                                <div className="flex justify-between items-center mb-4">
+                            <div className="p-6 border-b border-slate-100 bg-slate-900 text-white relative">
+                                
+                                {/* Botão fechar (Apenas Mobile) */}
+                                <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden absolute top-5 right-5 bg-white/20 p-2 rounded-full text-white hover:bg-white/30 transition-all z-20">
+                                    <X size={18}/>
+                                </button>
+
+                                <div className="flex justify-between items-center mb-4 pr-10 lg:pr-0">
                                     <h3 className="font-black italic uppercase tracking-tighter text-2xl">Comanda</h3>
                                     <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-blue-200">{manualCart.reduce((a, b) => a + b.quantity, 0)} Itens</span>
                                 </div>
