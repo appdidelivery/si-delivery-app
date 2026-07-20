@@ -868,6 +868,13 @@ const educationalBanners = [
 
     const handlePrintReport = () => {
         const w = window.open('', '_blank');
+        
+        // --- NOVA LÓGICA DE CAPTURA DO TURNO ---
+        const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
+        // Se por acaso o dono estiver só re-imprimindo um relatório antigo e não houver cache de abertura, mostra "Não registrada"
+        const dataAbertura = rawAbertura ? new Date(rawAbertura).toLocaleString('pt-BR') : 'Não registrada na sessão';
+        const dataFechamento = new Date().toLocaleString('pt-BR');
+        
         const dataInicioFormatada = reportDateRange === 'personalizado' && reportCustomStart ? new Date(reportCustomStart).toLocaleString('pt-BR') : 'Início do Período';
         const dataFimFormatada = reportDateRange === 'personalizado' && reportCustomEnd ? new Date(reportCustomEnd).toLocaleString('pt-BR') : 'Fim do Período';
         const periodoTexto = reportDateRange === 'personalizado' ? `${dataInicioFormatada} até ${dataFimFormatada}` : reportDateRange.toUpperCase();
@@ -881,15 +888,21 @@ const educationalBanners = [
                     .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 20px; margin-bottom: 20px; }
                     .row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
                     .total { font-size: 24px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-top: 20px; display: flex; justify-content: space-between; }
+                    .info-turno { font-size: 14px; text-align: left; background: #f9f9f9; padding: 10px; border-radius: 8px; margin: 15px 0; border: 1px solid #ddd; }
                 </style>
             </head>
             <body>
                 <div class="header">
-                    <h2>${storeStatus.name || 'LOJA'}</h2>
-                    <h3>FECHAMENTO DE CAIXA</h3>
-                    <p>Período: ${periodoTexto}</p>
-                    <p>Vendedor/Filtro: ${reportSeller}</p>
-                    <p>Impresso em: ${new Date().toLocaleString('pt-BR')}</p>
+                    <h2 style="margin-bottom: 5px;">${storeStatus.name || 'LOJA'}</h2>
+                    <h3 style="margin-top: 0; color: #000;">FECHAMENTO DE CAIXA</h3>
+                    
+                    <div class="info-turno">
+                        <div style="margin-bottom: 8px;"><strong>Abertura:</strong><br>${dataAbertura}</div>
+                        <div style="margin-bottom: 8px;"><strong>Fechamento:</strong><br>${dataFechamento}</div>
+                        <div><strong>Operador:</strong><br>${reportSeller === 'todos' ? 'Geral' : reportSeller}</div>
+                    </div>
+                    
+                    <p style="font-size: 12px; color: #666; margin-top: 10px;">Filtro de busca: ${periodoTexto}</p>
                 </div>
                 
                 <h3>Resumo de Entradas</h3>
@@ -956,6 +969,7 @@ const educationalBanners = [
             
             setIsCaixaAberto(true);
             localStorage.setItem('caixa_status', 'aberto');
+            localStorage.setItem('caixa_abertura_timestamp', new Date().toISOString()); // <-- SALVA A HORA EXATA AQUI
             alert(`✅ Caixa aberto com sucesso! Boas vendas!`);
         } catch (error) {
             alert("Erro ao abrir o caixa: " + error.message);
