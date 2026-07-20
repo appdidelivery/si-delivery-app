@@ -234,7 +234,8 @@ export default function ProspeccaoKanban() {
         { id: 'extracted', title: '🔍 Leads Extraídos', color: 'bg-slate-100', border: 'border-slate-200' },
         { id: 'contacted', title: '💬 Abordagem Inicial', color: 'bg-blue-50', border: 'border-blue-200' },
         { id: 'replied', title: '🔥 Responderam', color: 'bg-orange-50', border: 'border-orange-200' },
-        { id: 'closed', title: '✅ Fechados', color: 'bg-green-50', border: 'border-green-200' }
+        { id: 'closed', title: '✅ Fechados', color: 'bg-green-50', border: 'border-green-200' },
+        { id: 'discarded', title: '🗑️ DESCARTADOS', color: 'bg-slate-200/40', border: 'border-slate-400', headerBg: 'bg-slate-500/80', titleColor: 'text-white' }
     ];
 
     const LeadCard = ({ lead, colIndex }) => (
@@ -280,6 +281,13 @@ export default function ProspeccaoKanban() {
                     </div>
                 )}
             </div>
+
+            {/* STATUS DE DESCARTE (Aparece apenas na 5ª coluna) */}
+            {lead.status === 'discarded' && (
+                <div className="mt-2 bg-slate-200 border border-slate-300 rounded-md p-2 flex items-center justify-center text-[10px] text-slate-700 font-bold w-full uppercase tracking-wider">
+                    {lead.discardReason || 'Inviável / Sem Resposta'}
+                </div>
+            )}
 
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                 {/* Botões de Mover no Kanban */}
@@ -461,9 +469,9 @@ export default function ProspeccaoKanban() {
                         });
 
                         return (
-                            <div key={col.id} className={`w-80 flex flex-col rounded-3xl ${col.color} border ${col.border} overflow-hidden max-h-[calc(100vh-140px)] shadow-sm`}>
-                                <div className="p-4 border-b border-black/5 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
-                                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">{col.title}</h3>
+                           <div key={col.id} className={`w-80 flex flex-col rounded-3xl ${col.color} border ${col.border} overflow-hidden max-h-[calc(100vh-140px)] shadow-sm`}>
+                                <div className={`p-4 border-b border-black/5 ${col.headerBg || 'bg-white/50'} backdrop-blur-sm flex justify-between items-center shrink-0`}>
+                                    <h3 className={`font-black uppercase text-xs tracking-widest ${col.titleColor || 'text-slate-800'}`}>{col.title}</h3>
                                     <span className="bg-white text-slate-600 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">{colLeads.length}</span>
                                 </div>
                                 <div className="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-3">
