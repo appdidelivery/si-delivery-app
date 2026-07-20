@@ -376,10 +376,16 @@ export default function ProspeccaoKanban() {
                             <MessageCircle size={12}/> Chat
                         </button>
                     )}
+
+                    {lead.status === 'replied' && (
+                        <button onClick={() => handleChangeStatus(lead.id, 'closed')} className="bg-green-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-green-600 active:scale-95 shadow-sm">
+                            <CheckCircle2 size={12}/> Vendeu
+                        </button>
+                    )}
                 </div>
             </motion.div>
         );
-    );
+    };
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
