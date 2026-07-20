@@ -11563,15 +11563,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             helpText: 'Acessar o Painel de Desenvolvedor (Meta)'
                         },
                         { 
-                            id: 'ze_delivery', 
-                            name: 'Zé Delivery', 
-                            desc: 'Receba pedidos do Zé Delivery direto no seu PDV e Kanban.', 
-                            icon: <div className="bg-yellow-400 p-2 rounded-full"><Store className="text-black" size={32}/></div>, 
+                            id: 'ifood', 
+                            name: 'iFood', 
+                            desc: 'Integração oficial. Receba pedidos do iFood direto no seu painel.', 
+                            icon: <div className="bg-red-600 p-2 rounded-full"><Store className="text-white" size={32}/></div>, 
                             fields:[
-                                {key: 'merchantId', label: 'ID da Loja (Fornecido pelo Zé Delivery)'}
+                                {key: 'merchantId', label: 'ID da Loja no iFood (Merchant ID)'},
+                                {key: 'authorizationCode', label: 'Código de Vinculação (Gerado no Portal do iFood)'}
                             ],
-                            helpUrl: 'https://parceiro.ze.delivery/',
-                            helpText: 'Acessar Portal do Parceiro Zé Delivery'
+                            helpUrl: 'https://portal.ifood.com.br/cases/catalog/integrations',
+                            helpText: 'Onde gerar meu Código de Integração no iFood'
                         }
                     ];
 

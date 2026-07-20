@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock, Tag, MessageSquareText, ExternalLink, X } from 'lucide-react';
+import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock, Tag, MessageSquareText, ExternalLink, X, CalendarClock, TrendingUp, AlertCircle, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
 import CentralOmnichannel from '../components/CentralOmnichannel'; // <-- Importando a Central Omnichannel
@@ -29,18 +29,18 @@ export default function ProspeccaoKanban() {
     const [approachLead, setApproachLead] = useState(null);
 
     // NOVO: Textos de Prospecção Prontos (Você pode editar esses textos aqui no código depois)
-    const PROMO_TEMPLATES = [
+   const PROMO_TEMPLATES = [
         {
-            title: "Tirar do iFood (Taxas)",
-            text: "Opa [Nome], tudo bem? Vi a [Nicho] de vocês no iFood. Vocês já têm um link próprio para fugir daquelas taxas de 27% ou estão dependendo só do app deles?"
+            title: "🔥 Permissão para Áudio (Conversão Máxima)",
+            text: "Oi [Nome], tudo bem? Encontrei a [Nicho] de vocês aqui e notei uma falha grave na forma como vocês estão ranqueando contra a concorrência no delivery da cidade. Posso te mandar um áudio de 30 seg explicando?"
         },
         {
-            title: "Sem Cardápio / WhatsApp",
-            text: "Oi [Nome], tudo joia? Achei vocês aqui no Google, mas vi que não tem um cardápio com link direto. Vocês estão tirando os pedidos no texto mesmo? Tenho uma ferramenta que automatiza isso pra você."
+            title: "💰 Tirar do iFood (Dor Financeira)",
+            text: "Opa [Nome], tudo bem? Vi que vocês estão fortes no iFood, mas me tire uma dúvida: Vocês já têm uma forma de não perder os 27% de taxa em clientes que já são fiéis a vocês, ou todo pedido paga pedágio pra eles?"
         },
         {
-            title: "Foco em SEO / Google",
-            text: "Fala [Nome]! Vi a página de vocês aqui no Google, mas notei que estão com poucas avaliações. Sabia que isso derruba vocês nas buscas da cidade? Nosso sistema resolve isso no automático."
+            title: "⏰ Foco em Agilidade (Sem Cardápio)",
+            text: "Fala [Nome]! Vi a página de vocês no Google e não achei o link do cardápio digital. Vocês ainda perdem tempo tirando pedido via texto sexta à noite? Isso cria gargalo. Tenho um sistema que automatiza isso hoje pra você."
         }
     ];
     
@@ -164,12 +164,12 @@ export default function ProspeccaoKanban() {
     // 2. Mudar Status no Kanban
     const handleChangeStatus = async (leadId, newStatus) => {
         try {
-            const updatePayload = { status: newStatus };
+            const updatePayload = { 
+                status: newStatus,
+                updatedAt: serverTimestamp(), // NOVO: Grava a hora que moveu
+                snoozeUntil: null // NOVO: Limpa o agendamento se você mexer no card
+            };
 
-            // INTEGRAÇÃO WHATSAPP CLOUD API (META)
-            // Se o card for movido para a coluna de "Abordagem Inicial" (contacted),
-            // injetamos a flag para a Cloud Function fazer o disparo em background.
-            // Proteção: não afeta as outras colunas.
             if (newStatus === 'contacted') {
                 updatePayload.wppCloudStatus = 'pending_trigger';
                 updatePayload.wppTriggeredAt = serverTimestamp();
@@ -178,6 +178,40 @@ export default function ProspeccaoKanban() {
             await updateDoc(doc(db, 'leads_prospeccao', leadId), updatePayload);
         } catch (error) {
             alert('Erro ao atualizar status.');
+        }
+    };
+
+    // 2.1 Enviar direto para Descartados
+    const handleDiscard = async (leadId) => {
+        const reason = window.prompt('Motivo do descarte (ex: Não tem delivery, Número errado):', 'Sem perfil / Inviável');
+        if (reason !== null) {
+            try {
+                await updateDoc(doc(db, 'leads_prospeccao', leadId), { 
+                    status: 'discarded',
+                    discardReason: reason,
+                    snoozeUntil: null
+                });
+            } catch (error) {
+                alert('Erro ao descartar lead.');
+            }
+        }
+    };
+
+    // 2.2 Retornar Depois (Snooze) - Estratégia 3
+    const handleSnooze = async (leadId) => {
+        const days = window.prompt('Ocultar este card e retornar daqui a quantos dias? (Ex: 7, 15, 30)', '15');
+        const parsedDays = parseInt(days, 10);
+        if (!isNaN(parsedDays) && parsedDays > 0) {
+            try {
+                const futureDate = new Date();
+                futureDate.setDate(futureDate.getDate() + parsedDays);
+                await updateDoc(doc(db, 'leads_prospeccao', leadId), { 
+                    snoozeUntil: futureDate.toISOString() 
+                });
+                alert(`⏳ Card ocultado! Ele aparecerá sozinho daqui a ${parsedDays} dias.`);
+            } catch (error) {
+                alert('Erro ao agendar retorno.');
+            }
         }
     };
 
@@ -238,89 +272,113 @@ export default function ProspeccaoKanban() {
         { id: 'discarded', title: '🗑️ DESCARTADOS', color: 'bg-slate-200/40', border: 'border-slate-400', headerBg: 'bg-slate-500/80', titleColor: 'text-white' }
     ];
 
-    const LeadCard = ({ lead, colIndex }) => (
-        <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-2 relative group">
-            <button onClick={() => handleDelete(lead.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
-            <h4 className="font-black text-slate-800 text-sm leading-tight pr-6">{lead.name}</h4>
+    const LeadCard = ({ lead, colIndex }) => {
+        // Inteligência 1: Follow-up Visual (Idade do Lead)
+        let cardBorder = 'border-slate-200';
+        let ageAlert = null;
+        if (lead.status === 'contacted' && (lead.updatedAt || lead.createdAt)) {
+            const stamp = lead.updatedAt || lead.createdAt;
+            const timeMillis = stamp?.toMillis ? stamp.toMillis() : Date.now();
+            const diffDays = Math.floor((Date.now() - timeMillis) / (1000 * 60 * 60 * 24));
             
-            {lead.phone && (
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                    <Phone size={12} className="text-blue-500"/> {lead.phone}
-                </div>
-            )}
-            {lead.address && (
-                <div className="flex items-start gap-1.5 text-[10px] text-slate-400 font-medium leading-tight">
-                    <MapPin size={12} className="shrink-0 mt-0.5"/> {lead.address}
-                </div>
-            )}
+            if (diffDays >= 3 && diffDays <= 5) {
+                cardBorder = 'border-yellow-400 ring-2 ring-yellow-400/20';
+                ageAlert = <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm">⚠️ {diffDays} dias parado</span>;
+            } else if (diffDays > 5) {
+                cardBorder = 'border-red-500 ring-2 ring-red-500/20';
+                ageAlert = <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm">🚨 Gelado ({diffDays}d)</span>;
+            }
+        }
 
-            {/* NOVOS DADOS ENRIQUECIDOS (Marketplace, SEO e Disponibilidade) */}
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {lead.category && lead.category !== 'Desconhecido' && (
-                    <div className="flex items-center gap-1 bg-purple-50 text-purple-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-purple-200 shadow-sm" title="Segmento no Google">
-                        <Tag size={10} />
-                        {lead.category}
-                    </div>
-                )}
-                {lead.rating && (
-                    <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-yellow-200 shadow-sm" title="Avaliação no Google">
-                        <Star size={10} className="fill-yellow-500 text-yellow-500" />
-                        {lead.rating} ({lead.reviewsCount || 0})
-                    </div>
-                )}
-                {lead.marketplace && (
-                    <div className="flex items-center gap-1 bg-red-50 text-red-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-red-200 shadow-sm" title="Marketplace Detectado">
-                        <Store size={10} />
-                        {lead.marketplace}
-                    </div>
-                )}
-                {lead.isOpen !== null && lead.isOpen !== undefined && (
-                    <div className={`flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-md border shadow-sm ${lead.isOpen ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                        <Clock size={10} />
-                        {lead.isOpen ? 'Aberto Agora' : 'S.I / Fechado'}
-                    </div>
-                )}
-            </div>
+        // Inteligência 2: Semáforo de Horário
+        const currentHour = new Date().getHours();
+        let timingStatus = null;
+        if (lead.status === 'extracted') {
+            if (currentHour >= 11 && currentHour <= 14) timingStatus = { text: 'Pico Almoço (Evite)', class: 'bg-red-50 text-red-600 border-red-200' };
+            else if (currentHour >= 18 && currentHour <= 23) timingStatus = { text: 'Pico Jantar (Evite)', class: 'bg-red-50 text-red-600 border-red-200' };
+            else if (currentHour >= 14 && currentHour <= 17) timingStatus = { text: 'Sinal Verde 🟢', class: 'bg-green-50 text-green-700 border-green-300 ring-1 ring-green-400' };
+        }
 
-            {/* STATUS DE DESCARTE (Aparece apenas na 5ª coluna) */}
-            {lead.status === 'discarded' && (
-                <div className="mt-2 bg-slate-200 border border-slate-300 rounded-md p-2 flex items-center justify-center text-[10px] text-slate-700 font-bold w-full uppercase tracking-wider">
-                    {lead.discardReason || 'Inviável / Sem Resposta'}
-                </div>
-            )}
-
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                {/* Botões de Mover no Kanban */}
-                <div className="flex gap-1">
-                    {colIndex > 0 && (
-                        <button onClick={() => handleChangeStatus(lead.id, COLUMNS[colIndex - 1].id)} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors"><ArrowLeft size={14}/></button>
-                    )}
-                    {colIndex < COLUMNS.length - 1 && (
-                        <button onClick={() => handleChangeStatus(lead.id, COLUMNS[colIndex + 1].id)} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors"><ArrowRight size={14}/></button>
-                    )}
-                </div>
-
-                {/* Botão de Ação Primária */}
-                {lead.status === 'extracted' && lead.phone && (
-                    <button onClick={() => handleSendColdMessage(lead)} className="bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-700 active:scale-95 shadow-sm">
-                        <Send size={12}/> Abordar
-                    </button>
-                )}
+        return (
+            <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`bg-white p-4 rounded-2xl shadow-sm border ${cardBorder} flex flex-col gap-2 relative group transition-all`}>
+                <button onClick={() => handleDelete(lead.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                 
-                {/* Botão de Abrir o Chat (Aparece se o lead não estiver na primeira coluna) */}
-                {lead.status !== 'extracted' && lead.phone && (
-                    <button onClick={() => setActiveChatLead(lead)} className="bg-[#25D366] text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-[#1ebd59] active:scale-95 shadow-sm">
-                        <MessageCircle size={12}/> Chat
-                    </button>
+                <div className="flex flex-col gap-1 items-start pr-6">
+                    <h4 className="font-black text-slate-800 text-sm leading-tight">{lead.name}</h4>
+                    {ageAlert}
+                </div>
+                
+                {lead.phone && (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                        <Phone size={12} className="text-blue-500"/> {lead.phone}
+                    </div>
+                )}
+                {lead.address && (
+                    <div className="flex items-start gap-1.5 text-[10px] text-slate-400 font-medium leading-tight">
+                        <MapPin size={12} className="shrink-0 mt-0.5"/> {lead.address}
+                    </div>
                 )}
 
-                {lead.status === 'replied' && (
-                    <button onClick={() => handleChangeStatus(lead.id, 'closed')} className="bg-green-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-green-600 active:scale-95 shadow-sm">
-                        <CheckCircle2 size={12}/> Vendeu
-                    </button>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {lead.category && lead.category !== 'Desconhecido' && (
+                        <div className="flex items-center gap-1 bg-purple-50 text-purple-700 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-purple-200 shadow-sm" title="Segmento no Google">
+                            <Tag size={10} /> {lead.category}
+                        </div>
+                    )}
+                    {timingStatus && (
+                        <div className={`flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-md border shadow-sm ${timingStatus.class}`} title="Inteligência de Horário">
+                            <AlertCircle size={10} /> {timingStatus.text}
+                        </div>
+                    )}
+                    {lead.isOpen !== null && lead.isOpen !== undefined && !timingStatus && (
+                        <div className={`flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-md border shadow-sm ${lead.isOpen ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                            <Clock size={10} /> {lead.isOpen ? 'Aberto Agora' : 'S.I / Fechado'}
+                        </div>
+                    )}
+                </div>
+
+                {lead.status === 'discarded' && (
+                    <div className="mt-2 bg-slate-200 border border-slate-300 rounded-md p-2 flex items-center justify-center text-[10px] text-slate-700 font-bold w-full uppercase tracking-wider">
+                        {lead.discardReason || 'Inviável / Sem Resposta'}
+                    </div>
                 )}
-            </div>
-        </motion.div>
+
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="flex gap-1">
+                        {colIndex > 0 && (
+                            <button onClick={() => handleChangeStatus(lead.id, COLUMNS[colIndex - 1].id)} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors" title="Voltar coluna"><ArrowLeft size={14}/></button>
+                        )}
+                        {colIndex < COLUMNS.length - 1 && (
+                            <button onClick={() => handleChangeStatus(lead.id, COLUMNS[colIndex + 1].id)} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors" title="Avançar coluna"><ArrowRight size={14}/></button>
+                        )}
+                        
+                        {lead.status !== 'discarded' && lead.status !== 'closed' && (
+                            <button onClick={() => handleDiscard(lead.id)} className="p-1.5 bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-all ml-1 shadow-sm border border-red-100" title="Descartar">
+                                <X size={14}/>
+                            </button>
+                        )}
+
+                        {lead.status !== 'discarded' && lead.status !== 'closed' && lead.status !== 'extracted' && (
+                            <button onClick={() => handleSnooze(lead.id)} className="p-1.5 bg-indigo-50 text-indigo-400 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100 ml-1" title="Retornar Depois (Snooze)">
+                                <CalendarClock size={14}/>
+                            </button>
+                        )}
+                    </div>
+
+                    {lead.status === 'extracted' && lead.phone && (
+                        <button onClick={() => handleSendColdMessage(lead)} className="bg-blue-600 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-700 active:scale-95 shadow-sm">
+                            <Send size={12}/> Abordar
+                        </button>
+                    )}
+                    
+                    {lead.status !== 'extracted' && lead.status !== 'discarded' && lead.phone && (
+                        <button onClick={() => setActiveChatLead(lead)} className="bg-[#25D366] text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-[#1ebd59] active:scale-95 shadow-sm">
+                            <MessageCircle size={12}/> Chat
+                        </button>
+                    )}
+                </div>
+            </motion.div>
+        );
     );
 
     return (
@@ -440,13 +498,48 @@ export default function ProspeccaoKanban() {
                 </div>
             </div>
 
+            {/* Dashboard Analítico (Estratégia 4) */}
+            <div className={`bg-slate-900 border-b border-slate-800 px-6 py-2 flex items-center gap-8 shadow-inner ${activeView === 'inbox' ? 'hidden' : ''}`}>
+                <div className="flex items-center gap-2 text-slate-300">
+                    <Target size={16} className="text-blue-400" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Leads Ativos:</span>
+                    <span className="text-sm font-black text-white">{leads.filter(l => !['discarded', 'closed'].includes(l.status)).length}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                    <MessageCircle size={16} className="text-orange-400" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Taxa de Resposta:</span>
+                    <span className="text-sm font-black text-white">
+                        {leads.filter(l => ['contacted', 'replied', 'closed'].includes(l.status)).length > 0 
+                            ? Math.round((leads.filter(l => ['replied', 'closed'].includes(l.status)).length / leads.filter(l => ['contacted', 'replied', 'closed'].includes(l.status)).length) * 100) 
+                            : 0}%
+                    </span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                    <TrendingUp size={16} className="text-green-400" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Conversão Venda:</span>
+                    <span className="text-sm font-black text-white">
+                        {leads.filter(l => ['contacted', 'replied', 'closed'].includes(l.status)).length > 0 
+                            ? Math.round((leads.filter(l => l.status === 'closed').length / leads.filter(l => ['contacted', 'replied', 'closed'].includes(l.status)).length) * 100) 
+                            : 0}%
+                    </span>
+                </div>
+            </div>
+
             {/* Kanban Board (Oculto na aba inbox) */}
-            <main className={`flex-1 p-6 overflow-x-auto relative ${activeView === 'inbox' ? 'hidden' : ''}`}>
+            <main className={`flex-1 p-6 overflow-x-auto relative bg-slate-100 ${activeView === 'inbox' ? 'hidden' : ''}`}>
                 <div className="flex gap-6 min-w-max h-full">
                     {COLUMNS.map((col, index) => {
                         // Aplica os filtros antes de renderizar as colunas
                         const colLeads = leads.filter(l => {
                             if (l.status !== col.id) return false;
+                            
+                            // Estratégia 3: Ocultar cards com Snooze agendado para o futuro
+                            if (l.snoozeUntil) {
+                                const snoozeDate = new Date(l.snoozeUntil);
+                                if (snoozeDate > new Date()) {
+                                    return false; 
+                                }
+                            }
                             if (filters.onlyWithPhone && !l.phone) return false;
                             if (filters.noWebsite && l.website) return false;
                             if (filters.noOrderLink && l.orderUrl) return false;

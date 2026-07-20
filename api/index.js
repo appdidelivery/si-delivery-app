@@ -5520,98 +5520,116 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
     // ------------------------------------------------------------------------
-    // 27. ZÉ DELIVERY: WEBHOOK DE PEDIDOS (INTEGRAÇÃO PDV)
+    // 28. IFOOD: WEBHOOK DE PEDIDOS (INTEGRAÇÃO PDV)
     // ------------------------------------------------------------------------
-    else if (path === '/api/ze-delivery-webhook') {
+    else if (path === '/api/ifood-webhook') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            // 1. Pega a assinatura enviada pelo Zé Delivery
-            const signature = req.headers['x-ze-signature'];
-            const secret = process.env.ZE_DELIVERY_SECRET;
-
-            // 2. Validação de Segurança (HMAC SHA-256)
-            if (!secret) {
-                console.error('🚨 [Zé Delivery] Variável ZE_DELIVERY_SECRET não configurada na Vercel.');
-                return res.status(500).json({ error: 'Configuração de segurança ausente no servidor.' });
-            }
-
-            if (!signature) {
-                return res.status(401).json({ error: 'Assinatura criptográfica ausente no cabeçalho.' });
-            }
-
-            // O Velo Delivery já extrai o rawBody no início do index.js, usamos ele para garantir o hash perfeito
-            const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-
-            if (signature !== expectedSignature) {
-                console.error('🚨 [Zé Delivery] Tentativa de injeção bloqueada: Assinatura inválida.');
-                return res.status(401).json({ error: 'Assinatura inválida. Acesso negado.' });
-            }
-
-            // 3. Extrai e normaliza os dados do Zé Delivery
             const payload = req.body;
             
-            // Pega o ID da loja via query parameter configurado no painel do Zé
-            const targetStoreId = req.query.store;
-            if (!targetStoreId) {
-                return res.status(400).json({ error: 'Parâmetro ?store=ID_DA_LOJA ausente na URL do Webhook.' });
+            // 1. O iFood manda pings de validação. Precisamos retornar 200 OK imediato.
+            if (payload && Array.isArray(payload) && payload.length > 0 && payload[0].code === 'PING') {
+                return res.status(200).send('OK');
             }
 
-            // Mapeamento dos itens (Adapta a estrutura do Zé Delivery para o padrão do Velo)
-            const normalizedItems = (payload.products || []).map(prod => ({
-                id: `ze_${prod.id || Date.now().toString()}`,
-                name: prod.name || 'Produto Zé Delivery',
-                price: Number(prod.unit_price || 0),
-                quantity: Number(prod.quantity || 1),
-                observation: prod.notes || '',
-                isExternal: true
-            }));
+            const targetStoreId = req.query.store;
 
-            const orderTotal = Number(payload.total_amount || 0);
-            const shippingFee = Number(payload.delivery_fee || 0);
-            const subtotal = orderTotal - shippingFee;
+            // 2. Trava Mestra de Roteamento Multi-Tenant
+            if (!targetStoreId) {
+                console.error('🚨 [iFood] Webhook recebido sem o parâmetro ?store=ID_DA_LOJA');
+                return res.status(400).json({ error: 'Parâmetro ?store ausente na URL.' });
+            }
 
-            // 4. Monta o Pedido Padrão Velo (Blindagem Financeira)
-            const orderData = {
-                storeId: targetStoreId,
-                customerName: payload.customer?.name || 'Cliente Zé Delivery',
-                customerPhone: payload.customer?.phone || '',
-                customerAddress: payload.customer?.address || 'Endereço retido pelo Zé Delivery',
-                items: normalizedItems,
-                subtotal: subtotal,
-                shippingFee: shippingFee,
-                total: orderTotal,
+            // O iFood pode enviar um array de eventos ou o objeto de pedido direto, dependendo do gateway.
+            const events = Array.isArray(payload) ? payload : [payload];
+
+            for (const event of events) {
+                // Filtramos para processar apenas criação de pedidos (Code: PLC = Placed) ou payload direto
+                const isNewOrder = event.code === 'PLC' || event.orderType || event.items;
                 
-                // STATUS FINANCEIRO BLINDADO: Entra como pago na origem
-                paymentMethod: 'online', // Sinaliza que o Zé Delivery já cobrou o cliente
-                paymentStatus: 'paid',   // Trava módulos de VeloPay, Stripe e Mercado Pago
-                status: 'pending',       // Cai na coluna de "Novos Pedidos" (⏳) do Kanban do Lojista
-                source: 'ze_delivery',   // Identificador limpo e silencioso
-                tipo: 'delivery',
-                externalOrderId: payload.order_id || '', // Guarda o ID original para conferência
-                
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                paidAt: admin.firestore.FieldValue.serverTimestamp()
-            };
+                if (isNewOrder) {
+                    const orderData = event.order || event; // Normaliza a camada do objeto
+                    const orderId = orderData.id || orderData.orderId || `ifood_${Date.now()}`;
+                    
+                    // 3. Trava de Idempotência (Impede que a Vercel gere pedidos duplicados se o iFood retentar)
+                    const checkSnap = await db.collection('orders')
+                        .where('externalOrderId', '==', orderId)
+                        .where('source', '==', 'ifood')
+                        .limit(1).get();
+                        
+                    if (!checkSnap.empty) {
+                        console.log(`⚠️ [iFood] Pedido #${orderId} já existe. Ignorando duplicata.`);
+                        continue;
+                    }
 
-            // 5. Salva o pedido no banco de dados do Velo (Firestore)
-            const newOrderRef = await db.collection('orders').add(orderData);
-            
-            // 6. Atualiza as estatísticas globais do Lojista (Painel)
-            const statsRef = db.collection("stats").doc(targetStoreId);
-            await statsRef.set({
-                faturamentoTotal: admin.firestore.FieldValue.increment(orderTotal),
-                pedidosPagos: admin.firestore.FieldValue.increment(1)
-            }, { merge: true });
+                    // 4. Extração Cautelosa de Dados
+                    const customerName = orderData.customer?.name || 'Cliente iFood';
+                    const customerPhone = orderData.customer?.phone?.number || orderData.customer?.phone || '';
+                    
+                    const deliveryInfo = orderData.delivery?.deliveryAddress || {};
+                    const customerAddress = deliveryInfo.formattedAddress || 
+                                            [deliveryInfo.streetName, deliveryInfo.streetNumber, deliveryInfo.neighborhood]
+                                            .filter(Boolean).join(', ') || 'Endereço retido pelo iFood';
 
-            console.log(`✅ [Zé Delivery] Pedido original #${payload.order_id} integrado com sucesso na loja ${targetStoreId} (ID Velo: ${newOrderRef.id})`);
+                    // Normalização do Carrinho para o Padrão Velo
+                    const rawItems = orderData.items || [];
+                    const normalizedItems = rawItems.map(prod => ({
+                        id: `ifood_${prod.id || Date.now().toString()}`,
+                        name: prod.name || 'Produto iFood',
+                        price: Number(prod.price || prod.unitPrice || 0),
+                        quantity: Number(prod.quantity || 1),
+                        observation: prod.observations || (prod.options ? prod.options.map(opt => `+ ${opt.name}`).join(', ') : ''),
+                        isExternal: true
+                    }));
 
-            // 7. Resposta obrigatória 200 OK para o Zé Delivery não tentar reenviar
-            return res.status(200).json({ success: true, veloOrderId: newOrderRef.id });
+                    // Matemática Financeira
+                    const totalOrder = Number(orderData.total?.orderAmount || orderData.totalAmount || 0);
+                    const shippingFee = Number(orderData.total?.deliveryFee || orderData.deliveryFee || 0);
+                    const subtotal = totalOrder - shippingFee;
+
+                    // 5. Injeção Blindada no Firestore (Modelo Velo)
+                    const newVeloOrder = {
+                        storeId: targetStoreId,
+                        customerName: customerName,
+                        customerPhone: customerPhone,
+                        customerAddress: customerAddress,
+                        items: normalizedItems,
+                        subtotal: subtotal,
+                        shippingFee: shippingFee,
+                        total: totalOrder,
+                        
+                        // BLINDAGEM MÓDULO VELOPAY
+                        paymentMethod: 'ifood',   // Trava cobranças de terceiros
+                        paymentStatus: 'paid',    // Entra como recebido na origem
+                        status: 'pending',        // Desperta o PDV do Lojista (Aba Novos)
+                        source: 'ifood',          // Marca d'água de rastreio
+                        tipo: orderData.orderType === 'TAKEOUT' ? 'local' : 'delivery',
+                        externalOrderId: orderId,
+                        
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        paidAt: admin.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    const newOrderRef = await db.collection('orders').add(newVeloOrder);
+                    
+                    // Atualiza Painel de Estatísticas
+                    await db.collection("stats").doc(targetStoreId).set({
+                        faturamentoTotal: admin.firestore.FieldValue.increment(totalOrder),
+                        pedidosPagos: admin.firestore.FieldValue.increment(1)
+                    }, { merge: true });
+
+                    console.log(`✅ [iFood] Pedido #${orderId} integrado com sucesso na loja ${targetStoreId} (ID Velo: ${newOrderRef.id})`);
+                }
+            }
+
+            // 6. O iFood exige resposta HTTP 200 super rápida (Fire and Forget)
+            return res.status(200).send('OK');
 
         } catch (error) {
-            console.error('❌ [Zé Delivery] Erro interno no Webhook:', error);
-            return res.status(500).json({ error: 'Erro interno ao processar integração do Zé Delivery.' });
+            console.error('❌ [iFood] Erro interno no Webhook:', error);
+            // Retornamos 200 com payload de erro. Se retornarmos 500, o iFood pode bloquear o Webhook do lojista.
+            return res.status(200).json({ error: 'Falha controlada no processamento', details: error.message });
         }
     }
 
