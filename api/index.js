@@ -5520,18 +5520,146 @@ Retorne APENAS um JSON com 3 chaves curtas:
         }
     }
     // ------------------------------------------------------------------------
-    // 28. IFOOD: WEBHOOK DE PEDIDOS (INTEGRAÇÃO PDV)
+    // 27. IFOOD: WEBHOOK RECEBEDOR DE PEDIDOS (SaaS Centralizado)
     // ------------------------------------------------------------------------
     else if (path === '/api/ifood-webhook') {
-        // ... (VÁRIAS LINHAS DE CÓDIGO AQUI) ...
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const events = req.body;
+            
+            // 🚨 1. RESPOSTA IMEDIATA: O iFood exige um status 200 rápido (inclusive no botão de Teste)
+            res.status(200).send('OK');
+
+            // Se for só o teste de conexão do painel, o corpo pode vir vazio ou sem array.
+            if (!Array.isArray(events) || events.length === 0) return;
+
+            // Função para pegar a Chave Mestra da Velo Delivery
+            const getIfoodToken = async () => {
+                const params = new URLSearchParams();
+                params.append('grant_type', 'client_credentials');
+                params.append('client_id', process.env.IFOOD_CLIENT_ID);
+                params.append('client_secret', process.env.IFOOD_CLIENT_SECRET);
+
+                const resAuth = await fetch('https://merchant-api.ifood.com.br/authentication/v1.0/oauth/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+                const dataAuth = await resAuth.json();
+                if (!resAuth.ok) throw new Error(dataAuth.error?.message || 'Falha de Auth');
+                return dataAuth.accessToken;
+            };
+
+            const token = await getIfoodToken();
+            const acknowledgedEvents = [];
+
+            for (const event of events) {
+                acknowledgedEvents.push({ id: event.id }); 
+
+                // Filtramos o evento "PLC" (Novo Pedido Gerado)
+                if (event.code === 'PLC') {
+                    const { orderId, merchantId } = event;
+
+                    // 2. MÁGICA MULTI-TENANT: Descobre de qual lojista é o pedido pelo ID do iFood!
+                    const settingsSnap = await db.collection('settings')
+                        .where('integrations.ifood.merchantId', 'in', [merchantId, String(merchantId)])
+                        .limit(1).get();
+
+                    if (settingsSnap.empty) {
+                        console.warn(`⚠️ [iFood] Pedido recebido (Loja iFood: ${merchantId}), mas nenhum lojista do Velo vinculou esse ID no painel.`);
+                        continue; // Ignora se não achar o dono
+                    }
+
+                    const storeId = settingsSnap.docs[0].id;
+                    
+                    // 3. Trava de Idempotência (Evita pedido duplicado se o iFood mandar o webhook 2x)
+                    const checkSnap = await db.collection('orders').where('externalOrderId', '==', orderId).limit(1).get();
+                    if (!checkSnap.empty) {
+                        console.log(`⚠️ [iFood] Pedido #${orderId} já foi processado na loja ${storeId}. Ignorando.`);
+                        continue;
+                    }
+
+                    // 4. Busca os dados completos do pedido no iFood
+                    const orderRes = await fetch(`https://merchant-api.ifood.com.br/order/v1.0/orders/${orderId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!orderRes.ok) continue;
+                    const orderDetails = await orderRes.json();
+
+                    // 5. Normaliza os itens para o padrão Velo
+                    const normalizedItems = (orderDetails.items || []).map(item => {
+                        const complements = (item.options || []).map(opt => ({
+                            name: opt.name,
+                            price: Number(opt.unitPrice || 0),
+                            quantity: Number(opt.quantity || 1)
+                        }));
+
+                        return {
+                            id: `ifd_${item.id || item.externalCode || Date.now()}`,
+                            name: item.name || 'Produto iFood',
+                            price: Number(item.unitPrice || 0),
+                            quantity: Number(item.quantity || 1),
+                            observation: item.observations || '',
+                            isExternal: true,
+                            selectedComplements: complements
+                        };
+                    });
+
+                    const orderTotal = Number(orderDetails.payments?.prepaid || orderDetails.payments?.pending || 0);
+                    const shippingFee = Number(orderDetails.total?.deliveryFee || 0);
+                    const subtotal = Number(orderDetails.total?.subTotal || 0);
+                    const isPaidOnline = Number(orderDetails.payments?.prepaid) > 0;
+
+                    // 6. Salva no Firebase
+                    const orderData = {
+                        storeId: storeId,
+                        customerName: orderDetails.customer?.name || 'Cliente iFood',
+                        customerPhone: orderDetails.customer?.phone?.number || '',
+                        customerAddress: `${orderDetails.delivery?.deliveryAddress?.streetName || ''}, ${orderDetails.delivery?.deliveryAddress?.streetNumber || ''} - ${orderDetails.delivery?.deliveryAddress?.neighborhood || ''}`,
+                        items: normalizedItems,
+                        subtotal: subtotal,
+                        shippingFee: shippingFee,
+                        total: orderTotal,
+                        
+                        paymentMethod: isPaidOnline ? 'online' : 'pagar_na_entrega',
+                        paymentStatus: isPaidOnline ? 'paid' : 'pending_on_delivery',
+                        status: 'pending', // Entra na aba "Novos"
+                        source: 'ifood',
+                        tipo: orderDetails.orderType === 'TAKEOUT' ? 'retirada' : 'delivery',
+                        externalOrderId: orderId,
+                        
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        paidAt: isPaidOnline ? admin.firestore.FieldValue.serverTimestamp() : null
+                    };
+
+                    const newOrderRef = await db.collection('orders').add(orderData);
+
+                    // 7. Soma na Dashboard Financeira do lojista
+                    if (isPaidOnline) {
+                        await db.collection("stats").doc(storeId).set({
+                            faturamentoTotal: admin.firestore.FieldValue.increment(orderTotal),
+                            pedidosPagos: admin.firestore.FieldValue.increment(1)
+                        }, { merge: true });
+                    }
+                    console.log(`✅ [iFood] Pedido #${orderId} entrou no Kanban da loja ${storeId}`);
+                }
+            }
+            
+            // 8. Dá baixa nos eventos lidos para o iFood parar de enviar
+            if (acknowledgedEvents.length > 0) {
+                await fetch('https://merchant-api.ifood.com.br/order/v1.0/events/acknowledgment', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(acknowledgedEvents)
+                }).catch(() => {});
+            }
+
+        } catch (error) {
+            console.error('❌ [iFood] Erro interno no Webhook:', error);
+        }
     }
 
-    // ------------------------------------------------------------------------
-    // 27. IFOOD: WEBHOOK RECEBEDOR DE PEDIDOS E EVENTOS
-    // ------------------------------------------------------------------------
-    else if (path === '/api/ifood-webhook') {
-        // ... (MAIS VÁRIAS LINHAS DE CÓDIGO AQUI) ...
-    }
     // ------------------------------------------------------------------------
     // XX. MÓDULO DE PROSPECÇÃO ATIVA (SERPER + EVOLUTION ISOLADA)
     // ------------------------------------------------------------------------
