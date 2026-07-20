@@ -245,7 +245,8 @@ exports.emitirNotaFiscal = functions.firestore
             const itensNfe = (order.items || []).map((item, index) => {
                 const qty = item.quantity;
                 const price = Number(item.price);
-                return {
+                
+                const itemPayload = {
                     numero_item: index + 1,
                     codigo_produto: item.id || `ITEM-${index}`,
                     descricao: item.name.substring(0, 120),
@@ -259,8 +260,16 @@ exports.emitirNotaFiscal = functions.firestore
                     valor_bruto: (price * qty).toFixed(2),
                     codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
                     icms_origem: "0",
-                    icms_situacao_tributaria: fiscal.defaultCSOSN || "102"
+                    // PRIORIDADE MÁXIMA: Tenta o CSOSN do produto. Se for nulo/vazio, cai no Fallback da Loja.
+                    icms_situacao_tributaria: item.csosn_cst || item.csosn || fiscal.defaultCSOSN || "102"
                 };
+
+                // BLINDAGEM DE ST: Se o produto tiver CEST cadastrado, envia para a SEFAZ
+                if (item.cest) {
+                    itemPayload.codigo_cest = item.cest;
+                }
+
+                return itemPayload;
             });
 
             // 2. Limpa o CPF (se houver)
