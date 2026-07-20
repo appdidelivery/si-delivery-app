@@ -11561,6 +11561,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             ],
                             helpUrl: 'https://developers.facebook.com/apps/',
                             helpText: 'Acessar o Painel de Desenvolvedor (Meta)'
+                        },
+                        { 
+                            id: 'ze_delivery', 
+                            name: 'Zé Delivery', 
+                            desc: 'Receba pedidos do Zé Delivery direto no seu PDV e Kanban.', 
+                            icon: <div className="bg-yellow-400 p-2 rounded-full"><Store className="text-black" size={32}/></div>, 
+                            fields:[
+                                {key: 'merchantId', label: 'ID da Loja (Fornecido pelo Zé Delivery)'}
+                            ],
+                            helpUrl: 'https://parceiro.ze.delivery/',
+                            helpText: 'Acessar Portal do Parceiro Zé Delivery'
                         }
                     ];
 
