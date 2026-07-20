@@ -5634,6 +5634,286 @@ Retorne APENAS um JSON com 3 chaves curtas:
     }
 
     // ------------------------------------------------------------------------
+    // 27. IFOOD: WEBHOOK RECEBEDOR DE PEDIDOS E EVENTOS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/ifood-webhook') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const events = req.body; // O iFood envia um array de eventos
+            
+            // 🚨 REGRA DE OURO DO IFOOD: Devemos responder 200 OK imediatamente para não dar timeout
+            res.status(200).send('OK');
+
+            if (!Array.isArray(events) || events.length === 0) return;
+
+            // Função para pegar a Chave Mestra da sua plataforma Velo Delivery
+            const getIfoodToken = async () => {
+                const params = new URLSearchParams();
+                params.append('grant_type', 'client_credentials');
+                params.append('client_id', process.env.IFOOD_CLIENT_ID);
+                params.append('client_secret', process.env.IFOOD_CLIENT_SECRET);
+
+                const resAuth = await fetch('https://merchant-api.ifood.com.br/authentication/v1.0/oauth/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+                const dataAuth = await resAuth.json();
+                if (!resAuth.ok) throw new Error(dataAuth.error?.message || 'Falha ao autenticar sua API no iFood.');
+                return dataAuth.accessToken;
+            };
+
+            const token = await getIfoodToken();
+            const acknowledgedEvents = [];
+
+            for (const event of events) {
+                acknowledgedEvents.push({ id: event.id }); // Salva o evento para dar "baixa" nele depois
+
+                // Filtramos apenas o evento "PLC" (Placed / Novo Pedido Gerado)
+                if (event.code === 'PLC') {
+                    const { orderId, merchantId } = event;
+
+                    // 1. Busca qual Lojista do Velo Delivery é dono desse iFood
+                    const settingsSnap = await db.collection('settings')
+                        .where('integrations.ifood.merchantId', 'in', [merchantId, String(merchantId)])
+                        .limit(1).get();
+
+                    if (settingsSnap.empty) {
+                        console.warn(`⚠️ [iFood] Pedido recebido para o iFood ID ${merchantId}, mas nenhum lojista vinculou esse ID no painel do Velo.`);
+                        continue;
+                    }
+
+                    const storeId = settingsSnap.docs[0].id;
+
+                    // 2. Busca o detalhe completo do pedido no iFood (Pratos, Endereço, Valores)
+                    const orderRes = await fetch(`https://merchant-api.ifood.com.br/order/v1.0/orders/${orderId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (!orderRes.ok) continue;
+                    const orderDetails = await orderRes.json();
+
+                    // 3. Normaliza o pedido do iFood para o padrão que o Kanban do Velo Delivery entende
+                    const normalizedItems = (orderDetails.items || []).map(item => {
+                        // Trata os complementos/adicionais
+                        const complements = (item.options || []).map(opt => ({
+                            name: opt.name,
+                            price: Number(opt.unitPrice || 0),
+                            quantity: Number(opt.quantity || 1)
+                        }));
+
+                        return {
+                            id: `ifd_${item.id || item.externalCode || Date.now()}`,
+                            name: item.name || 'Produto iFood',
+                            price: Number(item.unitPrice || 0),
+                            quantity: Number(item.quantity || 1),
+                            observation: item.observations || '',
+                            isExternal: true,
+                            selectedComplements: complements
+                        };
+                    });
+
+                    const orderTotal = Number(orderDetails.payments?.prepaid || orderDetails.payments?.pending || 0);
+                    const shippingFee = Number(orderDetails.total?.deliveryFee || 0);
+                    const subtotal = Number(orderDetails.total?.subTotal || 0);
+
+                    // Verifica se o cliente já pagou pelo App do iFood ou se vai pagar pro Motoboy
+                    const isPaidOnline = Number(orderDetails.payments?.prepaid) > 0;
+
+                    // 4. Salva o pedido blindado no Firebase
+                    const orderData = {
+                        storeId: storeId,
+                        customerName: orderDetails.customer?.name || 'Cliente iFood',
+                        customerPhone: orderDetails.customer?.phone?.number || '',
+                        customerAddress: `${orderDetails.delivery?.deliveryAddress?.streetName || ''}, ${orderDetails.delivery?.deliveryAddress?.streetNumber || ''} - ${orderDetails.delivery?.deliveryAddress?.neighborhood || ''}`,
+                        items: normalizedItems,
+                        subtotal: subtotal,
+                        shippingFee: shippingFee,
+                        total: orderTotal,
+                        
+                        paymentMethod: isPaidOnline ? 'online' : 'pagar_na_entrega',
+                        paymentStatus: isPaidOnline ? 'paid' : 'pending_on_delivery',
+                        status: 'pending', // Cai na coluna "⏳ Novos" do Kanban Velo
+                        source: 'ifood',   // Identificador de origem (para filtros do painel)
+                        tipo: orderDetails.orderType === 'TAKEOUT' ? 'retirada' : 'delivery',
+                        externalOrderId: orderId,
+                        
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        paidAt: isPaidOnline ? admin.firestore.FieldValue.serverTimestamp() : null
+                    };
+
+                    const newOrderRef = await db.collection('orders').add(orderData);
+
+                    // 5. Soma o faturamento nas métricas da Dashboard do Lojista
+                    if (isPaidOnline) {
+                        const statsRef = db.collection("stats").doc(storeId);
+                        await statsRef.set({
+                            faturamentoTotal: admin.firestore.FieldValue.increment(orderTotal),
+                            pedidosPagos: admin.firestore.FieldValue.increment(1)
+                        }, { merge: true });
+                    }
+
+                    console.log(`✅ [iFood] Novo pedido #${orderId} injetado no Kanban da loja ${storeId} (ID Velo: ${newOrderRef.id})`);
+                }
+            }
+            
+            // 6. Dá "baixa" nos eventos lidos para o iFood parar de enviar as mesmas coisas
+            if (acknowledgedEvents.length > 0) {
+                await fetch('https://merchant-api.ifood.com.br/order/v1.0/events/acknowledgment', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(acknowledgedEvents)
+                }).catch(() => {});
+            }
+
+            return; // O status 200 já foi disparado no início da rota.
+        } catch (error) {
+            console.error('❌ [iFood] Erro interno no Webhook:', error);
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 27. IFOOD: WEBHOOK RECEBEDOR DE PEDIDOS E EVENTOS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/ifood-webhook') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const events = req.body; // O iFood envia um array de eventos
+            
+            // 🚨 REGRA DE OURO DO IFOOD: Devemos responder 200 OK imediatamente para não dar timeout
+            res.status(200).send('OK');
+
+            if (!Array.isArray(events) || events.length === 0) return;
+
+            // Função para pegar a Chave Mestra da sua plataforma Velo Delivery
+            const getIfoodToken = async () => {
+                const params = new URLSearchParams();
+                params.append('grant_type', 'client_credentials');
+                params.append('client_id', process.env.IFOOD_CLIENT_ID);
+                params.append('client_secret', process.env.IFOOD_CLIENT_SECRET);
+
+                const resAuth = await fetch('https://merchant-api.ifood.com.br/authentication/v1.0/oauth/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+                const dataAuth = await resAuth.json();
+                if (!resAuth.ok) throw new Error(dataAuth.error?.message || 'Falha ao autenticar sua API no iFood.');
+                return dataAuth.accessToken;
+            };
+
+            const token = await getIfoodToken();
+            const acknowledgedEvents = [];
+
+            for (const event of events) {
+                acknowledgedEvents.push({ id: event.id }); // Salva o evento para dar "baixa" nele depois
+
+                // Filtramos apenas o evento "PLC" (Placed / Novo Pedido Gerado)
+                if (event.code === 'PLC') {
+                    const { orderId, merchantId } = event;
+
+                    // 1. Busca qual Lojista do Velo Delivery é dono desse iFood
+                    const settingsSnap = await db.collection('settings')
+                        .where('integrations.ifood.merchantId', 'in', [merchantId, String(merchantId)])
+                        .limit(1).get();
+
+                    if (settingsSnap.empty) {
+                        console.warn(`⚠️ [iFood] Pedido recebido para o iFood ID ${merchantId}, mas nenhum lojista vinculou esse ID no painel do Velo.`);
+                        continue;
+                    }
+
+                    const storeId = settingsSnap.docs[0].id;
+
+                    // 2. Busca o detalhe completo do pedido no iFood (Pratos, Endereço, Valores)
+                    const orderRes = await fetch(`https://merchant-api.ifood.com.br/order/v1.0/orders/${orderId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (!orderRes.ok) continue;
+                    const orderDetails = await orderRes.json();
+
+                    // 3. Normaliza o pedido do iFood para o padrão que o Kanban do Velo Delivery entende
+                    const normalizedItems = (orderDetails.items || []).map(item => {
+                        // Trata os complementos/adicionais
+                        const complements = (item.options || []).map(opt => ({
+                            name: opt.name,
+                            price: Number(opt.unitPrice || 0),
+                            quantity: Number(opt.quantity || 1)
+                        }));
+
+                        return {
+                            id: `ifd_${item.id || item.externalCode || Date.now()}`,
+                            name: item.name || 'Produto iFood',
+                            price: Number(item.unitPrice || 0),
+                            quantity: Number(item.quantity || 1),
+                            observation: item.observations || '',
+                            isExternal: true,
+                            selectedComplements: complements
+                        };
+                    });
+
+                    const orderTotal = Number(orderDetails.payments?.prepaid || orderDetails.payments?.pending || 0);
+                    const shippingFee = Number(orderDetails.total?.deliveryFee || 0);
+                    const subtotal = Number(orderDetails.total?.subTotal || 0);
+
+                    // Verifica se o cliente já pagou pelo App do iFood ou se vai pagar pro Motoboy
+                    const isPaidOnline = Number(orderDetails.payments?.prepaid) > 0;
+
+                    // 4. Salva o pedido blindado no Firebase
+                    const orderData = {
+                        storeId: storeId,
+                        customerName: orderDetails.customer?.name || 'Cliente iFood',
+                        customerPhone: orderDetails.customer?.phone?.number || '',
+                        customerAddress: `${orderDetails.delivery?.deliveryAddress?.streetName || ''}, ${orderDetails.delivery?.deliveryAddress?.streetNumber || ''} - ${orderDetails.delivery?.deliveryAddress?.neighborhood || ''}`,
+                        items: normalizedItems,
+                        subtotal: subtotal,
+                        shippingFee: shippingFee,
+                        total: orderTotal,
+                        
+                        paymentMethod: isPaidOnline ? 'online' : 'pagar_na_entrega',
+                        paymentStatus: isPaidOnline ? 'paid' : 'pending_on_delivery',
+                        status: 'pending', // Cai na coluna "⏳ Novos" do Kanban Velo
+                        source: 'ifood',   // Identificador de origem (para filtros do painel)
+                        tipo: orderDetails.orderType === 'TAKEOUT' ? 'retirada' : 'delivery',
+                        externalOrderId: orderId,
+                        
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        paidAt: isPaidOnline ? admin.firestore.FieldValue.serverTimestamp() : null
+                    };
+
+                    const newOrderRef = await db.collection('orders').add(orderData);
+
+                    // 5. Soma o faturamento nas métricas da Dashboard do Lojista
+                    if (isPaidOnline) {
+                        const statsRef = db.collection("stats").doc(storeId);
+                        await statsRef.set({
+                            faturamentoTotal: admin.firestore.FieldValue.increment(orderTotal),
+                            pedidosPagos: admin.firestore.FieldValue.increment(1)
+                        }, { merge: true });
+                    }
+
+                    console.log(`✅ [iFood] Novo pedido #${orderId} injetado no Kanban da loja ${storeId} (ID Velo: ${newOrderRef.id})`);
+                }
+            }
+            
+            // 6. Dá "baixa" nos eventos lidos para o iFood parar de enviar as mesmas coisas
+            if (acknowledgedEvents.length > 0) {
+                await fetch('https://merchant-api.ifood.com.br/order/v1.0/events/acknowledgment', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(acknowledgedEvents)
+                }).catch(() => {});
+            }
+
+            return; // O status 200 já foi disparado no início da rota.
+        } catch (error) {
+            console.error('❌ [iFood] Erro interno no Webhook:', error);
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // XX. MÓDULO DE PROSPECÇÃO ATIVA (SERPER + EVOLUTION ISOLADA)
     // ------------------------------------------------------------------------
     else if (path === '/api/prospeccao') {
