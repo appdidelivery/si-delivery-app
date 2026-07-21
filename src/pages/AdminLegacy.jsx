@@ -432,7 +432,7 @@ export default function Admin() {
         if (!storeId) return alert("Erro: Loja não identificada.");
 
         // ⚠️ COLOQUE AQUI O SEU CLIENT ID (ID do Aplicativo.) COPIADO DO PAINEL DO MP
-        const clientId = "3333618086500697"; 
+        const clientId = "7704944501825411"; 
         
         // A Redirect URI deve apontar para o seu BACKEND (Next.js), pois ele fará a requisição segura
         // Ajuste a porta 3000 se o seu backend local rodar em outra porta.
