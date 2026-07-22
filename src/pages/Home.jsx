@@ -418,7 +418,6 @@ export default function Home() {
 
   const calculateModalTotal = () => {
       if (!selectedProduct) return 0;
-      // Garante extração numérica blindada contra strings mal formatadas
       let basePrice = Number(selectedProduct.promotionalPrice) > 0 
           ? Number(selectedProduct.promotionalPrice) 
           : Number(selectedProduct.price || 0);
@@ -427,10 +426,44 @@ export default function Home() {
       
       Object.values(selectedOptions).forEach(optionArray => {
           if (Array.isArray(optionArray)) {
-              optionArray.forEach(opt => { total += Number(opt.price || 0); });
+              optionArray.forEach(opt => { total += Number(opt.price || 0) * Number(opt.quantity || 1); });
           }
       });
       return total;
+  };
+
+  const handleOptionQuantityChange = (group, option, delta) => {
+      setSelectedOptions(prev => {
+          const currentGroupSelections = prev[group.id] || [];
+          const existingOptionIndex = currentGroupSelections.findIndex(o => o.name === option.name);
+          const totalSelectedInGroup = currentGroupSelections.reduce((sum, o) => sum + (o.quantity || 1), 0);
+
+          if (existingOptionIndex > -1) {
+              const existingOption = currentGroupSelections[existingOptionIndex];
+              const newQuantity = (existingOption.quantity || 1) + delta;
+
+              if (newQuantity <= 0) {
+                  return { ...prev, [group.id]: currentGroupSelections.filter(o => o.name !== option.name) };
+              } else {
+                  if (delta > 0 && totalSelectedInGroup >= group.maxSelections) {
+                      alert(`Máximo de ${group.maxSelections} adições permitidas nesta categoria.`);
+                      return prev;
+                  }
+                  const newSelections = [...currentGroupSelections];
+                  newSelections[existingOptionIndex] = { ...existingOption, quantity: newQuantity };
+                  return { ...prev, [group.id]: newSelections };
+              }
+          } else {
+              if (delta > 0) {
+                  if (totalSelectedInGroup >= group.maxSelections) {
+                      alert(`Máximo de ${group.maxSelections} adições permitidas nesta categoria.`);
+                      return prev;
+                  }
+                  return { ...prev, [group.id]: [...currentGroupSelections, { ...option, quantity: 1 }] };
+              }
+              return prev;
+          }
+      });
   };
 
   const handleAddCustomToCart = () => {
@@ -453,8 +486,8 @@ export default function Home() {
       }
       
       const customId = `${selectedProduct.id}-${btoa(JSON.stringify(selectedOptions))}-${selectedVariation}-${selectedRemovals.join('-')}`;
-      const optionsText = Object.values(selectedOptions).flat().map(o => o.name).join(', ');
-      
+      const optionsText = Object.values(selectedOptions).flat().map(o => o.quantity > 1 ? `${o.quantity}x ${o.name}` : o.name).join(', ');
+
       // Concatena a Variação Simples + Nome + Complementos
       let cartName = selectedProduct.name;
       if (selectedVariation) cartName += ` - Sabor/Tipo: ${selectedVariation}`;
@@ -4525,17 +4558,27 @@ if (window.fbq) {
                                 </div>
                                <div className="space-y-2">
                                     {group.options.map((opt, i) => {
-                                        const isSelected = (selectedOptions[group.id] ||[]).some(o => o.name === opt.name);
+                                        const selectedOpt = (selectedOptions[group.id] || []).find(o => o.name === opt.name);
+                                        const qty = selectedOpt ? (selectedOpt.quantity || 1) : 0;
+                                        const isSelected = qty > 0;
 
                                         return (
-                                            <label key={i} className={`flex justify-between items-center p-3 rounded-xl border-2 transition-all ${isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50 cursor-pointer` : 'border-transparent bg-white hover:border-slate-200 cursor-pointer'}`}>
+                                            <div key={i} onClick={() => group.maxSelections === 1 && handleOptionToggle(group, opt)} className={`flex justify-between items-center p-3 rounded-xl border-2 transition-all ${isSelected ? `${currentTheme.border} ${currentTheme.lightBg}/50` : 'border-transparent bg-white hover:border-slate-200 cursor-pointer'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <input 
-                                                        type={group.maxSelections === 1 ? 'radio' : 'checkbox'} 
-                                                        checked={isSelected}
-                                                        onChange={() => handleOptionToggle(group, opt)}
-                                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer`}
-                                                    />
+                                                    {group.maxSelections === 1 ? (
+                                                        <input 
+                                                            type="radio" 
+                                                            checked={isSelected}
+                                                            readOnly
+                                                            className={`${currentTheme.accent} w-4 h-4 cursor-pointer pointer-events-none`}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-center gap-3 bg-white p-1 rounded-lg border border-slate-200 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                                                            <button type="button" onClick={() => handleOptionQuantityChange(group, opt, -1)} className={`w-7 h-7 flex items-center justify-center rounded-md font-black transition-all ${qty > 0 ? 'text-red-500 hover:bg-red-50' : 'text-slate-300'}`}>-</button>
+                                                            <span className="font-black text-slate-700 w-4 text-center text-sm">{qty}</span>
+                                                            <button type="button" onClick={() => handleOptionQuantityChange(group, opt, 1)} className="w-7 h-7 flex items-center justify-center rounded-md font-black text-blue-600 hover:bg-blue-50 transition-all">+</button>
+                                                        </div>
+                                                    )}
                                                     <div className="flex flex-col">
                                                         <span className={`text-sm font-bold ${isSelected ? `${currentTheme.darkText}` : 'text-slate-600'}`}>
                                                             {opt.name}
@@ -4543,7 +4586,7 @@ if (window.fbq) {
                                                     </div>
                                                 </div>
                                                 {opt.price > 0 && <span className={`text-xs font-black ${isSelected ? `${currentTheme.text}` : 'text-slate-400'}`}>+ R$ {Number(opt.price).toFixed(2)}</span>}
-                                            </label>
+                                            </div>
                                         )
                                     })}
                                 </div>

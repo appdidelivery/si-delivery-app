@@ -1650,7 +1650,7 @@ const [vipMissions, setVipMissions] = useState([]);
             : (storeStatus.createdAt ? new Date(storeStatus.createdAt) : new Date());
 
         if (history.length === 0) {
-            if (storeCreatedAt.getDate() > (diaVencimento - 7)) {
+            if (storeCreatedAt.getDate() > (diaVencimento - 10)) {
                 pastCycleStart = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
                 pastCycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento, 23, 59, 59);
                 pastDueDate = new Date(now.getFullYear(), now.getMonth() + 1, diaVencimento);
@@ -1660,7 +1660,7 @@ const [vipMissions, setVipMissions] = useState([]);
                 pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
             }
         } else {
-            if (now.getDate() >= (diaVencimento - 7)) {
+            if (now.getDate() >= (diaVencimento - 10)) {
                 pastCycleStart = new Date(now.getFullYear(), now.getMonth() - 1, diaVencimento);
                 pastCycleEnd = new Date(now.getFullYear(), now.getMonth(), diaVencimento, 23, 59, 59);
                 pastDueDate = new Date(now.getFullYear(), now.getMonth(), diaVencimento);
@@ -1689,7 +1689,7 @@ const [vipMissions, setVipMissions] = useState([]);
         let needsUpdate = false;
 
         const triggerDate = new Date(pastDueDate);
-        triggerDate.setDate(triggerDate.getDate() - 7);
+        triggerDate.setDate(triggerDate.getDate() - 10);
 
         if (faturaIndex === -1 && now >= triggerDate) {
             history.push({
@@ -4368,8 +4368,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     </div>
 )}
 {/* ========================================================= */}
-                          {/* --- AVISO DE FATURA PRÓXIMA (5 DIAS) - BLINDADO --- */}
-                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.daysUntilDue <= 5 && invoiceData.daysUntilDue >= 0 && (
+                          {/* --- AVISO DE FATURA PRÓXIMA (10 DIAS) - BLINDADO --- */}
+                            {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
                                 <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
                                     <div>
                                         <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
@@ -9171,7 +9171,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                            <div className="text-right">
                                 <p className="text-[10px] font-black uppercase text-slate-400">Status do Plano</p>
                                 {(() => {
-                                    const status = storeStatus?.billingStatus || 'pendente';
+                                    const hasPending = (storeStatus?.faturasHistorico || []).some(f => f.status === 'PENDENTE' || f.status === 'pendente');
+                                    const isFree = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'isento';
+                                    const isTrial = storeStatus?.billingStatus === 'teste';
+
+                                    let status = 'pago';
+                                    if (isFree) status = 'gratis_vitalicio';
+                                    else if (isTrial) status = 'teste';
+                                    else if (storeStatus?.billingStatus === 'bloqueado') status = 'bloqueado';
+                                    else if (hasPending) status = 'pendente';
+                                    else if (invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0) status = 'aberta';
+
                                     const planMap = { start: 'ESSENCIAL', pro: 'CRESCIMENTO', infinity: 'LÍDER PRO' };
                                     const currentPlanName = planMap[storeStatus?.plan] || 'ESSENCIAL';
 
@@ -9179,7 +9189,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     if (status === 'gratis_vitalicio') return <span className="bg-purple-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-purple-200">🎁 CORTESIA VIP / PLANO {currentPlanName}</span>;
                                     if (status === 'teste') return <span className="bg-blue-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-blue-200">🧪 EM TESTE / PLANO {currentPlanName}</span>;
                                     if (status === 'bloqueado') return <span className="bg-red-500 text-white px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1 shadow-lg shadow-red-200 animate-pulse">🚫 BLOQUEADO</span>;
-                                    return <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">⚠️ FATURA PENDENTE / PLANO {currentPlanName}</span>;
+                                    
+                                    return <span className="bg-orange-100 text-orange-700 px-4 py-1 rounded-full font-black text-xs uppercase inline-block mt-1">⚠️ FATURA {status === 'aberta' ? 'ABERTA' : 'PENDENTE'} / PLANO {currentPlanName}</span>;
                                 })()}
                             </div>
                         </div>
@@ -9487,55 +9498,76 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         <button 
-                                            onClick={handleRequestWithdraw}
-                                            disabled={storeStatus?.velopayPixPlan !== 'd0' || isProcessingWithdraw}
-                                            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest disabled:opacity-30"
+                                            type="button"
+                                            onClick={() => {
+                                                if (storeStatus?.velopayPixPlan !== 'd0') {
+                                                    alert("🔒 Saque Bloqueado: O ciclo de repasse atual não permite saques manuais diários.\n\nO sistema fará a transferência automaticamente para a sua conta ao fim do ciclo selecionado.");
+                                                    return;
+                                                }
+                                                if (isProcessingWithdraw) return;
+                                                handleRequestWithdraw();
+                                            }}
+                                            className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest transition-all ${storeStatus?.velopayPixPlan !== 'd0' ? 'bg-slate-700/50 text-slate-400 border border-slate-600 cursor-help' : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-95 shadow-xl'}`}
                                         >
                                             {isProcessingWithdraw ? 'Processando...' : (storeStatus?.velopayPixPlan !== 'd0' ? 'Bloqueado p/ Ciclo' : 'Confirmar Saque Agora')}
                                         </button>
                                     </div>
                                     
                                     {/* Coluna 2: Status do VeloPay (Ativo ou Pausado) */}
-                                    {storeStatus?.velopayStatus === 'active' ? (
-                                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
-                                            <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
-                                            <p className="text-slate-300 text-xs font-medium mb-4">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
-                                            
-                                            <button 
-                                                onClick={async () => {
-                                                    if (window.confirm("⚠️ Tem certeza que deseja desativar o VeloPay? \n\nSua loja perderá as taxas reduzidas e o checkout nativo instantâneo.")) {
-                                                        await updateDoc(doc(db, "stores", storeId), { 
-                                                            velopayStatus: 'inactive',
-                                                            velopayCreditStatus: 'inactive'
-                                                        });
-                                                        alert("VeloPay desativado com sucesso.");
-                                                    }
-                                                }}
-                                                className="bg-red-500/10 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
-                                            >
-                                                <X size={14}/> Desativar VeloPay
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-slate-900/50 border border-slate-700 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
-                                            <p className="text-slate-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">⏸️ VeloPay Pausado</p>
-                                            <p className="text-slate-500 text-xs font-medium mb-6">Sua conta está inativa. Seus clientes não poderão usar o checkout nativo.</p>
-                                            
-                                            <button 
-                                                onClick={async () => {
-                                                    if (window.confirm("Deseja reativar o VeloPay para receber pagamentos novamente?")) {
-                                                        await updateDoc(doc(db, "stores", storeId), { 
-                                                            velopayStatus: 'active'
-                                                        });
-                                                        alert("VeloPay reativado com sucesso!");
-                                                    }
-                                                }}
-                                                className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-500 transition-all active:scale-95"
-                                            >
-                                                Reativar VeloPay
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md flex flex-col justify-center items-center text-center">
+                                        {storeStatus?.velopayStatus === 'active' ? (
+                                            <>
+                                                <p className="text-green-400 font-black flex items-center gap-2 uppercase tracking-widest text-sm mb-2">✅ VeloPay Ativo</p>
+                                                <p className="text-slate-300 text-xs font-medium mb-4">As transações via Pix já estão sendo processadas nativamente pela sua conta.</p>
+                                                
+                                                <button 
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        if (window.confirm("⚠️ Tem certeza que deseja desativar o VeloPay? \n\nSua loja perderá as taxas reduzidas e o checkout nativo instantâneo.")) {
+                                                            try {
+                                                                await updateDoc(doc(db, "stores", storeId), { 
+                                                                    velopayStatus: 'inactive',
+                                                                    velopayCreditStatus: 'inactive'
+                                                                });
+                                                                alert("VeloPay desativado com sucesso.");
+                                                            } catch (err) {
+                                                                alert("Erro ao desativar: " + err.message);
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="bg-red-500/10 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center gap-2"
+                                                >
+                                                    <X size={14}/> Desativar VeloPay
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="bg-orange-500/20 text-orange-400 px-4 py-1.5 rounded-full font-black flex items-center gap-2 uppercase tracking-widest text-xs mb-3 border border-orange-500/30">
+                                                    ⏸️ Conta Pausada
+                                                </div>
+                                                <p className="text-slate-300 text-xs font-medium mb-6 px-4">Os clientes não podem usar o checkout nativo. Seu painel de repasses continua acessível para conferência.</p>
+                                                
+                                                <button 
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        if (window.confirm("Deseja reativar o VeloPay para receber pagamentos novamente?")) {
+                                                            try {
+                                                                await updateDoc(doc(db, "stores", storeId), { 
+                                                                    velopayStatus: 'active'
+                                                                });
+                                                                alert("VeloPay reativado com sucesso!");
+                                                            } catch (err) {
+                                                                alert("Erro ao reativar: " + err.message);
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="relative z-20 cursor-pointer bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-500 transition-all active:scale-95 animate-pulse"
+                                                >
+                                                    Reativar VeloPay
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -9858,25 +9890,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
 
-                                <div className="relative z-10 w-full">
-                                    {storeStatus?.billingStatus === 'gratis_vitalicio' ? (
-                                        <div className="w-full bg-purple-600/20 text-purple-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-purple-500/30">
-                                            🎁 Plano Cortesia Ativo
-                                        </div>
-                                    ) : storeStatus?.billingStatus === 'pago' ? (
-                                        <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
-                                            ✅ Fatura Paga
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col md:flex-row gap-3 w-full">
-                                            <button onClick={() => handleGeneratePixInvoice()} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                                <QrCode size={20}/> Pagar com PIX
-                                            </button>
-                                            <button onClick={() => handlePayOverdueInvoice()} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                                <CreditCard size={20}/> Pagar c/ Cartão
-                                            </button>
-                                        </div>
-                                    )}
+                               <div className="relative z-10 w-full">
+                                    {(() => {
+                                        const hasPending = (storeStatus?.faturasHistorico || []).some(f => f.status === 'PENDENTE' || f.status === 'pendente');
+                                        const isFree = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'isento';
+
+                                        if (isFree) {
+                                            return (
+                                                <div className="w-full bg-purple-600/20 text-purple-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-purple-500/30">
+                                                    🎁 Plano Cortesia Ativo
+                                                </div>
+                                            );
+                                        }
+
+                                        if (!hasPending && invoiceData.daysUntilDue > 10) {
+                                            return (
+                                                <div className="w-full bg-green-600/20 text-green-400 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500/30">
+                                                    ✅ Fatura Paga
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div className="flex flex-col md:flex-row gap-3 w-full">
+                                                <button onClick={() => handleGeneratePixInvoice()} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                                    <QrCode size={20}/> Pagar com PIX
+                                                </button>
+                                                <button onClick={() => handlePayOverdueInvoice()} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                                    <CreditCard size={20}/> Pagar c/ Cartão
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>
