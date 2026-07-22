@@ -858,6 +858,7 @@ const educationalBanners = [
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     const [reportDateRange, setReportDateRange] = useState('hoje'); // 'hoje', '7dias', '30dias', 'mes', 'personalizado'
     const [reportSeller, setReportSeller] = useState('todos'); // 'todos', 'online', 'manual'
+    const [reportPaymentFilter, setReportPaymentFilter] = useState('todos'); // <-- NOVO: Filtro de pagamento
     const [showReportResults, setShowReportResults] = useState(false); 
     const [selectedInvoice, setSelectedInvoice] = useState(null); 
     
@@ -866,14 +867,16 @@ const educationalBanners = [
     const [reportCustomEnd, setReportCustomEnd] = useState('');
     const [couponProductSearch, setCouponProductSearch] = useState('');
 
-    const handlePrintReport = () => {
+    // MODIFICADO: Recebe os totais por parâmetro para evitar o bug de Closure/Estado desatualizado
+    const handlePrintReport = (currentTotals = reportTotals, currentSeller = reportSeller) => {
         const w = window.open('', '_blank');
         
-        // --- NOVA LÓGICA DE CAPTURA DO TURNO ---
+        // --- NOVA LÓGICA DE CAPTURA DO TURNO E NOME DO OPERADOR ---
         const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-        // Se por acaso o dono estiver só re-imprimindo um relatório antigo e não houver cache de abertura, mostra "Não registrada"
         const dataAbertura = rawAbertura ? new Date(rawAbertura).toLocaleString('pt-BR') : 'Não registrada na sessão';
         const dataFechamento = new Date().toLocaleString('pt-BR');
+        
+        const nomeOperador = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Geral';
         
         const dataInicioFormatada = reportDateRange === 'personalizado' && reportCustomStart ? new Date(reportCustomStart).toLocaleString('pt-BR') : 'Início do Período';
         const dataFimFormatada = reportDateRange === 'personalizado' && reportCustomEnd ? new Date(reportCustomEnd).toLocaleString('pt-BR') : 'Fim do Período';
@@ -899,20 +902,20 @@ const educationalBanners = [
                     <div class="info-turno">
                         <div style="margin-bottom: 8px;"><strong>Abertura:</strong><br>${dataAbertura}</div>
                         <div style="margin-bottom: 8px;"><strong>Fechamento:</strong><br>${dataFechamento}</div>
-                        <div><strong>Operador:</strong><br>${reportSeller === 'todos' ? 'Geral' : reportSeller}</div>
+                        <div><strong>Operador:</strong><br>${nomeOperador} ${currentSeller !== 'todos' ? `(Filtro: ${currentSeller})` : ''}</div>
                     </div>
                     
                     <p style="font-size: 12px; color: #666; margin-top: 10px;">Filtro de busca: ${periodoTexto}</p>
                 </div>
                 
                 <h3>Resumo de Entradas</h3>
-                <div class="row"><span>Via PIX (${reportTotals.pix.count} ped.):</span> <strong>R$ ${reportTotals.pix.total.toFixed(2)}</strong></div>
-                <div class="row"><span>Cartão (${reportTotals.cartao.count} ped.):</span> <strong>R$ ${reportTotals.cartao.total.toFixed(2)}</strong></div>
-                <div class="row"><span>Dinheiro (${reportTotals.dinheiro.count} ped.):</span> <strong>R$ ${reportTotals.dinheiro.total.toFixed(2)}</strong></div>
-                <div class="row"><span>Outros/Mesa (${reportTotals.outros.count} ped.):</span> <strong>R$ ${reportTotals.outros.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Via PIX (${currentTotals.pix.count} ped.):</span> <strong>R$ ${currentTotals.pix.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Cartão (${currentTotals.cartao.count} ped.):</span> <strong>R$ ${currentTotals.cartao.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Dinheiro (${currentTotals.dinheiro.count} ped.):</span> <strong>R$ ${currentTotals.dinheiro.total.toFixed(2)}</strong></div>
+                <div class="row"><span>Outros/Fiado (${currentTotals.outros.count} ped.):</span> <strong>R$ ${currentTotals.outros.total.toFixed(2)}</strong></div>
                 
-                <div class="total"><span>TOTAL BRUTO:</span> <span>R$ ${reportTotals.totalGeral.toFixed(2)}</span></div>
-                <div class="row" style="margin-top: 15px; border:none;"><span>Volume de Pedidos Pagos:</span> <strong>${reportTotals.qtdPedidos}</strong></div>
+                <div class="total"><span>TOTAL BRUTO:</span> <span>R$ ${currentTotals.totalGeral.toFixed(2)}</span></div>
+                <div class="row" style="margin-top: 15px; border:none;"><span>Volume de Pedidos Pagos:</span> <strong>${currentTotals.qtdPedidos}</strong></div>
                 
                 <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #666;">
                     <p>Relatório gerado pelo Veloapp</p>
@@ -955,8 +958,11 @@ const educationalBanners = [
             return;
         }
         
-        // Se está fechado e quer ABRIR, mantém o fluxo rápido com confirmação nativa
-        if(!window.confirm(`Deseja registrar que você vai ABRIR O CAIXA agora?`)) return;
+        // Se está fechado e quer ABRIR, pede o fundo de caixa
+        const fundoDeCaixaInput = window.prompt("Deseja ABRIR O CAIXA agora?\n\nSe sim, informe o Fundo de Caixa (Troco inicial) em R$:\n(Deixe 0 se não houver)", "0.00");
+        if(fundoDeCaixaInput === null) return; // Cancelou
+        
+        const fundoDeCaixaFormatado = Number(fundoDeCaixaInput.replace(',', '.')) || 0;
 
         try {
             await addDoc(collection(db, "pos_logs"), {
@@ -964,6 +970,7 @@ const educationalBanners = [
                 userEmail: auth.currentUser?.email || 'Desconhecido',
                 userName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe',
                 action: 'ABRIU O CAIXA',
+                fundoDeCaixa: fundoDeCaixaFormatado, // <-- NOVO CAMPO ADICIONADO
                 timestamp: serverTimestamp()
             });
             
@@ -3825,8 +3832,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 if (!reportCustomStart || !reportCustomEnd) return true;
                 const start = new Date(reportCustomStart);
                 const end = new Date(reportCustomEnd);
-                return orderDate >= start && orderDate <= end;
+                if (!(orderDate >= start && orderDate <= end)) return false;
             }
+
+            // FILTRO 3: FORMA DE PAGAMENTO (NOVO)
+            if (reportPaymentFilter !== 'todos') {
+                const method = String(o.paymentMethod || '').toLowerCase();
+                if (reportPaymentFilter === 'pix' && !method.includes('pix') && !method.includes('link')) return false;
+                if (reportPaymentFilter === 'cartao' && !method.includes('cartao') && !method.includes('card') && !method.includes('stripe') && !method.includes('online')) return false;
+                if (reportPaymentFilter === 'dinheiro' && !method.includes('dinheiro') && !method.includes('cash')) return false;
+                if (reportPaymentFilter === 'fiado' && !method.includes('fiado')) return false;
+            }
+
             return true;
         });
     };
@@ -12041,7 +12058,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
-                                
+                                // --- NOVO: TRAVA DE SEGURANÇA FISCAL (CEST) ---
+    if (form.cest && form.cest.trim().length > 0 && form.cest.trim().length < 7) {
+        return alert("⚠️ Erro Fiscal:\n\nO campo CEST deve ter exatamente 7 números, ou ficar totalmente em branco. Você digitou apenas " + form.cest.trim().length + " número(s).");
+    }
                                 const isFood = isFoodCategory(form.category) && storeStatus?.storeNiche !== 'floricultura';
                                 
                                 // PASSO 3: Parse dos novos campos antes de salvar (TRAVA REMOVIDA)
@@ -14247,7 +14267,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                    {/* FILTRO DE VENDEDOR / EQUIPE */}
-                                    <div className="mb-8">
+                                    <div className="mb-6">
                                         <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">2. Filtrar por Vendedor</label>
                                         <select 
                                             value={reportSeller} 
@@ -14265,6 +14285,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 ))}
                                             </optgroup>
                                         </select>
+                                    </div>
+
+                                    {/* NOVO: FILTRO POR FORMA DE PAGAMENTO */}
+                                    <div className="mb-8">
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">3. Forma de Pagamento</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[
+                                                { id: 'todos', label: '💳 Todas as Formas' },
+                                                { id: 'pix', label: '💠 Pix' },
+                                                { id: 'cartao', label: '💳 Cartão' },
+                                                { id: 'dinheiro', label: '💵 Dinheiro' },
+                                                { id: 'fiado', label: '📒 Caderneta (Fiado)' }
+                                            ].map(pay => (
+                                                <button 
+                                                    key={pay.id}
+                                                    onClick={() => { setReportPaymentFilter(pay.id); setShowReportResults(false); }}
+                                                    className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${
+                                                        reportPaymentFilter === pay.id 
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                                                        : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                                    }`}
+                                                >
+                                                    {pay.label}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
 
                                     {/* BOTÃO PARA GERAR O RELATÓRIO NA TELA */}
@@ -14285,8 +14331,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 className="space-y-4 border-t border-slate-100 pt-8"
                                             >
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">3. Resultados do Período</label>
-                                                    <button onClick={handlePrintReport} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">4. Resultados do Período</label>
+                                                    <button onClick={() => handlePrintReport(reportTotals, reportSeller)} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
                                                         <Printer size={16}/> Imprimir
                                                     </button>
                                                 </div>
