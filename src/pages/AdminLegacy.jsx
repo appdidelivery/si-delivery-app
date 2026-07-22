@@ -9472,8 +9472,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="flex flex-col gap-2 mb-4">
                                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Ciclo de Repasse (Pix)</label>
                                             <select 
-                                                className="bg-slate-900 text-blue-400 text-xs font-black uppercase rounded-xl border border-slate-700 p-3 outline-none cursor-pointer w-full shadow-inner disabled:opacity-50"
-                                                disabled={storeStatus?.velopayStatus !== 'active'}
+                                                className="bg-slate-900 text-blue-400 text-xs font-black uppercase rounded-xl border border-slate-700 p-3 outline-none cursor-pointer w-full shadow-inner relative z-50 pointer-events-auto hover:bg-slate-800 transition-colors"
                                                 value={storeStatus?.velopayPixPlan || 'd30'}
                                                 onChange={async (e) => {
                                                     if(window.confirm("Alterar o ciclo mudará a taxa cobrada por transação. Confirmar?")) {
@@ -9483,8 +9482,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             >
                                                 <option value="d30">Em 30 dias (Taxa 2,59%)</option>
                                                 <option value="d14">Em 15 dias (Taxa 2,99%)</option>
-                                                <option value="d1">Em 24h/D+1 (Taxa 3,59%)</option>
-                                                <option value="d0">Na Hora / D+0 (Taxa 3,99%)</option>
+                                                <option value="d1">Em 24h/D+1 (Taxa 3,99%)</option>
                                             </select>
                                         </div>
 
