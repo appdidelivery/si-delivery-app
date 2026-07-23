@@ -4264,8 +4264,9 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
             let finalBrandedUrl = rawSwappedImageUrl;
 
             if (storeLogoUrl) {
-                // Converte a logo para Base64 seguro para URL
-                const safeLogoUrl = Buffer.from(storeLogoUrl).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                // CORREÇÃO: Usamos Buffer nativo com formatação 'base64url' (Suportada no Node 14+)
+                // Isso garante que os caracteres especiais da URL não quebrem a requisição do Cloudinary
+                const safeLogoUrl = Buffer.from(storeLogoUrl, 'utf-8').toString('base64url');
                 
                 // Carimba a Logo da Loja no topo e o texto da Velo no rodapé
                 finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_fetch:${safeLogoUrl},w_120,g_north_west,x_20,y_20/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
