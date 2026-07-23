@@ -3024,11 +3024,10 @@ const handleGenerateProductCopy = async () => {
     };
 
     const updateStatusAndNotify = async (order, newStatus) => {
-        // 🚀 MÁGICA DA IMPRESSÃO SÍNCRONA: Executamos ANTES do await para não perder 
-        // o contexto do "clique do usuário", evitando que o navegador bloqueie a aba de impressão.
+        // 🚀 MÁGICA DA IMPRESSÃO SÍNCRONA
         const autoPrintTrigger = storeStatus?.autoPrintStatus || 'none';
         if (autoPrintTrigger !== 'none' && newStatus === autoPrintTrigger) {
-            printLabel({ ...order, status: newStatus }); // Passa o pedido com o status atualizado para a impressora
+            printLabel({ ...order, status: newStatus }); 
         }
 
        // 1. Atualiza o status do pedido no banco de dados primeiro
@@ -3057,8 +3056,8 @@ const handleGenerateProductCopy = async () => {
                 console.error("Erro ao gravar no extrato (pedido):", error);
             }
         }
-        
-        // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
+        
+        // --- GAMIFICAÇÃO: CRÉDITO AUTOMÁTICO DE CASHBACK (WALLET REAL) ---
         if (newStatus === 'completed' && settings?.gamification?.cashback && order.customerPhone) {
             if (!order.cashbackAwarded) {
                 try {
@@ -3081,7 +3080,7 @@ const handleGenerateProductCopy = async () => {
         }
         // -----------------------------------------------------------------
 
-       const lojaNome = storeStatus.name || "Velo Delivery";
+        const lojaNome = storeStatus.name || "Velo Delivery";
         const primeiroNome = order.customerName ? order.customerName.split(' ')[0] : 'Cliente';
         const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; 
 
@@ -3090,7 +3089,6 @@ const handleGenerateProductCopy = async () => {
         let seoAdjetivo = "com muita qualidade e capricho";
         let geoLocal = "na nossa região";
 
-        // 1. Extração Inteligente GEO (Tenta pegar Cidade/Bairro do endereço da Loja)
         if (storeStatus.address) {
             const addrString = typeof storeStatus.address === 'object' ? storeStatus.address.city : storeStatus.address;
             if (addrString && addrString.includes('-')) {
@@ -3104,13 +3102,11 @@ const handleGenerateProductCopy = async () => {
             const itemLower = seoItem.toLowerCase();
             const niche = storeStatus?.storeNiche || 'default';
 
-            // 2. Classificação Semântica do Produto (Evita absurdos)
             const isTabacaria = /cigarro|tabaco|essência|pod|vape|carvão|isqueiro|seda/i.test(itemLower);
             const isGelado = /açai|açaí|sorvete|picolé|gelato|milkshake|gelo/i.test(itemLower);
             const isBebida = /cerveja|chopp|refrigerante|suco|água|vodka|gin|combo|whisky/i.test(itemLower);
             const isOriental = /sushi|sashimi|temaki|combinado|yakisoba/i.test(itemLower);
 
-            // 3. Atribuição de Adjetivos Fortes (SEO)
             if (isTabacaria) {
                 seoAdjetivo = "exatamente o que eu precisava, salvou demais";
             } else if (isGelado) {
@@ -3124,20 +3120,14 @@ const handleGenerateProductCopy = async () => {
             }
         }
 
-        // 4. Roleta de Templates (Sem aspas "" para facilitar o copiar/colar)
         const seoTemplates = [
             `Plataforma super fácil de pedir! O ${seoItem} chegou ${seoAdjetivo}. A entrega foi super ágil ${geoLocal}. Ganhou um cliente!`,
-            
             `Atendimento e rapidez nota 10 da ${lojaNome}! Pedi ${seoItem}, chegou ${seoAdjetivo}. Com certeza a melhor opção ${geoLocal}.`,
-            
             `Tudo perfeito! O motoboy foi rápido e educado. Meu ${seoItem} estava ${seoAdjetivo}. Recomendo muito o delivery deles!`,
-            
             `Excelente experiência ${geoLocal}. Fiz o pedido pelo celular em segundos, e o ${seoItem} chegou ${seoAdjetivo}. Voltarei a pedir.`
         ];
 
         const fraseSorteada = seoTemplates[Math.floor(Math.random() * seoTemplates.length)];
-        
-        // BALÃO ISOLADO: Apenas as estrelas e o texto limpo, igual ao Pix Copia e Cola.
         const seoCopyText = `⭐⭐⭐⭐⭐\n${fraseSorteada}`;
         // --- 🤖 FIM: MOTOR DE SEO E-E-A-T ---
 
@@ -3145,83 +3135,25 @@ const handleGenerateProductCopy = async () => {
         let msgCompleted = []; 
         
         if (Math.random() < 0.5) {
-            // 🔴 OPÇÃO A: Copy Focada no Clube VIP (Gamificação Suave)
             msgCompleted = [
                 `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie APENAS a mensagem abaixo* e cole na nossa avaliação do Google:`,
-                seoCopyText, // <--- AQUI VAI O BALÃO ISOLADO!
+                seoCopyText,
                 `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
             ];
-            
         } else {
-            // 🔵 OPÇÃO B: Copy Agressiva (Gatilho da Ganância / Dinheiro)
             const percentualCashback = settings?.gamification?.cashbackPercent || 2;
             const valorEmReais = ((Number(order.total) || 0) * (percentualCashback / 100)).toFixed(2);
             
             if (Number(valorEmReais) > 0) {
                 msgCompleted = [
                     `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado! ❤️ \n\n💸 *QUER R$ ${valorEmReais.replace('.', ',')} DE VOLTA NA SUA CARTEIRA DIGITAL AGORA?*\n\nNós liberamos esse saldo de Cashback para o seu próximo pedido, basta nos dar uma força no Google!\n\n👇 *Copie APENAS a mensagem abaixo:*`,
-                    seoCopyText, // <--- AQUI VAI O BALÃO ISOLADO!
+                    seoCopyText,
                     `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Mandou o print, o saldo de R$ ${valorEmReais.replace('.', ',')} cai na sua conta do App na mesma hora!_`
                 ];
             } else {
                 msgCompleted = [
                     `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie APENAS a mensagem abaixo* e cole na nossa avaliação do Google:`,
-                    seoCopyText, // <--- AQUI VAI O BALÃO ISOLADO!
-                    `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
-                ];
-            }
-        }
-        // ------------------------------------------
-
-        // 4. Roleta de Templates (Garante Variedade Anti-Spam para o Google)
-        // Cada frase injeta: 1. Facilidade App (Tecnologia), 2. Produto, 3. Adjetivo, 4. Rapidez, 5. GEO Local
-        const seoTemplates = [
-            `"Plataforma super fácil de pedir! O ${seoItem} chegou ${seoAdjetivo}. A entrega foi super ágil ${geoLocal}. Ganhou um cliente!"`,
-            
-            `"Atendimento e rapidez nota 10 da ${lojaNome}! Pedi ${seoItem}, chegou ${seoAdjetivo}. Com certeza a melhor opção ${geoLocal}."`,
-            
-            `"Tudo perfeito! O motoboy foi rápido e educado. Meu ${seoItem} estava ${seoAdjetivo}. Recomendo muito o delivery deles!"`,
-            
-            `"Excelente experiência ${geoLocal}. Fiz o pedido pelo celular em segundos, e o ${seoItem} chegou ${seoAdjetivo}. Voltarei a pedir."`
-        ];
-
-        // Sorteia um template aleatório para este cliente específico
-        const fraseSorteada = seoTemplates[Math.floor(Math.random() * seoTemplates.length)];
-        const seoCopyText = `⭐⭐⭐⭐⭐\n${fraseSorteada}`;
-        // --- 🤖 FIM: MOTOR DE SEO E-E-A-T ---
-        
-        // --- ⚖️ MOTOR DE TESTE A/B (50% / 50%) ---
-        // AGORA É UM ARRAY: Para enviar balões separados e facilitar a cópia (UX)
-        let msgCompleted = []; 
-        
-        // Math.random() gera um número entre 0 e 1. Menor que 0.5 = 50% de chance.
-        if (Math.random() < 0.5) {
-            
-            // 🔴 OPÇÃO A: Copy Focada no Clube VIP (Gamificação Suave)
-            msgCompleted = [
-                `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie a mensagem abaixo* e cole na nossa avaliação do Google:`,
-                seoCopyText, // <--- BALÃO ISOLADO PARA CÓPIA RÁPIDA
-                `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
-            ];
-            
-        } else {
-            
-            // 🔵 OPÇÃO B: Copy Agressiva (Gatilho da Ganância / Dinheiro)
-            const percentualCashback = settings?.gamification?.cashbackPercent || 2;
-            const valorEmReais = ((Number(order.total) || 0) * (percentualCashback / 100)).toFixed(2);
-            
-            // Trava de Segurança: Só manda a copy B se houver valor real a receber
-            if (Number(valorEmReais) > 0) {
-                msgCompleted = [
-                    `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado! ❤️ \n\n💸 *QUER R$ ${valorEmReais.replace('.', ',')} DE VOLTA NA SUA CARTEIRA DIGITAL AGORA?*\n\nNós liberamos esse saldo de Cashback para o seu próximo pedido, basta nos dar uma força no Google!\n\n👇 *Copie a mensagem abaixo:*`,
-                    seoCopyText, // <--- BALÃO ISOLADO PARA CÓPIA RÁPIDA
-                    `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Mandou o print, o saldo de R$ ${valorEmReais.replace('.', ',')} cai na sua conta do App na mesma hora!_`
-                ];
-            } else {
-                // Fallback para a opção A
-                msgCompleted = [
-                    `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie a mensagem abaixo* e cole na nossa avaliação do Google:`,
-                    seoCopyText, // <--- BALÃO ISOLADO PARA CÓPIA RÁPIDA
+                    seoCopyText,
                     `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
                 ];
             }
@@ -3234,7 +3166,7 @@ const handleGenerateProductCopy = async () => {
         const messages = {
             preparing: `👨‍🍳 *PEDIDO EM PREPARO!* \n\nOlá ${primeiroNome}, seu pedido foi recebido e já está sendo preparado aqui na *${lojaNome}*.`,
             delivery: `🏍️ *SAIU PARA ENTREGA!* \n\nO motoboy já está a caminho com o seu pedido #${order.id.slice(-5).toUpperCase()}.\n\n🎉 Que legal! Vimos aqui que este já é o seu *${qtdPedidosFeitos}º pedido* com a gente. Muito obrigado pela preferência!\n\n📍 *Acompanhe a entrega no mapa ao vivo:* \nhttps://${window.location.host}/track/${order.id}`,
-            completed: msgCompleted, // Array de mensagens
+            completed: msgCompleted, 
             canceled: `❌ *PEDIDO CANCELADO* \n\nO pedido #${order.id.slice(-5).toUpperCase()} foi cancelado.`
         };
 
@@ -3242,10 +3174,8 @@ const handleGenerateProductCopy = async () => {
             const phone = String(order.customerPhone).replace(/\D/g, ''); 
             const cleanPhone = phone.startsWith('55') ? phone : `55${phone}`;
 
-            // DISPARO 100% PELA API OFICIAL E SALVAMENTO NO CHAT
             if (settings?.integrations?.whatsapp?.apiToken && settings?.integrations?.whatsapp?.autoOrderStatus) {
                 try {
-                    // Normaliza para array para conseguirmos processar tanto Strings (Em Preparo) quanto Arrays (Entregue)
                     const messagesToSend = Array.isArray(messages[newStatus]) ? messages[newStatus] : [messages[newStatus]];
 
                     for (const textMsg of messagesToSend) {
@@ -3260,7 +3190,6 @@ const handleGenerateProductCopy = async () => {
                             })
                         });
 
-                        // SE A API ENVIOU COM SUCESSO, SALVA NA TELA DE CHAT DO ADMIN
                         if (res.ok) {
                             await addDoc(collection(db, 'whatsapp_inbound'), {
                                 storeId: storeId,
@@ -3268,11 +3197,10 @@ const handleGenerateProductCopy = async () => {
                                 text: textMsg,
                                 receivedAt: serverTimestamp(),
                                 status: 'read',
-                                direction: 'outbound' // Isso faz o balão ficar verde (enviado por você)
+                                direction: 'outbound'
                             });
                         }
                         
-                        // Adiciona um pequeno delay de 500ms entre as mensagens para garantir a ordem de chegada no WhatsApp
                         if (messagesToSend.length > 1) {
                             await new Promise(resolve => setTimeout(resolve, 500));
                         }
