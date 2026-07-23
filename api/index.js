@@ -4326,8 +4326,9 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
             return res.status(200).json({ success: true, imageUrl: finalBrandedUrl });
 
         } catch (error) {
-            console.error('❌ Erro no Velo InstaFun Swap:', error.message);
-            return res.status(500).json({ error: 'A inteligência artificial demorou a responder. Tente tirar a selfie com mais luz.' });
+            console.error('❌ Erro no Velo InstaFun Swap:', error);
+            // MUDANÇA: Agora vamos mandar o erro REAL pra tela pra eu poder ler!
+            return res.status(500).json({ error: `ERRO REAL: ${error.message}` });
         }
     }
 
