@@ -4219,46 +4219,43 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
     }
 
     // ------------------------------------------------------------------------
-    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (FAL.AI + CLOUDINARY + WATERMARKS)
+    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (REPLICATE + CLOUDINARY + WATERMARKS)
     // ------------------------------------------------------------------------
     else if (path === '/api/instafun-swap') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            // Agora recebemos o TEMA escolhido pelo lojista, em vez da URL manual
             const { storeId, selfieBase64, theme } = req.body;
 
             if (!selfieBase64) {
                 return res.status(400).json({ error: 'A Selfie é obrigatória.' });
             }
 
-            const FAL_KEY = process.env.FAL_KEY;
+            // Usando a chave gratuita da Replicate!
+            const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
             const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.VITE_CLOUDINARY_CLOUD_NAME;
             const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-            if (!FAL_KEY || !CLOUDINARY_CLOUD_NAME) {
-                return res.status(500).json({ error: 'Variáveis de ambiente (FAL_KEY ou CLOUDINARY) ausentes na Vercel.' });
+            if (!REPLICATE_API_TOKEN || !CLOUDINARY_CLOUD_NAME) {
+                return res.status(500).json({ error: 'Variáveis de ambiente (REPLICATE_API_TOKEN ou CLOUDINARY) ausentes na Vercel.' });
             }
 
-            console.log(`📸 [InstaFun] Processando selfie para a loja: ${storeId} | Tema: ${theme}`);
+            console.log(`📸 [InstaFun] Processando selfie via REPLICATE para a loja: ${storeId} | Tema: ${theme}`);
 
-            // 1. Dicionário de Templates de Alta Conversão (Os Fundos Temáticos)
-            // Esses links são imagens base (geradas por IA ou banco de imagens) preparadas para receber rosto
             const templates = {
-                'cowboy': 'https://images.unsplash.com/photo-1551829142-d9b8e614a9da?q=80&w=800&auto=format&fit=crop', // Rei do Burger/Cowboy
-                'carnival': 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop', // Rei da Balada / Drink
-                'halloween': 'https://images.unsplash.com/photo-1509556810207-695024e037cc?q=80&w=800&auto=format&fit=crop', // Monstro/Zumbi
-                'christmas': 'https://images.unsplash.com/photo-1583394838336-acd977736f90?q=80&w=800&auto=format&fit=crop', // Chef / Masterchef
-                'default': 'https://images.unsplash.com/photo-1554189097-ffe88e998a2b?q=80&w=800&auto=format&fit=crop' // Cyberpunk Neon
+                'cowboy': 'https://images.unsplash.com/photo-1551829142-d9b8e614a9da?q=80&w=800&auto=format&fit=crop', 
+                'carnival': 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop', 
+                'halloween': 'https://images.unsplash.com/photo-1509556810207-695024e037cc?q=80&w=800&auto=format&fit=crop', 
+                'christmas': 'https://images.unsplash.com/photo-1583394838336-acd977736f90?q=80&w=800&auto=format&fit=crop', 
+                'default': 'https://images.unsplash.com/photo-1554189097-ffe88e998a2b?q=80&w=800&auto=format&fit=crop' 
             };
 
             const targetTemplateUrl = templates[theme] || templates['default'];
 
-            // 2. Busca a LOGO oficial do lojista no Firestore
             const storeDoc = await db.collection('stores').doc(storeId).get();
             const storeLogoUrl = storeDoc.data()?.storeLogoUrl || '';
 
-            // 3. Upload seguro da Selfie (Base64) para o Cloudinary (precisamos de um link HTTPS para a IA)
+            // 1. Upload seguro da Selfie (Base64) para o Cloudinary
             const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4270,57 +4267,67 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
 
             const uploadData = await uploadRes.json();
             if (!uploadRes.ok) throw new Error('Falha ao subir a selfie temporária.');
-
             const selfieUrl = uploadData.secure_url;
 
-            // 4. Chama a API de Face Swap (Fal.ai)
-            const swapRes = await fetch('https://fal.run/fal-ai/face-swap', {
+            // 2. Chama a API da Replicate (Modelo lucataco/faceswap)
+            console.log('🤖 Enviando para Replicate...');
+            const repRes = await fetch('https://api.replicate.com/v1/predictions', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Key ${FAL_KEY}`,
+                    'Authorization': `Token ${REPLICATE_API_TOKEN}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    base_image_url: targetTemplateUrl,
-                    swap_image_url: selfieUrl
+                    // Modelo oficial de Face Swap no Replicate
+                    version: "9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109e843d20d", 
+                    input: {
+                        target_image: targetTemplateUrl,
+                        swap_image: selfieUrl
+                    }
                 })
             });
 
-            const swapData = await swapRes.json();
-            if (!swapRes.ok || !swapData.image?.url) {
-                console.error("Erro Fal.ai:", swapData);
-                throw new Error('A IA não conseguiu reconhecer os rostos ou gerou erro.');
+            let prediction = await repRes.json();
+
+            if (prediction.error) {
+                console.error("Erro inicial Replicate:", prediction.error);
+                throw new Error("Erro ao iniciar a IA.");
             }
 
-            const rawSwappedImageUrl = swapData.image.url;
+            // 3. Como a Replicate é assíncrona, fazemos um polling até a imagem ficar pronta (máx 15 seg)
+            let attempts = 0;
+            while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < 15) {
+                await new Promise(r => setTimeout(r, 1000)); // Espera 1 segundo
+                const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+                    headers: { 'Authorization': `Token ${REPLICATE_API_TOKEN}` }
+                });
+                prediction = await pollRes.json();
+                attempts++;
+            }
 
-            // 5. A MÁGICA DA COMPOSIÇÃO NO CLOUDINARY (Sanduíche de Imagens)
-            // Pegamos a imagem da IA e adicionamos a Logo da Loja e o Rodapé da Velo!
-            
+            if (prediction.status !== "succeeded" || !prediction.output) {
+                console.error("Erro final Replicate:", prediction);
+                throw new Error('A IA falhou em reconhecer os rostos ou demorou muito.');
+            }
+
+            const rawSwappedImageUrl = prediction.output; // A imagem gerada
+
+            // 4. A MÁGICA DA COMPOSIÇÃO NO CLOUDINARY (Sanduíche de Imagens)
             let finalBrandedUrl = rawSwappedImageUrl;
 
             if (storeLogoUrl) {
-                // Converte a logo da loja para Base64 seguro para URL (Padrão Cloudinary)
                 const safeLogoUrl = Buffer.from(storeLogoUrl).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                
-                // Aplica 3 camadas simultâneas via URL do Cloudinary:
-                // Camada 1: l_fetch:<logo> (Coloca a logo da loja no canto superior esquerdo, tamanho 120px)
-                // Camada 2: l_text (Coloca a tarja preta translúcida no rodapé)
-                // Camada 3: l_text (Escreve "Gerado via @velodelivery" no rodapé)
                 finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_fetch:${safeLogoUrl},w_120,g_north_west,x_20,y_20/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
             } else {
-                // Se a loja não tiver logo, põe só o selo da Velo
                 finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
             }
 
-            return res.status(200).json({ 
-                success: true, 
-                imageUrl: finalBrandedUrl 
-            });
+            console.log('✅ Sucesso! Imagem gerada.');
+            return res.status(200).json({ success: true, imageUrl: finalBrandedUrl });
 
         } catch (error) {
             console.error('❌ Erro no Velo InstaFun Swap:', error.message);
-            return res.status(500).json({ error: 'Nossa inteligência artificial está sobrecarregada. Tente novamente em 1 minuto.' });
+            return res.status(500).json({ error: 'A inteligência artificial demorou a responder. Tente tirar a selfie com mais luz.' });
         }
     }
 
