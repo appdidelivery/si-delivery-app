@@ -823,6 +823,91 @@ export default function Home() {
   const [proofFile, setProofFile] = useState(null);
   const[uploadingProof, setUploadingProof] = useState(false);
 
+  // --- ESTADOS VELO INSTAFUN (MOTOR UGC IA) ---
+  const [showInstaFun, setShowInstaFun] = useState(false);
+  const [instaFunStep, setInstaFunStep] = useState('camera'); // 'camera', 'loading', 'result'
+  const [instaFunImage, setInstaFunImage] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  const startInstaFunCamera = async () => {
+      setInstaFunStep('camera');
+      setShowInstaFun(true);
+      try {
+          // Solicita permissão da câmera frontal
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+          if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+          }
+      } catch (err) {
+          alert("Para participar da brincadeira, precisamos de acesso à câmera frontal do seu celular!");
+          setShowInstaFun(false);
+      }
+  };
+
+  const stopInstaFunCamera = () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+          videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+  };
+
+  const takeInstaFunPhoto = () => {
+      if (videoRef.current && canvasRef.current) {
+          const context = canvasRef.current.getContext('2d');
+          canvasRef.current.width = videoRef.current.videoWidth;
+          canvasRef.current.height = videoRef.current.videoHeight;
+          context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+          
+          const base64Image = canvasRef.current.toDataURL('image/jpeg');
+          stopInstaFunCamera();
+          setInstaFunStep('loading');
+
+          // CHAMADA OFICIAL DA IA (Backend Vercel)
+          const runInstaFunAI = async () => {
+              try {
+                  const res = await fetch('/api/instafun-swap', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          storeId: storeId,
+                          selfieBase64: base64Image,
+                          templateUrl: marketingSettings?.gamification?.instaFun?.templateUrl
+                      })
+                  });
+                  const data = await res.json();
+                  
+                  if (res.ok && data.success && data.imageUrl) {
+                      setInstaFunImage(data.imageUrl);
+                      setInstaFunStep('result');
+                  } else {
+                      alert(data.error || "A IA não encontrou um rosto. Tente tirar a selfie com mais luz.");
+                      setShowInstaFun(false);
+                  }
+              } catch (error) {
+                  alert("Erro de conexão. A rede demorou muito.");
+                  setShowInstaFun(false);
+              }
+          };
+          
+          runInstaFunAI();
+      }
+  };
+
+  const handleShareInstaFun = async () => {
+      const shareData = {
+          title: `Fiquei incrível!`,
+          text: `Olha o resultado da IA da ${storeSettings.name}! Faça o seu pedido e teste também:`,
+          url: window.location.href
+      };
+      
+      // Usa a Web Share API Nativa do Celular (Abre o menu para escolher Instagram/WhatsApp)
+      if (navigator.share) {
+          try { await navigator.share(shareData); } catch (err) {}
+      } else {
+          alert('Copie a imagem acima e poste nos seus Stories marcando a loja!');
+      }
+  };
+
   // --- ESTADOS DA ROLETA PÓS-CHECKOUT (GAMIFICAÇÃO) ---
   const [showRoulette, setShowRoulette] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -1485,8 +1570,9 @@ export default function Home() {
     });
 
     return () => {
-        unsubCategories(); unsubIngredients(); unsubCoupons(); unsubShippingRates();
-        unsubGeneralBanners(); unsubStoreSettings(); unsubMarketingSettings();
+        // Correção: Executa o 'unsub' apenas dos listeners que ainda usam onSnapshot em tempo real
+        if (typeof unsubStoreSettings === 'function') unsubStoreSettings(); 
+        if (typeof unsubMarketingSettings === 'function') unsubMarketingSettings();
     };
   },[storeId]);
 
@@ -3264,6 +3350,30 @@ if (window.fbq) {
         </AnimatePresence>
         {/* --- FIM: SMART PROMOS CAROUSEL --- */}
 
+        {/* --- INÍCIO: BANNER VELO INSTAFUN --- */}
+        <AnimatePresence>
+            {marketingSettings?.gamification?.instaFun?.active && marketingSettings?.gamification?.instaFun?.triggerApp && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    className="mb-4 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl p-4 shadow-lg flex items-center justify-between text-white cursor-pointer active:scale-95 transition-transform"
+                    onClick={startInstaFunCamera}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm animate-pulse">
+                            <Camera size={24} />
+                        </div>
+                        <div className="flex flex-col text-left">
+                            <span className="font-black uppercase tracking-widest text-[10px] text-pink-200">Desafio IA (Beta)</span>
+                            <span className="font-bold text-sm leading-tight">Veja sua versão {marketingSettings.gamification.instaFun.theme || 'IA'} e ganhe <strong className="text-yellow-300">{marketingSettings.gamification.instaFun.prize || 'Brinde'}</strong>!</span>
+                        </div>
+                    </div>
+                    <Sparkles size={20} className="text-pink-200 flex-shrink-0" />
+                </motion.div>
+            )}
+        </AnimatePresence>
+        {/* --- FIM: BANNER VELO INSTAFUN --- */}
+
         <div className="relative mb-8 mt-2">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
@@ -4915,6 +5025,112 @@ if (window.fbq) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* --- INÍCIO: MODAL VELO INSTAFUN (CÂMERA E RESULTADO) --- */}
+      <AnimatePresence>
+        {showInstaFun && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-[500] p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 w-full max-w-sm rounded-[3rem] p-6 relative shadow-2xl overflow-hidden border border-slate-700">
+              
+              <button 
+                  onClick={() => { setShowInstaFun(false); stopInstaFunCamera(); }} 
+                  className="absolute top-6 right-6 p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white z-20 transition-colors"
+              >
+                  <X size={20} />
+              </button>
+
+              <div className="text-center mb-6 mt-2 relative z-10">
+                  <h2 className="text-2xl font-black italic uppercase text-white flex items-center justify-center gap-2">
+                      <Camera className="text-pink-500"/> InstaFun
+                  </h2>
+                  <p className="text-xs font-bold text-slate-400 mt-1">Inteligência Artificial da {storeSettings.name}</p>
+              </div>
+
+              {instaFunStep === 'camera' && (
+                  <div className="flex flex-col items-center animate-in fade-in">
+                      <div className="relative w-full aspect-[3/4] bg-slate-800 rounded-3xl overflow-hidden border-4 border-pink-500/30 shadow-[0_0_30px_rgba(236,72,153,0.2)] mb-6">
+                          {/* Feed ao vivo da câmera */}
+                          <video 
+                              ref={videoRef} 
+                              autoPlay 
+                              playsInline 
+                              muted 
+                              className="w-full h-full object-cover scale-[1.2]" 
+                          />
+                          {/* Elemento oculto para desenhar a foto */}
+                          <canvas ref={canvasRef} className="hidden"></canvas>
+                          
+                          {/* Guia de Rosto (Overlay) */}
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-40 h-56 border-2 border-dashed border-white/50 rounded-[4rem]"></div>
+                          </div>
+                          <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                              <span className="bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                  Enquadre seu rosto
+                              </span>
+                          </div>
+                      </div>
+
+                      <button 
+                          onClick={takeInstaFunPhoto}
+                          className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 shadow-xl flex items-center justify-center hover:scale-95 transition-transform"
+                      >
+                          <div className="w-12 h-12 rounded-full bg-pink-500 animate-pulse"></div>
+                      </button>
+                  </div>
+              )}
+
+              {instaFunStep === 'loading' && (
+                  <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
+                      <div className="relative">
+                          <Loader2 className="animate-spin text-pink-500 mb-6" size={64} />
+                          <div className="absolute inset-0 bg-pink-500 blur-xl opacity-20 rounded-full"></div>
+                      </div>
+                      <h3 className="font-black uppercase tracking-widest text-white mb-2">Processando com IA...</h3>
+                      <p className="text-xs font-bold text-slate-400 text-center px-4">
+                          Aplicando o tema {marketingSettings?.gamification?.instaFun?.theme || 'mágico'} na sua foto. Isso leva apenas alguns segundos!
+                      </p>
+                  </div>
+              )}
+
+              {instaFunStep === 'result' && (
+                  <div className="flex flex-col items-center animate-in zoom-in-95">
+                      <div className="w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl mb-6 relative border border-slate-700">
+                          <img src={instaFunImage} alt="Resultado IA" className="w-full h-full object-cover" />
+                          <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest">
+                              Gerado por IA
+                          </div>
+                      </div>
+
+                      <div className="w-full space-y-3">
+                          <button 
+                              onClick={handleShareInstaFun}
+                              className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                          >
+                              <Share2 size={18} /> Postar no Stories
+                          </button>
+                          
+                          <button 
+                              onClick={() => {
+                                  setShowInstaFun(false);
+                                  stopInstaFunCamera();
+                                  setCouponCode('INSTAFUN10'); // Auto-preenche um cupom fictício para gerar atrito positivo
+                                  alert(`Para resgatar seu ${marketingSettings?.gamification?.instaFun?.prize || 'prêmio'}, envie o print dos seus Stories no nosso WhatsApp após finalizar a compra!`);
+                                  document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 border border-slate-700"
+                          >
+                              <Gift size={16} /> Resgatar Prêmio
+                          </button>
+                      </div>
+                  </div>
+              )}
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* --- FIM: MODAL VELO INSTAFUN --- */}
 
       {/* --- POP-UP AVALIAÇÃO INTERNA (AUTOMÁTICA 10 PTS) --- */}
       <AnimatePresence>

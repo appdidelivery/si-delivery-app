@@ -1384,6 +1384,8 @@ const educationalBanners = [
     const [expandedBogoRules, setExpandedBogoRules] = useState([]);
     const [isEditingPromoBanners, setIsEditingPromoBanners] = useState(false);
     const [isEditingFlashDeal, setIsEditingFlashDeal] = useState(false);
+    const [instaFunDraft, setInstaFunDraft] = useState(null); // Rascunho Velo InstaFun (evitar excesso de reads/writes)
+    const [isSavingInstaFun, setIsSavingInstaFun] = useState(false);
     
     // --- NOVO: ESTADOS DO VELOPAY ONBOARDING ---
     const [veloPayForm, setVeloPayForm] = useState({
@@ -8869,6 +8871,143 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                             <input type="checkbox" className="w-5 h-5 accent-purple-500 cursor-pointer" checked={settings.gamification?.badges || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, badges: e.target.checked } }, { merge: true })} />
                                         </div>
+
+                                        {/* --- INÍCIO: VELO INSTAFUN (UGC & FACE SWAP) --- */}
+                                        <div className="bg-slate-800/50 p-4 rounded-2xl border border-pink-500/30 hover:border-pink-400 transition-all relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 bg-pink-500/10 w-32 h-32 blur-3xl rounded-full pointer-events-none"></div>
+                                            <div className="flex items-start justify-between relative z-10">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-pink-500/20 p-2 rounded-xl text-pink-400 mt-1"><Camera size={20}/></div>
+                                                    <div className="pr-4">
+                                                        <p className="font-black text-white text-sm uppercase flex items-center gap-2">Velo InstaFun <span className="text-[9px] bg-pink-500 text-white px-2 py-0.5 rounded-md">BETA</span></p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-1">Motor Gamificado de Imagens IA (UGC) p/ Instagram.</p>
+                                                    </div>
+                                                </div>
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-5 h-5 accent-pink-500 cursor-pointer flex-shrink-0 mt-1" 
+                                                    checked={settings.gamification?.instaFun?.active || false} 
+                                                    onChange={async (e) => {
+                                                        const isChecked = e.target.checked;
+                                                        await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, instaFun: { ...settings.gamification?.instaFun, active: isChecked } } }, { merge: true });
+                                                        
+                                                        if (isChecked) {
+                                                            setInstaFunDraft({
+                                                                theme: settings.gamification?.instaFun?.theme || 'default',
+                                                                prize: settings.gamification?.instaFun?.prize || '',
+                                                                templateUrl: settings.gamification?.instaFun?.templateUrl || '',
+                                                                triggerApp: settings.gamification?.instaFun?.triggerApp || false,
+                                                                triggerPostDelivery: settings.gamification?.instaFun?.triggerPostDelivery || false
+                                                            });
+                                                        } else {
+                                                            setInstaFunDraft(null);
+                                                        }
+                                                    }} 
+                                                />
+                                            </div>
+                                            
+                                            {settings.gamification?.instaFun?.active && instaFunDraft && (
+                                                <div className="mt-4 pt-4 border-t border-slate-700 animate-in fade-in slide-in-from-top-2 relative z-10">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Tema da Campanha</label>
+                                                            <select 
+                                                                value={instaFunDraft.theme} 
+                                                                onChange={(e) => setInstaFunDraft({ ...instaFunDraft, theme: e.target.value })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-pink-500 text-sm cursor-pointer"
+                                                            >
+                                                                <option value="default">Padrão (Divertido)</option>
+                                                                <option value="halloween">Halloween 🎃</option>
+                                                                <option value="christmas">Natal 🎅</option>
+                                                                <option value="carnival">Carnaval 🎉</option>
+                                                                <option value="cowboy">Velho Oeste / Burger 🤠</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Prêmio para quem postar</label>
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Ex: 10% OFF ou Bebida Grátis" 
+                                                                value={instaFunDraft.prize} 
+                                                                onChange={(e) => setInstaFunDraft({ ...instaFunDraft, prize: e.target.value })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-pink-500 text-sm placeholder-slate-600"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <label className="text-[10px] font-bold text-slate-400 uppercase">URL da Imagem Base (Template Face Swap)</label>
+                                                            <input 
+                                                                type="url" 
+                                                                placeholder="Ex: https://res.cloudinary.com/seu-id/image/upload/template.jpg" 
+                                                                value={instaFunDraft.templateUrl} 
+                                                                onChange={(e) => setInstaFunDraft({ ...instaFunDraft, templateUrl: e.target.value })}
+                                                                className="w-full p-3 mt-1 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold outline-none focus:border-pink-500 text-sm placeholder-slate-600"
+                                                            />
+                                                            <p className="text-[9px] text-slate-500 mt-1">Cole o link (Cloudinary ou outra nuvem) da imagem com o rosto que será substituído pela IA.</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700 mb-4">
+                                                        <p className="text-[10px] font-black uppercase text-pink-400 tracking-widest mb-1 flex items-center gap-2"><Zap size={14}/> Gatilhos de Disparo</p>
+                                                        
+                                                        <label className="flex items-center justify-between cursor-pointer group">
+                                                            <div>
+                                                                <span className="text-xs font-bold text-slate-300 group-hover:text-white transition-colors">Tarja no App (Vitrine)</span>
+                                                                <p className="text-[9px] text-slate-500">Mostra um banner na loja convidando o cliente a gerar a foto.</p>
+                                                            </div>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="w-4 h-4 accent-pink-500 cursor-pointer" 
+                                                                checked={instaFunDraft.triggerApp} 
+                                                                onChange={(e) => setInstaFunDraft({ ...instaFunDraft, triggerApp: e.target.checked })} 
+                                                            />
+                                                        </label>
+                                                        
+                                                        <label className="flex items-center justify-between cursor-pointer group pt-2 border-t border-slate-800">
+                                                            <div>
+                                                                <span className="text-xs font-bold text-slate-300 group-hover:text-white transition-colors">Auto-WhatsApp (Delay Pós-Entrega)</span>
+                                                                <p className="text-[9px] text-slate-500">O robô envia o desafio 2 horas após o pedido ser marcado como Entregue.</p>
+                                                            </div>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="w-4 h-4 accent-pink-500 cursor-pointer" 
+                                                                checked={instaFunDraft.triggerPostDelivery} 
+                                                                onChange={(e) => setInstaFunDraft({ ...instaFunDraft, triggerPostDelivery: e.target.checked })} 
+                                                            />
+                                                        </label>
+                                                    </div>
+
+                                                    <div className="flex flex-col md:flex-row gap-3">
+                                                        <button 
+                                                            onClick={async () => {
+                                                                setIsSavingInstaFun(true);
+                                                                try {
+                                                                    await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, instaFun: { ...settings.gamification.instaFun, ...instaFunDraft } } }, { merge: true });
+                                                                    alert("✅ Configurações do Velo InstaFun salvas com sucesso!");
+                                                                } catch (error) {
+                                                                    alert("Erro ao salvar Velo InstaFun: " + error.message);
+                                                                } finally {
+                                                                    setIsSavingInstaFun(false);
+                                                                }
+                                                            }}
+                                                            disabled={isSavingInstaFun}
+                                                            className="flex-1 bg-pink-600 hover:bg-pink-700 text-white px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-pink-600/30 transition-all active:scale-95 disabled:opacity-50 flex justify-center items-center gap-2"
+                                                        >
+                                                            {isSavingInstaFun ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>}
+                                                            {isSavingInstaFun ? 'Salvando...' : 'Salvar InstaFun'}
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            onClick={() => alert("A funcionalidade de Disparo em Massa para a base será conectada à Fila (Queue) do Firebase na Fase 3!")}
+                                                            className="md:w-auto bg-slate-800 text-white border border-pink-500/50 px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-pink-600 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                            title="Disparar campanha para todos os clientes cadastrados"
+                                                        >
+                                                            <Share2 size={16} /> Disparar p/ Base
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* --- FIM: VELO INSTAFUN --- */}
 
                                         {/* --- INÍCIO: SMART BUNDLING (MARKET BASKET ANALYSIS) --- */}
                                         <div className="bg-slate-800/50 p-4 rounded-2xl border border-indigo-500/30 hover:border-indigo-400 transition-all relative overflow-hidden">

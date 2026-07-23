@@ -4219,6 +4219,82 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
     }
 
     // ------------------------------------------------------------------------
+    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (FAL.AI + CLOUDINARY)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/instafun-swap') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, selfieBase64, templateUrl } = req.body;
+
+            if (!selfieBase64 || !templateUrl) {
+                return res.status(400).json({ error: 'A Selfie e a Imagem Base são obrigatórias.' });
+            }
+
+            const FAL_KEY = process.env.FAL_KEY;
+            const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.VITE_CLOUDINARY_CLOUD_NAME;
+            const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+            if (!FAL_KEY || !CLOUDINARY_CLOUD_NAME) {
+                return res.status(500).json({ error: 'Variáveis de ambiente (FAL_KEY ou CLOUDINARY) ausentes na Vercel.' });
+            }
+
+            console.log(`📸 [InstaFun] Processando selfie para a loja: ${storeId}`);
+
+            // 1. Upload seguro da Selfie (Base64) para o Cloudinary para obter um link público HTTPs
+            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    file: selfieBase64,
+                    upload_preset: CLOUDINARY_UPLOAD_PRESET
+                })
+            });
+
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) throw new Error('Falha ao subir a selfie temporária.');
+
+            const selfieUrl = uploadData.secure_url;
+
+            // 2. Chama a API de Face Swap Rápida (Fal.ai - Modelo Face Swap)
+            const swapRes = await fetch('https://fal.run/fal-ai/face-swap', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Key ${FAL_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    base_image_url: templateUrl,
+                    swap_image_url: selfieUrl
+                })
+            });
+
+            const swapData = await swapRes.json();
+            if (!swapRes.ok || !swapData.image?.url) {
+                console.error("Erro Fal.ai:", swapData);
+                throw new Error('A IA não conseguiu reconhecer os rostos ou gerou erro.');
+            }
+
+            // O link da IA devolvendo a foto trocada
+            const finalImageUrl = swapData.image.url;
+
+            // 3. (OPCIONAL) Aplica uma tarja/marca d'água via URL do Cloudinary (Fetch URL)
+            // Fazemos o Cloudinary capturar a imagem da IA e aplicar um texto "Gerado por IA" (Overlay text)
+            const brandedImageUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_text:Arial_24_bold_white:GERADO%20POR%20IA,g_north_west,x_20,y_20,co_white,b_black/${encodeURIComponent(finalImageUrl)}`;
+
+            // Retorna o resultado mágico pro frontend!
+            return res.status(200).json({ 
+                success: true, 
+                imageUrl: brandedImageUrl 
+            });
+
+        } catch (error) {
+            console.error('❌ Erro no Velo InstaFun Swap:', error.message);
+            return res.status(500).json({ error: 'Nossa inteligência artificial está sobrecarregada. Tente novamente em 1 minuto.' });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
