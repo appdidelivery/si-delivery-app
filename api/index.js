@@ -4260,21 +4260,16 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
             // 3. PULA A IA! Vamos usar a própria selfie como resultado para testar a velocidade
             const rawSwappedImageUrl = uploadData.secure_url;
 
-            // 4. A MÁGICA DA COMPOSIÇÃO NO CLOUDINARY (Sanduíche de Imagens)
-            let finalBrandedUrl = rawSwappedImageUrl;
+            // 4. A MÁGICA DA COMPOSIÇÃO NO CLOUDINARY (Versão Blindada)
+            // Como o Cloudinary bloqueia o comando 'fetch' por segurança, 
+            // vamos injetar a marca d'água direto na URL que ele acabou de nos devolver!
+            
+            const watermarkVelo = "co_white,l_text:Arial_24_bold:Gerado%20via%20@velodelivery,g_south,y_20/b_black,o_60";
+            
+            // Injeta a transformação logo após a palavra "/upload/" na URL
+            const finalBrandedUrl = rawSwappedImageUrl.replace('/upload/', `/upload/${watermarkVelo}/`);
 
-            if (storeLogoUrl) {
-                // CORREÇÃO: Usamos Buffer nativo com formatação 'base64url' (Suportada no Node 14+)
-                // Isso garante que os caracteres especiais da URL não quebrem a requisição do Cloudinary
-                const safeLogoUrl = Buffer.from(storeLogoUrl, 'utf-8').toString('base64url');
-                
-                // Carimba a Logo da Loja no topo e o texto da Velo no rodapé
-                finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_fetch:${safeLogoUrl},w_120,g_north_west,x_20,y_20/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
-            } else {
-                finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
-            }
-
-            console.log('✅ Sucesso! Bypass concluído em menos de 2 segundos.');
+            console.log('✅ Sucesso! Bypass blindado concluído.');
             return res.status(200).json({ 
                 success: true, 
                 imageUrl: finalBrandedUrl 
