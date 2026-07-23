@@ -894,9 +894,10 @@ export default function Home() {
   };
 
   const handleShareInstaFun = async () => {
+      const prizeName = marketingSettings?.gamification?.instaFun?.prize || 'um prêmio especial';
       const shareData = {
-          title: `Fiquei incrível!`,
-          text: `Olha o resultado da IA da ${storeSettings.name}! Faça o seu pedido e teste também:`,
+          title: `Participando do Sorteio!`,
+          text: `Olha minha versão IA feita pela ${storeSettings.name}! Estou concorrendo a ${prizeName}. Peça seu delivery e participe também:`,
           url: window.location.href
       };
       
@@ -904,7 +905,7 @@ export default function Home() {
       if (navigator.share) {
           try { await navigator.share(shareData); } catch (err) {}
       } else {
-          alert('Copie a imagem acima e poste nos seus Stories marcando a loja!');
+          alert(`Para validar sua participação e concorrer a [${prizeName}], copie a imagem acima e poste nos seus Stories marcando o Instagram da loja!`);
       }
   };
 
@@ -5026,11 +5027,11 @@ if (window.fbq) {
         )}
       </AnimatePresence>
 
-      {/* --- INÍCIO: MODAL VELO INSTAFUN (CÂMERA E RESULTADO) --- */}
+      {/* --- INÍCIO: MODAL VELO INSTAFUN (CÂMERA E RESULTADO OTIMIZADO) --- */}
       <AnimatePresence>
         {showInstaFun && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-[500] p-4">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 w-full max-w-sm rounded-[3rem] p-6 relative shadow-2xl overflow-hidden border border-slate-700">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 w-full max-w-sm rounded-[3rem] p-6 relative shadow-2xl overflow-hidden border border-slate-700 flex flex-col max-h-[90vh] custom-scrollbar overflow-y-auto">
               
               <button 
                   onClick={() => { setShowInstaFun(false); stopInstaFunCamera(); }} 
@@ -5039,15 +5040,28 @@ if (window.fbq) {
                   <X size={20} />
               </button>
 
-              <div className="text-center mb-6 mt-2 relative z-10">
-                  <h2 className="text-2xl font-black italic uppercase text-white flex items-center justify-center gap-2">
+              <div className="text-center mb-4 mt-2 relative z-10">
+                  <h2 className="text-3xl font-black italic uppercase text-white flex items-center justify-center gap-2">
                       <Camera className="text-pink-500"/> InstaFun
                   </h2>
-                  <p className="text-xs font-bold text-slate-400 mt-1">Inteligência Artificial da {storeSettings.name}</p>
+              </div>
+
+              {/* MÁGICA DE CONVERSÃO: O ALERTA DO PRÊMIO SEMPRE VISÍVEL */}
+              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-1 rounded-2xl shadow-[0_0_20px_rgba(250,204,21,0.2)] animate-pulse mb-6 relative z-10">
+                  <div className="bg-slate-900 rounded-xl p-3 text-center">
+                      <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest mb-1 flex items-center justify-center gap-1">
+                          <Gift size={12}/> Participe e Concorra
+                      </p>
+                      <p className="text-sm font-black text-white uppercase leading-tight">
+                          {marketingSettings?.gamification?.instaFun?.prize || 'Prêmio Surpresa'}
+                      </p>
+                  </div>
               </div>
 
               {instaFunStep === 'camera' && (
                   <div className="flex flex-col items-center animate-in fade-in">
+                      <p className="text-xs font-bold text-slate-400 mb-4 text-center">Enquadre seu rosto para criar sua foto com Inteligência Artificial.</p>
+                      
                       <div className="relative w-full aspect-[3/4] bg-slate-800 rounded-3xl overflow-hidden border-4 border-pink-500/30 shadow-[0_0_30px_rgba(236,72,153,0.2)] mb-6">
                           {/* Feed ao vivo da câmera */}
                           <video 
@@ -5066,7 +5080,7 @@ if (window.fbq) {
                           </div>
                           <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
                               <span className="bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                  Enquadre seu rosto
+                                  Sorria para ganhar!
                               </span>
                           </div>
                       </div>
@@ -5081,14 +5095,14 @@ if (window.fbq) {
               )}
 
               {instaFunStep === 'loading' && (
-                  <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
+                  <div className="flex flex-col items-center justify-center py-10 animate-in fade-in">
                       <div className="relative">
                           <Loader2 className="animate-spin text-pink-500 mb-6" size={64} />
                           <div className="absolute inset-0 bg-pink-500 blur-xl opacity-20 rounded-full"></div>
                       </div>
                       <h3 className="font-black uppercase tracking-widest text-white mb-2">Processando com IA...</h3>
                       <p className="text-xs font-bold text-slate-400 text-center px-4">
-                          Aplicando o tema {marketingSettings?.gamification?.instaFun?.theme || 'mágico'} na sua foto. Isso leva apenas alguns segundos!
+                          Preparando sua foto para você postar e concorrer!
                       </p>
                   </div>
               )}
@@ -5097,30 +5111,31 @@ if (window.fbq) {
                   <div className="flex flex-col items-center animate-in zoom-in-95">
                       <div className="w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl mb-6 relative border border-slate-700">
                           <img src={instaFunImage} alt="Resultado IA" className="w-full h-full object-cover" />
-                          <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest">
-                              Gerado por IA
-                          </div>
                       </div>
 
                       <div className="w-full space-y-3">
+                          <div className="bg-pink-900/30 border border-pink-500/30 p-4 rounded-2xl text-center mb-2">
+                              <p className="text-[10px] font-bold text-pink-200">
+                                  ⚠️ Último passo: Compartilhe essa imagem nos seus Stories e marque nosso Instagram para validar sua participação no sorteio!
+                              </p>
+                          </div>
+
                           <button 
                               onClick={handleShareInstaFun}
-                              className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                              className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_20px_rgba(219,39,119,0.4)] hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
                           >
-                              <Share2 size={18} /> Postar no Stories
+                              <Share2 size={18} /> Postar e Concorrer
                           </button>
                           
                           <button 
                               onClick={() => {
                                   setShowInstaFun(false);
                                   stopInstaFunCamera();
-                                  setCouponCode('INSTAFUN10'); // Auto-preenche um cupom fictício para gerar atrito positivo
-                                  alert(`Para resgatar seu ${marketingSettings?.gamification?.instaFun?.prize || 'prêmio'}, envie o print dos seus Stories no nosso WhatsApp após finalizar a compra!`);
-                                  document.getElementById('area-pagamento')?.scrollIntoView({ behavior: 'smooth' });
+                                  alert(`Combinado! Lembre-se de mandar o print dos seus Stories no nosso WhatsApp caso você seja o ganhador do prêmio: ${marketingSettings?.gamification?.instaFun?.prize}`);
                               }}
-                              className="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 border border-slate-700"
+                              className="w-full bg-transparent text-slate-400 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-white active:scale-95 transition-all flex items-center justify-center gap-2"
                           >
-                              <Gift size={16} /> Resgatar Prêmio
+                              Já postei! Fechar
                           </button>
                       </div>
                   </div>
