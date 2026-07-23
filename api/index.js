@@ -4219,16 +4219,17 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
     }
 
     // ------------------------------------------------------------------------
-    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (FAL.AI + CLOUDINARY)
+    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (FAL.AI + CLOUDINARY + WATERMARKS)
     // ------------------------------------------------------------------------
     else if (path === '/api/instafun-swap') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
-            const { storeId, selfieBase64, templateUrl } = req.body;
+            // Agora recebemos o TEMA escolhido pelo lojista, em vez da URL manual
+            const { storeId, selfieBase64, theme } = req.body;
 
-            if (!selfieBase64 || !templateUrl) {
-                return res.status(400).json({ error: 'A Selfie e a Imagem Base são obrigatórias.' });
+            if (!selfieBase64) {
+                return res.status(400).json({ error: 'A Selfie é obrigatória.' });
             }
 
             const FAL_KEY = process.env.FAL_KEY;
@@ -4239,9 +4240,25 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
                 return res.status(500).json({ error: 'Variáveis de ambiente (FAL_KEY ou CLOUDINARY) ausentes na Vercel.' });
             }
 
-            console.log(`📸 [InstaFun] Processando selfie para a loja: ${storeId}`);
+            console.log(`📸 [InstaFun] Processando selfie para a loja: ${storeId} | Tema: ${theme}`);
 
-            // 1. Upload seguro da Selfie (Base64) para o Cloudinary para obter um link público HTTPs
+            // 1. Dicionário de Templates de Alta Conversão (Os Fundos Temáticos)
+            // Esses links são imagens base (geradas por IA ou banco de imagens) preparadas para receber rosto
+            const templates = {
+                'cowboy': 'https://images.unsplash.com/photo-1551829142-d9b8e614a9da?q=80&w=800&auto=format&fit=crop', // Rei do Burger/Cowboy
+                'carnival': 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop', // Rei da Balada / Drink
+                'halloween': 'https://images.unsplash.com/photo-1509556810207-695024e037cc?q=80&w=800&auto=format&fit=crop', // Monstro/Zumbi
+                'christmas': 'https://images.unsplash.com/photo-1583394838336-acd977736f90?q=80&w=800&auto=format&fit=crop', // Chef / Masterchef
+                'default': 'https://images.unsplash.com/photo-1554189097-ffe88e998a2b?q=80&w=800&auto=format&fit=crop' // Cyberpunk Neon
+            };
+
+            const targetTemplateUrl = templates[theme] || templates['default'];
+
+            // 2. Busca a LOGO oficial do lojista no Firestore
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const storeLogoUrl = storeDoc.data()?.storeLogoUrl || '';
+
+            // 3. Upload seguro da Selfie (Base64) para o Cloudinary (precisamos de um link HTTPS para a IA)
             const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4256,7 +4273,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
 
             const selfieUrl = uploadData.secure_url;
 
-            // 2. Chama a API de Face Swap Rápida (Fal.ai - Modelo Face Swap)
+            // 4. Chama a API de Face Swap (Fal.ai)
             const swapRes = await fetch('https://fal.run/fal-ai/face-swap', {
                 method: 'POST',
                 headers: {
@@ -4264,7 +4281,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    base_image_url: templateUrl,
+                    base_image_url: targetTemplateUrl,
                     swap_image_url: selfieUrl
                 })
             });
@@ -4275,17 +4292,30 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
                 throw new Error('A IA não conseguiu reconhecer os rostos ou gerou erro.');
             }
 
-            // O link da IA devolvendo a foto trocada
-            const finalImageUrl = swapData.image.url;
+            const rawSwappedImageUrl = swapData.image.url;
 
-            // 3. (OPCIONAL) Aplica uma tarja/marca d'água via URL do Cloudinary (Fetch URL)
-            // Fazemos o Cloudinary capturar a imagem da IA e aplicar um texto "Gerado por IA" (Overlay text)
-            const brandedImageUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_text:Arial_24_bold_white:GERADO%20POR%20IA,g_north_west,x_20,y_20,co_white,b_black/${encodeURIComponent(finalImageUrl)}`;
+            // 5. A MÁGICA DA COMPOSIÇÃO NO CLOUDINARY (Sanduíche de Imagens)
+            // Pegamos a imagem da IA e adicionamos a Logo da Loja e o Rodapé da Velo!
+            
+            let finalBrandedUrl = rawSwappedImageUrl;
 
-            // Retorna o resultado mágico pro frontend!
+            if (storeLogoUrl) {
+                // Converte a logo da loja para Base64 seguro para URL (Padrão Cloudinary)
+                const safeLogoUrl = Buffer.from(storeLogoUrl).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                
+                // Aplica 3 camadas simultâneas via URL do Cloudinary:
+                // Camada 1: l_fetch:<logo> (Coloca a logo da loja no canto superior esquerdo, tamanho 120px)
+                // Camada 2: l_text (Coloca a tarja preta translúcida no rodapé)
+                // Camada 3: l_text (Escreve "Gerado via @velodelivery" no rodapé)
+                finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_fetch:${safeLogoUrl},w_120,g_north_west,x_20,y_20/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
+            } else {
+                // Se a loja não tiver logo, põe só o selo da Velo
+                finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/co_white,l_text:Arial_18_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_60/${encodeURIComponent(rawSwappedImageUrl)}`;
+            }
+
             return res.status(200).json({ 
                 success: true, 
-                imageUrl: brandedImageUrl 
+                imageUrl: finalBrandedUrl 
             });
 
         } catch (error) {

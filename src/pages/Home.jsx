@@ -871,7 +871,7 @@ export default function Home() {
                       body: JSON.stringify({
                           storeId: storeId,
                           selfieBase64: base64Image,
-                          templateUrl: marketingSettings?.gamification?.instaFun?.templateUrl
+                          theme: marketingSettings?.gamification?.instaFun?.theme || 'default'
                       })
                   });
                   const data = await res.json();
