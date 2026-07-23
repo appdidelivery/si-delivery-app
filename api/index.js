@@ -4219,29 +4219,25 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
     }
 
     // ------------------------------------------------------------------------
-    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (REPLICATE + CLOUDINARY PREMIUM)
+    // 21.95 VELO INSTAFUN: IA DE FACE SWAP (FAL.AI OFICIAL + CLOUDINARY PREMIUM)
     // ------------------------------------------------------------------------
     else if (path === '/api/instafun-swap') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
             const { storeId, selfieBase64, theme } = req.body;
+            if (!selfieBase64) return res.status(400).json({ error: 'A Selfie é obrigatória.' });
 
-            if (!selfieBase64) {
-                return res.status(400).json({ error: 'A Selfie é obrigatória.' });
-            }
-
-            const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+            const FAL_KEY = process.env.FAL_KEY;
             const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.VITE_CLOUDINARY_CLOUD_NAME;
             const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-            if (!REPLICATE_API_TOKEN || !CLOUDINARY_CLOUD_NAME) {
-                return res.status(500).json({ error: 'Variáveis de ambiente (REPLICATE ou CLOUDINARY) ausentes na Vercel.' });
+            if (!FAL_KEY || !CLOUDINARY_CLOUD_NAME) {
+                return res.status(500).json({ error: 'Variáveis de ambiente (FAL_KEY ou CLOUDINARY) ausentes na Vercel.' });
             }
 
-            console.log(`📸 [InstaFun] Processando IA Real para a loja: ${storeId} | Tema: ${theme}`);
+            console.log(`📸 [InstaFun v2.0] Processando Fal.ai para loja: ${storeId} | Tema: ${theme}`);
 
-            // 1. Templates de Alta Conversão
             const templates = {
                 'cowboy': 'https://images.unsplash.com/photo-1551829142-d9b8e614a9da?q=80&w=800&auto=format&fit=crop', 
                 'carnival': 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=800&auto=format&fit=crop', 
@@ -4249,94 +4245,60 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
                 'christmas': 'https://images.unsplash.com/photo-1583394838336-acd977736f90?q=80&w=800&auto=format&fit=crop', 
                 'default': 'https://images.unsplash.com/photo-1554189097-ffe88e998a2b?q=80&w=800&auto=format&fit=crop' 
             };
-
             const targetTemplateUrl = templates[theme] || templates['default'];
 
             const storeDoc = await db.collection('stores').doc(storeId).get();
             const storeLogoUrl = storeDoc.data()?.storeLogoUrl || '';
 
-            // 2. Upload seguro da Selfie (Base64) para o Cloudinary (A IA precisa de um link)
+            // 1. Upload Selfie
+            console.log('☁️ Subindo selfie para Cloudinary...');
             const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    file: selfieBase64,
-                    upload_preset: CLOUDINARY_UPLOAD_PRESET
-                })
+                body: JSON.stringify({ file: selfieBase64, upload_preset: CLOUDINARY_UPLOAD_PRESET })
             });
-
             const uploadData = await uploadRes.json();
             if (!uploadRes.ok) throw new Error('Falha ao subir a selfie temporária.');
             const selfieUrl = uploadData.secure_url;
 
-            // 3. CHAMA A IA DE VERDADE (Replicate Face Swap)
-            console.log('🤖 Enviando imagens para a Replicate...');
-            const repRes = await fetch('https://api.replicate.com/v1/predictions', {
+            // 2. FAL.AI
+            console.log('🤖 Enviando para Fal.ai...');
+            const swapRes = await fetch('https://fal.run/fal-ai/face-swap', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+                    'Authorization': `Key ${FAL_KEY}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    // Modelo oficial de Face Swap
-                    version: "9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109e843d20d", 
-                    input: {
-                        target_image: targetTemplateUrl,
-                        swap_image: selfieUrl
-                    }
+                    base_image_url: targetTemplateUrl,
+                    swap_image_url: selfieUrl
                 })
             });
 
-            let prediction = await repRes.json();
-
-            if (prediction.error) {
-                console.error("Erro ao iniciar Replicate:", prediction.error);
-                throw new Error("Erro ao iniciar a IA.");
+            const swapData = await swapRes.json();
+            
+            if (!swapRes.ok || !swapData.image?.url) {
+                console.error("❌ Erro Retornado pela Fal.ai:", swapData);
+                throw new Error(swapData.detail || swapData.error || 'Falha ao processar o rosto na Fal.ai.');
             }
 
-            // 4. Polling: A Replicate demora uns segundos, então perguntamos se está pronto (Max 15s)
-            let attempts = 0;
-            while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < 15) {
-                await new Promise(r => setTimeout(r, 1000)); // Espera 1 segundo
-                const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-                    headers: { 'Authorization': `Token ${REPLICATE_API_TOKEN}` }
-                });
-                prediction = await pollRes.json();
-                attempts++;
-            }
+            const rawSwappedImageUrl = swapData.image.url;
+            console.log('✅ Fal.ai processou! Aplicando marcas d\'água...');
 
-            if (prediction.status !== "succeeded" || !prediction.output) {
-                console.error("Falha final Replicate:", prediction);
-                throw new Error('A IA demorou muito para responder. Tente novamente.');
-            }
-
-            const rawSwappedImageUrl = prediction.output; // Aqui está a imagem com o rosto trocado!
-
-            // 5. A MÁGICA DA COMPOSIÇÃO PREMIUM NO CLOUDINARY
+            // 3. Cloudinary
             let finalBrandedUrl = rawSwappedImageUrl;
-
             if (storeLogoUrl) {
                 const safeLogoUrl = Buffer.from(storeLogoUrl, 'utf-8').toString('base64url');
-                
-                // O QUE ISSO FAZ:
-                // l_fetch:<logo> -> Traz a logo do lojista
-                // w_180,c_fit -> Deixa a logo do lojista bem grande e visível
-                // g_north_east,x_20,y_20 -> Fica no Canto Superior Direito
-                // l_text... -> Escreve Gerado via @velodelivery no rodapé com fundo escuro.
                 finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/l_fetch:${safeLogoUrl},w_180,c_fit,g_north_east,x_20,y_20/co_white,l_text:Arial_20_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_70/${encodeURIComponent(rawSwappedImageUrl)}`;
             } else {
                 finalBrandedUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/co_white,l_text:Arial_20_bold:Gerado%20via%20@velodelivery,g_south,y_15/b_black,o_70/${encodeURIComponent(rawSwappedImageUrl)}`;
             }
 
-            console.log('✅ Sucesso! Imagem da IA gerada e carimbada.');
-            return res.status(200).json({ 
-                success: true, 
-                imageUrl: finalBrandedUrl 
-            });
+            return res.status(200).json({ success: true, imageUrl: finalBrandedUrl });
 
         } catch (error) {
-            console.error('❌ Erro no Velo InstaFun Real:', error);
-            return res.status(500).json({ error: `Falha: ${error.message}` });
+            console.error('❌ Erro no Velo InstaFun Real:', error.message);
+            return res.status(500).json({ error: `Erro Interno: ${error.message}` });
         }
     }
 

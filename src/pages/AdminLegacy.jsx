@@ -3081,21 +3081,114 @@ const handleGenerateProductCopy = async () => {
         }
         // -----------------------------------------------------------------
 
-        const lojaNome = storeStatus.name || "Velo Delivery";
+       const lojaNome = storeStatus.name || "Velo Delivery";
         const primeiroNome = order.customerName ? order.customerName.split(' ')[0] : 'Cliente';
         const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; 
-        
-       // --- 🤖 GERADOR DE COPY SEO (GAMIFICADO) ---
-        let seoItem = "o meu pedido";
-        let seoAdjetivo = "rápido e com muita qualidade";
-        
+
+        // --- 🤖 INÍCIO: MOTOR DE SEO E-E-A-T (GEO & NICHE AWARE) ---
+        let seoItem = "meu pedido";
+        let seoAdjetivo = "com muita qualidade e capricho";
+        let geoLocal = "na nossa região";
+
+        // 1. Extração Inteligente GEO (Tenta pegar Cidade/Bairro do endereço da Loja)
+        if (storeStatus.address) {
+            const addrString = typeof storeStatus.address === 'object' ? storeStatus.address.city : storeStatus.address;
+            if (addrString && addrString.includes('-')) {
+                const cityPart = addrString.split('-')[1]?.split('/')[0]?.trim();
+                if (cityPart) geoLocal = `aqui em ${cityPart}`;
+            }
+        }
+
         if (order.items && order.items.length > 0) {
             seoItem = order.items[0].name;
-            const isBebida = ['default', 'drinks'].includes(storeStatus?.storeNiche);
-            seoAdjetivo = isBebida ? "trincando de gelada(o) e a entrega foi super rápida" : "quente, muito saboroso e a entrega foi super rápida";
+            const itemLower = seoItem.toLowerCase();
+            const niche = storeStatus?.storeNiche || 'default';
+
+            // 2. Classificação Semântica do Produto (Evita absurdos)
+            const isTabacaria = /cigarro|tabaco|essência|pod|vape|carvão|isqueiro|seda/i.test(itemLower);
+            const isGelado = /açai|açaí|sorvete|picolé|gelato|milkshake|gelo/i.test(itemLower);
+            const isBebida = /cerveja|chopp|refrigerante|suco|água|vodka|gin|combo|whisky/i.test(itemLower);
+            const isOriental = /sushi|sashimi|temaki|combinado|yakisoba/i.test(itemLower);
+
+            // 3. Atribuição de Adjetivos Fortes (SEO)
+            if (isTabacaria) {
+                seoAdjetivo = "exatamente o que eu precisava, salvou demais";
+            } else if (isGelado) {
+                seoAdjetivo = "super gelado, no ponto certo e não derreteu no caminho";
+            } else if (isBebida || ['default', 'drinks'].includes(niche)) {
+                seoAdjetivo = "trincando de gelado, pronto pra consumir";
+            } else if (isOriental || niche === 'oriental') {
+                seoAdjetivo = "muito fresco, bem montado e saboroso";
+            } else {
+                seoAdjetivo = "quentinho, muito saboroso e com uma embalagem ótima";
+            }
         }
+
+        // 4. Roleta de Templates (Sem aspas "" para facilitar o copiar/colar)
+        const seoTemplates = [
+            `Plataforma super fácil de pedir! O ${seoItem} chegou ${seoAdjetivo}. A entrega foi super ágil ${geoLocal}. Ganhou um cliente!`,
+            
+            `Atendimento e rapidez nota 10 da ${lojaNome}! Pedi ${seoItem}, chegou ${seoAdjetivo}. Com certeza a melhor opção ${geoLocal}.`,
+            
+            `Tudo perfeito! O motoboy foi rápido e educado. Meu ${seoItem} estava ${seoAdjetivo}. Recomendo muito o delivery deles!`,
+            
+            `Excelente experiência ${geoLocal}. Fiz o pedido pelo celular em segundos, e o ${seoItem} chegou ${seoAdjetivo}. Voltarei a pedir.`
+        ];
+
+        const fraseSorteada = seoTemplates[Math.floor(Math.random() * seoTemplates.length)];
         
-        const seoCopyText = `⭐⭐⭐⭐⭐\n"Pedi ${seoItem} na ${lojaNome} e estava incrível! Chegou ${seoAdjetivo}. Fui super bem atendido(a). Recomendo muito!"`;
+        // BALÃO ISOLADO: Apenas as estrelas e o texto limpo, igual ao Pix Copia e Cola.
+        const seoCopyText = `⭐⭐⭐⭐⭐\n${fraseSorteada}`;
+        // --- 🤖 FIM: MOTOR DE SEO E-E-A-T ---
+
+        // --- ⚖️ MOTOR DE TESTE A/B (50% / 50%) ---
+        let msgCompleted = []; 
+        
+        if (Math.random() < 0.5) {
+            // 🔴 OPÇÃO A: Copy Focada no Clube VIP (Gamificação Suave)
+            msgCompleted = [
+                `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie APENAS a mensagem abaixo* e cole na nossa avaliação do Google:`,
+                seoCopyText, // <--- AQUI VAI O BALÃO ISOLADO!
+                `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
+            ];
+            
+        } else {
+            // 🔵 OPÇÃO B: Copy Agressiva (Gatilho da Ganância / Dinheiro)
+            const percentualCashback = settings?.gamification?.cashbackPercent || 2;
+            const valorEmReais = ((Number(order.total) || 0) * (percentualCashback / 100)).toFixed(2);
+            
+            if (Number(valorEmReais) > 0) {
+                msgCompleted = [
+                    `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado! ❤️ \n\n💸 *QUER R$ ${valorEmReais.replace('.', ',')} DE VOLTA NA SUA CARTEIRA DIGITAL AGORA?*\n\nNós liberamos esse saldo de Cashback para o seu próximo pedido, basta nos dar uma força no Google!\n\n👇 *Copie APENAS a mensagem abaixo:*`,
+                    seoCopyText, // <--- AQUI VAI O BALÃO ISOLADO!
+                    `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Mandou o print, o saldo de R$ ${valorEmReais.replace('.', ',')} cai na sua conta do App na mesma hora!_`
+                ];
+            } else {
+                msgCompleted = [
+                    `✅ *PEDIDO ENTREGUE!* \n\nConfirmamos a entrega, ${primeiroNome}. Muito obrigado pela preferência! ❤️ \n\n🎁 *GANHE PONTOS VIP AGORA!*\nQuer ganhar pontos na nossa loja para trocar por descontos no próximo pedido? \n\n👇 *Copie APENAS a mensagem abaixo* e cole na nossa avaliação do Google:`,
+                    seoCopyText, // <--- AQUI VAI O BALÃO ISOLADO!
+                    `👉 *Cole clicando aqui:*\n${linkGoogle}\n\n_Basta nos mandar um print aqui mesmo no WhatsApp após postar e creditaremos seus pontos na hora!_`
+                ];
+            }
+        }
+        // ------------------------------------------
+
+        // 4. Roleta de Templates (Garante Variedade Anti-Spam para o Google)
+        // Cada frase injeta: 1. Facilidade App (Tecnologia), 2. Produto, 3. Adjetivo, 4. Rapidez, 5. GEO Local
+        const seoTemplates = [
+            `"Plataforma super fácil de pedir! O ${seoItem} chegou ${seoAdjetivo}. A entrega foi super ágil ${geoLocal}. Ganhou um cliente!"`,
+            
+            `"Atendimento e rapidez nota 10 da ${lojaNome}! Pedi ${seoItem}, chegou ${seoAdjetivo}. Com certeza a melhor opção ${geoLocal}."`,
+            
+            `"Tudo perfeito! O motoboy foi rápido e educado. Meu ${seoItem} estava ${seoAdjetivo}. Recomendo muito o delivery deles!"`,
+            
+            `"Excelente experiência ${geoLocal}. Fiz o pedido pelo celular em segundos, e o ${seoItem} chegou ${seoAdjetivo}. Voltarei a pedir."`
+        ];
+
+        // Sorteia um template aleatório para este cliente específico
+        const fraseSorteada = seoTemplates[Math.floor(Math.random() * seoTemplates.length)];
+        const seoCopyText = `⭐⭐⭐⭐⭐\n${fraseSorteada}`;
+        // --- 🤖 FIM: MOTOR DE SEO E-E-A-T ---
         
         // --- ⚖️ MOTOR DE TESTE A/B (50% / 50%) ---
         // AGORA É UM ARRAY: Para enviar balões separados e facilitar a cópia (UX)
