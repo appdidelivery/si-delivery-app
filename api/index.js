@@ -4303,7 +4303,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
     }
 
     // ------------------------------------------------------------------------
-    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - ULTRA RÁPIDO ANTI-TIMEOUT)
+    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - DEBUG ABERTO)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -4319,7 +4319,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente na Vercel." });
 
-// CACHE: Verifica se já gerou uma copy para esse produto hoje
+            // CACHE: Verifica se já gerou uma copy para esse produto hoje
             if (productId) {
                 const cacheRef = db.collection('ai_promo_cache').doc(productId);
                 const cacheSnap = await cacheRef.get();
@@ -4338,6 +4338,8 @@ Retorne APENAS um JSON com 3 chaves curtas:
 "instagram": (2 frases com chamada para o link da bio),
 "hashtags": (#delivery #promo)`;
 
+            console.log(`🟡 [API CALL] Acionando gemini-1.5-flash para gerar copy de: ${productName}`);
+
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4346,11 +4348,24 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 })
             });
 
+            // MUDANÇA CIRÚRGICA 1: LÊ COMO TEXTO BRUTO PARA O SERVIDOR NÃO QUEBRAR
+            const rawTextResponse = await response.text();
             let aiData;
-            try { aiData = await response.json(); } 
-            catch (e) { return res.status(200).json({ success: false, error: "O tempo esgotou." }); }
             
-            if (!response.ok) return res.status(200).json({ success: false, error: "O Google rejeitou a requisição." });
+            try { 
+                aiData = JSON.parse(rawTextResponse); 
+            } catch (e) { 
+                console.error("🔴 Erro fatal de Parse do Google:", rawTextResponse);
+                return res.status(200).json({ success: false, error: "Google retornou uma resposta inválida." }); 
+            }
+            
+            if (!response.ok) {
+                // MUDANÇA CIRÚRGICA 2: MÁGICA DO DEBUG! JSON.stringify com "2" vai expandir todo o objeto no Log da Vercel
+                console.error("🔴 ERRO CRÍTICO ABERTO (Google API):", JSON.stringify(aiData, null, 2));
+                
+                // Repassa o erro exato para o Lojista ver no alerta (Ex: Quota Exceeded)
+                return res.status(200).json({ success: false, error: `Google API Error: ${aiData.error?.message || 'Desconhecido'}` });
+            }
 
             if (aiData.candidates && aiData.candidates[0]) {
                 const candidate = aiData.candidates[0];
@@ -4360,13 +4375,30 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio." });
                 
                 try {
-                    const parsedResult = JSON.parse(rawJsonText);
+                    // Limpador de formatação (Evita erro se a IA enviar markdown ```json)
+                    const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const parsedResult = JSON.parse(cleanJsonText);
+                    
+                    // MUDANÇA CIRÚRGICA 3: SALVA NO CACHE PARA NÃO GASTAR API À TOA (Faltava isso no seu código)
+                    if (productId) {
+                        db.collection('ai_promo_cache').doc(productId).set({
+                            whatsapp: parsedResult.whatsapp,
+                            instagram: parsedResult.instagram,
+                            hashtags: parsedResult.hashtags,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        }).catch(e => console.error("Erro ao salvar cache", e));
+                    }
+
                     return res.status(200).json({ success: true, whatsapp: parsedResult.whatsapp, instagram: parsedResult.instagram, hashtags: parsedResult.hashtags });
-                } catch (e) { return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); }
+                } catch (e) { 
+                    console.error("🔴 Erro de formatação do texto gerado:", rawJsonText);
+                    return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); 
+                }
             } else {
                 return res.status(200).json({ success: false, error: "Resposta vazia." });
             }
         } catch (error) {
+            console.error("🔴 Erro no Servidor (Catch):", error);
             return res.status(200).json({ success: false, error: `Erro no servidor: ${error.message}` });
         }
     }
