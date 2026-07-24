@@ -246,11 +246,16 @@ exports.emitirNotaFiscal = functions.firestore
                 const qty = item.quantity;
                 const price = Number(item.price);
                 
+                // Prioridade absoluta para as informações tributárias a nível de item (Evita erro de CFOP vs CSOSN)
+                const itemCfop = String(item.cfop || '').trim();
+                const itemNcm = String(item.ncm || '').trim();
+                const itemCsosn = String(item.csosn_cst || item.csosn || '').trim();
+                
                 const itemPayload = {
                     numero_item: index + 1,
                     codigo_produto: item.id || `ITEM-${index}`,
                     descricao: item.name.substring(0, 120),
-                    cfop: item.cfop || fiscal.defaultCFOP || "5102",
+                    cfop: itemCfop !== '' ? itemCfop : (fiscal.defaultCFOP || "5102"),
                     unidade_comercial: "UN",
                     unidade_tributavel: "UN",
                     quantidade_comercial: qty,
@@ -258,24 +263,25 @@ exports.emitirNotaFiscal = functions.firestore
                     valor_unitario_comercial: price,
                     valor_unitario_tributavel: price,
                     valor_bruto: (price * qty).toFixed(2),
-                    codigo_ncm: item.ncm || fiscal.defaultNCM || "22021000",
+                    codigo_ncm: itemNcm !== '' ? itemNcm : (fiscal.defaultNCM || "22021000"),
                     icms_origem: "0",
-                    // PRIORIDADE MÁXIMA: Tenta o CSOSN do produto. Se for nulo/vazio, cai no Fallback da Loja.
-                    icms_situacao_tributaria: item.csosn_cst || item.csosn || fiscal.defaultCSOSN || "102"
+                    icms_situacao_tributaria: itemCsosn !== '' ? itemCsosn : (fiscal.defaultCSOSN || "102")
                 };
 
                 // BLINDAGEM DE ST: Se o produto tiver CEST cadastrado, envia para a SEFAZ
-                if (item.cest) {
-                    itemPayload.codigo_cest = item.cest;
+                if (item.cest && String(item.cest).trim() !== '') {
+                    itemPayload.codigo_cest = String(item.cest).trim();
                 }
 
                 return itemPayload;
             });
 
-            // 2. Limpa o CPF (se houver)
+            // 2. Limpa o CPF e define o tipo de presença do comprador
             const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
+            const isDelivery = !(order.source === 'manual_pdv' || order.tipo === 'pickup');
+            const presencaComprador = isDelivery ? "4" : "1";
 
-           // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
+            // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
             const payloadNFCe = {
                 cnpj_emitente: (fiscal.cnpj || "").replace(/\D/g, ''),
                 natureza_operacao: "VENDA AO CONSUMIDOR",
@@ -284,8 +290,8 @@ exports.emitirNotaFiscal = functions.firestore
                 local_destino: "1", 
                 finalidade_emissao: "1", 
                 consumidor_final: "1", 
-                presenca_comprador: (order.source === 'manual_pdv' || order.tipo === 'pickup') ? "1" : "4",
-                modalidade_frete: "9", // <-- INJETAMOS A REGRA AQUI
+                presenca_comprador: presencaComprador,
+                modalidade_frete: "9",
                 itens: itensNfe,
                 pagamentos: [
                     {
@@ -296,12 +302,46 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // BLINDAGEM: A Focus odeia "null". Só enviamos o bloco cliente se o CPF for válido.
-            if (cpfLimpo && cpfLimpo.length === 11) {
+            // BLINDAGEM DO DESTINATÁRIO: A SEFAZ exige identificação completa com endereço para IndPres=4 (Entrega a domicílio)
+            if (isDelivery || (cpfLimpo && (cpfLimpo.length === 11 || cpfLimpo.length === 14))) {
                 payloadNFCe.cliente = {
-                    nome_completo: order.customerName || "Consumidor Final",
-                    cpf: cpfLimpo
+                    nome_completo: order.customerName || "Consumidor Final"
                 };
+
+                if (cpfLimpo) {
+                    if (cpfLimpo.length === 11) payloadNFCe.cliente.cpf = cpfLimpo;
+                    else if (cpfLimpo.length === 14) payloadNFCe.cliente.cnpj = cpfLimpo;
+                }
+
+                // Injeta o bloco de endereço obrigatório para regras de Delivery
+                if (isDelivery) {
+                    let logradouro = "Rua Nao Informada";
+                    let numero = "S/N";
+                    let bairro = "Centro";
+                    
+                    if (typeof order.customerAddress === 'string' && order.customerAddress.trim() !== '') {
+                        const partes = order.customerAddress.split(',');
+                        logradouro = partes[0].trim() || logradouro;
+                        if (partes.length > 1) {
+                            const subPartes = partes[1].split('-');
+                            numero = subPartes[0].trim() || numero;
+                            if (subPartes.length > 1) bairro = subPartes[1].trim() || bairro;
+                        }
+                    } else if (typeof order.customerAddress === 'object') {
+                        logradouro = order.customerAddress.street || logradouro;
+                        numero = order.customerAddress.number || numero;
+                        bairro = order.customerAddress.neighborhood || bairro;
+                    }
+
+                    payloadNFCe.cliente.endereco = {
+                        logradouro: logradouro.substring(0, 60),
+                        numero: numero.substring(0, 60),
+                        bairro: bairro.substring(0, 60),
+                        codigo_municipio: fiscal.ibgeCidade || "0000000",
+                        uf: fiscal.ibgeUf || "SP",
+                        cep: fiscal.cep ? fiscal.cep.replace(/\D/g, '') : "00000000"
+                    };
+                }
             }
 
            // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MOTOR AUTO-DISCOVERY) ---
