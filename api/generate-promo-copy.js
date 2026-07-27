@@ -1,9 +1,8 @@
-import { GoogleGenAI } from '@google/genai';
 import admin from 'firebase-admin';
-import crypto from 'crypto'; // Usando import global para evitar o erro "require is not defined"
+import crypto from 'crypto';
 
 // =========================================================================
-// INICIALIZAÇÃO FIREBASE ADMIN (Padrão Serverless Vercel)
+// INICIALIZAÇÃO FIREBASE ADMIN
 // =========================================================================
 if (!admin.apps.length) {
     admin.initializeApp({
@@ -27,14 +26,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: 'O nome do produto é obrigatório.' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-        console.error("ERRO: GEMINI_API_KEY não configurada.");
-        return res.status(200).json({ success: false, error: 'Chave da API não configurada no servidor.' });
+    const GEMINI_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_KEY) {
+        return res.status(200).json({ success: false, error: 'Chave do Gemini não configurada na Vercel.' });
     }
 
     try {
         // =========================================================================
-        // 1. ESTRATÉGIA DE CACHE MULTI-TENANT (Redução Máxima de Custos e Latência)
+        // 1. ESTRATÉGIA DE CACHE
         // =========================================================================
         const safeStoreName = storeName || 'loja';
         const cacheString = `${safeStoreName}-${productName}`.toLowerCase().trim();
@@ -44,22 +43,17 @@ export default async function handler(req, res) {
         const cacheSnap = await cacheRef.get();
         if (cacheSnap.exists) {
             const cachedData = cacheSnap.data();
-            console.log(`🟢 [CACHE HIT] Copy de marketing recuperada do banco para: ${productName}`);
             return res.status(200).json({
                 success: true,
                 whatsapp: cachedData.whatsapp,
                 instagram: cachedData.instagram,
-                hashtags: cachedData.hashtags,
-                _source: 'firestore_cache' 
+                hashtags: cachedData.hashtags
             });
         }
 
         // =========================================================================
-        // 2. INICIALIZAÇÃO DA IA E ENGENHARIA DE PROMPT CIRÚRGICA (DOWNSIZING)
+        // 2. ENGENHARIA DE PROMPT E CHAMADA FETCH (IGUAL AO DA ABA ESTOQUE)
         // =========================================================================
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-        // Prompt minimalista focado em limites de tokens e formato JSON restrito
         const prompt = `Atue como Copywriter de Delivery. Crie copy de venda para:
 Loja: ${storeName || 'Delivery'} (${storeNiche || 'Alimentação'})
 Produto: ${productName} (R$ ${productPrice ? Number(productPrice).toFixed(2) : 'A consultar'})
@@ -71,61 +65,70 @@ REGRAS ESTRITAS:
 3. "instagram": Legenda de desejo focada no produto. MÁXIMO 250 caracteres.
 4. "hashtags": Exatamente 4 hashtags separadas por espaço.
 
-Formato:
+Formato exigido:
 {"whatsapp": "...", "instagram": "...", "hashtags": "..."}`;
 
-        console.log(`🟡 [API CALL] Acionando gemini-1.5-flash para gerar copy de: ${productName}`);
+        // Mesma lógica de tentativa que você usou no estoque
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+        let aiData = null;
+        let responseOk = false;
 
-        // =========================================================================
-        // 3. DOWNSIZING DE MODELO E TRAVAS DE CUSTO
-        // Usamos gemini-1.5-flash (Mais barato/rápido) em vez do 2.5/Pro
-        // =========================================================================
-        const response = await ai.models.generateContent({
-            model: 'gemini-1.5-flash', 
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                temperature: 0.7,
-                maxOutputTokens: 250 // 🚨 TRAVA DE CUSTO: Impede alucinação longa
+        for (const model of modelsToTry) {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            aiData = await response.json();
+
+            if (response.ok) {
+                responseOk = true;
+                break; // Se deu certo, para o loop
             }
-        });
+        }
 
-        const resultText = response.text;
-        if (!resultText) throw new Error("A IA retornou uma resposta vazia.");
+        if (!responseOk) {
+            console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
+            throw new Error(aiData.error?.message || "O Google recusou a requisição em todos os modelos.");
+        }
+
+        const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawJsonText) throw new Error("Resposta vazia da IA.");
 
         // =========================================================================
-        // 4. PARSE SEGURO DO JSON E CACHE ASYNC
+        // 3. PARSE SEGURO E RETORNO (IDÊNTICO AO DA ABA ESTOQUE)
         // =========================================================================
-        const cleanText = resultText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         let jsonResult;
         try {
             jsonResult = JSON.parse(cleanText);
         } catch (parseError) {
-            console.error("🔴 ERRO DE CONVERSÃO DO JSON DA IA:", cleanText);
-            throw new Error("A IA quebrou o formato JSON de saída.");
+            console.error("🚨 ERRO DE CONVERSÃO DO JSON:", cleanText);
+            throw new Error("A IA não retornou um formato JSON válido.");
         }
 
-        // Grava no banco sem travar a thread (Fire-and-forget)
+        // Grava no banco sem travar a tela
         cacheRef.set({
             whatsapp: jsonResult.whatsapp,
             instagram: jsonResult.instagram,
             hashtags: jsonResult.hashtags,
             productName: productName,
-            storeName: safeStoreName,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
-        }).catch(err => console.error('🔴 [Firestore Cache Error]:', err));
+        }).catch(err => console.error('[Cache Error]:', err));
 
-        // Retorna ao Frontend
+        // Retorna ao Frontend (A tela do Google junta a legenda e as hashtags na hora de exibir)
         return res.status(200).json({
             success: true,
             whatsapp: jsonResult.whatsapp,
-            instagram: jsonResult.instagram,
-            hashtags: jsonResult.hashtags
+            instagram: `${jsonResult.instagram}\n\n${jsonResult.hashtags}` // Injeta hashtags pro Google SEO!
         });
 
     } catch (error) {
-        console.error("🔴 Erro Crítico na Rota de IA (Promo):", error.message);
-        return res.status(200).json({ success: false, error: 'Falha de comunicação com a IA. Tente novamente.' });
+        console.error("🔴 Erro na Rota de IA (Promo):", error.message);
+        return res.status(200).json({ success: false, error: 'Falha ao gerar texto. Tente novamente.' });
     }
 }
