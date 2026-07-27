@@ -868,19 +868,23 @@ const educationalBanners = [
     const [couponProductSearch, setCouponProductSearch] = useState('');
 
     // MODIFICADO: Recebe os totais por parâmetro para evitar o bug de Closure/Estado desatualizado
-    const handlePrintReport = (currentTotals = reportTotals, currentSeller = reportSeller) => {
+    const handlePrintReport = (currentTotals = reportTotals, currentSeller = reportSeller, exactStartTime = null, exactEndTime = null) => {
         const w = window.open('', '_blank');
         
-        // --- NOVA LÓGICA DE CAPTURA DO TURNO E NOME DO OPERADOR ---
         const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-        const dataAbertura = rawAbertura ? new Date(rawAbertura).toLocaleString('pt-BR') : 'Não registrada na sessão';
-        const dataFechamento = new Date().toLocaleString('pt-BR');
+        
+        // Se a função recebeu uma data exata do Turno, usa ela. Se não, tenta puxar do painel, ou assume como geral.
+        const dataAbertura = exactStartTime ? exactStartTime.toLocaleString('pt-BR') : (rawAbertura ? new Date(rawAbertura).toLocaleString('pt-BR') : 'Não registrada');
+        const dataFechamento = exactEndTime ? exactEndTime.toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
         
         const nomeOperador = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Geral';
         
         const dataInicioFormatada = reportDateRange === 'personalizado' && reportCustomStart ? new Date(reportCustomStart).toLocaleString('pt-BR') : 'Início do Período';
         const dataFimFormatada = reportDateRange === 'personalizado' && reportCustomEnd ? new Date(reportCustomEnd).toLocaleString('pt-BR') : 'Fim do Período';
-        const periodoTexto = reportDateRange === 'personalizado' ? `${dataInicioFormatada} até ${dataFimFormatada}` : reportDateRange.toUpperCase();
+        
+        // O subtítulo vai indicar claramente o que está sendo impresso
+        let periodoTexto = reportDateRange === 'personalizado' ? `${dataInicioFormatada} até ${dataFimFormatada}` : reportDateRange.toUpperCase();
+        if (exactStartTime) periodoTexto = "TURNO EXATO DO OPERADOR";
         
         w.document.write(`
             <html>
@@ -902,10 +906,10 @@ const educationalBanners = [
                     <div class="info-turno">
                         <div style="margin-bottom: 8px;"><strong>Abertura:</strong><br>${dataAbertura}</div>
                         <div style="margin-bottom: 8px;"><strong>Fechamento:</strong><br>${dataFechamento}</div>
-                        <div><strong>Operador:</strong><br>${nomeOperador} ${currentSeller !== 'todos' ? `(Filtro: ${currentSeller})` : ''}</div>
+                        <div><strong>Operador:</strong><br>${nomeOperador} ${currentSeller !== 'todos' && currentSeller !== 'Desconhecido' && !exactStartTime ? `(Filtro: ${currentSeller})` : ''}</div>
                     </div>
                     
-                    <p style="font-size: 12px; color: #666; margin-top: 10px;">Filtro de busca: ${periodoTexto}</p>
+                    <p style="font-size: 12px; color: #666; margin-top: 10px; font-weight: bold;">[ ${periodoTexto} ]</p>
                 </div>
                 
                 <h3>Resumo de Entradas</h3>
@@ -915,7 +919,7 @@ const educationalBanners = [
                 <div class="row"><span>Outros/Fiado (${currentTotals.outros.count} ped.):</span> <strong>R$ ${currentTotals.outros.total.toFixed(2)}</strong></div>
                 
                 <div class="total"><span>TOTAL BRUTO:</span> <span>R$ ${currentTotals.totalGeral.toFixed(2)}</span></div>
-                <div class="row" style="margin-top: 15px; border:none;"><span>Volume de Pedidos Pagos:</span> <strong>${currentTotals.qtdPedidos}</strong></div>
+                <div class="row" style="margin-top: 15px; border:none;"><span>Volume de Pedidos:</span> <strong>${currentTotals.qtdPedidos}</strong></div>
                 
                 <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #666;">
                     <p>Relatório gerado pelo Veloapp</p>
@@ -988,24 +992,80 @@ const educationalBanners = [
         setIsClosingRegister(true);
 
         try {
-            // 1. Salva a auditoria financeira de fechamento no Firestore
+            const currentUserEmail = auth.currentUser?.email || 'Desconhecido';
+            const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+
+            // 1. Salva a auditoria financeira no Firestore
             await addDoc(collection(db, "pos_logs"), {
                 storeId: storeId,
-                userEmail: auth.currentUser?.email || 'Desconhecido',
-                userName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe',
+                userEmail: currentUserEmail,
+                userName: currentUserName,
                 action: 'FECHOU O CAIXA',
                 valorCaixa: Number(closeRegisterForm.valorCaixa),
                 valorBolsa: Number(closeRegisterForm.valorBolsa),
                 timestamp: serverTimestamp()
             });
 
-            // 2. Atualiza estado local
+            // 🚀 MÁGICA: CÁLCULO CEGO E EXATO DO TURNO DO OPERADOR
+            const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
+            // Se por algum motivo perder a hora, pega a meia-noite de hoje
+            const dataAbertura = rawAbertura ? new Date(rawAbertura) : new Date(new Date().setHours(0,0,0,0));
+            const dataFechamento = new Date();
+
+            // Filtra os pedidos estritamente do turno
+            const shiftOrders = orders.filter(o => {
+                if (o.status === 'canceled' || !o.createdAt) return false;
+                
+                // Extrai a data do pedido com segurança
+                const orderDate = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt.seconds * 1000 || o.createdAt);
+                
+                // Apenas pedidos feitos DEPOIS que ele abriu o caixa hoje
+                if (orderDate < dataAbertura) return false;
+
+                // Apenas pedidos lançados no PDV (ignora vendas que caíram sozinhas pelo App/iFood, a não ser que ele seja o Dono e responda por tudo)
+                const isManualOrder = o.source === 'manual' || o.source === 'manual_pdv';
+                if (!isManualOrder) return false;
+
+                // Apenas pedidos lançados pelo e-mail do operador atual
+                const orderEmail = o.sellerEmail || 'owner';
+                if (orderEmail !== currentUserEmail && userPermissions !== 'owner') return false; 
+
+                return true;
+            });
+
+            // Soma as gavetas do turno exato
+            const shiftTotals = {
+                pix: { total: 0, count: 0 },
+                cartao: { total: 0, count: 0 },
+                dinheiro: { total: 0, count: 0 },
+                outros: { total: 0, count: 0 },
+                totalGeral: 0,
+                qtdPedidos: shiftOrders.length
+            };
+
+            shiftOrders.forEach(o => {
+                const valor = Number(o.total || 0);
+                shiftTotals.totalGeral += valor;
+                const method = String(o.paymentMethod || '').toLowerCase();
+                
+                if (method.includes('pix') || method.includes('link')) {
+                    shiftTotals.pix.total += valor; shiftTotals.pix.count += 1;
+                } else if (method.includes('cartao') || method.includes('card') || method.includes('stripe') || method.includes('online')) {
+                    shiftTotals.cartao.total += valor; shiftTotals.cartao.count += 1;
+                } else if (method.includes('dinheiro') || method.includes('cash')) {
+                    shiftTotals.dinheiro.total += valor; shiftTotals.dinheiro.count += 1;
+                } else {
+                    shiftTotals.outros.total += valor; shiftTotals.outros.count += 1;
+                }
+            });
+
+            // 2. Atualiza estado local da máquina
             localStorage.setItem('caixa_status', 'fechado');
             setIsCaixaAberto(false);
             setIsCloseRegisterModalOpen(false);
             
-            // 3. Força a impressão do Relatório Financeiro automaticamente
-            handlePrintReport();
+            // 3. Manda imprimir forçando os dados estritos do turno calculados acima
+            handlePrintReport(shiftTotals, currentUserEmail, dataAbertura, dataFechamento);
 
             // 4. Executa Logout em cascata (Aguarda a impressão ser disparada)
             setTimeout(async () => {
