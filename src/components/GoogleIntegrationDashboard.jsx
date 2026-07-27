@@ -627,15 +627,47 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                                                 onClick={() => {
                                                                     const isPositive = review.starRating === 'FIVE' || review.starRating === 'FOUR';
                                                                     const storeName = storeStatus?.name || 'nossa loja';
-                                                                    const niche = storeStatus?.storeNiche || 'delivery';
                                                                     
+                                                                    // 1. TRADUTOR DE NICHOS PARA SEO (Evita a palavra 'default')
+                                                                    const nicheMap = {
+                                                                        'default': 'conveniência, bebidas e entrega rápida',
+                                                                        'pizza': 'pizzas quentinhas e massas',
+                                                                        'oriental': 'sushi e culinária oriental fresca',
+                                                                        'natural': 'produtos naturais e alimentação saudável',
+                                                                        'sweet': 'doces, açaí e sobremesas',
+                                                                        'burger': 'hambúrgueres artesanais',
+                                                                        'drinks': 'bebidas geladas e adega',
+                                                                        'floricultura': 'flores e presentes especiais',
+                                                                        'bakery': 'padaria e lanches artesanais',
+                                                                        'restaurant': 'refeições de alta qualidade'
+                                                                    };
+                                                                    const rawNiche = storeStatus?.storeNiche || 'delivery';
+                                                                    const nicheName = nicheMap[rawNiche] || 'entregas rápidas';
+
+                                                                    // 2. CAPTURA DE REGIÃO (Se preenchida no painel)
+                                                                    let geoText = 'na nossa região';
+                                                                    if (storeStatus?.address && typeof storeStatus.address === 'string') {
+                                                                        // Tenta extrair a cidade se houver um hífen (Ex: Rua X - São Paulo/SP)
+                                                                        const partes = storeStatus.address.split('-');
+                                                                        if (partes.length > 1) {
+                                                                            geoText = `em ${partes[1].split('/')[0].trim()}`;
+                                                                        }
+                                                                    }
+
+                                                                    // 3. ROLETA DE RESPOSTAS RICAS EM SEO (Para o Google não te punir por repetição)
                                                                     let safeReply = '';
                                                                     if (isPositive) {
-                                                                        // Sem usar nome. Focando no produto, nicho e local (SEO Puro)
-                                                                        safeReply = `Olá! Agradecemos muito a sua avaliação positiva. Nosso time trabalha duro todos os dias para entregar a melhor experiência em ${niche}. Sempre que precisar, a equipe da ${storeName} estará à disposição!`;
+                                                                        const templates = [
+                                                                            `Que excelente notícia! Ficamos muito felizes com a sua avaliação. Nossa meta na ${storeName} é oferecer o melhor serviço de ${nicheName} ${geoText}. Conte sempre com a nossa entrega!`,
+                                                                            `Muito obrigado pela avaliação e pelas estrelas! Trabalhamos duro todos os dias para entregar a melhor experiência em ${nicheName} diretamente na sua porta. Sempre que precisar, a equipe da ${storeName} estará à disposição.`,
+                                                                            `Agradecemos imensamente pelo seu feedback! É um privilégio para a ${storeName} preparar e entregar produtos de alta qualidade para você. Até o seu próximo pedido!`
+                                                                        ];
+                                                                        // Sorteia uma das respostas acima
+                                                                        safeReply = templates[Math.floor(Math.random() * templates.length)];
                                                                     } else {
-                                                                        safeReply = `Olá. Agradecemos o seu feedback, pois ele é fundamental para nossa evolução. Lamentamos que a sua experiência não tenha sido ideal. Prezamos muito pela qualidade do nosso serviço na ${storeName}. Por favor, entre em contato conosco pelos canais oficiais para entendermos o ocorrido.`;
+                                                                        safeReply = `Olá. Agradecemos o seu feedback, pois ele é fundamental para nossa evolução. Lamentamos que a sua experiência não tenha sido ideal dessa vez. Prezamos muito pela qualidade do nosso serviço de ${nicheName} na ${storeName}. Por favor, entre em contato conosco pelo nosso WhatsApp oficial para podermos entender e resolver o ocorrido o mais rápido possível.`;
                                                                     }
+                                                                    
                                                                     setReplyInputs({...replyInputs, [review.reviewId]: safeReply});
                                                                 }}
                                                                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition-all"
