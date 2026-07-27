@@ -5639,6 +5639,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
     // 27. IFOOD: WEBHOOK RECEBEDOR DE PEDIDOS (SaaS Centralizado)
     // ------------------------------------------------------------------------
     else if (path === '/api/ifood-webhook') {
+        // 🚨 KILL SWITCH (ECONOMIA DE CUSTOS VERCEL/FIREBASE)
+        // Retorna 200 OK para o iFood parar de tentar reenviar erros, mas interrompe a 
+        // função imediatamente com um 'return' para NÃO processar nada enquanto a integração estiver pausada.
+        return res.status(200).send('OK');
+
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
