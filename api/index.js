@@ -5635,15 +5635,10 @@ Retorne APENAS um JSON com 3 chaves curtas:
             return res.status(500).json({ success: false, error: `Falha técnica: ${error.message}` });
         }
     }
-    // ------------------------------------------------------------------------
+   // ------------------------------------------------------------------------
     // 27. IFOOD: WEBHOOK RECEBEDOR DE PEDIDOS (SaaS Centralizado)
     // ------------------------------------------------------------------------
     else if (path === '/api/ifood-webhook') {
-        // 🚨 KILL SWITCH (ECONOMIA DE CUSTOS VERCEL/FIREBASE)
-        // Retorna 200 OK para o iFood parar de tentar reenviar erros, mas interrompe a 
-        // função imediatamente com um 'return' para NÃO processar nada enquanto a integração estiver pausada.
-        return res.status(200).send('OK');
-
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         try {
@@ -5655,7 +5650,11 @@ Retorne APENAS um JSON com 3 chaves curtas:
             // Se for só o teste de conexão do painel, o corpo pode vir vazio ou sem array.
             if (!Array.isArray(events) || events.length === 0) return;
 
-            // Função para pegar a Chave Mestra da Velo Delivery
+            // ====================================================================
+            // 🚨 MODO "RALO" ATIVADO (LIMPADOR DE LOGS DA VERCEL)
+            // ====================================================================
+            // Pegamos o token e assinamos o recebimento dos eventos para o iFood
+            // parar de fazer SPAM na API, mas NÃO PROCESSAMOS NENHUM PEDIDO.
             const getIfoodToken = async () => {
                 const params = new URLSearchParams();
                 params.append('grant_type', 'client_credentials');
@@ -5673,101 +5672,9 @@ Retorne APENAS um JSON com 3 chaves curtas:
             };
 
             const token = await getIfoodToken();
-            const acknowledgedEvents = [];
+            const acknowledgedEvents = events.map(event => ({ id: event.id }));
 
-            for (const event of events) {
-                acknowledgedEvents.push({ id: event.id }); 
-
-                // Filtramos o evento "PLC" (Novo Pedido Gerado)
-                if (event.code === 'PLC') {
-                    const { orderId, merchantId } = event;
-
-                    // 2. MÁGICA MULTI-TENANT: Descobre de qual lojista é o pedido pelo ID do iFood!
-                    const settingsSnap = await db.collection('settings')
-                        .where('integrations.ifood.merchantId', 'in', [merchantId, String(merchantId)])
-                        .limit(1).get();
-
-                    if (settingsSnap.empty) {
-                        console.warn(`⚠️ [iFood] Pedido recebido (Loja iFood: ${merchantId}), mas nenhum lojista do Velo vinculou esse ID no painel.`);
-                        continue; // Ignora se não achar o dono
-                    }
-
-                    const storeId = settingsSnap.docs[0].id;
-                    
-                    // 3. Trava de Idempotência (Evita pedido duplicado se o iFood mandar o webhook 2x)
-                    const checkSnap = await db.collection('orders').where('externalOrderId', '==', orderId).limit(1).get();
-                    if (!checkSnap.empty) {
-                        console.log(`⚠️ [iFood] Pedido #${orderId} já foi processado na loja ${storeId}. Ignorando.`);
-                        continue;
-                    }
-
-                    // 4. Busca os dados completos do pedido no iFood
-                    const orderRes = await fetch(`https://merchant-api.ifood.com.br/order/v1.0/orders/${orderId}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (!orderRes.ok) continue;
-                    const orderDetails = await orderRes.json();
-
-                    // 5. Normaliza os itens para o padrão Velo
-                    const normalizedItems = (orderDetails.items || []).map(item => {
-                        const complements = (item.options || []).map(opt => ({
-                            name: opt.name,
-                            price: Number(opt.unitPrice || 0),
-                            quantity: Number(opt.quantity || 1)
-                        }));
-
-                        return {
-                            id: `ifd_${item.id || item.externalCode || Date.now()}`,
-                            name: item.name || 'Produto iFood',
-                            price: Number(item.unitPrice || 0),
-                            quantity: Number(item.quantity || 1),
-                            observation: item.observations || '',
-                            isExternal: true,
-                            selectedComplements: complements
-                        };
-                    });
-
-                    const orderTotal = Number(orderDetails.payments?.prepaid || orderDetails.payments?.pending || 0);
-                    const shippingFee = Number(orderDetails.total?.deliveryFee || 0);
-                    const subtotal = Number(orderDetails.total?.subTotal || 0);
-                    const isPaidOnline = Number(orderDetails.payments?.prepaid) > 0;
-
-                    // 6. Salva no Firebase
-                    const orderData = {
-                        storeId: storeId,
-                        customerName: orderDetails.customer?.name || 'Cliente iFood',
-                        customerPhone: orderDetails.customer?.phone?.number || '',
-                        customerAddress: `${orderDetails.delivery?.deliveryAddress?.streetName || ''}, ${orderDetails.delivery?.deliveryAddress?.streetNumber || ''} - ${orderDetails.delivery?.deliveryAddress?.neighborhood || ''}`,
-                        items: normalizedItems,
-                        subtotal: subtotal,
-                        shippingFee: shippingFee,
-                        total: orderTotal,
-                        
-                        paymentMethod: isPaidOnline ? 'online' : 'pagar_na_entrega',
-                        paymentStatus: isPaidOnline ? 'paid' : 'pending_on_delivery',
-                        status: 'pending', // Entra na aba "Novos"
-                        source: 'ifood',
-                        tipo: orderDetails.orderType === 'TAKEOUT' ? 'retirada' : 'delivery',
-                        externalOrderId: orderId,
-                        
-                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                        paidAt: isPaidOnline ? admin.firestore.FieldValue.serverTimestamp() : null
-                    };
-
-                    const newOrderRef = await db.collection('orders').add(orderData);
-
-                    // 7. Soma na Dashboard Financeira do lojista
-                    if (isPaidOnline) {
-                        await db.collection("stats").doc(storeId).set({
-                            faturamentoTotal: admin.firestore.FieldValue.increment(orderTotal),
-                            pedidosPagos: admin.firestore.FieldValue.increment(1)
-                        }, { merge: true });
-                    }
-                    console.log(`✅ [iFood] Pedido #${orderId} entrou no Kanban da loja ${storeId}`);
-                }
-            }
-            
-            // 8. Dá baixa nos eventos lidos para o iFood parar de enviar
+            // Dá a baixa oficial no iFood (Assina o recibo)
             if (acknowledgedEvents.length > 0) {
                 await fetch('https://merchant-api.ifood.com.br/order/v1.0/events/acknowledgment', {
                     method: 'POST',
@@ -5775,6 +5682,10 @@ Retorne APENAS um JSON com 3 chaves curtas:
                     body: JSON.stringify(acknowledgedEvents)
                 }).catch(() => {});
             }
+
+            // MATA A FUNÇÃO AQUI! Custo zero no Firebase e encerra a operação.
+            return;
+            // ====================================================================
 
         } catch (error) {
             console.error('❌ [iFood] Erro interno no Webhook:', error);
