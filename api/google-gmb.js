@@ -99,8 +99,12 @@ export default async function handler(req, res) {
             return res.status(400).json({ success: false, error: "O ID do Local não foi configurado na aba de integrações." });
         }
 
-        // Formatação dos IDs que o Google exige dependendo do endpoint
-        const cleanLocationId = locationId ? locationId.replace('locations/', '') : '';
+        // 🚀 CORREÇÃO CRÍTICA MESTRA: Blindagem do Location ID contra colagens erradas
+        let rawLoc = locationId || '';
+        if (rawLoc.includes('locations/')) {
+            rawLoc = rawLoc.split('locations/')[1]; 
+        }
+        const cleanLocationId = rawLoc.replace('accounts/-/', '').trim();
         const locationName = `locations/${cleanLocationId}`;
         const accountLocationName = `accounts/-/locations/${cleanLocationId}`;
 
@@ -110,12 +114,21 @@ export default async function handler(req, res) {
 
         // 2. PERFIL: Buscar Dados do Local
         if (action === 'getProfile') {
-            const apiRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?readMask=title,profile,primaryPhone`, {
+            // 🚀 CORREÇÃO API V1: Troca de 'primaryPhone' por 'phoneNumbers' no readMask
+            const apiRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?readMask=title,profile,phoneNumbers`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             const data = await apiRes.json();
             if (!apiRes.ok) throw new Error(data.error?.message || "Erro na API GMB.");
-            return res.status(200).json({ success: true, profile: data });
+            
+            // 🚀 MÁGICA: Mapeia o resultado para o frontend continuar lendo igualzinho sem quebrar
+            const formattedProfile = {
+                title: data.title || '',
+                profile: { description: data.profile?.description || '' },
+                primaryPhone: data.phoneNumbers?.primaryPhone || ''
+            };
+
+            return res.status(200).json({ success: true, profile: formattedProfile });
         }
 
         // 3. PERFIL: Atualizar Dados (PATCH)
@@ -126,7 +139,11 @@ export default async function handler(req, res) {
 
             if (title) { updatePayload.title = title; updateMask.push('title'); }
             if (description) { updatePayload.profile = { description }; updateMask.push('profile.description'); }
-            if (phone) { updatePayload.primaryPhone = phone; updateMask.push('primaryPhone'); }
+            if (phone) { 
+                // 🚀 CORREÇÃO API V1: Formato novo de telefone exigido pelo Google
+                updatePayload.phoneNumbers = { primaryPhone: phone }; 
+                updateMask.push('phoneNumbers'); 
+            }
 
             const apiRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?updateMask=${updateMask.join(',')}`, {
                 method: 'PATCH',
