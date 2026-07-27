@@ -4303,7 +4303,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
     }
 
     // ------------------------------------------------------------------------
-    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - DEBUG ABERTO)
+    // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - GMB)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -4329,17 +4329,14 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
                 }
             }
 
-            const prompt = `Crie textos de vendas MUITO curtos (economia de palavras) para Delivery.
+            const prompt = `Crie textos de vendas curtos para Delivery.
             Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
 O link direto de compra é: ${exactProductLink}
 
-Retorne APENAS um JSON com 3 chaves curtas:
-"whatsapp": (1 frase magnética com emojis e preço. No final, adicione OBRIGATORIAMENTE o link direto: ${exactProductLink}),
-"instagram": (2 frases com chamada para o link da bio),
-"hashtags": (#delivery #promo)`;
+Retorne APENAS um JSON válido com 3 chaves:
+{"whatsapp": "1 frase com emojis", "instagram": "2 frases", "hashtags": "#delivery #promo"}`;
 
-            console.log(`🟡 [API CALL] Acionando gemini-1.5-flash para gerar copy de: ${productName}`);
-
+            // 🚀 MOTOR IDÊNTICO AO DA ABA DE ESTOQUE (Travado no modelo mais barato e rápido)
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4348,54 +4345,37 @@ Retorne APENAS um JSON com 3 chaves curtas:
                 })
             });
 
-            // MUDANÇA CIRÚRGICA 1: LÊ COMO TEXTO BRUTO PARA O SERVIDOR NÃO QUEBRAR
-            const rawTextResponse = await response.text();
-            let aiData;
-            
-            try { 
-                aiData = JSON.parse(rawTextResponse); 
-            } catch (e) { 
-                console.error("🔴 Erro fatal de Parse do Google:", rawTextResponse);
-                return res.status(200).json({ success: false, error: "Google retornou uma resposta inválida." }); 
-            }
-            
+            const aiData = await response.json();
+
             if (!response.ok) {
-                // MUDANÇA CIRÚRGICA 2: MÁGICA DO DEBUG! JSON.stringify com "2" vai expandir todo o objeto no Log da Vercel
                 console.error("🔴 ERRO CRÍTICO ABERTO (Google API):", JSON.stringify(aiData, null, 2));
-                
-                // Repassa o erro exato para o Lojista ver no alerta (Ex: Quota Exceeded)
                 return res.status(200).json({ success: false, error: `Google API Error: ${aiData.error?.message || 'Desconhecido'}` });
             }
 
-            if (aiData.candidates && aiData.candidates[0]) {
-                const candidate = aiData.candidates[0];
-                if (candidate.finishReason === 'SAFETY') return res.status(200).json({ success: false, error: "Bloqueado por segurança." });
-
-                const rawJsonText = candidate.content?.parts[0]?.text;
-                if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio." });
+            const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio retornado pela IA." });
+            
+            try {
+                // Limpador de formatação e Parse do JSON
+                const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const parsedResult = JSON.parse(cleanJsonText);
                 
-                try {
-                    // Limpador de formatação (Evita erro se a IA enviar markdown ```json)
-                    const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const parsedResult = JSON.parse(cleanJsonText);
-                    
-                    // MUDANÇA CIRÚRGICA 3: SALVA NO CACHE PARA NÃO GASTAR API À TOA (Faltava isso no seu código)
-                    if (productId) {
-                        db.collection('ai_promo_cache').doc(productId).set({
-                            whatsapp: parsedResult.whatsapp,
-                            instagram: parsedResult.instagram,
-                            hashtags: parsedResult.hashtags,
-                            createdAt: admin.firestore.FieldValue.serverTimestamp()
-                        }).catch(e => console.error("Erro ao salvar cache", e));
-                    }
+                // MÁGICA: Já junta a legenda com as hashtags para o Google Meu Negócio ficar perfeito
+                const instagramComHashtags = `${parsedResult.instagram}\n\n${parsedResult.hashtags}`;
 
-                    return res.status(200).json({ success: true, whatsapp: parsedResult.whatsapp, instagram: parsedResult.instagram, hashtags: parsedResult.hashtags });
-                } catch (e) { 
-                    console.error("🔴 Erro de formatação do texto gerado:", rawJsonText);
-                    return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); 
+                if (productId) {
+                    db.collection('ai_promo_cache').doc(productId).set({
+                        whatsapp: parsedResult.whatsapp,
+                        instagram: instagramComHashtags,
+                        hashtags: parsedResult.hashtags,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    }).catch(e => console.error("Erro ao salvar cache", e));
                 }
-            } else {
-                return res.status(200).json({ success: false, error: "Resposta vazia." });
+
+                return res.status(200).json({ success: true, whatsapp: parsedResult.whatsapp, instagram: instagramComHashtags, hashtags: parsedResult.hashtags });
+            } catch (e) { 
+                console.error("🔴 Erro de formatação do texto gerado:", rawJsonText);
+                return res.status(200).json({ success: false, error: "Erro ao formatar os textos." }); 
             }
         } catch (error) {
             console.error("🔴 Erro no Servidor (Catch):", error);
