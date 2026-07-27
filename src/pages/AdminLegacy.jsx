@@ -8,7 +8,7 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Menu, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Menu, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt, Bitcoin
 } from 'lucide-react';
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9916,6 +9916,49 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 )}
                             </div>
                         )}
+                       {/* --- NOVO CARD: INTEGRAÇÃO BINANCE PAY --- */}
+                        <div className="bg-slate-900 p-8 rounded-[3rem] shadow-sm border border-yellow-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 bg-yellow-500 w-64 h-64 rounded-full blur-[80px] opacity-10 pointer-events-none"></div>
+                            
+                            <div className="flex items-center justify-between mb-6 relative z-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-yellow-500 p-3 rounded-2xl text-slate-900 shadow-lg"><Bitcoin size={28}/></div>
+                                    <div>
+                                        <h3 className="text-2xl font-black uppercase text-white italic leading-none">Binance Pay <span className="text-yellow-400">Cripto</span></h3>
+                                        <p className="text-xs font-medium text-slate-400 mt-1">Receba pagamentos globais (USDT, BTC) instantaneamente.</p>
+                                    </div>
+                                </div>
+                                {settings?.binanceApiKey && (
+                                    <div className="bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest border border-green-500/30 flex items-center gap-1 shadow-inner">
+                                        <ShieldCheck size={12} /> Configurado
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">API Key (Binance Merchant)</label>
+                                    <input 
+                                        type="text" 
+                                        value={settings?.binanceApiKey || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "settings", storeId), { binanceApiKey: e.target.value }, { merge: true })} 
+                                        className="w-full p-4 mt-1 bg-slate-800 border border-slate-700 rounded-2xl text-white font-bold outline-none focus:border-yellow-500 text-sm placeholder-slate-600" 
+                                        placeholder="Sua API Key" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Secret Key</label>
+                                    <input 
+                                        type="password" 
+                                        value={settings?.binanceSecretKey || ''} 
+                                        onChange={(e) => updateDoc(doc(db, "settings", storeId), { binanceSecretKey: e.target.value }, { merge: true })} 
+                                        className="w-full p-4 mt-1 bg-slate-800 border border-slate-700 rounded-2xl text-white font-bold outline-none focus:border-yellow-500 text-sm placeholder-slate-600" 
+                                        placeholder="Sua Secret Key" 
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                        {/* NOVO CARD: MERCADO PAGO CONNECT */}
                         <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between mb-8">
                             <div className="flex items-center gap-2 mb-6">
@@ -10013,6 +10056,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         {/* --- FIM: GUIA EDUCATIVO VALE REFEIÇÃO --- */}
 
                                         {[
+                                            // A MÁGICA: Só exibe a opção de ligar/desligar se a API Key existir no banco!
+                                            ...(settings?.binanceApiKey ? [{ id: 'binance_pay', label: '🟡 BINANCE PAY (CRIPTO)' }] : []),
                                             { id: 'online', label: '💳 CARTÃO DE CRÉDITO' },
                                             { id: 'pix', label: '⚡ PIX AUTOMÁTICO' },
                                             { id: 'offline_pix', label: '💠 PIX COPIA E COLA' },

@@ -207,6 +207,16 @@ const generateSlug = (text) => {
         .replace(/^-+/, '').replace(/-+$/, ''); 
 };
 
+// Função auxiliar da Binance Pay
+function generateNonce(length = 32) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 /// ============================================================================
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
@@ -251,8 +261,8 @@ export default async function handler(req, res) {
         rawBody = await getRawBody(req);
     }
 
-    // Se a rota não for o Stripe Webhook, converte o Raw Body para JSON e joga no req.body
-    if (rawBody && path !== '/api/stripe-webhook') {
+    // Se a rota não for o Stripe Webhook ou o Binance Webhook, converte o Raw Body para JSON e joga no req.body
+    if (rawBody && path !== '/api/stripe-webhook' && path !== '/api/binance-webhook') {
         try {
             req.body = JSON.parse(rawBody);
         } catch (e) {
@@ -5843,6 +5853,144 @@ Retorne APENAS um JSON válido com 3 chaves:
         } catch (error) {
             console.error("❌ Erro na Prospecção:", error);
             return res.status(500).json({ error: error.message });
+        }
+    }
+
+   // ------------------------------------------------------------------------
+    // 30. BINANCE PAY: GERAR PAGAMENTO (CRIPTOMOEDAS)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/binance-checkout') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, orderId, totalAmount, currency = "BRL" } = req.body;
+            if (!storeId || !orderId || !totalAmount) return res.status(400).json({ success: false, error: "Parâmetros obrigatórios ausentes." });
+
+            const storeSnap = await db.collection('settings').doc(storeId).get();
+            const storeData = storeSnap.exists ? storeSnap.data() : {};
+            const binanceApiKey = storeData.binanceApiKey;
+            const binanceSecretKey = storeData.binanceSecretKey;
+
+            if (!binanceApiKey || !binanceSecretKey) {
+                return res.status(400).json({ success: false, error: "Credenciais da Binance não configuradas para esta loja." });
+            }
+
+            const reqBody = {
+                env: { terminalType: "WEB" },
+                merchantTradeNo: orderId,
+                orderAmount: Number(totalAmount).toFixed(2),
+                currency: currency,
+                goods: {
+                    goodsType: "02",
+                    goodsCategory: "Z000",
+                    referenceGoodsId: orderId,
+                    goodsName: `Pedido ${orderId.slice(-5).toUpperCase()}`,
+                    goodsDetail: `Pagamento loja ${storeId}`,
+                },
+            };
+
+            const jsonPayload = JSON.stringify(reqBody);
+            const timestamp = Date.now().toString();
+            const nonce = generateNonce();
+            const payloadToSign = `${timestamp}\n${nonce}\n${jsonPayload}\n`;
+
+            const signature = crypto.createHmac("sha512", binanceSecretKey).update(payloadToSign).digest("hex").toUpperCase();
+
+            const binanceResponse = await fetch("https://bpay.binanceapi.com/binancepay/openapi/v2/order", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "BinancePay-Timestamp": timestamp,
+                    "BinancePay-Nonce": nonce,
+                    "BinancePay-Certificate-SN": binanceApiKey,
+                    "BinancePay-Signature": signature,
+                },
+                body: jsonPayload,
+            });
+
+            const binanceData = await binanceResponse.json();
+            if (binanceData.status !== "SUCCESS") return res.status(400).json({ success: false, error: "Falha na Binance", details: binanceData });
+
+            return res.status(200).json({ success: true, checkoutUrl: binanceData.data.universalUrl || binanceData.data.checkoutUrl, qrcodeLink: binanceData.data.qrcodeLink });
+        } catch (error) {
+            console.error("🔴 Erro rota Binance:", error);
+            return res.status(500).json({ success: false, error: "Erro interno no servidor." });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 31. BINANCE PAY: WEBHOOK DE CONFIRMAÇÃO DE PAGAMENTO
+    // ------------------------------------------------------------------------
+    else if (path === '/api/binance-webhook') {
+        if (req.method !== 'POST') return res.status(405).json({ returnCode: "FAIL", returnMessage: "Method Not Allowed" });
+
+        try {
+            const timestamp = req.headers['binancepay-timestamp'];
+            const nonce = req.headers['binancepay-nonce'];
+            const signature = req.headers['binancepay-signature'];
+
+            if (!timestamp || !nonce || !signature || !rawBody) {
+                return res.status(400).json({ returnCode: "FAIL", returnMessage: "Missing headers or body" });
+            }
+
+            const parsedBody = JSON.parse(rawBody);
+            const orderId = parsedBody.data?.merchantTradeNo || parsedBody.bizId; 
+            const paymentStatus = parsedBody.bizStatus;
+
+            if (!orderId) return res.status(400).json({ returnCode: "FAIL", returnMessage: "Invalid payload" });
+
+            const orderRef = db.collection('orders').doc(orderId);
+            const orderSnap = await orderRef.get();
+
+            if (!orderSnap.exists) return res.status(200).json({ returnCode: "SUCCESS", returnMessage: "" }); // Ignora se não for pedido nosso
+
+            const storeId = orderSnap.data().storeId || orderSnap.data().tenantId;
+            const storeSnap = await db.collection('settings').doc(storeId).get();
+            const binanceSecretKey = storeSnap.exists ? storeSnap.data().binanceSecretKey : null;
+
+            if (!binanceSecretKey) return res.status(200).json({ returnCode: "SUCCESS", returnMessage: "" });
+
+            const payloadToSign = `${timestamp}\n${nonce}\n${rawBody}\n`;
+            const expectedSignature = crypto.createHmac("sha512", binanceSecretKey).update(payloadToSign).digest("hex").toUpperCase();
+
+            if (signature !== expectedSignature) {
+                console.error("🔴 Webhook Binance: Fraude Detectada. Assinatura Inválida.");
+                return res.status(401).json({ returnCode: "FAIL", returnMessage: "Invalid signature" });
+            }
+
+            if (paymentStatus === "PAY_SUCCESS" || paymentStatus === "SUCCESS") {
+                const batch = db.batch();
+                
+                // Manda direto pra cozinha e avisa que foi pago em cripto
+                batch.update(orderRef, {
+                    paymentStatus: 'paid',
+                    status: 'preparing', 
+                    paymentMethod: 'binance_pay',
+                    paidAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Atualiza estatísticas do lojista
+                const statsRef = db.collection("stats").doc(storeId);
+                batch.set(statsRef, {
+                    faturamentoTotal: admin.firestore.FieldValue.increment(Number(orderSnap.data().total || 0)),
+                    pedidosPagos: admin.firestore.FieldValue.increment(1)
+                }, { merge: true });
+
+                await batch.commit();
+                console.log(`🟢 Webhook Binance: Pedido ${orderId} pago via CRIPTO com sucesso!`);
+            }
+
+            return res.status(200).json({ returnCode: "SUCCESS", returnMessage: "" });
+
+        } catch (error) {
+            console.error("🔴 Erro crítico Webhook Binance:", error);
+            return res.status(500).json({ returnCode: "FAIL", returnMessage: "Internal Error" });
         }
     }
 

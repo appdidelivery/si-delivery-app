@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, limit, startAfter, addDoc, serverTimestamp, doc, query, orderBy, where, getDocs, updateDoc, getDoc, setDoc, increment, deleteDoc } from 'firebase/firestore';
-import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare, Maximize, Sparkles, Camera } from 'lucide-react';
+import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerator, Navigation, Clock, Star, Crown, MapPin, ExternalLink, QrCode, CreditCard, Banknote, Minus, Link, ImageIcon, Plus, Trash2, XCircle, Loader2, Truck, List, Package, Share, Gift, Zap, CupSoda, Martini, Candy, Snowflake, Pizza, Coffee, IceCream, UploadCloud, Sandwich, Wallet, Medal, Award, Share2, Copy, CheckCircle, MessageSquare, Maximize, Sparkles, Camera, Bitcoin } from 'lucide-react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import useProducts from '../hooks/useProducts';
 import SEO from '../components/SEO';
@@ -1142,9 +1142,13 @@ export default function Home() {
     setShowLastOrders(false);
   };
   
-  const [isCepLoading, setIsCepLoading] = useState(false);
+ const [isCepLoading, setIsCepLoading] = useState(false);
     const[cepError, setCepError] = useState('');
     const [deliveryDistance, setDeliveryDistance] = useState(null);
+
+    // ESTADOS BINANCE PAY
+    const [isProcessingBinance, setIsProcessingBinance] = useState(false);
+    const [binanceResult, setBinanceResult] = useState(null);
 
   const scrollToCategory = async (categoryId) => {
     if (storeSettings?.layoutTheme === 'list') {
@@ -2372,9 +2376,9 @@ if (window.fbq) {
       }
 
      // ======================================================================
-      // FLUXO DE PAGAMENTO ONLINE (VELOPAY, STRIPE OU MERCADO PAGO)
+      // FLUXO DE PAGAMENTO ONLINE (VELOPAY, STRIPE OU MERCADO PAGO E BINANCE)
       // ======================================================================
-      if (['cartao', 'pix', 'online', 'velopay_pix', 'voucherOnline'].includes(customer.payment)) {
+      if (['cartao', 'pix', 'online', 'velopay_pix', 'voucherOnline', 'binance_pay'].includes(customer.payment)) {
           
          // 1. Prioridade Máxima: Se escolheu Pix Nativo do VeloPay
           if (customer.payment === 'velopay_pix') {
@@ -2421,6 +2425,49 @@ if (window.fbq) {
                   return;
               }
           }
+
+          // --- INÍCIO: INTEGRAÇÃO BINANCE PAY (CRIPTOMOEDAS) ---
+          if (customer.payment === 'binance_pay') {
+              try {
+                  await setDoc(newOrderRef, { ...orderData, paymentStatus: 'pending' });
+
+                  const response = await fetch('/api/binance-checkout', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          storeId: storeId,
+                          orderId: orderId,
+                          totalAmount: finalTotal
+                      })
+                  });
+
+                  const data = await response.json();
+                  
+                  if (!response.ok || !data.success) {
+                      throw new Error(data.error || "Erro ao gerar Binance Pay");
+                  }
+
+                  // 1. Salva a resposta no estado para o modal desenhar o QR Code
+                  setBinanceResult({ checkoutUrl: data.checkoutUrl, qrcodeLink: data.qrcodeLink });
+                  
+                  // 2. Limpa o carrinho e esconde o checkout
+                  localStorage.setItem('activeOrderId', orderId);
+                  setActiveOrderId(orderId);
+                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                  
+                  // 3. Libera as travas, mas NÃO redireciona (o Modal fica na tela)
+                  setIsFinalizing(false);
+                  return;
+
+              } catch (err) {
+                  try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Falha ao gerar Binance Pay.' }); } catch(e) {}
+                  alert(`Erro Binance Pay: ${err.message}`);
+                  setIsFinalizing(false); submitLock.current = false;
+                  return;
+              }
+          }
+          // --- FIM: INTEGRAÇÃO BINANCE PAY ---
+
 // 2. NOVA PRIORIDADE: VeloPay Cartão de Crédito Nativo
           const hasVeloPay = storeSettings?.velopayStatus === 'active' || storeSettings?.velopayStatus === true;
           
@@ -4338,6 +4385,7 @@ if (window.fbq) {
 
                                     // Para o cliente, não importa qual banco processa. Ofertamos opções claras.
                                     let allMethods =[
+                                        { id: 'binance_pay', name: 'CRIPTO (BINANCE)', icon: <Bitcoin size={24}/>, showIf: !!pmConfig.binance_pay, isCrypto: true },
                                         { id: 'velopay_pix', name: 'PIX (NA HORA)', icon: <QrCode size={24}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPixHighlight: true },
                                         { id: 'pix', name: 'PIX (NA HORA)', icon: <QrCode size={24}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix, isPixHighlight: true },
                                         { id: 'velopay_credit', name: 'CARTÃO (APP)', icon: <CreditCard size={20}/>, showIf: hasVeloPayCredit && pmConfig.online !== false, isPremium: true },
@@ -4359,10 +4407,12 @@ if (window.fbq) {
                                         
                                         if (isSelected) {
                                             if (m.isPixHighlight) btnClasses = 'bg-emerald-500 border-emerald-500 text-white shadow-lg scale-[1.02] ring-2 ring-emerald-300 ring-offset-2';
+                                            else if (m.isCrypto) btnClasses = 'bg-yellow-400 border-yellow-400 text-slate-900 shadow-lg scale-[1.02] ring-2 ring-yellow-200 ring-offset-2';
                                             else if (m.isPremium) btnClasses = 'bg-blue-600 border-blue-600 text-white shadow-md';
                                             else btnClasses = `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`;
                                         } else {
                                             if (m.isPixHighlight) btnClasses = 'border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 shadow-sm shadow-emerald-100';
+                                            else if (m.isCrypto) btnClasses = 'border-yellow-400 bg-yellow-50 text-yellow-800 hover:bg-yellow-100 shadow-sm shadow-yellow-100';
                                             else if (m.isPremium) btnClasses = 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100';
                                         }
 
@@ -5313,6 +5363,40 @@ if (window.fbq) {
                   </button>
               )}
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* =========================================
+          MODAL BINANCE PAY (QR CODE E CHECKOUT)
+          ========================================= */}
+      <AnimatePresence>
+        {binanceResult && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[600] flex items-center justify-center p-4">
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-8 sm:p-10 relative text-center shadow-2xl flex flex-col items-center">
+                  <button onClick={() => { setBinanceResult(null); window.location.href = `/track/${activeOrderId}`; }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X size={24}/></button>
+                  
+                  <div className="w-16 h-16 bg-yellow-500/10 text-yellow-500 rounded-full flex items-center justify-center mb-4 border border-yellow-500/20">
+                    <Bitcoin size={32} />
+                  </div>
+                  <h2 className="text-2xl font-black italic uppercase text-white mb-2">Binance Pay</h2>
+                  <p className="text-slate-400 font-bold mb-6 text-xs leading-relaxed">Escaneie o QR Code com o aplicativo da Binance para concluir o pagamento em Criptomoedas.</p>
+
+                  <div className="bg-white p-3 rounded-3xl border-4 border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.2)] mb-6 w-48 h-48 sm:w-56 sm:h-56">
+                      <img src={binanceResult.qrcodeLink} alt="QR Code Binance Pay" className="w-full h-full object-contain rounded-2xl" />
+                  </div>
+                  
+                  <a href={binanceResult.checkoutUrl} target="_blank" rel="noopener noreferrer" className="w-full bg-yellow-500 text-slate-900 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-yellow-400 active:scale-95 transition-all text-xs mb-4 flex items-center justify-center gap-2">
+                      <Bitcoin size={18} /> Pagar no App Binance
+                  </a>
+
+                  <button onClick={() => {
+                      setBinanceResult(null);
+                      window.location.href = `/track/${activeOrderId}`;
+                  }} className="text-[10px] font-black uppercase text-slate-500 hover:text-white tracking-widest underline transition-colors">
+                      Já realizei o pagamento
+                  </button>
+              </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
