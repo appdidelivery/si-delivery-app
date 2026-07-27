@@ -4630,12 +4630,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="mt-1 z-10 relative">
                                             <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
                                             <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
-                                                R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}
+                                                R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((acc, o) => {
+                                                    let upsellVal = Number(o.upsellAmount) || 0;
+                                                    if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
+                                                        upsellVal = o.items.filter(i => i.isUpsell).reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
+                                                    }
+                                                    return acc + upsellVal;
+                                                }, 0).toFixed(2)}
                                             </p>
                                             
                                             <div className="mt-3 pt-3 border-t border-indigo-400/50 flex justify-between items-end">
                                                 <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest">Histórico Total</span>
-                                                <span className="text-lg font-black text-white italic">R$ {orders.filter(o => o.status !== 'canceled').reduce((acc, o) => acc + (Number(o.upsellAmount) || 0), 0).toFixed(2)}</span>
+                                                <span className="text-lg font-black text-white italic">R$ {orders.filter(o => o.status !== 'canceled').reduce((acc, o) => {
+                                                    let upsellVal = Number(o.upsellAmount) || 0;
+                                                    if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
+                                                        upsellVal = o.items.filter(i => i.isUpsell).reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
+                                                    }
+                                                    return acc + upsellVal;
+                                                }, 0).toFixed(2)}</span>
                                             </div>
                                         </div>
                                         <div className="absolute -left-4 -bottom-4 text-white opacity-10"><Flame size={120}/></div>
