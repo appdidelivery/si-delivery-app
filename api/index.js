@@ -4336,20 +4336,35 @@ O link direto de compra é: ${exactProductLink}
 Retorne APENAS um JSON válido com 3 chaves:
 {"whatsapp": "1 frase com emojis", "instagram": "2 frases", "hashtags": "#delivery #promo"}`;
 
-            // 🚀 MOTOR IDÊNTICO AO DA ABA DE ESTOQUE (Travado no modelo mais barato e rápido)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            });
+            // ====================================================================
+            // 🚀 ROLETA DE MODELOS (IDÊNTICA À DO ESTOQUE QUE FUNCIONA)
+            // ====================================================================
+            // Se um nome for rejeitado pela sua chave, ele tenta os outros automaticamente
+            const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.0-pro', 'gemini-1.5-flash', 'gemini-pro'];
+            let aiData = null;
+            let responseOk = false;
 
-            const aiData = await response.json();
+            for (const model of modelsToTry) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
 
-            if (!response.ok) {
+                aiData = await response.json();
+
+                if (response.ok) {
+                    responseOk = true;
+                    break; // Deu certo! Sai do loop.
+                }
+            }
+
+            // Se rodou a roleta toda e nenhum funcionou, aí sim mostramos o erro
+            if (!responseOk) {
                 console.error("🔴 ERRO CRÍTICO ABERTO (Google API):", JSON.stringify(aiData, null, 2));
-                return res.status(200).json({ success: false, error: `Google API Error: ${aiData.error?.message || 'Desconhecido'}` });
+                return res.status(200).json({ success: false, error: `Google API Error: ${aiData?.error?.message || 'Desconhecido'}` });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
