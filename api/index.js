@@ -4302,7 +4302,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
         }
     }
 
-    // ------------------------------------------------------------------------
+   // ------------------------------------------------------------------------
     // 22. GERADOR DE COPY PARA PROMOÇÕES (GEMINI IA - GMB)
     // ------------------------------------------------------------------------
     else if (path === '/api/generate-promo-copy') {
@@ -4319,7 +4319,7 @@ const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) return res.status(200).json({ success: false, error: "Chave ausente na Vercel." });
 
-            // CACHE: Verifica se já gerou uma copy para esse produto hoje
+            // CACHE: Verifica se já gerou uma copy para esse produto
             if (productId) {
                 const cacheRef = db.collection('ai_promo_cache').doc(productId);
                 const cacheSnap = await cacheRef.get();
@@ -4336,11 +4336,10 @@ O link direto de compra é: ${exactProductLink}
 Retorne APENAS um JSON válido com 3 chaves:
 {"whatsapp": "1 frase com emojis", "instagram": "2 frases", "hashtags": "#delivery #promo"}`;
 
-            // ====================================================================
-            // 🚀 ROLETA DE MODELOS (IDÊNTICA À DO ESTOQUE QUE FUNCIONA)
-            // ====================================================================
-            // Se um nome for rejeitado pela sua chave, ele tenta os outros automaticamente
-            const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.0-pro', 'gemini-1.5-flash', 'gemini-pro'];
+            console.log(`🟡 [API CALL] Acionando motor de IA (Padrão Estoque) para: ${productName}`);
+
+            // 🚀 AQUI ESTÁ A CORREÇÃO MESTRA: Usando os EXATOS MESMOS MODELOS que funcionam no Estoque!
+            const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
             let aiData = null;
             let responseOk = false;
 
@@ -4357,25 +4356,24 @@ Retorne APENAS um JSON válido com 3 chaves:
 
                 if (response.ok) {
                     responseOk = true;
-                    break; // Deu certo! Sai do loop.
+                    console.log(`✅ Sucesso na Promoção com o modelo: ${model}`);
+                    break;
                 }
             }
 
-            // Se rodou a roleta toda e nenhum funcionou, aí sim mostramos o erro
             if (!responseOk) {
                 console.error("🔴 ERRO CRÍTICO ABERTO (Google API):", JSON.stringify(aiData, null, 2));
-                return res.status(200).json({ success: false, error: `Google API Error: ${aiData?.error?.message || 'Desconhecido'}` });
+                return res.status(200).json({ success: false, error: `Google API Error: ${aiData.error?.message || 'Modelo rejeitado'}` });
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio retornado pela IA." });
             
             try {
-                // Limpador de formatação e Parse do JSON
+                // Limpa marcações markdown se a IA colocar
                 const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const parsedResult = JSON.parse(cleanJsonText);
                 
-                // MÁGICA: Já junta a legenda com as hashtags para o Google Meu Negócio ficar perfeito
                 const instagramComHashtags = `${parsedResult.instagram}\n\n${parsedResult.hashtags}`;
 
                 if (productId) {
