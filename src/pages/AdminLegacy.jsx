@@ -7542,7 +7542,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="flex bg-slate-800 rounded-xl p-1">
                                     {storeStatus.posPickupEnabled !== false && (
                                         <button 
-                                            onClick={() => { setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup' }); setManualShippingFee(0); }}
+                                            onClick={() => { 
+                                                // 🚀 MUDANÇA: Já força o paymentStatus para 'paid' ao clicar em Balcão
+                                                setManualCustomer({ ...manualCustomer, deliveryMethod: 'pickup', paymentStatus: 'paid' }); 
+                                                setManualShippingFee(0); 
+                                            }}
                                             className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                                         >
                                             🏪 Balcão/Mesa
@@ -7550,7 +7554,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     )}
                                     {storeStatus.posDeliveryEnabled !== false && (
                                         <button 
-                                            onClick={() => setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery' })}
+                                            onClick={() => {
+                                                // 🚀 MUDANÇA: Força o paymentStatus para 'pending' ao clicar em Delivery
+                                                setManualCustomer({ ...manualCustomer, deliveryMethod: 'delivery', paymentStatus: 'pending' });
+                                            }}
                                             className={`flex-1 py-3 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${manualCustomer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                                         >
                                             🛵 Delivery
@@ -8029,12 +8036,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         sellerEmail: sellerEmail 
                     });
 
-                    // Limpeza Final
+                   // Limpeza Final
                     setManualCart([]);
                     setManualCustomer({ 
                         name: '', address: '', phone: '', payment: 'pix', changeFor: '', deliveryMethod: 'pickup', mesa: '', 
                         status: (['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'completed' : 'preparing'), 
-                        paymentStatus: 'pending',
+                        paymentStatus: 'paid', // 🚀 MUDANÇA: Agora o próximo pedido já nasce "Pago" por padrão
                         splitPayments: [] // Zera o split state
                     });
                     setManualShippingFee(0);

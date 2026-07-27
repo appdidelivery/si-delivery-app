@@ -276,10 +276,13 @@ exports.emitirNotaFiscal = functions.firestore
                 return itemPayload;
             });
 
-            // 2. Limpa o CPF e define o tipo de presença do comprador
+            // 2. Limpa o CPF
             const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
-            const isDelivery = !(order.source === 'manual_pdv' || order.tipo === 'pickup');
-            const presencaComprador = isDelivery ? "4" : "1";
+
+            // 🚀 CORREÇÃO FISCAL MESTRA: Forçamos o indicador "1" (Operação Presencial/Balcão)
+            // para todos os cupons (NFC-e). Isso isenta o sistema de enviar a árvore complexa
+            // de endereço do cliente e evita o bloqueio da SEFAZ quando não há CPF cadastrado.
+            const presencaComprador = "1";
 
             // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
             const payloadNFCe = {
@@ -302,45 +305,16 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // BLINDAGEM DO DESTINATÁRIO: A SEFAZ exige identificação completa com endereço para IndPres=4 (Entrega a domicílio)
-            if (isDelivery || (cpfLimpo && (cpfLimpo.length === 11 || cpfLimpo.length === 14))) {
+            // BLINDAGEM DO DESTINATÁRIO: O Nó "cliente" só será adicionado se houver CPF ou Nome.
+            // Retiramos toda a exigência de endereço, pois o 'presenca_comprador = 1' não precisa.
+            if (cpfLimpo || (order.customerName && order.customerName.length > 2)) {
                 payloadNFCe.cliente = {
-                    nome_completo: order.customerName || "Consumidor Final"
+                    nome_completo: order.customerName ? order.customerName.substring(0, 60) : "Consumidor Final"
                 };
 
-                if (cpfLimpo) {
+                if (cpfLimpo && (cpfLimpo.length === 11 || cpfLimpo.length === 14)) {
                     if (cpfLimpo.length === 11) payloadNFCe.cliente.cpf = cpfLimpo;
-                    else if (cpfLimpo.length === 14) payloadNFCe.cliente.cnpj = cpfLimpo;
-                }
-
-                // Injeta o bloco de endereço obrigatório para regras de Delivery
-                if (isDelivery) {
-                    let logradouro = "Rua Nao Informada";
-                    let numero = "S/N";
-                    let bairro = "Centro";
-                    
-                    if (typeof order.customerAddress === 'string' && order.customerAddress.trim() !== '') {
-                        const partes = order.customerAddress.split(',');
-                        logradouro = partes[0].trim() || logradouro;
-                        if (partes.length > 1) {
-                            const subPartes = partes[1].split('-');
-                            numero = subPartes[0].trim() || numero;
-                            if (subPartes.length > 1) bairro = subPartes[1].trim() || bairro;
-                        }
-                    } else if (typeof order.customerAddress === 'object') {
-                        logradouro = order.customerAddress.street || logradouro;
-                        numero = order.customerAddress.number || numero;
-                        bairro = order.customerAddress.neighborhood || bairro;
-                    }
-
-                    payloadNFCe.cliente.endereco = {
-                        logradouro: logradouro.substring(0, 60),
-                        numero: numero.substring(0, 60),
-                        bairro: bairro.substring(0, 60),
-                        codigo_municipio: fiscal.ibgeCidade || "0000000",
-                        uf: fiscal.ibgeUf || "SP",
-                        cep: fiscal.cep ? fiscal.cep.replace(/\D/g, '') : "00000000"
-                    };
+                    else payloadNFCe.cliente.cnpj = cpfLimpo;
                 }
             }
 
