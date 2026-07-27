@@ -11867,6 +11867,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         ⚙️
                                                     </button>
                                                 </div>
+                                            ) : app.id === 'ifood' ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <button 
+                                                        disabled
+                                                        className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                                                    >
+                                                        🔒 Em Breve
+                                                    </button>
+                                                    <div className="bg-orange-50 border border-orange-100 p-3 rounded-xl text-center shadow-sm">
+                                                        <p className="text-[10px] font-bold text-orange-700 leading-tight">Fale com a equipe técnica para solicitar e ativar a integração iFood.</p>
+                                                    </div>
+                                                </div>
                                             ) : (
                                                 <button 
                                                 id={app.id === 'meta' ? 'btn-conectar-meta' : undefined}
