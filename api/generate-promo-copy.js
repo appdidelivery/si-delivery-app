@@ -31,7 +31,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: false, error: 'Chave do Gemini não configurada na Vercel.' });
     }
 
-    try {
+   try {
+        // 🚀 CORREÇÃO: Declarando a variável do link ANTES do prompt para o Javascript não quebrar!
+        const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
+        const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
+        const exactProductLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
+
         // CACHE
         if (productId) {
             const cacheRef = db.collection('ai_promo_cache').doc(productId);
