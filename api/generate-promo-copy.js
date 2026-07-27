@@ -68,8 +68,8 @@ REGRAS ESTRITAS:
 Formato exigido:
 {"whatsapp": "...", "instagram": "...", "hashtags": "..."}`;
 
-        // Mesma lógica de tentativa que você usou no estoque
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+        // 🚀 MUDANÇA: Nomes oficiais blindados da API v1beta do Google
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro'];
         let aiData = null;
         let responseOk = false;
 
