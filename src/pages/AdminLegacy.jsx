@@ -3875,10 +3875,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
 // --- LÓGICA GLOBAL DO FECHAMENTO DE CAIXA / RELATÓRIO ---
-    const getFilteredOrdersForReport = () => {
+   const getFilteredOrdersForReport = () => {
         const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
+        // 🚀 CORREÇÃO DO "DIA OPERACIONAL" (MADRUGADA)
+        // Em vez de forçar o início de hoje (00:00), buscamos a hora real de abertura do caixa.
+        // Se o caixa não tiver sido aberto na máquina, fazemos um fallback para as últimas 24h.
+        const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
+        const startOfShift = rawAbertura ? new Date(rawAbertura) : new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        
+        // Mantido para os outros filtros (7d, 30d, mês)
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
         return orders.filter(o => {
             // Ignora cancelados
             if (o.status === 'canceled' || !o.createdAt) return false;
@@ -3889,7 +3897,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             if (reportSeller === 'online' && isManualOrder) return false;
             
             // Se escolheu um vendedor específico, ignora os pedidos do App (online) 
-            // e filtra estritamente pelo email salvo no pedido (ou assume 'owner' se for um pedido antigo manual sem email)
             if (reportSeller !== 'todos' && reportSeller !== 'online') {
                 if (!isManualOrder) return false;
                 const orderEmail = o.sellerEmail || 'owner'; 
@@ -3897,10 +3904,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             }
             
             // FILTRO 2: DATA
-            const orderDate = o.createdAt.toDate();
+            const orderDate = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt.seconds * 1000 || o.createdAt);
             
             if (reportDateRange === 'hoje') {
-                return orderDate >= startOfToday;
+                // 🚀 Aqui é a grande mágica: "Hoje" agora significa "Desde que eu abri o caixa".
+                // Não importa se passou da meia noite.
+                return orderDate >= startOfShift;
             } else if (reportDateRange === '7dias') {
                 const sevenDaysAgo = new Date(now);
                 sevenDaysAgo.setDate(now.getDate() - 7);
@@ -3918,7 +3927,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 if (!(orderDate >= start && orderDate <= end)) return false;
             }
 
-            // FILTRO 3: FORMA DE PAGAMENTO (NOVO)
+            // FILTRO 3: FORMA DE PAGAMENTO
             if (reportPaymentFilter !== 'todos') {
                 const method = String(o.paymentMethod || '').toLowerCase();
                 if (reportPaymentFilter === 'pix' && !method.includes('pix') && !method.includes('link')) return false;
