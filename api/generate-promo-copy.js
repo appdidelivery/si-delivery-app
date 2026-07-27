@@ -47,10 +47,25 @@ export default async function handler(req, res) {
             }
         }
 
-        const prompt = `Crie textos de vendas curtos para Delivery.
-        Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
-        Retorne APENAS um JSON válido com 3 chaves:
-        {"whatsapp": "1 frase com emojis", "instagram": "2 frases", "hashtags": "#delivery #promo"}`;
+        const prompt = `Atue como um Especialista em SEO Local (E-E-A-T) e Copywriter de Alta Conversão.
+Sua missão é criar uma postagem orgânica, autêntica e rica em detalhes para o Google Meu Negócio e WhatsApp.
+O texto NÃO PODE parecer gerado por IA (proibido usar palavras clichês de robô como "mergulhe", "descubra", "eleve sua experiência", "jornada de sabor").
+
+DADOS DA LOJA E PRODUTO:
+- Loja: ${storeName}
+- Nicho: ${storeNiche}
+- Produto: ${productName}
+- Preço: R$ ${Number(productPrice).toFixed(2)}
+- Link de Compra: ${exactProductLink}
+
+REGRAS DE CONTEÚDO:
+1. "instagram": Será usado na vitrine do Google. Escreva 1 parágrafo (máximo de 350 caracteres). Aplique E-E-A-T: demonstre especialidade mencionando sutilmente a qualidade ou estado do produto (ex: trincando de gelado para bebidas, recém-preparado para lanches). O tom de voz DEVE se adaptar ao nicho da loja. Posicione a loja como a melhor opção local.
+2. "whatsapp": 1 frase curta e magnética, soando como um vendedor humano mandando mensagem, contendo o preço e o gatilho de desejo.
+3. "hashtags": 4 a 5 hashtags focadas especificamente no produto e no nicho, sem tags genéricas soltas.
+
+Retorne APENAS um JSON válido.
+Formato exigido:
+{"whatsapp": "texto", "instagram": "texto", "hashtags": "#tag1 #tag2"}`;
 
         console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
