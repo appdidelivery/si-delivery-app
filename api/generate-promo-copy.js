@@ -20,7 +20,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Método não permitido.' });
     }
 
-    const { storeName, storeNiche, productName, productDesc, productPrice } = req.body;
+    const { storeName, storeNiche, productName, productDesc, productPrice, productId } = req.body;
 
     if (!productName) {
         return res.status(400).json({ success: false, error: 'O nome do produto é obrigatório.' });
@@ -32,45 +32,30 @@ export default async function handler(req, res) {
     }
 
     try {
-        // =========================================================================
-        // 1. ESTRATÉGIA DE CACHE
-        // =========================================================================
-        const safeStoreName = storeName || 'loja';
-        const cacheString = `${safeStoreName}-${productName}`.toLowerCase().trim();
-        const cacheKey = crypto.createHash('md5').update(cacheString).digest('hex');
-        const cacheRef = db.collection('ai_promo_cache').doc(cacheKey);
-
-        const cacheSnap = await cacheRef.get();
-        if (cacheSnap.exists) {
-            const cachedData = cacheSnap.data();
-            return res.status(200).json({
-                success: true,
-                whatsapp: cachedData.whatsapp,
-                instagram: cachedData.instagram,
-                hashtags: cachedData.hashtags
-            });
+        // CACHE
+        if (productId) {
+            const cacheRef = db.collection('ai_promo_cache').doc(productId);
+            const cacheSnap = await cacheRef.get();
+            if (cacheSnap.exists) {
+                const cachedData = cacheSnap.data();
+                return res.status(200).json({
+                    success: true,
+                    whatsapp: cachedData.whatsapp,
+                    instagram: cachedData.instagram,
+                    hashtags: cachedData.hashtags
+                });
+            }
         }
 
-        // =========================================================================
-        // 2. ENGENHARIA DE PROMPT E CHAMADA FETCH (IGUAL AO DA ABA ESTOQUE)
-        // =========================================================================
-        const prompt = `Atue como Copywriter de Delivery. Crie copy de venda para:
-Loja: ${storeName || 'Delivery'} (${storeNiche || 'Alimentação'})
-Produto: ${productName} (R$ ${productPrice ? Number(productPrice).toFixed(2) : 'A consultar'})
-Detalhes: ${productDesc || 'Premium'}
+        const prompt = `Crie textos de vendas curtos para Delivery.
+        Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
+        Retorne APENAS um JSON válido com 3 chaves:
+        {"whatsapp": "1 frase com emojis", "instagram": "2 frases", "hashtags": "#delivery #promo"}`;
 
-REGRAS ESTRITAS:
-1. Retorne APENAS um JSON válido. É TERMINANTEMENTE PROIBIDO usar marcadores markdown (\`\`\`json), saudações ou texto fora do JSON.
-2. "whatsapp": Frase direta com gatilho de escassez. MÁXIMO 150 caracteres.
-3. "instagram": Legenda de desejo focada no produto. MÁXIMO 250 caracteres.
-4. "hashtags": Exatamente 4 hashtags separadas por espaço.
+        console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
-Formato exigido:
-{"whatsapp": "...", "instagram": "...", "hashtags": "..."}`;
-
-        // 🚀 MUDANÇA: Travado APENAS no modelo de baixo custo (Flash). 
-        // Não vai pular para modelos caros, protegendo seu saldo!
-        const modelsToTry = ['gemini-1.5-flash'];
+        // 🚀 O SEGREDO: Modelos exatos que funcionam na sua conta (Copiado do Estoque)
+        const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
         let aiData = null;
         let responseOk = false;
 
@@ -87,49 +72,42 @@ Formato exigido:
 
             if (response.ok) {
                 responseOk = true;
-                break; // Se deu certo, para o loop
+                break;
             }
         }
 
         if (!responseOk) {
-            console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
-            throw new Error(aiData.error?.message || "O Google recusou a requisição em todos os modelos.");
+            console.error("🚨 ERRO DO GOOGLE:", JSON.stringify(aiData));
+            return res.status(200).json({ success: false, error: aiData.error?.message || "Erro no Google." });
         }
 
         const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawJsonText) throw new Error("Resposta vazia da IA.");
+        if (!rawJsonText) throw new Error("A IA retornou vazio.");
 
-        // =========================================================================
-        // 3. PARSE SEGURO E RETORNO (IDÊNTICO AO DA ABA ESTOQUE)
-        // =========================================================================
+        // Limpa e faz o Parse do JSON
         const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-        
-        let jsonResult;
-        try {
-            jsonResult = JSON.parse(cleanText);
-        } catch (parseError) {
-            console.error("🚨 ERRO DE CONVERSÃO DO JSON:", cleanText);
-            throw new Error("A IA não retornou um formato JSON válido.");
+        const jsonResult = JSON.parse(cleanText);
+
+        const instagramComHashtags = `${jsonResult.instagram}\n\n${jsonResult.hashtags}`;
+
+        if (productId) {
+            db.collection('ai_promo_cache').doc(productId).set({
+                whatsapp: jsonResult.whatsapp,
+                instagram: instagramComHashtags,
+                hashtags: jsonResult.hashtags,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            }).catch(() => {});
         }
 
-        // Grava no banco sem travar a tela
-        cacheRef.set({
-            whatsapp: jsonResult.whatsapp,
-            instagram: jsonResult.instagram,
-            hashtags: jsonResult.hashtags,
-            productName: productName,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        }).catch(err => console.error('[Cache Error]:', err));
-
-        // Retorna ao Frontend (A tela do Google junta a legenda e as hashtags na hora de exibir)
         return res.status(200).json({
             success: true,
             whatsapp: jsonResult.whatsapp,
-            instagram: `${jsonResult.instagram}\n\n${jsonResult.hashtags}` // Injeta hashtags pro Google SEO!
+            instagram: instagramComHashtags,
+            hashtags: jsonResult.hashtags
         });
 
     } catch (error) {
-        console.error("🔴 Erro na Rota de IA (Promo):", error.message);
-        return res.status(200).json({ success: false, error: 'Falha ao gerar texto. Tente novamente.' });
+        console.error("🔴 Erro Catch:", error.message);
+        return res.status(200).json({ success: false, error: 'Falha interna, tente novamente.' });
     }
 }
