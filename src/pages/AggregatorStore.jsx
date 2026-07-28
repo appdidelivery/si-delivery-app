@@ -9,6 +9,10 @@ export default function AggregatorStore() {
     const [storeData, setStoreData] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // =========================================================================
+    // REGRA DO REACT: TODOS OS HOOKS (useEffect) DEVEM FICAR NO TOPO DO ARQUIVO!
+    // =========================================================================
+
     // 1. FETCH NO FIREBASE BUSCANDO PELO SLUG DA LOJA
     useEffect(() => {
         const fetchStoreBySlug = async () => {
@@ -30,51 +34,38 @@ export default function AggregatorStore() {
         fetchStoreBySlug();
     }, [slug]);
 
-    // Telas de Carregamento e Erro (Precisam vir antes da lógica visual)
-    if (loading) {
-        return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest text-sm">Carregando loja...</div>;
-    }
-
-    if (!storeData) {
-        return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-500 uppercase tracking-widest text-sm">Loja não encontrada na Velo Delivery.</div>;
-    }
-
-    // 2. VARIÁVEIS COMPARTILHADAS (Calculadas para o Humano e para o Robô do Google)
-    let formattedAddress = "Endereço não cadastrado";
-    if (typeof storeData.address === 'string') {
-        formattedAddress = storeData.address;
-    } else if (storeData.address && typeof storeData.address === 'object') {
-        formattedAddress = [storeData.address.street, storeData.address.number, storeData.address.city].filter(Boolean).join(', ') || "Endereço não cadastrado";
-    }
-
-    const ratingCount = Number(storeData.rating_count || storeData.reviewCount || 0);
-    const ratingValue = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
-
-    // 3. INJEÇÃO BLINDADA DO JSON-LD NO <HEAD> (Regra Velo Delivery como Publisher)
+    // 2. INJEÇÃO BLINDADA DO JSON-LD NO <HEAD>
     useEffect(() => {
+        // Se a loja ainda não carregou, aborta este efeito em silêncio.
+        if (!storeData) return;
+
+        let addressForSchema = "Endereço não cadastrado";
+        if (typeof storeData.address === 'string') {
+            addressForSchema = storeData.address;
+        } else if (storeData.address && typeof storeData.address === 'object') {
+            addressForSchema = [storeData.address.street, storeData.address.number, storeData.address.city].filter(Boolean).join(', ') || "Endereço não cadastrado";
+        }
+
+        const countForSchema = Number(storeData.rating_count || storeData.reviewCount || 0);
+        const valueForSchema = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
+
         const jsonLd = {
             "@context": "https://schema.org",
             "@type": "Restaurant",
             "name": storeData.name || "Restaurante",
             "image": storeData.storeLogoUrl || storeData.logoUrl || "https://app.velodelivery.com.br/logo-padrao.png",
-            "address": formattedAddress,
+            "address": addressForSchema,
             "priceRange": storeData.priceRange || "$$",
-            "url": `https://app.velodelivery.com.br/restaurante/${slug}`,
-            ...(ratingCount > 0 ? {
+            "url": `https://app.velodelivery.com.br/loja/${slug}`,
+            ...(countForSchema > 0 ? {
                 "aggregateRating": {
                     "@type": "AggregateRating",
-                    "ratingValue": ratingValue.toFixed(1),
-                    "reviewCount": ratingCount,
+                    "ratingValue": valueForSchema.toFixed(1),
+                    "reviewCount": countForSchema,
                     "bestRating": "5",
                     "worstRating": "1",
-                    "author": {
-                        "@type": "Organization",
-                        "name": "Velo Delivery"
-                    },
-                    "publisher": {
-                        "@type": "Organization",
-                        "name": "Velo Delivery"
-                    }
+                    "author": { "@type": "Organization", "name": "Velo Delivery" },
+                    "publisher": { "@type": "Organization", "name": "Velo Delivery" }
                 }
             } : {})
         };
@@ -95,9 +86,34 @@ export default function AggregatorStore() {
             const existingScript = document.getElementById(scriptId);
             if (existingScript) existingScript.remove();
         };
-    }, [storeData, formattedAddress, ratingCount, ratingValue, slug]);
+    }, [storeData, slug]);
 
-    // 4. UI DO AGREGADOR ENRIQUECIDA VISUALMENTE (Dentro das regras do Google)
+    // =========================================================================
+    // EARLY RETURNS (Telas de Carregamento e Erro - Somente APÓS os Hooks)
+    // =========================================================================
+    
+    if (loading) {
+        return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest text-sm">Carregando loja...</div>;
+    }
+
+    if (!storeData) {
+        return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-500 uppercase tracking-widest text-sm">Loja não encontrada na Velo Delivery.</div>;
+    }
+
+    // =========================================================================
+    // LÓGICA VISUAL DA UI (Para os humanos)
+    // =========================================================================
+    
+    let formattedAddress = "Endereço não cadastrado";
+    if (typeof storeData.address === 'string') {
+        formattedAddress = storeData.address;
+    } else if (storeData.address && typeof storeData.address === 'object') {
+        formattedAddress = [storeData.address.street, storeData.address.number, storeData.address.city].filter(Boolean).join(', ') || "Endereço não cadastrado";
+    }
+
+    const ratingCount = Number(storeData.rating_count || storeData.reviewCount || 0);
+    const ratingValue = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
+
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col items-center pt-12 px-4 pb-10">
             {/* INJEÇÃO DO TÍTULO E META TAGS */}
