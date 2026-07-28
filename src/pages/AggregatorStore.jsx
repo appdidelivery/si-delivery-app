@@ -5,7 +5,6 @@ import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Helmet } from 'react-helmet-async';
 import { Store, Star, CheckCircle, ExternalLink, ArrowRightCircle, ShoppingBag } from 'lucide-react';
 
-// Função para gerar o link do produto
 const generateSlug = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase()
@@ -17,39 +16,51 @@ const generateSlug = (text) => {
 };
 
 // =========================================================================
-// 🧠 MOTOR DE IA (E-E-A-T) PARA REVIEWS GENÉRICOS
+// 🧠 MOTOR DE IA (E-E-A-T) CORRIGIDO - GRAMÁTICA PERFEITA
 // =========================================================================
 const generateSmartReviewText = (review, storeName) => {
     const originalText = review.comment || review.text || "";
     const isGeneric = originalText.toLowerCase().includes("clube vip") || originalText.trim() === "";
 
-    // Se for um texto real escrito pelo cliente, nós mantemos!
+    // Se o cliente escreveu algo real e detalhado, mantemos o texto dele!
     if (!isGeneric && originalText.length > 5) {
         return originalText;
     }
 
-    // Se for genérico, vamos extrair o produto da resposta da loja (se existir)
-    let productMention = "meu pedido";
-    if (review.storeReply && typeof review.storeReply === 'string') {
-        // Tenta achar o texto entre "famoso" e "aqui na região"
-        const match = review.storeReply.match(/famoso (.*?) aqui/i);
+    // Tenta encontrar a resposta da loja para extrair o nome do produto
+    const replyText = review.reply || review.storeReply || review.adminReply || "";
+    let productName = "";
+
+    if (replyText) {
+        // Tenta capturar o que está escrito entre "famoso" e "aqui na região"
+        const match = replyText.match(/famoso (.*?) aqui/i);
         if (match && match[1]) {
-            productMention = match[1].trim();
+            productName = match[1].trim(); // Ex: "Cigarro LM Maço"
         }
     }
 
-    // Banco de templates humanizados e ricos em SEO
-    const templates = [
-        `Excelente! O ${productMention} chegou super rápido e com muita qualidade. Recomendo a ${storeName}.`,
-        `Sempre peço na ${storeName}. O ${productMention} veio perfeito, na temperatura ideal. Atendimento nota 10!`,
-        `Muito prático pedir por aqui. Meu ${productMention} foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
-        `Gostei bastante da experiência. O ${productMention} estava ótimo e a entrega foi super ágil. Valeu ${storeName}!`,
-        `Tudo certo com o meu pedido. A ${storeName} tem um serviço muito ágil, o ${productMention} chegou impecável.`
-    ];
-
-    // Cria um índice pseudo-aleatório baseado no nome do cliente para não mudar a cada F5
     const seed = (review.customerName || review.userName || "A").length + (review.rating || 5);
-    return templates[seed % templates.length];
+
+    // Se a IA conseguiu descobrir o produto:
+    if (productName) {
+        const templatesWithProduct = [
+            `Muito prático pedir por aqui. O ${productName} foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+            `Excelente! O pedido de ${productName} chegou super rápido e com muita qualidade. Recomendo.`,
+            `Sempre peço na ${storeName}. O ${productName} veio perfeito, do jeito que eu gosto. Atendimento nota 10!`,
+            `Tudo certo com a minha compra. O ${productName} chegou impecável e o serviço foi muito ágil.`
+        ];
+        return templatesWithProduct[seed % templatesWithProduct.length];
+    } 
+    // Se a IA não descobriu o produto, usa frases genéricas seguras:
+    else {
+        const templatesWithoutProduct = [
+            `Muito prático pedir por aqui. Meu pedido foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+            `Excelente! A encomenda chegou super rápido e com muita qualidade. Recomendo muito.`,
+            `Sempre peço na ${storeName}. Tudo veio perfeito e muito bem embalado. Atendimento nota 10!`,
+            `Tudo certo com a minha compra. A ${storeName} tem um serviço ágil e o pedido chegou impecável.`
+        ];
+        return templatesWithoutProduct[seed % templatesWithoutProduct.length];
+    }
 };
 
 export default function AggregatorStore() {
@@ -66,6 +77,7 @@ export default function AggregatorStore() {
         const fetchAllData = async () => {
             if (!slug) return;
             try {
+                // Busca a Loja
                 const qStore = query(collection(db, 'stores'), where('slug', '==', slug), limit(1));
                 const snapStore = await getDocs(qStore);
                 
@@ -78,16 +90,27 @@ export default function AggregatorStore() {
                 const storeId = snapStore.docs[0].id;
                 setStoreData(storeInfo);
 
+                // Busca Produtos Principais
                 try {
                     const qProducts = query(collection(db, 'products'), where('storeId', '==', storeId), limit(4));
                     const snapProducts = await getDocs(qProducts);
                     setTopProducts(snapProducts.docs.map(d => ({ id: d.id, ...d.data() })));
                 } catch(e) { console.warn("Erro produtos:", e); }
 
+                // Busca Avaliações (Traz 10, ordena por data na memória e pega as 3 últimas)
                 try {
-                    const qReviews = query(collection(db, 'reviews'), where('storeId', '==', storeId), limit(3));
+                    const qReviews = query(collection(db, 'reviews'), where('storeId', '==', storeId), limit(10));
                     const snapReviews = await getDocs(qReviews);
-                    setLatestReviews(snapReviews.docs.map(d => d.data()));
+                    
+                    const reviewsList = snapReviews.docs.map(d => d.data());
+                    // Ordena da mais recente para a mais antiga (igual ao seu Admin)
+                    reviewsList.sort((a, b) => {
+                        const dateA = a.createdAt?.toDate() || 0;
+                        const dateB = b.createdAt?.toDate() || 0;
+                        return dateB - dateA;
+                    });
+                    
+                    setLatestReviews(reviewsList.slice(0, 3));
                 } catch(e) { console.warn("Erro reviews:", e); }
 
             } catch (error) {
@@ -117,7 +140,6 @@ export default function AggregatorStore() {
         const valueForSchema = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
         const safeStoreName = storeData.name || "Restaurante";
 
-        // Aplica o Motor de IA no Schema invisível pro Google ler!
         const schemaReviews = latestReviews.map(rev => ({
             "@type": "Review",
             "author": { "@type": "Person", "name": rev.customerName || rev.userName || "Cliente Verificado" },
@@ -166,6 +188,9 @@ export default function AggregatorStore() {
         };
     }, [storeData, slug, latestReviews]);
 
+    // =========================================================================
+    // EARLY RETURNS (Telas de Carregamento)
+    // =========================================================================
     if (loading) {
         return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest text-sm">Carregando loja...</div>;
     }
@@ -190,7 +215,6 @@ export default function AggregatorStore() {
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col items-center pt-12 px-4 pb-24 relative overflow-hidden">
-            {/* Decoração de Fundo */}
             <div className="absolute top-[-10%] left-[-10%] w-[120%] h-64 bg-blue-600/5 blur-3xl rounded-full pointer-events-none"></div>
 
             <Helmet>
@@ -279,7 +303,7 @@ export default function AggregatorStore() {
                 <div className="w-full max-w-md mb-8 text-left relative z-10">
                     <div className="flex items-center justify-between mb-4 px-2">
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Destaques da Loja</h2>
-                        <a href={storeUrl} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Ver Todos</a>
+                        <a href={storeUrl} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Ver Todos <ExternalLink size={10}/></a>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         {topProducts.map((p, i) => {
@@ -323,6 +347,7 @@ export default function AggregatorStore() {
                     <div className="space-y-3">
                         {latestReviews.map((rev, i) => (
                             <div key={i} className="bg-white p-5 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 relative">
+                                {/* Aspas visuais de design */}
                                 <span className="absolute top-2 right-4 text-4xl text-slate-100 font-serif leading-none">"</span>
                                 <div className="flex items-center justify-between mb-3 relative z-10">
                                     <div className="flex items-center gap-2">
