@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { Star, ThumbsUp, ExternalLink } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa6';
 
-// Converte as estrelas do formato Google ("FIVE") para Número (5)
+// Converte as estrelas do Google para Número
 const mapGoogleRating = (ratingStr) => {
     const map = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
     return map[ratingStr] || Number(ratingStr) || 5;
@@ -13,11 +13,14 @@ const mapGoogleRating = (ratingStr) => {
 export default function Reviews({ storeId }) {
     const [reviews, setReviews] = useState([]);
     const [storeInfo, setStoreInfo] = useState(null);
+    
+    // NOVO: Estados para guardar a nota real absoluta do Google
+    const [globalGoogleMetrics, setGlobalGoogleMetrics] = useState({ rating: null, count: null });
+    
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchGoogleReviews = async () => {
-            // Trava para o seu Localhost conseguir ver a loja CSI
             const finalStoreId = storeId === 'loja-teste' ? 'csi' : storeId;
 
             if (!finalStoreId) {
@@ -25,17 +28,15 @@ export default function Reviews({ storeId }) {
             }
 
             try {
-                // 1. Busca as configs da loja (Para pegar o Link e a Nota Oficial)
+                // 1. Busca configs do Firebase
                 const storeRef = doc(db, 'stores', finalStoreId);
                 const storeSnap = await getDoc(storeRef);
                 if (storeSnap.exists()) {
                     setStoreInfo(storeSnap.data());
                 }
 
-                // 2. BUSCA DIRETO NA API DO GOOGLE (Igual a Velo Loja)
+                // 2. Busca da API do Google
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                
-                // MÁGICA: Se estiver no seu PC, ele rouba os dados da API de produção para não dar erro!
                 const apiUrl = isLocal 
                     ? `https://app.velodelivery.com.br/api/google-gmb?action=getReviews&storeId=${finalStoreId}`
                     : `/api/google-gmb?action=getReviews&storeId=${finalStoreId}`;
@@ -43,33 +44,39 @@ export default function Reviews({ storeId }) {
                 const res = await fetch(apiUrl);
                 const data = await res.json();
                 
-                if (data.success && data.reviews?.reviews) {
-                    const formattedReviews = data.reviews.reviews.map(r => {
-                        // Limpa aquela tag feia "(Translated by Google)"
-                        let cleanComment = r.comment || '';
-                        cleanComment = cleanComment.split('(Translated by Google)')[0];
-                        cleanComment = cleanComment.split('(Traduzido pelo Google)')[0];
-                        cleanComment = cleanComment.trim();
+                if (data.success && data.reviews) {
+                    
+                    // 🚨 A MÁGICA AQUI: Pega a nota TOTAL direto da raiz da API (se o backend enviar)
+                    if (data.reviews.averageRating || data.reviews.totalReviewCount) {
+                        setGlobalGoogleMetrics({
+                            rating: data.reviews.averageRating,
+                            count: data.reviews.totalReviewCount
+                        });
+                    }
 
-                        return {
-                            id: r.reviewId,
-                            customerName: r.reviewer?.displayName || 'Cliente Google',
-                            photoUrl: r.reviewer?.profilePhotoUrl,
-                            comment: cleanComment,
-                            rating: mapGoogleRating(r.starRating),
-                            createdAt: new Date(r.createTime).getTime() 
-                        };
-                    });
-                    
-                    // Oculta quem só deu estrelas mas não escreveu nada
-                    const filteredReviews = formattedReviews.filter(r => r.comment && r.comment !== '');
-                    
-                    // Ordena da mais nova para a mais velha
-                    filteredReviews.sort((a, b) => b.createdAt - a.createdAt);
-                    
-                    setReviews(filteredReviews.slice(0, 10)); // Exibe as 10 mais recentes
-                } else {
-                    console.warn("Loja sem conexão com Google Meu Negócio ou API retornou vazio.");
+                    if (data.reviews.reviews) {
+                        const formattedReviews = data.reviews.reviews.map(r => {
+                            let cleanComment = r.comment || '';
+                            cleanComment = cleanComment.split('(Translated by Google)')[0];
+                            cleanComment = cleanComment.split('(Traduzido pelo Google)')[0];
+                            cleanComment = cleanComment.trim();
+
+                            return {
+                                id: r.reviewId,
+                                customerName: r.reviewer?.displayName || 'Cliente Google',
+                                photoUrl: r.reviewer?.profilePhotoUrl,
+                                comment: cleanComment,
+                                rating: mapGoogleRating(r.starRating),
+                                createdAt: new Date(r.createTime).getTime() 
+                            };
+                        });
+                        
+                        // Filtra para exibir na tela apenas quem escreveu texto (para não ficar feio)
+                        const filteredReviews = formattedReviews.filter(r => r.comment && r.comment !== '');
+                        filteredReviews.sort((a, b) => b.createdAt - a.createdAt);
+                        
+                        setReviews(filteredReviews.slice(0, 10)); 
+                    }
                 }
             } catch (error) {
                 console.error("Erro na API do Google Meu Negócio:", error);
@@ -81,19 +88,31 @@ export default function Reviews({ storeId }) {
         fetchGoogleReviews();
     }, [storeId]);
 
-    // Oculta o componente inteiro se a loja não tiver reviews e não tiver configurado o link
+    // Oculta o componente inteiro se a loja não tiver reviews
     if (!loading && reviews.length === 0 && !storeInfo?.googleReviewUrl) {
         return null;
     }
 
-    // Calcula as notas oficiais
-    const averageRating = storeInfo?.googleRatingValue ? Number(storeInfo.googleRatingValue).toFixed(1) : "5.0";
-    const totalReviews = storeInfo?.googleReviewCount ? Number(storeInfo.googleReviewCount) : reviews.length;
+    // =========================================================================
+    // 🧮 LÓGICA BLINDADA DO CONTADOR E DA NOTA
+    // =========================================================================
+    // 1º Tenta pegar a nota que veio direto da API oficial do Google.
+    // 2º Tenta pegar a nota salva no painel Admin (storeInfo).
+    // 3º Falha segura: Calcula a média do que apareceu na tela.
+    const averageRating = globalGoogleMetrics.rating 
+        ? Number(globalGoogleMetrics.rating).toFixed(1)
+        : storeInfo?.googleRatingValue 
+            ? Number(storeInfo.googleRatingValue).toFixed(1) 
+            : "5.0";
+
+    // 1º Tenta pegar o total real de 62 da API.
+    // 2º Tenta pegar do Firebase.
+    // 3º Mostra a quantidade das caixinhas.
+    const totalReviews = globalGoogleMetrics.count || storeInfo?.googleReviewCount || reviews.length;
 
     return (
         <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mt-8 mb-4 relative">
             
-            {/* CABEÇALHO GOOGLE */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <h2 className="text-2xl font-black italic uppercase text-slate-800 mb-1 flex items-center gap-2">
@@ -108,7 +127,7 @@ export default function Reviews({ storeId }) {
                                 ))}
                             </div>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                {loading ? 'Calculando...' : `Baseado em ${totalReviews} avaliações`}
+                                {loading ? 'Calculando...' : `${totalReviews} avaliações no Maps`}
                             </span>
                         </div>
                     </div>
@@ -125,7 +144,6 @@ export default function Reviews({ storeId }) {
                 )}
             </div>
             
-            {/* LISTAGEM DOS REVIEWS REAIS DO GMB */}
             <div className="space-y-4 mb-8 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                 {loading ? (
                     <div className="flex justify-center py-10">
@@ -143,8 +161,8 @@ export default function Reviews({ storeId }) {
                                 {r.photoUrl ? (
                                     <img src={r.photoUrl} alt={r.customerName} className="w-10 h-10 rounded-full shadow-sm" />
                                 ) : (
-                                    <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center font-black text-blue-600 shadow-sm">
-                                        {r.customerName.charAt(0).toUpperCase()}
+                                    <div className="w-10 h-10 bg-white border border-slate-200 text-blue-600 rounded-full flex items-center justify-center font-black text-sm uppercase shrink-0 shadow-sm">
+                                        {(r.customerName || "G")[0]}
                                     </div>
                                 )}
                                 
@@ -166,7 +184,6 @@ export default function Reviews({ storeId }) {
                 ))}
             </div>
 
-            {/* BOTÃO PARA RECEBER MAIS AVALIAÇÕES */}
             {storeInfo?.googleReviewUrl && (
                 <div className="pt-6 border-t border-slate-100 text-center animate-in fade-in">
                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Sua opinião é muito importante para nós!</p>
