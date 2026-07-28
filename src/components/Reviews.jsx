@@ -1,206 +1,165 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, where, getDocs, doc, getDoc, limit } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { Star, ThumbsUp, ExternalLink } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa6';
 
+// Conversor de estrelas do Google (que vêm como texto) para números
+const mapGoogleRating = (ratingStr) => {
+    const map = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+    return map[ratingStr] || 5;
+};
+
 export default function Reviews({ storeId }) {
-    const [googleReviews, setGoogleReviews] = useState([]);
-    const [storeInfo, setStoreInfo] = useState(null); 
+    const [reviews, setReviews] = useState([]);
+    const [storeInfo, setStoreInfo] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchPureGoogleReviews = async () => {
-            if (!storeId) return;
+        const fetchGoogleReviews = async () => {
+            // Trava do Localhost para teste
+            const finalStoreId = storeId === 'loja-teste' ? 'csi' : storeId;
+
+            if (!finalStoreId) {
+                setLoading(false);
+                return;
+            }
+
             try {
-                // 1. Busca os dados da loja
-                const storeRef = doc(db, 'stores', storeId);
+                // 1. Busca infos da loja no Firebase
+                const storeRef = doc(db, 'stores', finalStoreId);
                 const storeSnap = await getDoc(storeRef);
                 if (storeSnap.exists()) {
                     setStoreInfo(storeSnap.data());
                 }
 
-                // 2. Busca um lote grande de avaliações no banco
-                const q = query(collection(db, "reviews"), where("storeId", "==", storeId), limit(200));
-                const snapshot = await getDocs(q);
-                
-                let allReviews = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                // 2. BUSCA AS AVALIAÇÕES DIRETAMENTE DA API DO GOOGLE (Igual a Velo Loja)
+                try {
+                    const res = await fetch(`/api/google-gmb?action=getReviews&storeId=${finalStoreId}`);
+                    const data = await res.json();
+                    
+                    if (data.success && data.reviews?.reviews) {
+                        const formattedReviews = data.reviews.reviews.map(r => {
+                            // Limpa traduções em inglês ou português que o Google joga na API
+                            let cleanComment = r.comment || '';
+                            cleanComment = cleanComment.split('(Translated by Google)')[0];
+                            cleanComment = cleanComment.split('(Traduzido pelo Google)')[0];
+                            cleanComment = cleanComment.trim();
 
-                // 3. 🔪 O FILTRO DESTRUIDOR: Ignora Clube VIP, ignora App. Pega SÓ o que for do Google.
-                let onlyGoogle = allReviews.filter(r => 
-                    r.source === 'google' || 
-                    r.source === 'GMB' || 
-                    !!r.googleReviewName || 
-                    !!r.googleReviewId
-                );
-
-                // 4. Ordena da mais recente para a mais antiga
-                onlyGoogle.sort((a, b) => {
-                    const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-                    const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-                    return dateB - dateA;
-                });
-                
-                // Exibe as 10 melhores na tela da loja
-                setGoogleReviews(onlyGoogle.slice(0, 10));
+                            return {
+                                id: r.reviewId,
+                                customerName: r.reviewer?.displayName || 'Cliente Google',
+                                photoUrl: r.reviewer?.profilePhotoUrl,
+                                comment: cleanComment,
+                                rating: mapGoogleRating(r.starRating),
+                                // Converte o createTime da string do Google para milissegundos
+                                createdAt: new Date(r.createTime).getTime() 
+                            };
+                        });
+                        
+                        // Oculta quem só deu nota e não escreveu nada (deixa o rodapé mais bonito)
+                        const filteredReviews = formattedReviews.filter(r => r.comment && r.comment !== '');
+                        
+                        // Ordena da mais nova para a mais velha
+                        filteredReviews.sort((a, b) => b.createdAt - a.createdAt);
+                        
+                        setReviews(filteredReviews);
+                    }
+                } catch (e) {
+                    console.warn("Loja sem conexão com Google Meu Negócio ou API falhou.", e);
+                }
             } catch (error) {
-                console.error("Erro ao carregar avaliações do Google:", error);
+                console.error("Erro geral no componente de Reviews:", error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchPureGoogleReviews();
+        fetchGoogleReviews();
     }, [storeId]);
 
-    // Botão de Forçar Sincronização (Visível só para o Lojista no Admin)
-    const [isSyncing, setIsSyncing] = useState(false);
-    const handleSyncGoogleReviews = async () => {
-        setIsSyncing(true);
-        try {
-            const response = await fetch('/api/sync-google-reviews');
-            if (!response.ok) throw new Error("Falha ao sincronizar");
-            alert("Avaliações do Google verificadas com sucesso!");
-            window.location.reload();
-        } catch (error) {
-            alert("A sincronização foi iniciada. Se houver novos reviews no Google, eles aparecerão em breve.");
-        } finally {
-            setIsSyncing(false);
-        }
-    };
-
-    // =====================================================================
-    // 🧮 CÁLCULO DAS NOTAS (100% GOOGLE)
-    // =====================================================================
-    // Tenta pegar a nota exata do Google salva no banco. Se não achar, calcula com base nos reviews filtrados.
-    const googleRatingValue = storeInfo?.googleRatingValue || (
-        googleReviews.length > 0 
-        ? (googleReviews.reduce((acc, curr) => acc + Number(curr.rating || 5), 0) / googleReviews.length).toFixed(1) 
-        : "5.0"
-    );
-
-    // Pega o total exato de reviews do Google (como os 62 que você viu).
-    const googleReviewCount = storeInfo?.googleReviewCount || googleReviews.length;
-
-    // Se a loja não tem link do Google E não puxou nenhum review do Google, oculta a seção
-    if (!loading && googleReviews.length === 0 && !storeInfo?.googleReviewUrl) {
+    // Oculta o componente inteiro se a loja não tiver GMB conectado ou não tiver reviews com texto
+    if (!loading && reviews.length === 0 && !storeInfo?.googleReviewUrl) {
         return null;
     }
 
+    const averageRating = storeInfo?.googleRatingValue ? Number(storeInfo.googleRatingValue).toFixed(1) : "5.0";
+    const totalReviews = storeInfo?.googleReviewCount ? Number(storeInfo.googleReviewCount) : reviews.length;
+
     return (
         <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mt-8 mb-4 relative">
-            
-            {/* --- CABEÇALHO DO MURAL GOOGLE --- */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <h2 className="text-2xl font-black italic uppercase text-slate-800 mb-1 flex items-center gap-2">
                         <FaGoogle className="text-blue-500" size={24}/> Avaliações no Google
                     </h2>
                     <div className="flex items-center gap-3">
-                        <span className="text-4xl font-black text-slate-900">{Number(googleRatingValue).toFixed(1)}</span>
+                        <span className="text-4xl font-black text-slate-900">{averageRating}</span>
                         <div className="flex flex-col">
                             <div className="flex text-yellow-400">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star key={star} size={18} fill={star <= Math.round(Number(googleRatingValue)) ? "currentColor" : "none"} />
+                                {[...Array(5)].map((_, i) => (
+                                    <Star key={i} size={18} fill={i < Math.round(Number(averageRating)) ? "currentColor" : "none"} className={i < Math.round(Number(averageRating)) ? "text-yellow-400" : "text-yellow-200"} />
                                 ))}
                             </div>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                {googleReviewCount > 0 ? `${googleReviewCount} avaliações no Google Maps` : 'Carregando avaliações...'}
+                                {totalReviews > 0 ? `${totalReviews} avaliações no Maps` : 'Buscando do Google...'}
                             </span>
                         </div>
                     </div>
                 </div>
                 
-                {Number(googleRatingValue) >= 4.0 && (
-                    <div className="flex flex-col gap-2">
-                        <div className="bg-blue-50 text-blue-700 flex items-center gap-2 px-4 py-2 rounded-2xl border border-blue-200 shadow-sm">
-                            <ThumbsUp size={20} className="mb-1" />
-                            <div className="flex flex-col">
-                                <span className="text-xs font-black uppercase tracking-widest leading-none">Verificado</span>
-                                <span className="text-[9px] font-bold opacity-80 uppercase tracking-widest">Pelo Google</span>
-                            </div>
+                {Number(averageRating) >= 4.0 && totalReviews > 0 && (
+                    <div className="bg-blue-50 text-blue-700 flex items-center gap-2 px-4 py-2 rounded-2xl border border-blue-200 shadow-sm">
+                        <ThumbsUp size={20} className="mb-1" />
+                        <div className="flex flex-col">
+                            <span className="text-xs font-black uppercase tracking-widest leading-none">Verificado</span>
+                            <span className="text-[9px] font-bold opacity-80 uppercase tracking-widest">Pelo Google</span>
                         </div>
-                        
-                        {/* Botão de Sync exclusivo para o Admin */}
-                        {window.location.pathname.includes('/admin') && (
-                            <button onClick={handleSyncGoogleReviews} disabled={isSyncing} className="text-[10px] font-bold text-blue-600 underline hover:text-blue-800 uppercase tracking-widest text-right">
-                                {isSyncing ? "Sincronizando..." : "🔄 Puxar do Google"}
-                            </button>
-                        )}
                     </div>
                 )}
             </div>
             
-            {/* --- LISTAGEM EXCLUSIVA DE REVIEWS DO GOOGLE --- */}
-            <div className="space-y-4 mb-8 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+            <div className="space-y-4 mb-8 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                 {loading ? (
-                    <p className="text-slate-500 font-bold animate-pulse text-center py-4">Sincronizando com o Google Maps...</p>
-                ) : googleReviews.length === 0 ? (
-                    <div className="bg-slate-50 p-6 rounded-2xl text-center border-2 border-dashed border-slate-200">
+                    <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>
+                ) : reviews.length === 0 ? (
+                    <div className="text-center p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
                         <FaGoogle size={32} className="text-slate-300 mx-auto mb-2" />
-                        <p className="text-slate-500 font-bold text-sm mb-1">Os comentários do Google aparecerão aqui.</p>
-                        <p className="text-slate-400 font-bold text-xs">Se você acabou de sincronizar, atualize a página.</p>
+                        <p className="text-slate-500 font-bold text-sm">Seja o primeiro a nos avaliar no Google!</p>
                     </div>
-                ) : googleReviews.map(r => (
-                    <div key={r.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 relative overflow-hidden">
-                        
-                        <div className="flex justify-between items-center mb-3">
+                ) : reviews.slice(0, 10).map(r => (
+                    <div key={r.id} className="bg-slate-50 p-5 rounded-3xl border border-slate-100 relative overflow-hidden">
+                        <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center gap-3">
-                                {/* Imagem de perfil do Google ou Letra Inicial */}
-                                {r.profilePhotoUrl ? (
-                                    <img src={r.profilePhotoUrl} alt={r.googleReviewName} className="w-10 h-10 rounded-full border border-slate-200 shadow-sm" />
+                                {r.photoUrl ? (
+                                    <img src={r.photoUrl} alt={r.customerName} className="w-10 h-10 rounded-full shadow-sm" />
                                 ) : (
-                                    <div className="w-10 h-10 bg-white border border-slate-200 text-blue-600 rounded-full flex items-center justify-center text-sm font-black uppercase shrink-0 shadow-sm">
-                                        {(r.googleReviewName || r.customerName || "G")[0]}
+                                    <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center font-black text-blue-600 shadow-sm">
+                                        {r.customerName.charAt(0).toUpperCase()}
                                     </div>
                                 )}
                                 
                                 <div className="flex flex-col">
-                                    <span className="font-black text-sm text-slate-800 tracking-tight truncate max-w-[150px] sm:max-w-[200px]">
-                                        {r.googleReviewName || r.customerName}
-                                    </span>
-                                    {/* Data real do Google */}
-                                    <span className="text-[9px] font-black text-slate-400 flex items-center gap-1 mt-0.5 uppercase tracking-widest">
-                                        {r.createdAt?.toDate ? new Date(r.createdAt.toDate()).toLocaleDateString('pt-BR') : 'Google Maps'}
+                                    <span className="font-black text-sm text-slate-800 tracking-tight leading-none max-w-[150px] truncate">{r.customerName}</span>
+                                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1 mt-1">
+                                        <FaGoogle size={10} /> Google Review
                                     </span>
                                 </div>
                             </div>
-                            <div className="flex text-yellow-400">
+                            <div className="flex text-yellow-400 bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm">
                                 {[...Array(5)].map((_, i) => (
-                                    <Star key={i} size={14} fill={i < (r.rating || 5) ? "currentColor" : "none"} className={i < (r.rating || 5) ? "text-yellow-400" : "text-yellow-200"} />
+                                    <Star key={i} size={12} fill={i < r.rating ? "currentColor" : "none"} className={i < r.rating ? "text-yellow-400" : "text-yellow-200"}/>
                                 ))}
                             </div>
                         </div>
-                        
-                        {/* Texto Real e Original do Google */}
-                        <p className="text-sm text-slate-600 font-medium leading-relaxed italic">
-                            "{r.comment || r.text || "Sem comentário escrito."}"
-                        </p>
-                        
-                        {/* Foto que o cliente postou no Google (Se houver) */}
-                        {r.imageUrl && (
-                            <div className="mt-3 relative rounded-xl overflow-hidden border border-slate-200 inline-block">
-                                <img src={r.imageUrl} alt="Foto da avaliação do Google" className="h-24 w-auto object-cover rounded-xl" loading="lazy" />
-                            </div>
-                        )}
-                        
-                        {/* Resposta do Lojista */}
-                        {(r.reply || r.storeReply) && (
-                            <div className="mt-4 bg-blue-50/60 p-3 rounded-xl border border-blue-100/50 relative ml-4">
-                                <div className="absolute -top-2 left-4 bg-white px-2 text-[8px] font-black text-blue-500 uppercase tracking-widest border border-blue-100 rounded-full shadow-sm">
-                                    Sua Resposta
-                                </div>
-                                <p className="text-xs text-blue-900 font-bold mt-1 leading-relaxed">{r.reply || r.storeReply}</p>
-                            </div>
-                        )}
+                        <p className="text-sm text-slate-600 font-medium leading-relaxed italic">"{r.comment}"</p>
                     </div>
                 ))}
             </div>
 
-            {/* --- BOTÃO MÁGICO: AVALIAR NO GOOGLE MEU NEGÓCIO --- */}
             {storeInfo?.googleReviewUrl && (
                 <div className="pt-6 border-t border-slate-100 text-center animate-in fade-in">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Sua opinião é muito importante!</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Sua opinião é muito importante para nós!</p>
                     <a 
                         href={storeInfo.googleReviewUrl} 
                         target="_blank" 
