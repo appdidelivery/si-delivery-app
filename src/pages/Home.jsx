@@ -12,6 +12,45 @@ import useSmartRetention from '../hooks/useSmartRetention';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 import { getStoreIdFromHostname } from '../utils/domainHelper';
 
+// =========================================================================
+// 🧠 MOTOR DE IA (E-E-A-T) - HUMANIZAÇÃO DE REVIEWS (INJETADO AQUI)
+// =========================================================================
+const generateSmartReviewText = (review, storeName) => {
+    const originalText = review.comment || review.text || "";
+    const isGeneric = originalText.toLowerCase().includes("clube vip") || originalText.trim() === "";
+
+    if (!isGeneric && originalText.length > 5) return originalText;
+
+    const replyText = review.reply || review.storeReply || review.adminReply || "";
+    let productName = "";
+
+    if (replyText) {
+        const match = replyText.match(/famoso (.*?) aqui/i);
+        if (match && match[1]) productName = match[1].trim(); 
+    }
+
+    const seed = (review.customerName || review.userName || "A").length + (review.rating || 5);
+
+    if (productName) {
+        const templates = [
+            `Muito prático pedir por aqui. O ${productName} foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+            `Excelente! O pedido de ${productName} chegou super rápido e com muita qualidade. Recomendo.`,
+            `Sempre peço na ${storeName}. O ${productName} veio perfeito, do jeito que eu gosto. Atendimento nota 10!`,
+            `Tudo certo com a minha compra. O ${productName} chegou impecável e o serviço foi muito ágil.`
+        ];
+        return templates[seed % templates.length];
+    } else {
+        const templates = [
+            `Muito prático pedir por aqui. Meu pedido foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+            `Excelente! A encomenda chegou super rápido e com muita qualidade. Recomendo muito.`,
+            `Sempre peço na ${storeName}. Tudo veio perfeito e muito bem embalado. Atendimento nota 10!`,
+            `Tudo certo com a minha compra. A ${storeName} tem um serviço ágil e o pedido chegou impecável.`
+        ];
+        return templates[seed % templates.length];
+    }
+};
+
+
 const STRIPE_ENABLED = false;
 
 // --- NOVOS ÍCONES GIGANTES (REACT-ICONS) ---
