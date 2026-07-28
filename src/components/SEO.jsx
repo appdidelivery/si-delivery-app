@@ -360,11 +360,13 @@ export default function SEO({ title, description, image, productData }) {
                                 ...(productData.suitableForDiet && productData.suitableForDiet.length > 0 ? { "suitableForDiet": productData.suitableForDiet } : {}),
                                 ...(productData.menuAddOn && productData.menuAddOn.length > 0 ? { "menuAddOn": productData.menuAddOn } : {}),
                                 ...(productData.calories ? { "nutrition": { "@type": "NutritionInformation", "calories": `${productData.calories} kcal` } } : {}),
-                                ...(productData.ratingValue ? {
+                                ...(productData.ratingValue && Number(productData.reviewCount) > 0 ? {
                                     "aggregateRating": {
                                         "@type": "AggregateRating",
                                         "ratingValue": Number(productData.ratingValue).toFixed(1),
-                                        "reviewCount": String(productData.reviewCount || 1)
+                                        "reviewCount": Number(productData.reviewCount),
+                                        "bestRating": "5",
+                                        "worstRating": "1"
                                     }
                                 } : {}),
                                 "offers": {
