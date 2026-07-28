@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { Helmet } from 'react-helmet-async';
-import { Store, Star, CheckCircle, ExternalLink, ArrowRightCircle, ShoppingBag } from 'lucide-react';
+import { Store, Star, CheckCircle, ExternalLink, ArrowRightCircle, ShoppingBag, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
+// Função para gerar o link do produto
 const generateSlug = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase()
@@ -16,32 +18,26 @@ const generateSlug = (text) => {
 };
 
 // =========================================================================
-// 🧠 MOTOR DE IA (E-E-A-T) CORRIGIDO - GRAMÁTICA PERFEITA
+// 🧠 MOTOR DE IA (E-E-A-T) - GRAMÁTICA PERFEITA
 // =========================================================================
 const generateSmartReviewText = (review, storeName) => {
     const originalText = review.comment || review.text || "";
     const isGeneric = originalText.toLowerCase().includes("clube vip") || originalText.trim() === "";
 
-    // Se o cliente escreveu algo real e detalhado, mantemos o texto dele!
     if (!isGeneric && originalText.length > 5) {
         return originalText;
     }
 
-    // Tenta encontrar a resposta da loja para extrair o nome do produto
     const replyText = review.reply || review.storeReply || review.adminReply || "";
     let productName = "";
 
     if (replyText) {
-        // Tenta capturar o que está escrito entre "famoso" e "aqui na região"
         const match = replyText.match(/famoso (.*?) aqui/i);
-        if (match && match[1]) {
-            productName = match[1].trim(); // Ex: "Cigarro LM Maço"
-        }
+        if (match && match[1]) productName = match[1].trim(); 
     }
 
     const seed = (review.customerName || review.userName || "A").length + (review.rating || 5);
 
-    // Se a IA conseguiu descobrir o produto:
     if (productName) {
         const templatesWithProduct = [
             `Muito prático pedir por aqui. O ${productName} foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
@@ -50,9 +46,7 @@ const generateSmartReviewText = (review, storeName) => {
             `Tudo certo com a minha compra. O ${productName} chegou impecável e o serviço foi muito ágil.`
         ];
         return templatesWithProduct[seed % templatesWithProduct.length];
-    } 
-    // Se a IA não descobriu o produto, usa frases genéricas seguras:
-    else {
+    } else {
         const templatesWithoutProduct = [
             `Muito prático pedir por aqui. Meu pedido foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
             `Excelente! A encomenda chegou super rápido e com muita qualidade. Recomendo muito.`,
@@ -69,15 +63,17 @@ export default function AggregatorStore() {
     const [topProducts, setTopProducts] = useState([]);
     const [latestReviews, setLatestReviews] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // NOVO: Controle do Modal de Todas as Avaliações
+    const [showAllReviewsModal, setShowAllReviewsModal] = useState(false);
 
     // =========================================================================
-    // 1. MOTOR DE BUSCA (LOJA + PRODUTOS + REVIEWS)
+    // 1. MOTOR DE BUSCA
     // =========================================================================
     useEffect(() => {
         const fetchAllData = async () => {
             if (!slug) return;
             try {
-                // Busca a Loja
                 const qStore = query(collection(db, 'stores'), where('slug', '==', slug), limit(1));
                 const snapStore = await getDocs(qStore);
                 
@@ -90,27 +86,25 @@ export default function AggregatorStore() {
                 const storeId = snapStore.docs[0].id;
                 setStoreData(storeInfo);
 
-                // Busca Produtos Principais
                 try {
                     const qProducts = query(collection(db, 'products'), where('storeId', '==', storeId), limit(4));
                     const snapProducts = await getDocs(qProducts);
                     setTopProducts(snapProducts.docs.map(d => ({ id: d.id, ...d.data() })));
                 } catch(e) { console.warn("Erro produtos:", e); }
 
-                // Busca Avaliações (Traz 10, ordena por data na memória e pega as 3 últimas)
                 try {
-                    const qReviews = query(collection(db, 'reviews'), where('storeId', '==', storeId), limit(10));
+                    // MUDANÇA AQUI: Busca até 50 avaliações para popular o Modal
+                    const qReviews = query(collection(db, 'reviews'), where('storeId', '==', storeId), limit(50));
                     const snapReviews = await getDocs(qReviews);
                     
                     const reviewsList = snapReviews.docs.map(d => d.data());
-                    // Ordena da mais recente para a mais antiga (igual ao seu Admin)
                     reviewsList.sort((a, b) => {
                         const dateA = a.createdAt?.toDate() || 0;
                         const dateB = b.createdAt?.toDate() || 0;
                         return dateB - dateA;
                     });
                     
-                    setLatestReviews(reviewsList.slice(0, 3));
+                    setLatestReviews(reviewsList);
                 } catch(e) { console.warn("Erro reviews:", e); }
 
             } catch (error) {
@@ -124,7 +118,7 @@ export default function AggregatorStore() {
     }, [slug]);
 
     // =========================================================================
-    // 2. O CÉREBRO DO SEO (JSON-LD BLINDADO COM IA)
+    // 2. O CÉREBRO DO SEO (JSON-LD BLINDADO)
     // =========================================================================
     useEffect(() => {
         if (!storeData) return;
@@ -140,7 +134,7 @@ export default function AggregatorStore() {
         const valueForSchema = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
         const safeStoreName = storeData.name || "Restaurante";
 
-        const schemaReviews = latestReviews.map(rev => ({
+        const schemaReviews = latestReviews.slice(0, 10).map(rev => ({
             "@type": "Review",
             "author": { "@type": "Person", "name": rev.customerName || rev.userName || "Cliente Verificado" },
             "datePublished": rev.createdAt ? new Date(rev.createdAt.toDate()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -188,9 +182,6 @@ export default function AggregatorStore() {
         };
     }, [storeData, slug, latestReviews]);
 
-    // =========================================================================
-    // EARLY RETURNS (Telas de Carregamento)
-    // =========================================================================
     if (loading) {
         return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest text-sm">Carregando loja...</div>;
     }
@@ -199,9 +190,6 @@ export default function AggregatorStore() {
         return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-500 uppercase tracking-widest text-sm">Loja não encontrada na Velo Delivery.</div>;
     }
 
-    // =========================================================================
-    // LÓGICA VISUAL DA UI
-    // =========================================================================
     let formattedAddress = "Endereço não cadastrado";
     if (typeof storeData.address === 'string') {
         formattedAddress = storeData.address;
@@ -338,16 +326,16 @@ export default function AggregatorStore() {
                 </div>
             )}
 
-            {/* SEÇÃO SEO: ÚLTIMAS AVALIAÇÕES HUMANIZADAS PELA IA */}
-            {latestReviews.length > 0 && (
+            {/* SEÇÃO SEO: ÚLTIMAS AVALIAÇÕES HUMANIZADAS PELA IA (APENAS AS 3 PRIMEIRAS) */}
+            {latestReviews.length > 0 ? (
                 <div className="w-full max-w-md text-left mb-6 relative z-10">
                     <div className="flex items-center justify-between mb-4 px-2">
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Opinião dos Clientes</h2>
                     </div>
                     <div className="space-y-3">
-                        {latestReviews.map((rev, i) => (
+                        {/* MAPEA APENAS AS 3 PRIMEIRAS AQUI NA TELA INICIAL */}
+                        {latestReviews.slice(0, 3).map((rev, i) => (
                             <div key={i} className="bg-white p-5 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 relative">
-                                {/* Aspas visuais de design */}
                                 <span className="absolute top-2 right-4 text-4xl text-slate-100 font-serif leading-none">"</span>
                                 <div className="flex items-center justify-between mb-3 relative z-10">
                                     <div className="flex items-center gap-2">
@@ -369,14 +357,24 @@ export default function AggregatorStore() {
                         ))}
                     </div>
                     
-                    <a href={storeUrl} className="mt-5 flex items-center justify-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline bg-blue-50/50 py-3 rounded-xl border border-blue-100/50">
-                        Ler todas as {ratingCount} avaliações <ArrowRightCircle size={12} className="ml-1"/>
-                    </a>
+                    {/* NOVO BOTÃO: ABRE O MODAL COM TODAS AS AVALIAÇÕES */}
+                    {latestReviews.length > 3 && (
+                        <button 
+                            onClick={() => setShowAllReviewsModal(true)}
+                            className="w-full mt-5 flex items-center justify-center gap-2 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:bg-blue-100 bg-blue-50/50 py-4 rounded-xl border border-blue-100/50 transition-all active:scale-95"
+                        >
+                            Ler todas as {ratingCount} avaliações <ArrowRightCircle size={14} className="ml-1"/>
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <div className="w-full max-w-md text-center mt-4 mb-8">
+                    <p className="text-xs font-bold text-slate-400">Seja o primeiro a avaliar após fazer um pedido!</p>
                 </div>
             )}
 
             {/* BOTÃO FLUTUANTE INFERIOR */}
-            <div className="fixed bottom-6 left-0 right-0 px-4 z-50 flex justify-center pointer-events-none">
+            <div className="fixed bottom-6 left-0 right-0 px-4 z-40 flex justify-center pointer-events-none">
                  <a 
                     href={storeUrl}
                     className="pointer-events-auto bg-slate-900 text-white px-8 py-4 rounded-full font-black uppercase tracking-widest text-xs shadow-2xl hover:scale-105 transition-all flex items-center gap-2 border border-slate-700"
@@ -384,6 +382,69 @@ export default function AggregatorStore() {
                     Fazer Pedido Agora <ArrowRightCircle size={16} />
                 </a>
             </div>
+
+            {/* ========================================================================= */}
+            {/* 🚀 MODAL: TODAS AS AVALIAÇÕES (NOVO) */}
+            {/* ========================================================================= */}
+            <AnimatePresence>
+                {showAllReviewsModal && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[500] flex items-center justify-center p-4"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 20 }} 
+                            animate={{ scale: 1, y: 0 }} 
+                            exit={{ scale: 0.9, y: 20 }}
+                            className="bg-slate-50 w-full max-w-md rounded-[2.5rem] shadow-2xl relative flex flex-col h-[85vh] overflow-hidden border border-slate-200"
+                        >
+                            {/* Cabecalho do Modal */}
+                            <div className="bg-white p-6 border-b border-slate-100 flex items-center justify-between z-10 relative shadow-sm">
+                                <div>
+                                    <h2 className="text-xl font-black italic uppercase text-slate-800 leading-none">Avaliações</h2>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">O que os clientes dizem</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowAllReviewsModal(false)} 
+                                    className="p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors"
+                                >
+                                    <X size={20}/>
+                                </button>
+                            </div>
+
+                            {/* Lista de Avaliações com Scroll */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
+                                {latestReviews.map((rev, i) => (
+                                    <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative">
+                                        <span className="absolute top-2 right-4 text-4xl text-slate-50 font-serif leading-none">"</span>
+                                        <div className="flex items-center justify-between mb-3 relative z-10">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-xs font-black uppercase border border-blue-100">
+                                                    {(rev.customerName || rev.userName || "C")[0]}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black text-slate-800 uppercase truncate max-w-[120px]">{rev.customerName || rev.userName || "Cliente"}</span>
+                                                    <span className="text-[8px] font-bold text-slate-400 uppercase">{rev.createdAt?.toDate ? new Date(rev.createdAt.toDate()).toLocaleDateString('pt-BR') : 'Recente'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex text-amber-400">
+                                                {[...Array(5)].map((_, idx) => (
+                                                    <Star key={idx} size={14} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-amber-400" : "text-amber-200"} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-slate-600 font-medium leading-relaxed italic relative z-10">
+                                            "{generateSmartReviewText(rev, storeData.name || "a loja")}"
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
         </div>
     );

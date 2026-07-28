@@ -47,6 +47,44 @@ import MetaAdsDashboard from '../components/MetaAdsDashboard';
 import { FaFacebook, FaInstagram, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
 
+// =========================================================================
+// 🧠 MOTOR DE IA (E-E-A-T) - RESPOSTAS HUMANIZADAS
+// =========================================================================
+const generateSmartReviewText = (review, storeName) => {
+    const originalText = review.comment || review.text || "";
+    const isGeneric = originalText.toLowerCase().includes("clube vip") || originalText.trim() === "";
+
+    if (!isGeneric && originalText.length > 5) return originalText;
+
+    const replyText = review.reply || review.storeReply || review.adminReply || "";
+    let productName = "";
+
+    if (replyText) {
+        const match = replyText.match(/famoso (.*?) aqui/i);
+        if (match && match[1]) productName = match[1].trim(); 
+    }
+
+    const seed = (review.customerName || review.userName || "A").length + (review.rating || 5);
+
+    if (productName) {
+        const templatesWithProduct = [
+            `Muito prático pedir por aqui. O ${productName} foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+            `Excelente! O pedido de ${productName} chegou super rápido e com muita qualidade. Recomendo.`,
+            `Sempre peço na ${storeName}. O ${productName} veio perfeito, do jeito que eu gosto. Atendimento nota 10!`,
+            `Tudo certo com a minha compra. O ${productName} chegou impecável e o serviço foi muito ágil.`
+        ];
+        return templatesWithProduct[seed % templatesWithProduct.length];
+    } else {
+        const templatesWithoutProduct = [
+            `Muito prático pedir por aqui. Meu pedido foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+            `Excelente! A encomenda chegou super rápido e com muita qualidade. Recomendo muito.`,
+            `Sempre peço na ${storeName}. Tudo veio perfeito e muito bem embalado. Atendimento nota 10!`,
+            `Tudo certo com a minha compra. A ${storeName} tem um serviço ágil e o pedido chegou impecável.`
+        ];
+        return templatesWithoutProduct[seed % templatesWithoutProduct.length];
+    }
+};
+
 const libraries = ['places']; // Define a biblioteca de lugares para a busca funcionar
 // --- FÓRMULA DE HAVERSINE (CALCULA DISTÂNCIA EM KM) ---
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -7244,7 +7282,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 {[...Array(5)].map((_, i) => <Star key={i} size={18} fill={i < r.rating ? "currentColor" : "none"} />)}
                                             </div>
                                         </div>
-                                        <p className="text-sm text-slate-600 font-medium italic bg-slate-50 p-4 rounded-2xl border border-slate-100">"{r.comment}"</p>
+<p className="text-sm text-slate-600 font-medium italic bg-slate-50 p-4 rounded-2xl border border-slate-100">
+    "{generateSmartReviewText(r, storeStatus?.name || 'loja')}"
+</p>
                                         
                                         {r.reply ? (
                                             <div className="bg-blue-50 p-4 rounded-2xl mt-2 border border-blue-100 relative">
