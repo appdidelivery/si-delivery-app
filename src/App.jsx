@@ -141,7 +141,7 @@ function App() {
             <Route path="/" element={<AppRouter />} />
             <Route path="/driver-login" element={<div className="p-10 text-center mt-20 font-bold text-slate-500">Faça login com seu link de Motoboy enviado pelo lojista 🛵...</div>} />
             <Route path="/p/:productSlug" element={<Home />} />
-            <Route path="/restaurante/:slug" element={<AggregatorStore />} />
+            <Route path="/loja/:slug" element={<AggregatorStore />} />
             <Route path="/wpp/:slug" element={<WppWebview />} /> {/* <-- NOVO: Rota da Webview Slim */}
             <Route path="/track/:orderId" element={<Tracking />} />
             <Route path="/politicas" element={<Policies />} />
