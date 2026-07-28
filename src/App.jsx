@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app'; // <-- NOVO: Plugin para capturar links do WhatsApp
 import VeloLeanEngine from './pages/VeloLeanEngine';
+import AggregatorStore from './pages/AggregatorStore'; // <-- ADICIONE AQUI
 
 // Seus componentes de página
 import Home from './pages/Home';
@@ -140,6 +141,7 @@ function App() {
             <Route path="/" element={<AppRouter />} />
             <Route path="/driver-login" element={<div className="p-10 text-center mt-20 font-bold text-slate-500">Faça login com seu link de Motoboy enviado pelo lojista 🛵...</div>} />
             <Route path="/p/:productSlug" element={<Home />} />
+            <Route path="/restaurante/:slug" element={<AggregatorStore />} />
             <Route path="/wpp/:slug" element={<WppWebview />} /> {/* <-- NOVO: Rota da Webview Slim */}
             <Route path="/track/:orderId" element={<Tracking />} />
             <Route path="/politicas" element={<Policies />} />
