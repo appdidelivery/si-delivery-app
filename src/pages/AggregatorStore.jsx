@@ -4,6 +4,7 @@ import { db } from '../services/firebase';
 import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Helmet } from 'react-helmet-async';
 import { Store, Star, CheckCircle, ExternalLink, ArrowRightCircle, ShoppingBag, X } from 'lucide-react';
+import { FaGoogle } from 'react-icons/fa6';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const generateSlug = (text) => {
@@ -62,11 +63,13 @@ export default function AggregatorStore() {
     const [showAllReviewsModal, setShowAllReviewsModal] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    // =========================================================================
+    // 1. MOTOR DE BUSCA
+    // =========================================================================
     useEffect(() => {
         const fetchAllData = async () => {
             if (!slug) return;
             try {
-                // 1. Busca a Loja
                 const qStore = query(collection(db, 'stores'), where('slug', '==', slug), limit(1));
                 const snapStore = await getDocs(qStore);
                 
@@ -79,14 +82,12 @@ export default function AggregatorStore() {
                 const storeId = snapStore.docs[0].id;
                 setStoreData(storeInfo);
 
-                // 2. Busca Produtos
                 try {
                     const qProducts = query(collection(db, 'products'), where('storeId', '==', storeId), limit(4));
                     const snapProducts = await getDocs(qProducts);
                     setTopProducts(snapProducts.docs.map(d => ({ id: d.id, ...d.data() })));
                 } catch(e) { console.warn("Erro produtos:", e); }
 
-                // 3. BUSCA REVIEWS INTERNOS DO APP
                 try {
                     const qReviews = query(collection(db, 'reviews'), where('storeId', '==', storeId), limit(50));
                     const snapReviews = await getDocs(qReviews);
@@ -102,7 +103,7 @@ export default function AggregatorStore() {
                 } catch(e) { console.warn("Erro reviews:", e); }
 
             } catch (error) {
-                console.error("Erro ao buscar dados completos:", error);
+                console.error("Erro ao buscar dados:", error);
             } finally {
                 setLoading(false);
             }
@@ -111,72 +112,39 @@ export default function AggregatorStore() {
         fetchAllData();
     }, [slug]);
 
-    // O CÉREBRO DO SEO BLINDADO (Joga os dados pro Google)
+    // =========================================================================
+    // 2. INJEÇÃO DINÂMICA DE FAVICON (ABA DO NAVEGADOR)
+    // =========================================================================
     useEffect(() => {
-        if (!storeData) return;
+        if (storeData && (storeData.storeLogoUrl || storeData.logoUrl)) {
+            const logoUrl = storeData.storeLogoUrl || storeData.logoUrl;
+            
+            // Troca o Favicon padrão
+            let favicon = document.querySelector("link[rel~='icon']");
+            if (!favicon) {
+                favicon = document.createElement('link');
+                favicon.rel = 'icon';
+                document.head.appendChild(favicon);
+            }
+            favicon.href = logoUrl;
 
-        let addressForSchema = "Endereço não cadastrado";
-        if (typeof storeData.address === 'string') {
-            addressForSchema = storeData.address;
-        } else if (storeData.address && typeof storeData.address === 'object') {
-            addressForSchema = [storeData.address.street, storeData.address.number, storeData.address.city].filter(Boolean).join(', ');
+            // Troca o Ícone da Apple (iPhone)
+            let appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+            if (!appleIcon) {
+                appleIcon = document.createElement('link');
+                appleIcon.rel = 'apple-touch-icon';
+                document.head.appendChild(appleIcon);
+            }
+            appleIcon.href = logoUrl;
         }
-
-        const countForSchema = Number(storeData.rating_count || storeData.reviewCount || 0);
-        const valueForSchema = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
-        const safeStoreName = storeData.name || "Restaurante";
-
-        const schemaReviews = latestReviews.slice(0, 10).map(rev => ({
-            "@type": "Review",
-            "author": { "@type": "Person", "name": rev.customerName || rev.userName || "Cliente Verificado" },
-            "datePublished": rev.createdAt ? new Date(rev.createdAt.toDate()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            "reviewBody": generateSmartReviewText(rev, safeStoreName),
-            "reviewRating": { "@type": "Rating", "ratingValue": rev.rating || "5" }
-        }));
-
-        const jsonLd = {
-            "@context": "https://schema.org",
-            "@type": "Restaurant",
-            "name": safeStoreName,
-            "image": storeData.storeLogoUrl || storeData.logoUrl || "https://app.velodelivery.com.br/logo-padrao.png",
-            "address": addressForSchema,
-            "priceRange": storeData.priceRange || "$$",
-            "url": `https://app.velodelivery.com.br/loja/${slug}`,
-            ...(countForSchema > 0 ? {
-                "aggregateRating": {
-                    "@type": "AggregateRating",
-                    "ratingValue": valueForSchema.toFixed(1),
-                    "reviewCount": countForSchema,
-                    "bestRating": "5",
-                    "worstRating": "1",
-                    "author": { "@type": "Organization", "name": "Velo Delivery" },
-                    "publisher": { "@type": "Organization", "name": "Velo Delivery" }
-                }
-            } : {}),
-            ...(schemaReviews.length > 0 ? { "review": schemaReviews } : {})
-        };
-
-        const scriptId = 'velo-aggregator-schema';
-        let scriptTag = document.getElementById(scriptId);
-
-        if (!scriptTag) {
-            scriptTag = document.createElement('script');
-            scriptTag.id = scriptId;
-            scriptTag.type = 'application/ld+json';
-            document.head.appendChild(scriptTag);
-        }
-        
-        scriptTag.text = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
-
-        return () => {
-            const existingScript = document.getElementById(scriptId);
-            if (existingScript) existingScript.remove();
-        };
-    }, [storeData, slug, latestReviews]);
+    }, [storeData]);
 
     if (loading) return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest text-sm">Carregando loja...</div>;
     if (!storeData) return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-500 uppercase tracking-widest text-sm">Loja não encontrada na Velo Delivery.</div>;
 
+    // =========================================================================
+    // LÓGICA DE VARIÁVEIS PARA O SEO E A UI
+    // =========================================================================
     let formattedAddress = "Endereço não cadastrado";
     if (typeof storeData.address === 'string') {
         formattedAddress = storeData.address;
@@ -186,14 +154,75 @@ export default function AggregatorStore() {
 
     const ratingCount = Number(storeData.rating_count || storeData.reviewCount || latestReviews.length || 0);
     const ratingValue = Number(storeData.rating_aggregate || storeData.ratingValue || 5.0).toFixed(1);
-    const storeUrl = `https://${storeData.domain || `${slug}.velodelivery.com.br`}`;
+    
+    const storeUrl = `https://app.velodelivery.com.br/loja/${slug}`;
+    const storeRealUrl = `https://${storeData.domain || `${slug}.velodelivery.com.br`}`;
+    const safeStoreName = storeData.name || "Restaurante";
+    const storeImage = storeData.storeLogoUrl || storeData.logoUrl || "https://app.velodelivery.com.br/logo-padrao.png";
+    const storeDescription = storeData.slogan || storeData.aboutText || `Confira o cardápio, endereço e avaliações reais de ${safeStoreName}. Faça seu pedido online pela Velo Delivery.`;
+
+    // Geração do Schema JSON-LD
+    const schemaReviews = latestReviews.slice(0, 10).map(rev => ({
+        "@type": "Review",
+        "author": { "@type": "Person", "name": rev.customerName || rev.userName || "Cliente Verificado" },
+        "datePublished": rev.createdAt ? new Date(rev.createdAt.toDate()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        "reviewBody": generateSmartReviewText(rev, safeStoreName),
+        "reviewRating": { "@type": "Rating", "ratingValue": rev.rating || "5" }
+    }));
+
+    const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": safeStoreName,
+        "image": storeImage,
+        "description": storeDescription,
+        "address": formattedAddress,
+        "priceRange": storeData.priceRange || "$$",
+        "url": storeUrl,
+        ...(ratingCount > 0 ? {
+            "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": ratingValue,
+                "reviewCount": ratingCount,
+                "bestRating": "5",
+                "worstRating": "1",
+                "author": { "@type": "Organization", "name": "Velo Delivery" },
+                "publisher": { "@type": "Organization", "name": "Velo Delivery" }
+            }
+        } : {}),
+        ...(schemaReviews.length > 0 ? { "review": schemaReviews } : {})
+    };
 
     return (
         <div className="min-h-screen bg-slate-100 flex flex-col items-center pt-12 px-4 pb-24 relative overflow-hidden">
             <div className="absolute top-[-10%] left-[-10%] w-[120%] h-64 bg-blue-600/5 blur-3xl rounded-full pointer-events-none"></div>
 
+            {/* ========================================================================= */}
+            {/* 🚀 CÉREBRO DO SEO: METADADOS GERAIS, OPEN GRAPH (WPP) E JSON-LD */}
+            {/* ========================================================================= */}
             <Helmet>
-                <title>{`${storeData.name} - Cardápio e Avaliações | Velo Delivery`}</title>
+                <title>{`${safeStoreName} - Cardápio e Avaliações | Velo Delivery`}</title>
+                <meta name="description" content={storeDescription} />
+                <link rel="canonical" href={storeUrl} />
+                
+                {/* Metadados Open Graph (Para ficar lindo ao colar o link no WhatsApp/Facebook) */}
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content={storeUrl} />
+                <meta property="og:title" content={`${safeStoreName} - Avaliações`} />
+                <meta property="og:description" content={storeDescription} />
+                <meta property="og:image" content={storeImage} />
+                <meta property="og:site_name" content="Velo Delivery" />
+
+                {/* Metadados Twitter */}
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content={`${safeStoreName} - Avaliações`} />
+                <meta name="twitter:description" content={storeDescription} />
+                <meta name="twitter:image" content={storeImage} />
+
+                {/* Schema Markup Oculto para o Robô do Google */}
+                <script type="application/ld+json">
+                    {JSON.stringify(jsonLd).replace(/</g, '\\u003c')}
+                </script>
             </Helmet>
             
             {/* Header Velo Delivery */}
@@ -207,8 +236,12 @@ export default function AggregatorStore() {
             {/* CARD PRINCIPAL DA LOJA */}
             <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-center max-w-md w-full border border-slate-100 mb-8 relative z-10">
                 <div className="relative inline-block mb-4">
-                    {storeData.storeLogoUrl || storeData.logoUrl ? (
-                        <img src={storeData.storeLogoUrl || storeData.logoUrl} alt={`Logo ${storeData.name}`} className="w-24 h-24 rounded-full object-cover border-4 border-slate-50 shadow-sm bg-white" />
+                    {storeImage !== "https://app.velodelivery.com.br/logo-padrao.png" ? (
+                        <img 
+                            src={storeImage} 
+                            alt={`Logo ${safeStoreName}`} 
+                            className="w-24 h-24 rounded-full object-cover border-4 border-slate-50 shadow-sm bg-white" 
+                        />
                     ) : (
                         <div className="w-24 h-24 rounded-full border-4 border-slate-50 shadow-sm bg-slate-50 flex items-center justify-center text-slate-300">
                             <Store size={36} />
@@ -220,7 +253,7 @@ export default function AggregatorStore() {
                 </div>
                 
                 <h1 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter leading-none mb-2">
-                    {storeData.name}
+                    {safeStoreName}
                 </h1>
                 
                 <p className="text-xs font-medium text-slate-500 mb-6 px-4">
@@ -231,7 +264,7 @@ export default function AggregatorStore() {
                     <div className="inline-flex flex-col items-center justify-center p-4 bg-amber-50/50 rounded-[1.5rem] border border-amber-100/50 w-full mb-6 shadow-inner">
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-3xl font-black text-amber-500 tracking-tighter">{ratingValue}</span>
-                            <div className="flex text-yellow-400">
+                            <div className="flex text-amber-400">
                                 {[...Array(5)].map((_, i) => (
                                     <Star key={i} size={20} fill={i < Math.round(Number(ratingValue)) ? "currentColor" : "none"} className={i < Math.round(Number(ratingValue)) ? "text-amber-400" : "text-amber-200"} />
                                 ))}
@@ -251,10 +284,16 @@ export default function AggregatorStore() {
                         <span className="text-lg shrink-0 mt-0.5">📍</span>
                         <span className="text-xs font-bold text-slate-600 leading-snug">{formattedAddress}</span>
                     </div>
+                    {storeData.whatsapp && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg shrink-0">📞</span>
+                            <span className="text-xs font-bold text-slate-600">{storeData.whatsapp}</span>
+                        </div>
+                    )}
                 </div>
 
                 <a 
-                    href={storeUrl}
+                    href={storeRealUrl}
                     className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition-all shadow-lg active:scale-95"
                 >
                     Acessar Cardápio e Pedir <ExternalLink size={14} />
@@ -266,17 +305,23 @@ export default function AggregatorStore() {
                 <div className="w-full max-w-md mb-8 text-left relative z-10">
                     <div className="flex items-center justify-between mb-4 px-2">
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Destaques da Loja</h2>
-                        <a href={storeUrl} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Ver Todos</a>
+                        <a href={storeRealUrl} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Ver Todos</a>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         {topProducts.map((p, i) => {
                             const imgSource = p.imageUrl || p.fotoUrl || p.image;
                             return (
-                                <a key={i} href={`${storeUrl}/p/${generateSlug(p.name)}`} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition-all active:scale-95 group">
+                                <a 
+                                    key={i} 
+                                    href={`${storeRealUrl}/p/${generateSlug(p.name)}`}
+                                    className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition-all active:scale-95 group"
+                                >
                                     {imgSource ? (
                                         <img src={imgSource} alt={p.name} className="w-16 h-16 object-contain mb-3 rounded-lg group-hover:scale-110 transition-transform" />
                                     ) : (
-                                        <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-slate-300 mb-3"><ShoppingBag size={24} /></div>
+                                        <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-slate-300 mb-3">
+                                            <ShoppingBag size={24} />
+                                        </div>
                                     )}
                                     <span className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight mb-2 h-7">{p.name}</span>
                                     <span className="text-xs font-black text-blue-600 mt-auto">R$ {Number(p.promotionalPrice || p.price).toFixed(2)}</span>
@@ -288,7 +333,7 @@ export default function AggregatorStore() {
             )}
 
             {/* SEÇÃO SEO: ÚLTIMAS AVALIAÇÕES HUMANIZADAS PELA IA */}
-            {latestReviews.length > 0 && (
+            {latestReviews.length > 0 ? (
                 <div className="w-full max-w-md text-left mb-6 relative z-10">
                     <div className="flex items-center justify-between mb-4 px-2">
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Opinião dos Clientes</h2>
@@ -304,14 +349,14 @@ export default function AggregatorStore() {
                                         </div>
                                         <span className="text-[11px] font-black text-slate-800 uppercase truncate max-w-[120px]">{rev.customerName || rev.userName || "Cliente"}</span>
                                     </div>
-                                    <div className="flex text-yellow-400">
+                                    <div className="flex text-amber-400">
                                         {[...Array(5)].map((_, idx) => (
-                                            <Star key={idx} size={12} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-yellow-400" : "text-yellow-200"} />
+                                            <Star key={idx} size={12} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-amber-400" : "text-amber-200"} />
                                         ))}
                                     </div>
                                 </div>
                                 <p className="text-[11px] text-slate-600 font-medium leading-relaxed italic relative z-10">
-                                    "{generateSmartReviewText(rev, storeData.name || "a loja")}"
+                                    "{generateSmartReviewText(rev, safeStoreName)}"
                                 </p>
                             </div>
                         ))}
@@ -323,11 +368,18 @@ export default function AggregatorStore() {
                         </button>
                     )}
                 </div>
+            ) : (
+                <div className="w-full max-w-md text-center mt-4 mb-8">
+                    <p className="text-xs font-bold text-slate-400">Seja o primeiro a avaliar após fazer um pedido!</p>
+                </div>
             )}
 
             {/* BOTÃO FLUTUANTE INFERIOR */}
-            <div className="fixed bottom-6 left-0 right-0 px-4 z-50 flex justify-center pointer-events-none">
-                 <a href={storeUrl} className="pointer-events-auto bg-slate-900 text-white px-8 py-4 rounded-full font-black uppercase tracking-widest text-xs shadow-2xl hover:scale-105 transition-all flex items-center gap-2 border border-slate-700">
+            <div className="fixed bottom-6 left-0 right-0 px-4 z-40 flex justify-center pointer-events-none">
+                 <a 
+                    href={storeRealUrl}
+                    className="pointer-events-auto bg-slate-900 text-white px-8 py-4 rounded-full font-black uppercase tracking-widest text-xs shadow-2xl hover:scale-105 transition-all flex items-center gap-2 border border-slate-700"
+                >
                     Fazer Pedido Agora <ArrowRightCircle size={16} />
                 </a>
             </div>
@@ -358,12 +410,12 @@ export default function AggregatorStore() {
                                                     <span className="text-[8px] font-bold text-slate-400 uppercase">✅ Compra Verificada</span>
                                                 </div>
                                             </div>
-                                            <div className="flex text-yellow-400">
-                                                {[...Array(5)].map((_, idx) => <Star key={idx} size={14} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-yellow-400" : "text-yellow-200"} />)}
+                                            <div className="flex text-amber-400">
+                                                {[...Array(5)].map((_, idx) => <Star key={idx} size={14} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-amber-400" : "text-amber-200"} />)}
                                             </div>
                                         </div>
                                         <p className="text-xs text-slate-600 font-medium leading-relaxed italic relative z-10">
-                                            "{generateSmartReviewText(rev, storeData.name || "a loja")}"
+                                            "{generateSmartReviewText(rev, safeStoreName)}"
                                         </p>
                                         {(rev.reply || rev.storeReply) && (
                                             <div className="mt-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
