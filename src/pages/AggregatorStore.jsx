@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Helmet } from 'react-helmet-async';
-import { Camera, Store, ShoppingBag, Star, CheckCircle, ExternalLink, ArrowRight, ArrowRightCircle } from 'lucide-react'; // <-- Importando ícones oficiais do seu projeto
+import { Store, Star, CheckCircle, ExternalLink, ArrowRightCircle, ShoppingBag } from 'lucide-react';
 
 // Função para gerar o link do produto
 const generateSlug = (text) => {
@@ -14,6 +14,42 @@ const generateSlug = (text) => {
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-+/, '').replace(/-+$/, '');
+};
+
+// =========================================================================
+// 🧠 MOTOR DE IA (E-E-A-T) PARA REVIEWS GENÉRICOS
+// =========================================================================
+const generateSmartReviewText = (review, storeName) => {
+    const originalText = review.comment || review.text || "";
+    const isGeneric = originalText.toLowerCase().includes("clube vip") || originalText.trim() === "";
+
+    // Se for um texto real escrito pelo cliente, nós mantemos!
+    if (!isGeneric && originalText.length > 5) {
+        return originalText;
+    }
+
+    // Se for genérico, vamos extrair o produto da resposta da loja (se existir)
+    let productMention = "meu pedido";
+    if (review.storeReply && typeof review.storeReply === 'string') {
+        // Tenta achar o texto entre "famoso" e "aqui na região"
+        const match = review.storeReply.match(/famoso (.*?) aqui/i);
+        if (match && match[1]) {
+            productMention = match[1].trim();
+        }
+    }
+
+    // Banco de templates humanizados e ricos em SEO
+    const templates = [
+        `Excelente! O ${productMention} chegou super rápido e com muita qualidade. Recomendo a ${storeName}.`,
+        `Sempre peço na ${storeName}. O ${productMention} veio perfeito, na temperatura ideal. Atendimento nota 10!`,
+        `Muito prático pedir por aqui. Meu ${productMention} foi entregue sem atrasos. A ${storeName} nunca decepciona.`,
+        `Gostei bastante da experiência. O ${productMention} estava ótimo e a entrega foi super ágil. Valeu ${storeName}!`,
+        `Tudo certo com o meu pedido. A ${storeName} tem um serviço muito ágil, o ${productMention} chegou impecável.`
+    ];
+
+    // Cria um índice pseudo-aleatório baseado no nome do cliente para não mudar a cada F5
+    const seed = (review.customerName || review.userName || "A").length + (review.rating || 5);
+    return templates[seed % templates.length];
 };
 
 export default function AggregatorStore() {
@@ -55,7 +91,7 @@ export default function AggregatorStore() {
                 } catch(e) { console.warn("Erro reviews:", e); }
 
             } catch (error) {
-                console.error("Erro ao buscar dados:", error);
+                console.error("Erro ao buscar dados completos:", error);
             } finally {
                 setLoading(false);
             }
@@ -65,7 +101,7 @@ export default function AggregatorStore() {
     }, [slug]);
 
     // =========================================================================
-    // 2. O CÉREBRO DO SEO (JSON-LD)
+    // 2. O CÉREBRO DO SEO (JSON-LD BLINDADO COM IA)
     // =========================================================================
     useEffect(() => {
         if (!storeData) return;
@@ -79,19 +115,21 @@ export default function AggregatorStore() {
 
         const countForSchema = Number(storeData.rating_count || storeData.reviewCount || 0);
         const valueForSchema = Number(storeData.rating_aggregate || storeData.ratingValue || 0);
+        const safeStoreName = storeData.name || "Restaurante";
 
+        // Aplica o Motor de IA no Schema invisível pro Google ler!
         const schemaReviews = latestReviews.map(rev => ({
             "@type": "Review",
             "author": { "@type": "Person", "name": rev.customerName || rev.userName || "Cliente Verificado" },
             "datePublished": rev.createdAt ? new Date(rev.createdAt.toDate()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            "reviewBody": rev.comment || rev.text || "Excelente atendimento e produto de qualidade.",
+            "reviewBody": generateSmartReviewText(rev, safeStoreName),
             "reviewRating": { "@type": "Rating", "ratingValue": rev.rating || "5" }
         }));
 
         const jsonLd = {
             "@context": "https://schema.org",
             "@type": "Restaurant",
-            "name": storeData.name || "Restaurante",
+            "name": safeStoreName,
             "image": storeData.storeLogoUrl || storeData.logoUrl || "https://app.velodelivery.com.br/logo-padrao.png",
             "address": addressForSchema,
             "priceRange": storeData.priceRange || "$$",
@@ -128,9 +166,6 @@ export default function AggregatorStore() {
         };
     }, [storeData, slug, latestReviews]);
 
-    // =========================================================================
-    // EARLY RETURNS (Telas de Carregamento)
-    // =========================================================================
     if (loading) {
         return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-bold text-slate-400 uppercase tracking-widest text-sm">Carregando loja...</div>;
     }
@@ -154,24 +189,26 @@ export default function AggregatorStore() {
     const storeUrl = `https://${storeData.domain || `${slug}.velodelivery.com.br`}`;
 
     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col items-center pt-12 px-4 pb-20">
+        <div className="min-h-screen bg-slate-100 flex flex-col items-center pt-12 px-4 pb-24 relative overflow-hidden">
+            {/* Decoração de Fundo */}
+            <div className="absolute top-[-10%] left-[-10%] w-[120%] h-64 bg-blue-600/5 blur-3xl rounded-full pointer-events-none"></div>
+
             <Helmet>
                 <title>{`${storeData.name} - Cardápio e Avaliações | Velo Delivery`}</title>
                 <meta name="description" content={`Confira o cardápio, endereço e avaliações reais de ${storeData.name}. Faça seu pedido online pela Velo Delivery.`} />
             </Helmet>
             
             {/* Header Velo Delivery */}
-            <div className="mb-6 text-center flex flex-col items-center">
+            <div className="mb-6 text-center flex flex-col items-center relative z-10">
                 <img src="/logo retangular Velo Delivery.png" alt="Velo Delivery" className="h-5 opacity-40 grayscale mb-2" />
-                <span className="bg-slate-200 text-slate-500 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                <span className="bg-slate-200 text-slate-500 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm border border-slate-300/50">
                     Portal de Avaliações
                 </span>
             </div>
 
             {/* CARD PRINCIPAL DA LOJA */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl text-center max-w-md w-full border border-slate-100 mb-6">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-center max-w-md w-full border border-slate-100 mb-8 relative z-10">
                 <div className="relative inline-block mb-4">
-                    {/* BLINDAGEM DE IMAGEM DA LOJA */}
                     {storeData.storeLogoUrl || storeData.logoUrl ? (
                         <img 
                             src={storeData.storeLogoUrl || storeData.logoUrl} 
@@ -183,11 +220,10 @@ export default function AggregatorStore() {
                             }}
                         />
                     ) : (
-                        <div className="w-24 h-24 rounded-full border-4 border-slate-50 shadow-sm bg-slate-100 flex items-center justify-center text-slate-300">
+                        <div className="w-24 h-24 rounded-full border-4 border-slate-50 shadow-sm bg-slate-50 flex items-center justify-center text-slate-300">
                             <Store size={36} />
                         </div>
                     )}
-
                     <div className="absolute bottom-0 right-0 bg-green-500 text-white p-1 rounded-full border-2 border-white shadow-sm" title="Loja Verificada Velo">
                         <CheckCircle size={14} />
                     </div>
@@ -201,62 +237,58 @@ export default function AggregatorStore() {
                     {storeData.slogan || storeData.aboutText || 'As melhores opções para o seu delivery.'}
                 </p>
 
-                {/* BLOCO DE NOTAS */}
                 {ratingCount > 0 && (
-                    <div className="inline-flex flex-col items-center justify-center p-4 bg-yellow-50 rounded-[1.5rem] border border-yellow-200 w-full mb-6 shadow-inner">
+                    <div className="inline-flex flex-col items-center justify-center p-4 bg-amber-50/50 rounded-[1.5rem] border border-amber-100/50 w-full mb-6">
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="text-3xl font-black text-yellow-600 tracking-tighter">{ratingValue.toFixed(1)}</span>
-                            <div className="flex text-yellow-400">
+                            <span className="text-3xl font-black text-amber-500 tracking-tighter">{ratingValue.toFixed(1)}</span>
+                            <div className="flex text-amber-400">
                                 {[...Array(5)].map((_, i) => (
-                                    <Star key={i} size={20} fill={i < Math.round(ratingValue) ? "currentColor" : "none"} className={i < Math.round(ratingValue) ? "text-yellow-400" : "text-yellow-300"} />
+                                    <Star key={i} size={20} fill={i < Math.round(ratingValue) ? "currentColor" : "none"} className={i < Math.round(ratingValue) ? "text-amber-400" : "text-amber-200"} />
                                 ))}
                             </div>
                         </div>
-                        <span className="text-[10px] font-black uppercase text-yellow-800 tracking-widest mb-3">
+                        <span className="text-[10px] font-black uppercase text-amber-700/80 tracking-widest mb-3">
                             Baseado em {ratingCount} avaliações
                         </span>
                     </div>
                 )}
 
-                {/* INFO LOJA */}
-                <div className="flex flex-col gap-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6">
+                <div className="flex flex-col gap-2 text-left bg-slate-50/50 p-4 rounded-2xl border border-slate-100 mb-6">
                     <div className="flex items-start gap-2">
-                        <span className="text-xl shrink-0 mt-0.5">📍</span>
+                        <span className="text-lg shrink-0 mt-0.5">📍</span>
                         <span className="text-xs font-bold text-slate-600 leading-snug">{formattedAddress}</span>
                     </div>
                     {storeData.whatsapp && (
                         <div className="flex items-center gap-2">
-                            <span className="text-xl shrink-0">📞</span>
+                            <span className="text-lg shrink-0">📞</span>
                             <span className="text-xs font-bold text-slate-600">{storeData.whatsapp}</span>
                         </div>
                     )}
                 </div>
 
-                {/* BOTÃO PRINCIPAL */}
                 <a 
                     href={storeUrl}
-                    className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20 active:scale-95"
+                    className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95"
                 >
-                    Ver Cardápio e Pedir <ArrowRight size={16} />
+                    Acessar Cardápio e Pedir <ExternalLink size={14} />
                 </a>
             </div>
 
-            {/* SEÇÃO SEO: MAIS PEDIDOS (COM BLINDAGEM DE IMAGEM) */}
+            {/* SEÇÃO SEO: MAIS PEDIDOS */}
             {topProducts.length > 0 && (
-                <div className="w-full max-w-md mb-8 text-left">
-                    <div className="flex items-center justify-between mb-3 px-2">
+                <div className="w-full max-w-md mb-8 text-left relative z-10">
+                    <div className="flex items-center justify-between mb-4 px-2">
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Destaques da Loja</h2>
-                        <a href={storeUrl} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Ver Todos <ExternalLink size={10}/></a>
+                        <a href={storeUrl} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Ver Todos</a>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         {topProducts.map((p, i) => {
                             const imgSource = p.imageUrl || p.fotoUrl || p.image;
-                            
                             return (
                                 <a 
                                     key={i} 
                                     href={`${storeUrl}/p/${generateSlug(p.name)}`}
-                                    className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition-shadow active:scale-95 group"
+                                    className="bg-white p-4 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition-all active:scale-95 group"
                                 >
                                     {imgSource ? (
                                         <img 
@@ -270,7 +302,7 @@ export default function AggregatorStore() {
                                         />
                                     ) : (
                                         <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-slate-300 mb-3 group-hover:bg-slate-100 transition-colors">
-                                            <Camera size={24} />
+                                            <ShoppingBag size={24} />
                                         </div>
                                     )}
                                     <span className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight mb-2 h-7">{p.name}</span>
@@ -282,46 +314,43 @@ export default function AggregatorStore() {
                 </div>
             )}
 
-            {/* SEÇÃO SEO: ÚLTIMAS AVALIAÇÕES ESCRITAS */}
-            {latestReviews.length > 0 ? (
-                <div className="w-full max-w-md text-left mb-6">
-                    <div className="flex items-center justify-between mb-3 px-2">
+            {/* SEÇÃO SEO: ÚLTIMAS AVALIAÇÕES HUMANIZADAS PELA IA */}
+            {latestReviews.length > 0 && (
+                <div className="w-full max-w-md text-left mb-6 relative z-10">
+                    <div className="flex items-center justify-between mb-4 px-2">
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Opinião dos Clientes</h2>
                     </div>
                     <div className="space-y-3">
                         {latestReviews.map((rev, i) => (
-                            <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative">
-                                {/* Aspas visuais de design */}
-                                <span className="absolute top-2 right-4 text-4xl text-slate-100 font-serif">"</span>
-                                <div className="flex items-center justify-between mb-2 relative z-10">
+                            <div key={i} className="bg-white p-5 rounded-2xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 relative">
+                                <span className="absolute top-2 right-4 text-4xl text-slate-100 font-serif leading-none">"</span>
+                                <div className="flex items-center justify-between mb-3 relative z-10">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-[10px] font-black uppercase">
+                                        <div className="w-6 h-6 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-[10px] font-black uppercase border border-blue-100">
                                             {(rev.customerName || rev.userName || "C")[0]}
                                         </div>
-                                        <span className="text-xs font-black text-slate-800 uppercase truncate max-w-[120px]">{rev.customerName || rev.userName || "Cliente"}</span>
+                                        <span className="text-[11px] font-black text-slate-800 uppercase truncate max-w-[120px]">{rev.customerName || rev.userName || "Cliente"}</span>
                                     </div>
-                                    <div className="flex text-yellow-400">
+                                    <div className="flex text-amber-400">
                                         {[...Array(5)].map((_, idx) => (
-                                            <Star key={idx} size={12} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-yellow-400" : "text-yellow-200"} />
+                                            <Star key={idx} size={12} fill={idx < Math.round(rev.rating || 5) ? "currentColor" : "none"} className={idx < Math.round(rev.rating || 5) ? "text-amber-400" : "text-amber-200"} />
                                         ))}
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-600 font-medium leading-relaxed italic relative z-10">"{rev.comment || rev.text || "Ótimo estabelecimento, entrega rápida e produtos de qualidade!"}"</p>
+                                <p className="text-[11px] text-slate-600 font-medium leading-relaxed italic relative z-10">
+                                    "{generateSmartReviewText(rev, storeData.name || "a loja")}"
+                                </p>
                             </div>
                         ))}
                     </div>
                     
-                    <a href={storeUrl} className="mt-4 flex items-center justify-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">
-                        Ler todas as {ratingCount} avaliações <ExternalLink size={10} />
+                    <a href={storeUrl} className="mt-5 flex items-center justify-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline bg-blue-50/50 py-3 rounded-xl border border-blue-100/50">
+                        Ler todas as {ratingCount} avaliações <ArrowRightCircle size={12} className="ml-1"/>
                     </a>
-                </div>
-            ) : (
-                <div className="w-full max-w-md text-center mt-4 mb-8">
-                    <p className="text-xs font-bold text-slate-400">Seja o primeiro a avaliar após fazer um pedido!</p>
                 </div>
             )}
 
-            {/* BOTÃO FLUTUANTE INFERIOR (Estilo App) */}
+            {/* BOTÃO FLUTUANTE INFERIOR */}
             <div className="fixed bottom-6 left-0 right-0 px-4 z-50 flex justify-center pointer-events-none">
                  <a 
                     href={storeUrl}
