@@ -87,6 +87,10 @@
       "destination": "/api/sitemap"
     },
     {
+      "source": "/llms.txt",
+      "destination": "/api/llms"
+    },
+    {
       "source": "/api/velopay/(.*)",
       "destination": "/api/velopay/$1"
     },
@@ -122,6 +126,15 @@
     },
     {
       "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/llms.txt",
       "headers": [
         {
           "key": "Cache-Control",
