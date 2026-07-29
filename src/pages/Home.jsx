@@ -3039,7 +3039,8 @@ if (window.fbq) {
                                       window.location.href = `/track/${orderId}?payment=success`;
                                  } else {
                                       if (newOrderRef) { try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Pagamento recusado pela operadora de cartão.' }); } catch(err){} }
-                                      alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + (result.error || result.status_detail));
+const motivoErro = result.details?.status_detail || result.error || "Transação não autorizada pela operadora.";
+alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + motivoErro);
                                       setIsFinalizing(false);
                                       submitLock.current = false;
                                   }
