@@ -247,7 +247,8 @@ export default function Home() {
   // SDK EFÍ E MERCADO PAGO: CARREGAMENTO OTIMIZADO
   // =======================================================================
   useEffect(() => {
-      // 1. CARREGA O MERCADO PAGO RÁPIDO (Apenas 500ms de delay para não travar a renderização inicial do React)
+      // 1. OTIMIZAÇÃO PAGESPEED: Atrasando o MP para 3500ms. 
+      // Permite que o LCP (First Contentful Paint) ocorra antes do JS pesado travar o navegador.
       const timerMP = setTimeout(() => {
           if (!document.getElementById('mp-sdk')) {
               const mpScript = document.createElement('script');
@@ -257,7 +258,7 @@ export default function Home() {
               document.head.appendChild(mpScript);
               console.log("💳 SDK Mercado Pago Bricks carregado!");
           }
-      }, 500);
+      }, 3500);
 
       // 2. A Efí pode continuar no delay de 4 segundos, pois é mais pesada
       const timerEfi = setTimeout(() => {
@@ -3118,19 +3119,22 @@ if (window.fbq) {
     </Suspense>
 
 
-    <header className="bg-white px-6 py-4 shadow-sm flex items-center justify-between sticky top-0 z-40 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-            <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 100)} alt={storeSettings.name} className="h-10 w-10 rounded-full object-cover border border-slate-100 shadow-sm" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="}/>
-            <div className="flex flex-col">
+   <header className="bg-white px-6 py-4 shadow-sm flex items-center justify-between sticky top-0 z-40 border-b border-slate-100">
+        <div className="flex items-center gap-3 flex-1 overflow-hidden">
+            <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 100)} alt={storeSettings.name} className="h-12 w-12 rounded-full object-cover border border-slate-100 shadow-sm flex-shrink-0" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="}/>
+            <div className="flex flex-col overflow-hidden">
                 <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight line-clamp-1">{storeSettings.name || "Sua Loja"}</h1>
-                <div className="flex items-center gap-1.5 mt-0.5">
+                {storeSettings.slogan && (
+                    <p className="text-[10px] font-medium text-slate-500 leading-tight line-clamp-1 mt-0.5">{storeSettings.slogan}</p>
+                )}
+                <div className="flex items-center gap-1.5 mt-1">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isStoreOpenNow ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none line-clamp-1">{storeMessage}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest leading-none line-clamp-1 ${isStoreOpenNow ? 'text-green-600' : 'text-red-500'}`}>{storeMessage}</span>
                 </div>
             </div>
         </div>
-        <button onClick={handleShare} className="w-8 h-8 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95">
-            <Share2 size={14} />
+        <button onClick={handleShare} className="w-10 h-10 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95 ml-2">
+            <Share2 size={16} />
         </button>
     </header>
 
@@ -3174,7 +3178,7 @@ if (window.fbq) {
          (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
          (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
          isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[21/9]">
+          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[2/1] min-h-[150px] bg-slate-50">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
               {marketingSettings.promoBannerUrls.map((url, index) => (
                 <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
@@ -3188,7 +3192,7 @@ if (window.fbq) {
 
       <AnimatePresence>
         {generalBanners.length > 0 && (
-          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[21/9]">
+          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] min-h-[150px] bg-slate-50">
             <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
               {generalBanners.map((banner, index) => (
                 <div key={banner.id}>
