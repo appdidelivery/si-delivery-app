@@ -3370,6 +3370,35 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                             }
                         }
                     }
+                    // =====================================================================
+                    // 🚀 CÓDIGO ADITIVO: ESCUTAR RECUSAS E SALVAR LOG NO PAINEL DO LOJISTA
+                    // =====================================================================
+                    else if (paymentData.status === 'rejected' || paymentData.status === 'cancelled') {
+                        const externalRef = paymentData.external_reference;
+                        const orderId = externalRef;
+
+                        // Ignora faturas SaaS, foca apenas em pedidos de clientes
+                        if (orderId && !externalRef.startsWith('fatura_saas_')) {
+                            const orderRef = db.collection('orders').doc(orderId);
+                            const orderDoc = await orderRef.get();
+
+                            // Só atualiza se o pedido existir e não tiver sido pago (evita bugs de race condition)
+                            if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
+                                const batch = db.batch();
+                                
+                                batch.update(orderRef, {
+                                    paymentStatus: 'failed',
+                                    status: 'canceled', // Cancela a comanda automaticamente
+                                    mpPaymentStatusDetail: paymentData.status_detail || 'rejected', // Salva o motivo exato do erro!
+                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+
+                                await batch.commit();
+                                console.log(`❌ Webhook MP: Pedido ${orderId} RECUSADO. Motivo salvo no painel: ${paymentData.status_detail}`);
+                            }
+                        }
+                    }
+                    // =====================================================================
                 }
             }
             return res.status(200).send('OK');
