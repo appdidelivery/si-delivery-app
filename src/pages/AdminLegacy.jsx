@@ -13756,7 +13756,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                     <div className="space-y-1 md:col-span-2">
                                         <label className="block text-xs font-bold text-slate-400 ml-2">Observação</label>
-                                        <input type="text" placeholder="Observações do pedido" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" value={editingOrderData.observation || ''} onChange={e => setEditingOrderData({...editingOrderData, observation: e.target.value})} />
+                                        <input type="text" placeholder="Observações do pedido" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-red-600" value={editingOrderData.observation || ''} onChange={e => setEditingOrderData({...editingOrderData, observation: e.target.value})} />
                                     </div>
                                 </div>
                                        <select className="w-full p-5 bg-slate-50 rounded-2xl font-bold cursor-pointer" value={editingOrderData.status || 'pending'} onChange={e => setEditingOrderData({...editingOrderData, status: e.target.value})}>

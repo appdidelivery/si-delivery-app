@@ -3038,7 +3038,30 @@ if (window.fbq) {
                                       
                                       window.location.href = `/track/${orderId}?payment=success`;
                                  } else {
-                                      if (newOrderRef) { try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Pagamento recusado pela operadora de cartão.' }); } catch(err){} }
+                                      // TRADUTOR DE ERROS PARA O PAINEL DO LOJISTA
+const mpReasons = { 
+    cc_rejected_insufficient_amount: 'Saldo Insuficiente', 
+    cc_rejected_bad_filled_security_code: 'CVV Inválido', 
+    cc_rejected_bad_filled_date: 'Validade Inválida', 
+    cc_rejected_call_for_authorize: 'Requer Autorização do Banco', 
+    cc_rejected_card_disabled: 'Cartão Desativado', 
+    cc_rejected_high_risk: 'Bloqueio Antifraude (Risco Alto)', 
+    cc_rejected_max_attempts: 'Tentativas Excedidas', 
+    cc_rejected_other_reason: 'Recusado pelo Banco Emissor',
+    cc_rejected_bad_filled_other: 'Dados do cartão incorretos'
+};
+const errorKey = result.error || result.status_detail;
+const translatedError = mpReasons[errorKey] || errorKey || 'Motivo desconhecido';
+
+if (newOrderRef) { 
+    try { 
+        await updateDoc(newOrderRef, { 
+            status: 'cancelado', 
+            paymentStatus: 'failed', 
+            observation: `Sistema: Pagamento recusado (${translatedError}).` 
+        }); 
+    } catch(err){} 
+}
 const motivoErro = result.details?.status_detail || result.error || "Transação não autorizada pela operadora.";
 alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em contato com seu banco. Erro: " + motivoErro);
                                       setIsFinalizing(false);
