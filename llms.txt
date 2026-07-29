@@ -1,4 +1,0 @@
-Title: Velo Delivery
-Description: Plataforma de delivery online para restaurantes e lojas de conveniência.
-User-agent: *
-Allow: /

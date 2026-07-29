@@ -3136,75 +3136,78 @@ if (window.fbq) {
         <button onClick={handleShare} className="w-10 h-10 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95 ml-2">
             <Share2 size={16} />
         </button>
-    </header>
+   </header>
 
-      <AnimatePresence>
-        {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-slate-900 text-white px-6 py-4 relative overflow-hidden shadow-lg border-b border-slate-800">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
-            <div className="flex justify-between items-end relative z-10 mb-2">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-yellow-300 to-yellow-600 text-slate-900 p-2.5 rounded-xl shadow-lg shadow-yellow-900/20">
-                   <Crown size={18} fill="currentColor" /> 
+      {/* CONTAINER ANTI-CLS: Reserva espaço para os elementos dinâmicos não empurrarem a tela */}
+      <div className="w-full flex flex-col items-center relative z-20">
+          <AnimatePresence mode="popLayout">
+            {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-slate-900 text-white px-6 py-4 w-full relative overflow-hidden shadow-lg border-b border-slate-800">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
+                <div className="flex justify-between items-end relative z-10 mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-gradient-to-br from-yellow-300 to-yellow-600 text-slate-900 p-2.5 rounded-xl shadow-lg shadow-yellow-900/20">
+                       <Crown size={18} fill="currentColor" /> 
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Clube VIP</p>
+                      <p className="text-sm font-bold italic text-white leading-none">
+                        Você tem <span className="text-2xl font-black text-yellow-400">{loyaltyPoints}</span> Pontos
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-1 ml-4 flex flex-col items-end">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase mb-1 whitespace-nowrap">Próxima Recompensa</p>
+                    <p className="text-[10px] font-bold text-purple-200 leading-snug whitespace-normal break-words max-w-[200px] md:max-w-[300px]">
+                      {marketingSettings.loyaltyReward || 'Prêmio Surpresa'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Clube VIP</p>
-                  <p className="text-sm font-bold italic text-white leading-none">
-                    Você tem <span className="text-2xl font-black text-yellow-400">{loyaltyPoints}</span> Pontos
-                  </p>
+                <div className="relative h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-purple-500"></motion.div>
                 </div>
-              </div>
-              <div className="text-right flex-1 ml-4 flex flex-col items-end">
-                <p className="text-[9px] font-bold text-slate-500 uppercase mb-1 whitespace-nowrap">Próxima Recompensa</p>
-                <p className="text-[10px] font-bold text-purple-200 leading-snug whitespace-normal break-words max-w-[200px] md:max-w-[300px]">
-                  {marketingSettings.loyaltyReward || 'Prêmio Surpresa'}
+                <p className="text-[9px] text-center text-slate-500 mt-2 font-medium">
+                  Faltam <span className="text-white font-bold">{Math.max(0, (marketingSettings.loyaltyGoal || 100) - loyaltyPoints)}</span> pontos para resgatar!
                 </p>
-              </div>
-            </div>
-            <div className="relative h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-purple-500"></motion.div>
-            </div>
-            <p className="text-[9px] text-center text-slate-500 mt-2 font-medium">
-              Faltam <span className="text-white font-bold">{Math.max(0, (marketingSettings.loyaltyGoal || 100) - loyaltyPoints)}</span> pontos para resgatar!
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      <AnimatePresence>
-        {marketingSettings.promoActive && 
-         marketingSettings.promoBannerUrls && 
-         marketingSettings.promoBannerUrls.length > 0 && 
-         (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
-         (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
-         isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[2/1] min-h-[150px] bg-slate-50">
-            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
-              {marketingSettings.promoBannerUrls.map((url, index) => (
-                <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
-                  <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-[2rem] shadow-xl border-4 border-white" />
-                </div>
-              ))}
-            </Carousel>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <AnimatePresence mode="popLayout">
+            {marketingSettings?.promoActive && 
+             marketingSettings?.promoBannerUrls && 
+             marketingSettings.promoBannerUrls.length > 0 && 
+             (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
+             (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
+             isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
+              <motion.div layout initial={{ opacity:0, height: 0 }} animate={{ opacity:1, height: 'auto' }} exit={{ opacity:0, height: 0 }} className="overflow-hidden p-6 w-full aspect-[2/1] bg-slate-50">
+                <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
+                  {marketingSettings.promoBannerUrls.map((url, index) => (
+                    <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
+                      <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-[2rem] shadow-xl border-4 border-white" />
+                    </div>
+                  ))}
+                </Carousel>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      <AnimatePresence>
-        {generalBanners.length > 0 && (
-          <motion.div layout initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] min-h-[150px] bg-slate-50">
-            <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
-              {generalBanners.map((banner, index) => (
-                <div key={banner.id}>
-                    <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
-                        <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-[2/1] object-cover rounded-[2rem] shadow-xl border-4 border-white" />
-                    </a>
-                </div>
-              ))}
-            </Carousel>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <AnimatePresence mode="popLayout">
+            {generalBanners.length > 0 && (
+              <motion.div layout initial={{ opacity:0, height: 0 }} animate={{ opacity:1, height: 'auto' }} exit={{ opacity:0, height: 0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] bg-slate-50">
+                <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
+                  {generalBanners.map((banner, index) => (
+                    <div key={banner.id}>
+                        <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
+                            <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-[2/1] object-cover rounded-[2rem] shadow-xl border-4 border-white" />
+                        </a>
+                    </div>
+                  ))}
+                </Carousel>
+              </motion.div>
+            )}
+          </AnimatePresence>
+      </div>
 
       <div className="p-6">
         {/* --- INÍCIO: SMART PROMOS CAROUSEL (Oferta Turbo, BOGO, Tarjas) --- */}
