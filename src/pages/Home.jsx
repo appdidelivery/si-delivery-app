@@ -3978,18 +3978,18 @@ if (window.fbq) {
           )}
       </AnimatePresence>
 
-      <div className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white border-t border-slate-100 pb-2 pt-2 z-50 flex justify-around items-end px-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] rounded-t-3xl">
+       <nav aria-label="Navegação Principal do Aplicativo" className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white border-t border-slate-100 pb-2 pt-2 z-50 flex justify-around items-end px-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] rounded-t-3xl">
         {/* Tab 1: Pedidos */}
-        <button onClick={() => setShowLastOrders(true)} className="flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
-            <List size={22} />
+        <button aria-label="Ver Meus Pedidos" onClick={() => setShowLastOrders(true)} className="flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
+            <List size={22} aria-hidden="true" />
             <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
         </button>
 
         {/* Tab 2: Acompanhar (Apenas se houver pedido ativo) */}
         <AnimatePresence>
         {activeOrderId && (
-            <motion.button initial={{ scale: 0, width: 0 }} animate={{ scale: 1, width: '4rem' }} exit={{ scale: 0, width: 0 }} onClick={() => navigate(`/track/${activeOrderId}`)} className="flex flex-col items-center justify-center gap-1 p-2 text-purple-600 hover:text-purple-800 transition-colors active:scale-95">
-                <Truck size={22} className="animate-pulse" />
+            <motion.button aria-label="Acompanhar Entrega do Pedido Atual" initial={{ scale: 0, width: 0 }} animate={{ scale: 1, width: '4rem' }} exit={{ scale: 0, width: 0 }} onClick={() => navigate(`/track/${activeOrderId}`)} className="flex flex-col items-center justify-center gap-1 p-2 text-purple-600 hover:text-purple-800 transition-colors active:scale-95">
+                <Truck size={22} className="animate-pulse" aria-hidden="true" />
                 <span className="text-[9px] font-black uppercase tracking-wider">Acompanhar</span>
             </motion.button>
         )}
@@ -3998,16 +3998,17 @@ if (window.fbq) {
         {/* Tab 3: Carrinho (Centro Flutuante Destacado) */}
         <div className="relative flex flex-col items-center justify-center -mt-8">
             <button 
+                aria-label="Abrir Carrinho de Compras"
                 onClick={() => setShowCheckout(true)} 
                 className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg text-white ${currentTheme.primary} ${currentTheme.hoverPrimary} active:scale-95 transition-all border-4 border-white`}
             >
-                <ShoppingCart size={24} />
+                <ShoppingCart size={24} aria-hidden="true" />
             </button>
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-800 mt-1">Carrinho</span>
             
             <AnimatePresence>
                 {cart.length > 0 && (
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white shadow-sm z-[60]">
+                <motion.div aria-label={`${cart.length} itens no carrinho`} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white shadow-sm z-[60]">
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
                 </motion.div>
                 )}
@@ -4015,8 +4016,8 @@ if (window.fbq) {
         </div>
 
         {/* Tab 4: Prêmios VIP */}
-        <button onClick={() => setShowVipArea(true)} className="relative flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
-            <Gift size={22} className={marketingSettings?.loyaltyActive ? "text-fuchsia-500" : ""} />
+        <button aria-label="Acessar Clube VIP e Prêmios" onClick={() => setShowVipArea(true)} className="relative flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
+            <Gift size={22} className={marketingSettings?.loyaltyActive ? "text-fuchsia-500" : ""} aria-hidden="true" />
             <span className="text-[9px] font-black uppercase tracking-wider">Prêmios</span>
             {marketingSettings?.influencerTiers?.length > 0 && (
               <span className="absolute top-2 right-3 flex h-2 w-2">
@@ -4025,7 +4026,7 @@ if (window.fbq) {
               </span>
             )}
         </button>
-      </div>
+      </nav>
 
       <AnimatePresence>
         {showCheckout && (
