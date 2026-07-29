@@ -5928,7 +5928,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     {/* BLOCO 1: CABEÇALHO (Tags, Nome e Endereço) */}
                                                     <div className="flex flex-col gap-3">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
+    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">#{o.id ? o.id.slice(-6).toUpperCase() : 'ID'}</span>
+    
+    {/* NOVA TAG DE IDENTIFICAÇÃO DO PAGAMENTO */}
+    {(() => {
+        const m = String(o.paymentMethod || '').toLowerCase();
+        if (m.includes('pix')) return <span className="bg-teal-100 text-teal-800 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-teal-200 flex items-center gap-1" title="Pago via PIX">💠 PIX</span>;
+        if (m.includes('cartao') || m.includes('card') || m.includes('mp_transparent') || m.includes('stripe') || m.includes('online') || m.includes('misto')) return <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-indigo-200 flex items-center gap-1" title="Pago via Cartão">💳 CARTÃO</span>;
+        if (m.includes('dinheiro') || m.includes('cash')) return <span className="bg-green-100 text-green-800 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1" title="Pago em Dinheiro">💵 DINHEIRO</span>;
+        if (m.includes('fiado')) return <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-orange-200 flex items-center gap-1" title="Caderneta/Fiado">📒 FIADO</span>;
+        return <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-slate-200 flex items-center gap-1">💳 {o.paymentMethod}</span>;
+    })()}
                                                             
                                                             {(() => {
                                                                 const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
@@ -6296,7 +6306,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 return (
                                                     <div key={o.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative group hover:shadow-md transition-all flex flex-col">
                                                         <div className="flex justify-between items-start mb-3">
-                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-200">
+    <div className="flex items-center gap-2">
+        <span className="bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-200">
+            #{o.id.slice(-5).toUpperCase()}
+        </span>
+        {/* NOVA TAG DE IDENTIFICAÇÃO DO PAGAMENTO (KANBAN) */}
+        {(() => {
+            const m = String(o.paymentMethod || '').toLowerCase();
+            if (m.includes('pix')) return <span className="bg-teal-100 text-teal-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-teal-200 flex items-center gap-1" title="Pago via PIX">💠 PIX</span>;
+            if (m.includes('cartao') || m.includes('card') || m.includes('mp_transparent') || m.includes('stripe') || m.includes('online') || m.includes('misto')) return <span className="bg-indigo-100 text-indigo-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-indigo-200 flex items-center gap-1" title="Pago via Cartão">💳 CARTÃO</span>;
+            if (m.includes('dinheiro') || m.includes('cash')) return <span className="bg-green-100 text-green-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1" title="Pago em Dinheiro">💵 DINHEIRO</span>;
+            if (m.includes('fiado')) return <span className="bg-orange-100 text-orange-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-orange-200 flex items-center gap-1" title="Caderneta/Fiado">📒 FIADO</span>;
+            return null;
+        })()}
+    </div>
+    <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border ${timerClass}`}>
                                                                 #{o.id.slice(-5).toUpperCase()}
                                                             </span>
                                                             <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border ${timerClass}`}>
