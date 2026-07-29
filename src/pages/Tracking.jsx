@@ -217,10 +217,11 @@ export default function Tracking() {
   const currentIdx = steps.findIndex(s => s.id === order.status);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 font-sans">
-      <Link to="/" className="inline-flex items-center gap-2 text-slate-500 font-bold mb-8 uppercase text-xs tracking-widest">
-        <ChevronLeft size={16}/> Voltar para Loja
-      </Link>
+    <div className="min-h-screen bg-slate-900 font-sans flex justify-center">
+      <div className="w-full max-w-md bg-slate-50 min-h-screen p-6 shadow-2xl relative border-x border-slate-800 overflow-hidden">
+        <Link to="/" className="inline-flex items-center gap-2 text-slate-500 font-bold mb-8 uppercase text-xs tracking-widest">
+          <ChevronLeft size={16}/> Voltar para Loja
+        </Link>
 
       <motion.div initial={{y: 20, opacity:0}} animate={{y:0, opacity:1}} className="bg-white rounded-[3rem] p-8 shadow-2xl max-w-md mx-auto border border-white overflow-hidden relative">
         
@@ -356,6 +357,7 @@ export default function Tracking() {
             </>
         )}
       </motion.div>
+      </div>
     </div>
   );
 }

@@ -3088,7 +3088,7 @@ if (window.fbq) {
 
  return (
   <div
-    className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 relative"
+    className="min-h-screen bg-slate-900 font-sans text-slate-900 relative flex justify-center"
     style={{
         ...(getDynamicFontFamily() ? { fontFamily: getDynamicFontFamily() } : {}),
         ...(storeSettings?.useCustomTheme && storeSettings.customColor ? { '--custom-color': storeSettings.customColor } : {})
@@ -3106,7 +3106,7 @@ if (window.fbq) {
             }} 
         />
     )}
-    <div className="relative z-10">
+    <div className="relative z-10 w-full max-w-md bg-slate-50 min-h-screen pb-28 shadow-2xl overflow-x-hidden border-x border-slate-800">
     <SEO
         title={selectedProduct ? `${selectedProduct.name} | ${storeSettings.name || 'Velo Delivery'}` : `${storeSettings.name || 'Carregando...'} | Delivery`} 
         description={selectedProduct ? (selectedProduct.description || `Compre ${selectedProduct.name} com entrega rápida na ${storeSettings.name}.`) : (storeSettings.slogan || 'Faça seu pedido online.')} 
@@ -3118,41 +3118,21 @@ if (window.fbq) {
     </Suspense>
 
 
-    <header className="relative pt-12 pb-8 px-6 overflow-hidden rounded-b-[2.5rem] shadow-md mb-2">
-        <div className={`absolute inset-0 z-0 bg-gradient-to-br ${currentTheme.gradientFrom} ${currentTheme.gradientTo}`}>
-            <div 
-              className="absolute inset-0 opacity-[0.15]" 
-              style={{ 
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3C!-- Martini --%3E%3Cpath d='M15 20l10 0l-5 8zM20 28l0 8M16 36l8 0'/%3E%3C!-- Cerveja --%3E%3Crect x='50' y='50' width='10' height='14' rx='2'/%3E%3Cpath d='M60 54a3 3 0 0 1 0 6'/%3E%3C!-- Vinho --%3E%3Cpath d='M50 15a6 6 0 0 1 12 0c0 4-3 8-6 8s-6-4-6-8zM56 23l0 7M52 30l8 0'/%3E%3C!-- Copo Whisky com Gelo --%3E%3Cpath d='M10 60l2 10l12 0l2 -10z'/%3E%3Crect x='13' y='64' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E\")",
-                backgroundSize: '90px',
-                transform: 'rotate(-15deg) scale(1.5)',
-              }}
-            ></div>
-        </div>
-
-        <div className="relative z-10 flex flex-col gap-5">
-            <div className="flex justify-between items-start">
-                <div className="flex items-center gap-4">
-                    <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 150)} alt={storeSettings.name || "Logo da Loja"} width="64" height="64" loading="eager" fetchpriority="high" decoding="sync" className="h-16 w-16 rounded-full object-cover border-4 border-white/30 shadow-xl bg-slate-100" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="} />
-                    <div className="text-left">
-                        <h1 className="text-2xl font-black text-white leading-none uppercase drop-shadow-md">{storeSettings.name || "Sua Loja"}</h1>
-                        {storeSettings.slogan && <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1 drop-shadow-sm">{storeSettings.slogan}</p>}
-                    </div>
+    <header className="bg-white px-6 py-4 shadow-sm flex items-center justify-between sticky top-0 z-40 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+            <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 100)} alt={storeSettings.name} className="h-10 w-10 rounded-full object-cover border border-slate-100 shadow-sm" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="}/>
+            <div className="flex flex-col">
+                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight line-clamp-1">{storeSettings.name || "Sua Loja"}</h1>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isStoreOpenNow ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none line-clamp-1">{storeMessage}</span>
                 </div>
-
-                <div className="flex flex-col items-end gap-2">
-                    <button aria-label="Compartilhar loja" onClick={handleShare} className="p-2.5 bg-white/20 text-white rounded-full backdrop-blur-sm border border-white/30 hover:bg-white/30 active:scale-95 transition-all shadow-sm">
-                        <Share size={18} aria-hidden="true" />
-                    </button>
-                </div>
-            </div>
-
-            <div className={`inline-flex self-start items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-md border ${isStoreOpenNow ? 'bg-green-500/20 text-green-100 border-green-400/50' : 'bg-red-500/20 text-red-100 border-red-400/50'} shadow-inner`}>
-                {isStoreOpenNow ? <Clock size={16}/> : <XCircle size={16}/>} 
-                <span className="text-xs font-black uppercase tracking-wider">{storeMessage}</span>
             </div>
         </div>
-      </header>
+        <button onClick={handleShare} className="w-8 h-8 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95">
+            <Share2 size={14} />
+        </button>
+    </header>
 
       <AnimatePresence>
         {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
@@ -3550,49 +3530,43 @@ if (window.fbq) {
       })()}
       {/* --- FIM: VITRINE INTELIGENTE --- */}
 
-      {/* OTIMIZAÇÃO CLS: min-h-[50vh] garante que o espaço dos produtos fique reservado, evitando que o rodapé pule na tela */}
       <main className="px-6 mb-20 mt-8 min-h-[50vh]">
         <h2 className="sr-only">Catálogo de Produtos</h2>
         {layoutTheme === 'grid' ? (
-            <div className="columns-2 md:columns-4 gap-4">
+            <div className="grid grid-cols-2 gap-4">
                 <AnimatePresence>
                     {products.map((p, index) => { 
-                    // O filtro Client-Side foi removido. Os dados já vêm filtrados do Hook.
                         let hasStock = (p.stock && parseInt(p.stock) > 0) || !p.stock;
-        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
-            for (let ci of p.consumedIngredients) {
-                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
-                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
-                    hasStock = false;
-                    break;
-                }
-            }
-        }
+                        if (hasStock && marketingSettings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
+                            for (let ci of p.consumedIngredients) {
+                                const ingMem = ingredients.find(ing => ing.id === ci.ingredientId);
+                                if (ingMem && Number(ingMem.stock || 0) < Number(ci.qty)) {
+                                    hasStock = false;
+                                    break;
+                                }
+                            }
+                        }
                         return (
-                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col group hover:shadow-md transition-all break-inside-avoid mb-4 overflow-hidden ${!hasStock ? 'opacity-60 grayscale' : ''} ${p.videoUrl ? 'p-0' : 'p-4'}`}>
+                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col h-full group hover:shadow-md transition-all overflow-hidden ${!hasStock ? 'opacity-60 grayscale' : ''} ${p.videoUrl ? 'p-0' : 'p-4'}`}>
                                 {p.videoUrl ? (
                                     // --- MODO MERCADO LIVRE (VÍDEO EDGE-TO-EDGE) ---
                                     <>
-                                        <div className="relative w-full aspect-[9/16] bg-slate-900 cursor-pointer overflow-hidden" onClick={() => hasStock ? handleOpenProduct(p) : null}>
-                                            {/* VÍDEO NATIVO AUTOPLAY SILENCIOSO PREENCHENDO TUDO */}
+                                        <div className="relative w-full aspect-[9/16] bg-slate-900 cursor-pointer overflow-hidden flex-shrink-0" onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                             <video 
                                                 src={p.videoUrl} 
                                                 autoPlay loop muted playsInline 
                                                 className="absolute inset-0 w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-700" 
                                             />
-                                            
-                                            {/* PEQUENO BADGE DE VÍDEO NO CANTO (Bem clean) */}
                                             <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 z-10 shadow-lg">
                                                 <svg width="8" height="8" viewBox="0 0 24 24" fill="white" className="animate-pulse"><path d="M8 5v14l11-7z"/></svg>
                                                 <span className="text-[8px] font-black text-white tracking-widest uppercase">Vídeo</span>
                                             </div>
-
                                             {!hasStock && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center font-black text-white text-xs uppercase backdrop-blur-sm z-20">Esgotado</div>}
                                             {p.hasDiscount && p.discountPercentage && <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md z-10">-{p.discountPercentage}%</span>}
                                         </div>
-                                        <div className="p-4 flex flex-col flex-1 bg-white">
-                                            <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
-                                            <div className="flex justify-between items-center mt-auto">
+                                        <div className="p-4 flex flex-col flex-1 bg-white justify-between">
+                                            <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 leading-tight mb-2 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
+                                            <div className="flex justify-between items-center mt-auto pt-2">
                                                 <div className="flex flex-col">
                                                     {Number(p.promotionalPrice) > 0 ? (
                                                         <>
@@ -3603,14 +3577,14 @@ if (window.fbq) {
                                                         <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                                     )}
                                                 </div>
-                                                <button aria-label={`Adicionar ${p.name}`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
+                                                <button aria-label={`Adicionar ${p.name}`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
                                             </div>
                                         </div>
                                     </>
                                 ) : (
                                     // --- MODO PADRÃO (IMAGEM) ---
                                     <>
-                                        <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                        <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square flex-shrink-0" onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                             {p.imageUrl ? (
                                                 <img 
                                                     src={optimizeCloudinary(p.imageUrl, 300)} 
@@ -3636,22 +3610,26 @@ if (window.fbq) {
                                             {(Number(p.promotionalPrice) > 0 || p.hasDiscount) && <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">OFERTA 🔥</div>}
                                             {p.isChilled && <div className="absolute bottom-2 right-2 bg-cyan-100 border border-cyan-300 text-[14px] p-1.5 rounded-full shadow-md flex items-center justify-center z-10 backdrop-blur-sm bg-opacity-90">❄️</div>}
                                         </div>
-                                        <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
-                                        {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
-                                        <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-50">
+                                        <div className="flex flex-col flex-1 justify-between">
                                             <div>
-                                                {Number(p.promotionalPrice) > 0 ? (
-                                                    <>
-                                                        <span className="text-[10px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
-                                                        <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
-                                                    </>
-                                                ) : (
-                                                    <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
-                                                )}
+                                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
+                                                {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                             </div>
-                                            <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
-                                                <ShoppingCart size={16} aria-hidden="true" />
-                                            </button>
+                                            <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-50">
+                                                <div>
+                                                    {Number(p.promotionalPrice) > 0 ? (
+                                                        <>
+                                                            <span className="text-[10px] font-bold text-slate-400 line-through block">R$ {Number(p.price).toFixed(2)}</span>
+                                                            <span className={`${currentTheme.text} font-black text-lg italic leading-none block`}>R$ {Number(p.promotionalPrice).toFixed(2)}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
+                                                    )}
+                                                </div>
+                                                <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl flex-shrink-0 active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                                    <ShoppingCart size={16} aria-hidden="true" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </>
                                 )}
@@ -3679,7 +3657,7 @@ if (window.fbq) {
 
                         return (
                             <section key={cat.id} id={`category-${cat.id}`} className="flex flex-col gap-4">
-                                <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-4 sticky top-20 bg-slate-50 z-40 py-2">
+                                <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-4 sticky top-16 bg-slate-50 z-30 py-2">
                                     {cat.name}
                                 </h2>
                                 <AnimatePresence>
@@ -3753,9 +3731,9 @@ if (window.fbq) {
         )}
         {/* SKELETON E TRIGGER DE INFINITE SCROLL */}
         {loading && (
-             <div className="columns-2 md:columns-4 gap-4 mt-4">
+             <div className="grid grid-cols-2 gap-4 mt-4">
                  {[1,2,3,4].map(n => (
-                     <div key={n} className="bg-slate-200 animate-pulse h-64 rounded-[2rem] mb-4 break-inside-avoid"></div>
+                     <div key={n} className="bg-slate-200 animate-pulse h-64 rounded-[2rem]"></div>
                  ))}
              </div>
         )}
@@ -3978,11 +3956,11 @@ if (window.fbq) {
       <AnimatePresence>
           {socialProof.visible && (
               <motion.div 
-                  initial={{ opacity: 0, y: 50, scale: 0.9 }} 
-                  animate={{ opacity: 1, y: 0, scale: 1 }} 
-                  exit={{ opacity: 0, y: 20, scale: 0.9 }} 
-                  className="fixed bottom-24 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-white rounded-2xl shadow-2xl border-l-4 border-green-500 p-4 z-40 flex items-center gap-4"
-              >
+                  initial={{ opacity: 0, y: 50, scale: 0.9 }} 
+                  animate={{ opacity: 1, y: 0, scale: 1 }} 
+                  exit={{ opacity: 0, y: 20, scale: 0.9 }} 
+                  className="fixed bottom-28 left-4 right-4 md:left-auto md:right-auto w-[calc(100%-2rem)] max-w-[calc(28rem-2rem)] mx-auto bg-white rounded-2xl shadow-2xl border-l-4 border-green-500 p-4 z-40 flex items-center gap-4"
+              >
                   <div className="bg-green-100 p-2 rounded-full flex-shrink-0">
                       <CheckCircle size={20} className="text-green-600" />
                   </div>
@@ -3996,79 +3974,61 @@ if (window.fbq) {
           )}
       </AnimatePresence>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 flex justify-around z-50">
+      <div className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white border-t border-slate-100 pb-2 pt-2 z-50 flex justify-around items-end px-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] rounded-t-3xl">
+        {/* Tab 1: Pedidos */}
+        <button onClick={() => setShowLastOrders(true)} className="flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
+            <List size={22} />
+            <span className="text-[9px] font-black uppercase tracking-wider">Pedidos</span>
+        </button>
+
+        {/* Tab 2: Acompanhar (Apenas se houver pedido ativo) */}
         <AnimatePresence>
-          {activeOrderId && (
-            <motion.button aria-label="Acompanhar Pedido Ativo" onClick={() => navigate(`/track/${activeOrderId}`)} className="bg-purple-600 text-white rounded-full p-4 shadow-xl hover:bg-purple-700 active:scale-90 flex items-center gap-2" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
-              <Truck size={24} /> <span className="font-bold text-sm pr-2">Acompanhar</span>
+        {activeOrderId && (
+            <motion.button initial={{ scale: 0, width: 0 }} animate={{ scale: 1, width: '4rem' }} exit={{ scale: 0, width: 0 }} onClick={() => navigate(`/track/${activeOrderId}`)} className="flex flex-col items-center justify-center gap-1 p-2 text-purple-600 hover:text-purple-800 transition-colors active:scale-95">
+                <Truck size={22} className="animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-wider">Acompanhar</span>
             </motion.button>
-          )}
+        )}
         </AnimatePresence>
 
-        <div className="relative flex items-center justify-center">
-            <motion.button 
-                aria-label="Abrir Carrinho"
+        {/* Tab 3: Carrinho (Centro Flutuante Destacado) */}
+        <div className="relative flex flex-col items-center justify-center -mt-8">
+            <button 
                 onClick={() => setShowCheckout(true)} 
-                className={`${currentTheme.primary} text-white rounded-full p-4 shadow-xl ${currentTheme.hoverPrimary} active:scale-90`} 
-                initial={{ scale: 0 }} 
-                animate={{ scale: 1 }}
+                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg text-white ${currentTheme.primary} ${currentTheme.hoverPrimary} active:scale-95 transition-all border-4 border-white`}
             >
                 <ShoppingCart size={24} />
-            </motion.button>
+            </button>
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-800 mt-1">Carrinho</span>
+            
             <AnimatePresence>
                 {cart.length > 0 && (
-                <motion.div 
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-[60]"
-                    aria-hidden="true"
-                >
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white shadow-sm z-[60]">
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
                 </motion.div>
                 )}
             </AnimatePresence>
         </div>
 
-        <motion.button
-          aria-label="Ver Últimos Pedidos"
-          onClick={() => setShowLastOrders(true)}
-          className="bg-orange-600 text-white rounded-full p-4 shadow-xl hover:bg-orange-700 active:scale-90 flex items-center gap-2"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-        >
-          <Clock size={24} /> <span className="font-bold text-sm pr-2 hidden md:inline">Últimos Pedidos</span>
-        </motion.button>
-
-        <motion.button
-          aria-label="Acessar Recompensas"
-          onClick={() => setShowVipArea(true)}
-          className="relative bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-600 text-white rounded-full p-4 shadow-[0_8px_15px_rgb(147,51,234,0.3)] hover:shadow-[0_8px_20px_rgb(147,51,234,0.5)] active:scale-95 flex items-center justify-center gap-2 border-2 border-fuchsia-400/50 transition-all z-50 flex-shrink-0"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-        >
-          {/* Ícone de Presente pulsando */}
-          <Gift size={24} className="animate-pulse" /> 
-          <span className="font-black text-sm hidden md:inline">Prêmios</span>
-          
-          {/* BOLINHA DE NOTIFICAÇÃO PERFEITAMENTE ALINHADA */}
-          {marketingSettings?.influencerTiers?.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+        {/* Tab 4: Prêmios VIP */}
+        <button onClick={() => setShowVipArea(true)} className="relative flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
+            <Gift size={22} className={marketingSettings?.loyaltyActive ? "text-fuchsia-500" : ""} />
+            <span className="text-[9px] font-black uppercase tracking-wider">Prêmios</span>
+            {marketingSettings?.influencerTiers?.length > 0 && (
+              <span className="absolute top-2 right-3 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border border-white text-white text-[9px] items-center justify-center font-black shadow-md">
-                      1
-                  </span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 border border-white"></span>
               </span>
-          )}
-        </motion.button>
+            )}
+        </button>
       </div>
 
       <AnimatePresence>
         {showCheckout && (
-          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center z-[100] p-0 md:p-6">
-            <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 relative max-h-[95vh] overflow-y-auto shadow-2xl">
-              <button onClick={() => setShowCheckout(false)} className="absolute top-6 right-6 md:top-10 md:right-10 text-slate-300 hover:text-slate-900"><X size={28}/></button>
-              <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter italic">SEU PEDIDO</h2>
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center items-end sm:items-center z-[100] p-0 sm:p-4">
+            <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 pb-12 relative max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
+              <button onClick={() => setShowCheckout(false)} className="absolute top-6 right-6 text-slate-300 hover:text-red-500 transition-colors z-20"><X size={28}/></button>
+              <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tighter italic pr-8">SEU PEDIDO</h2>
               {!isWaiterMode && storeSettings.freeShippingThreshold > 0 && (
                   <div className="mb-6 bg-slate-50 p-4 rounded-3xl border border-slate-100">
                       {(() => {
@@ -4488,7 +4448,7 @@ if (window.fbq) {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
-            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex items-end md:items-center justify-center p-0 md:p-6"
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex justify-center items-end sm:items-center p-0 sm:p-4"
             onClick={() => {
                 setSelectedProduct(null);
                 window.history.pushState(null, '', '/');
@@ -4500,7 +4460,7 @@ if (window.fbq) {
               exit={{ y: "100%" }} 
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               onClick={(e) => e.stopPropagation()} 
-              className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
+              className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
             >
               <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
                   <button 
@@ -4810,9 +4770,9 @@ if (window.fbq) {
 {/* --- ÁREA VIP & MISSÕES --- */}
       <AnimatePresence>
         {showVipArea && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[150] p-4">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-              <button onClick={() => setShowVipArea(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center items-end sm:items-center z-[150] p-0 sm:p-4">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 pb-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <button onClick={() => setShowVipArea(false)} className="absolute top-6 right-6 text-white bg-black/20 hover:bg-red-500 rounded-full p-1 transition-colors z-20"><X size={20} /></button>
               
              <div className="bg-gradient-to-br from-yellow-300 to-yellow-500 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-yellow-200 relative overflow-hidden">
                   <Crown size={48} className="mx-auto text-slate-900 mb-2 relative z-10" fill="currentColor" />

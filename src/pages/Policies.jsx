@@ -10,10 +10,11 @@ export default function Policies() {
     const storePhone = store?.whatsapp || "nosso WhatsApp";
 
     return (
-        <div className="max-w-4xl mx-auto p-6 text-gray-800 leading-relaxed">
-            <h1 className="text-3xl font-bold mb-8 border-b pb-4">Políticas e Termos - {storeName}</h1>
+        <div className="min-h-screen bg-slate-900 font-sans flex justify-center">
+            <div className="w-full max-w-md bg-slate-50 min-h-screen p-6 shadow-2xl relative border-x border-slate-800 text-slate-800 leading-relaxed">
+                <h1 className="text-3xl font-bold mb-8 border-b border-slate-200 pb-4">Políticas e Termos</h1>
 
-            {/* SESSÃO 1: TROCAS E DEVOLUÇÕES (Foco Google Merchant) */}
+                {/* SESSÃO 1: TROCAS E DEVOLUÇÕES (Foco Google Merchant) */}
             <section className="mb-8">
                 <h2 className="text-2xl font-semibold mb-4 text-primary">Política de Trocas, Devoluções e Reembolso</h2>
                 <ul className="list-disc pl-6 space-y-2">
@@ -42,8 +43,9 @@ export default function Policies() {
                     <li><strong>Uso das Informações:</strong> Seus dados não são vendidos ou compartilhados com terceiros. Eles são utilizados estritamente pelo ecossistema do Velo Delivery e pela <strong>{storeName}</strong> para garantir que o produto chegue até você e para envio de atualizações do status do pedido.</li>
                     <li><strong>Segurança:</strong> Utilizamos criptografia e os mais altos padrões de segurança em nossos servidores para proteger suas informações pessoais.</li>
                     <li><strong>Contato DPO:</strong> Para solicitar a exclusão dos seus dados, entre em contato através do nosso WhatsApp: <strong>{storePhone}</strong>.</li>
-                </ul>
+               </ul>
             </section>
         </div>
+      </div>
     );
 }
