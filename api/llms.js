@@ -1,7 +1,7 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// Singleton Pattern Seguro para Vercel Serverless (Igual ao sitemap.js)
+// Singleton Pattern Seguro para Vercel Serverless
 if (!getApps().length) {
   try {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
@@ -15,18 +15,27 @@ if (!getApps().length) {
 
 const db = getFirestore();
 
+// Função auxiliar defensiva para lidar com headers que a Vercel pode enviar como Array
+const getSafeHeader = (req, key) => {
+  if (!req || !req.headers) return '';
+  const value = req.headers[key];
+  if (!value) return '';
+  return Array.isArray(value) ? value[0] : value;
+};
+
 export default async function handler(req, res) {
   try {
     res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=3600');
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
-    const host = req.headers['x-forwarded-host'] || req.headers.host || '';
-    const hostname = host.split(':')[0]; 
-    const protocol = req.headers['x-forwarded-proto'] || 'https';
-    const baseUrl = `${protocol}://${host}`;
+    // 1. Extração Blindada de Headers
+    const rawHost = getSafeHeader(req, 'x-forwarded-host') || getSafeHeader(req, 'host') || 'velodelivery.com';
+    const hostname = rawHost.split(':')[0]; 
+    const protocol = getSafeHeader(req, 'x-forwarded-proto') || 'https';
+    const baseUrl = `${protocol}://${hostname}`;
     
+    // 2. Resolução do Store ID
     let storeId = null;
-
     const customDomains = {
       'convenienciasantaisabel.com.br': 'csi',
       'www.convenienciasantaisabel.com.br': 'csi',
@@ -44,7 +53,8 @@ export default async function handler(req, res) {
     let title = "Velo Delivery";
     let description = "Plataforma de delivery online para restaurantes e lojas de conveniência focada em qualidade e rapidez.";
 
-    if (storeId) {
+    // 3. Busca Segura no Firebase
+    if (storeId && db) {
       const storeDoc = await db.collection('stores').doc(storeId).get();
       if (storeDoc.exists) {
         const storeData = storeDoc.data();
@@ -53,6 +63,7 @@ export default async function handler(req, res) {
       }
     }
 
+    // 4. Construção do Markdown
     const llmsTxt = `# ${title}
 
 > ${description}
@@ -76,14 +87,16 @@ Agentes de IA e crawlers podem navegar pelo nosso ecossistema através dos links
     res.status(200).send(llmsTxt);
 
   } catch (error) {
-    console.error("Erro ao gerar llms.txt:", error);
+    // Bloco Catch estático e totalmente blindado (não depende de variáveis que podem ter quebrado)
+    console.error("CRITICAL ERROR no api/llms.js:", error);
     
-    const fallbackHost = req.headers['x-forwarded-host'] || req.headers.host || 'velodelivery.com';
-    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const fallbackTxt = `# Velo Delivery\n\n> Plataforma de delivery online para restaurantes e lojas de conveniência.\n\n## Navegação do App\n- [Acessar Loja](https://velodelivery.com/)\n`;
     
-    const fallbackTxt = `# Velo Delivery\n\n> Plataforma de delivery online para restaurantes e lojas de conveniência.\n\n## Navegação do App\n- [Acessar Loja](${protocol}://${fallbackHost}/)\n`;
-    
-    res.status(200).send(fallbackTxt);
+    // Fallback absoluto para garantir que a Vercel não retorne 500
+    if (res && res.status) {
+      res.status(200).send(fallbackTxt);
+    } else {
+      res.end(fallbackTxt);
+    }
   }
-}
 }
