@@ -15,7 +15,7 @@ if (!getApps().length) {
 
 const db = getFirestore();
 
-// Função auxiliar defensiva para lidar com headers que a Vercel pode enviar como Array
+// Função auxiliar defensiva para lidar com headers
 const getSafeHeader = (req, key) => {
   if (!req || !req.headers) return '';
   const value = req.headers[key];
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4. Construção do Markdown
+    // 4. Construção do Markdown (Template literals balanceados)
     const llmsTxt = `# ${title}
 
 > ${description}
@@ -87,12 +87,8 @@ Agentes de IA e crawlers podem navegar pelo nosso ecossistema através dos links
     res.status(200).send(llmsTxt);
 
   } catch (error) {
-    // Bloco Catch estático e totalmente blindado (não depende de variáveis que podem ter quebrado)
     console.error("CRITICAL ERROR no api/llms.js:", error);
-    
     const fallbackTxt = `# Velo Delivery\n\n> Plataforma de delivery online para restaurantes e lojas de conveniência.\n\n## Navegação do App\n- [Acessar Loja](https://velodelivery.com/)\n`;
-    
-    // Fallback absoluto para garantir que a Vercel não retorne 500
     if (res && res.status) {
       res.status(200).send(fallbackTxt);
     } else {
