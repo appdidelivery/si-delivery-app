@@ -240,31 +240,35 @@ const isWithinRecurringSchedule = (recurringDay, startTime, endTime) => {
     return true; // Passou em todas as validações
 };
 
-// --- CORREÇÃO DE ACESSIBILIDADE (AGÊNTICA): Customizador de Dots do Carrossel ---
+/// --- CORREÇÃO DE ACESSIBILIDADE (AGÊNTICA): Customizador de Dots do Carrossel ---
 const renderAccessibleIndicator = (onClickHandler, isSelected, index, label) => {
     return (
-        <button
-            type="button"
-            className={`dot ${isSelected ? 'selected' : ''}`}
-            onClick={onClickHandler}
-            onKeyDown={onClickHandler}
+        <li 
+            key={index} 
+            style={{ display: 'inline-block', margin: '0 4px' }}
             value={index}
-            key={index}
-            tabIndex={0}
-            aria-label={`Ir para o slide ${index + 1}`}
-            title={`Slide ${index + 1}`}
-            style={{
-                display: 'inline-block',
-                margin: '0 4px',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                border: 'none',
-                backgroundColor: isSelected ? '#3b82f6' : '#cbd5e1',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
-            }}
-        />
+        >
+            <button
+                type="button"
+                className={`dot ${isSelected ? 'selected' : ''}`}
+                onClick={onClickHandler}
+                onKeyDown={onClickHandler}
+                tabIndex={0}
+                aria-label={`Ir para o slide ${index + 1}`}
+                title={`Slide ${index + 1}`}
+                style={{
+                    display: 'block',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    backgroundColor: isSelected ? '#3b82f6' : '#cbd5e1',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    padding: 0
+                }}
+            />
+        </li>
     );
 };
 
@@ -2914,16 +2918,16 @@ if (window.fbq) {
     sweet: { primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', shadow: 'shadow-purple-100', hoverPrimary: 'hover:bg-purple-700', lightBg: 'bg-purple-50', hoverLightBg: 'hover:bg-purple-100', accent: 'accent-purple-600', darkText: 'text-purple-900', gradientFrom: 'from-purple-500', gradientTo: 'to-purple-800', ringColor: 'purple-500', headerBg: 'url(https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=1000&auto=format&fit=crop)' },
     drinks: { primary: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', shadow: 'shadow-amber-100', hoverPrimary: 'hover:bg-amber-600', lightBg: 'bg-amber-50', hoverLightBg: 'hover:bg-amber-100', accent: 'accent-amber-500', darkText: 'text-amber-900', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-600', ringColor: 'amber-500', headerBg: 'url(https://images.unsplash.com/photo-1563223771-383790515286?q=80&w=1000&auto=format&fit=crop)' },
     floricultura: { primary: 'bg-pink-600', text: 'text-pink-600', border: 'border-pink-600', shadow: 'shadow-pink-100', hoverPrimary: 'hover:bg-pink-700', lightBg: 'bg-pink-50', hoverLightBg: 'hover:bg-pink-100', accent: 'accent-pink-600', darkText: 'text-pink-900', gradientFrom: 'from-pink-500', gradientTo: 'to-pink-800', ringColor: 'pink-500', headerBg: 'url(https://images.unsplash.com/photo-1563241527-3004b7be0ffd?q=80&w=1000&auto=format&fit=crop)' },
-    custom: {
+   custom: {
         primary: 'bg-[var(--custom-color)]', 
-        text: 'text-[var(--custom-color)]', 
+        text: 'text-slate-900', 
         border: 'border-[var(--custom-color)]', 
         shadow: 'shadow-md', 
         hoverPrimary: 'opacity-90', 
         lightBg: 'bg-[var(--custom-color)]/10', 
         hoverLightBg: 'hover:bg-[var(--custom-color)]/20', 
         accent: 'accent-[var(--custom-color)]', 
-        darkText: 'text-[var(--custom-color)]', 
+        darkText: 'text-slate-900', 
         gradientFrom: 'from-[var(--custom-color)]', 
         gradientTo: 'to-slate-900', 
         ringColor: '[var(--custom-color)]', 
@@ -3181,8 +3185,8 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                     <p className="text-[10px] font-medium text-slate-500 leading-tight line-clamp-1 mt-0.5">{storeSettings.slogan}</p>
                 )}
                 <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isStoreOpenNow ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                    <span className={`text-[10px] font-bold uppercase tracking-widest leading-none line-clamp-1 ${isStoreOpenNow ? 'text-green-600' : 'text-red-500'}`}>{storeMessage}</span>
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isStoreOpenNow ? 'bg-green-600 animate-pulse' : 'bg-red-600'}`}></span>
+                    <span className={`text-[10px] font-black uppercase tracking-widest leading-none line-clamp-1 ${isStoreOpenNow ? 'text-green-700' : 'text-red-700'}`}>{storeMessage}</span>
                 </div>
             </div>
         </div>
@@ -3233,7 +3237,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
              (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
              (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
              isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-              <motion.div layout initial={{ opacity:0, height: 0 }} animate={{ opacity:1, height: 'auto' }} exit={{ opacity:0, height: 0 }} className="overflow-hidden p-6 w-full aspect-[2/1] bg-slate-50">
+              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[2/1] bg-slate-50">
                 <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {marketingSettings.promoBannerUrls.map((url, index) => (
                     <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
@@ -3247,7 +3251,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
           <AnimatePresence mode="popLayout">
             {generalBanners.length > 0 && (
-              <motion.div layout initial={{ opacity:0, height: 0 }} animate={{ opacity:1, height: 'auto' }} exit={{ opacity:0, height: 0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] bg-slate-50">
+              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] bg-slate-50">
                 <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {generalBanners.map((banner, index) => (
                     <div key={banner.id}>
