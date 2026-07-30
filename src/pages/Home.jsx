@@ -239,6 +239,35 @@ const isWithinRecurringSchedule = (recurringDay, startTime, endTime) => {
     
     return true; // Passou em todas as validações
 };
+
+// --- CORREÇÃO DE ACESSIBILIDADE (AGÊNTICA): Customizador de Dots do Carrossel ---
+const renderAccessibleIndicator = (onClickHandler, isSelected, index, label) => {
+    return (
+        <button
+            type="button"
+            className={`dot ${isSelected ? 'selected' : ''}`}
+            onClick={onClickHandler}
+            onKeyDown={onClickHandler}
+            value={index}
+            key={index}
+            tabIndex={0}
+            aria-label={`Ir para o slide ${index + 1}`}
+            title={`Slide ${index + 1}`}
+            style={{
+                display: 'inline-block',
+                margin: '0 4px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                border: 'none',
+                backgroundColor: isSelected ? '#3b82f6' : '#cbd5e1',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+            }}
+        />
+    );
+};
+
 export default function Home() {
   const { productSlug } = useParams();
   const navigate = useNavigate();
@@ -3157,7 +3186,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                 </div>
             </div>
         </div>
-        <button onClick={handleShare} className="w-10 h-10 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95 ml-2">
+        <button onClick={handleShare} aria-label="Compartilhar loja" title="Compartilhar loja" className="w-10 h-10 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95 ml-2">
             <Share2 size={16} />
         </button>
    </header>
@@ -3205,7 +3234,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
              (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
              isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
               <motion.div layout initial={{ opacity:0, height: 0 }} animate={{ opacity:1, height: 'auto' }} exit={{ opacity:0, height: 0 }} className="overflow-hidden p-6 w-full aspect-[2/1] bg-slate-50">
-                <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false}>
+                <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {marketingSettings.promoBannerUrls.map((url, index) => (
                     <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
                       <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-[2rem] shadow-xl border-4 border-white" />
@@ -3219,7 +3248,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           <AnimatePresence mode="popLayout">
             {generalBanners.length > 0 && (
               <motion.div layout initial={{ opacity:0, height: 0 }} animate={{ opacity:1, height: 'auto' }} exit={{ opacity:0, height: 0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] bg-slate-50">
-                <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false}>
+                <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {generalBanners.map((banner, index) => (
                     <div key={banner.id}>
                         <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
@@ -3377,7 +3406,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                 return (
                     <motion.div initial={{ opacity:0, scale:0.95 }} animate={{ opacity:1, scale:1 }} exit={{ opacity:0, scale:0.95 }} className="mb-6 relative z-20 w-full">
-                        <Carousel 
+                       <Carousel 
                             showThumbs={false} 
                             showStatus={false} 
                             showArrows={false} 
@@ -3388,6 +3417,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                             swipeable={true}
                             emulateTouch={true}
                             showIndicators={activePromos.length > 1} 
+                            renderIndicator={renderAccessibleIndicator}
                         >
                             {activePromos}
                         </Carousel>
@@ -4537,6 +4567,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                     emulateTouch={true}
                     showIndicators={!!selectedProduct.videoUrl}
                     className="h-full"
+                    renderIndicator={renderAccessibleIndicator}
                 >
                     {[
                         selectedProduct.videoUrl ? (
