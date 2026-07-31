@@ -1357,6 +1357,7 @@ export default function Home() {
   const [storeMessage, setStoreMessage] = useState('Verificando...');
 
   const [generalBanners, setGeneralBanners] = useState([]);
+  const [isCatalogReady, setIsCatalogReady] = useState(false); // NOVO: Trava Anti-CLS
 
   const [shippingRates, setShippingRates] = useState([]);
   const[shippingFee, setShippingFee] = useState(null);
@@ -1539,6 +1540,8 @@ export default function Home() {
             setGeneralBanners(banSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch (error) {
             console.error("Erro ao carregar catálogo estático:", error);
+        } finally {
+            setIsCatalogReady(true);
         }
     };
     
@@ -3195,9 +3198,30 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
         </button>
    </header>
 
-      {/* CONTAINER ANTI-CLS: Reserva espaço para os elementos dinâmicos não empurrarem a tela */}
-      <div className="w-full flex flex-col items-center relative z-20">
-          <AnimatePresence mode="popLayout">
+   {!isCatalogReady ? (
+       <div className="w-full min-h-[80vh] flex flex-col px-6 mt-6 gap-6 animate-pulse z-20 relative">
+           {/* Skeleton do Banner */}
+           <div className="w-full aspect-[2/1] bg-slate-200 rounded-[2rem]"></div>
+           {/* Skeleton da Pesquisa */}
+           <div className="w-full h-14 bg-slate-200 rounded-2xl"></div>
+           {/* Skeleton das Categorias */}
+           <div className="flex gap-4 overflow-hidden">
+               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
+           </div>
+           {/* Skeleton dos Produtos */}
+           <div className="grid grid-cols-2 gap-4 mt-2">
+               <div className="h-48 bg-slate-200 rounded-[2rem]"></div>
+               <div className="h-48 bg-slate-200 rounded-[2rem]"></div>
+           </div>
+       </div>
+   ) : (
+       <>
+          {/* CONTAINER ANTI-CLS: Reserva espaço para os elementos dinâmicos não empurrarem a tela */}
+          <div className="w-full flex flex-col items-center relative z-20">
+              <AnimatePresence mode="popLayout">
             {marketingSettings?.loyaltyActive && loyaltyPoints > 0 && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-slate-900 text-white px-6 py-4 w-full relative overflow-hidden shadow-lg border-b border-slate-800">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
@@ -4039,7 +4063,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           )}
       </AnimatePresence>
 
-       <nav aria-label="Navegação Principal do Aplicativo" className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white border-t border-slate-100 pb-2 pt-2 z-50 flex justify-around items-end px-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] rounded-t-3xl">
+      </>
+   )}
+
+      <nav aria-label="Navegação Principal do Aplicativo" className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white border-t border-slate-100 pb-2 pt-2 z-50 flex justify-around items-end px-2 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] rounded-t-3xl">
         {/* Tab 1: Pedidos */}
         <button aria-label="Ver Meus Pedidos" onClick={() => setShowLastOrders(true)} className="flex flex-col items-center justify-center gap-1 w-16 p-2 text-slate-400 hover:text-slate-800 transition-colors active:scale-95">
             <List size={22} aria-hidden="true" />
