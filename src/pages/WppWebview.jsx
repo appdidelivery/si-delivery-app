@@ -260,6 +260,20 @@ export default function WppWebview() {
               customerName: customer.name, 
               customerAddress: addr, 
               customerPhone: customer.phone,
+              // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
+              customer: {
+                  name: customer.name,
+                  phone: customer.phone,
+                  document: '', // Garantia contra crash na emissão
+                  address: addr,
+                  street: customer.street || '',
+                  number: customer.number || '',
+                  neighborhood: customer.neighborhood || '',
+                  city: customer.city || '',
+                  state: customer.state || '',
+                  zipcode: customer.cep || ''
+              },
+              // --- FIM: CORREÇÃO FISCAL FOCUS NFE ---
               paymentMethod: mappedPaymentMethod, 
               paymentStatus: 'pending', 
               customerChangeFor: customer.changeFor || "",

@@ -2218,7 +2218,16 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         subtotal: cartTotal,
                                                         shippingFee: shippingFee,
                                                         total: finalTotal,
-                                                        customerAddress: deliveryAddress, // Salva o endereço no pedido!
+                                                        customerAddress: deliveryAddress, // Salva o endereço no pedido para o Admin!
+                                                        // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
+                                                        customer: {
+                                                            name: customerName || 'Cliente WhatsApp',
+                                                            phone: normalizedPhone,
+                                                            document: '', // Previne undefined na serialização da Focus NFe
+                                                            address: deliveryAddress,
+                                                            deliveryType: shippingFee > 0 ? 'delivery' : 'pickup'
+                                                        },
+                                                        // --- FIM: CORREÇÃO FISCAL FOCUS NFE ---
                                                         paymentMethod: paymentMethod,
                                                         status: 'pending',
                                                         paymentStatus: 'pending',
