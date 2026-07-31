@@ -600,15 +600,28 @@ export default function Home() {
   // 3. AGORA SIM CHAMAMOS O HOOK COMPLETO
   const { products, loading, loadingMore, hasMore, loadMore } = useProducts(storeId, activeCategory, debouncedSearch);
 
-  // 4. TRIGGER PARA O INFINITE SCROLL BLINDADO
+  // 4. TRIGGER PARA O INFINITE SCROLL BLINDADO (Nativo e Infalível)
   const loaderRef = useRef(null);
-  const isInView = useInView(loaderRef, { margin: "200px" });
+  
   useEffect(() => {
-      // Só dispara o Load More se já tiver produtos na tela (products.length > 0)
-      if (isInView && hasMore && !loading && !loadingMore && products.length > 0) {
-          loadMore();
+      const observer = new IntersectionObserver((entries) => {
+          // Se o elemento entrou na tela E temos permissão para carregar mais
+          if (entries[0].isIntersecting && hasMore && !loading && !loadingMore && products.length > 0) {
+              loadMore();
+          }
+      }, { rootMargin: "300px" }); // Dispara 300px ANTES do cliente chegar no final (mais fluido)
+
+      const currentTarget = loaderRef.current;
+      if (currentTarget) {
+          observer.observe(currentTarget);
       }
-  }, [isInView, hasMore, loading, loadingMore, products.length, loadMore]);
+
+      return () => {
+          if (currentTarget) {
+              observer.unobserve(currentTarget);
+          }
+      };
+  }, [hasMore, loading, loadingMore, products.length, loadMore]);
   
   // 1. CARREGA O CARRINHO SALVO NO NAVEGADOR E IMPEDE QUE ESVAZIE
   const [cart, setCart] = useState(() => {
