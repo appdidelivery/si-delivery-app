@@ -3460,9 +3460,9 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 pt-2 snap-x px-2">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 pt-2 snap-x px-2 min-h-[110px]">
           {displayCategories.map(c => (
-            <button 
+            <button
                 key={c.id} 
                 onClick={() => scrollToCategory(c.id)} 
                 className="flex flex-col items-center gap-2 min-w-[85px] snap-center group"
@@ -3500,7 +3500,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           if (smartProducts.length === 0) return null;
 
           return (
-              <div className="px-6 mt-8">
+              <div className="px-6 mt-8 min-h-[320px]">
                   <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex items-center gap-2">
                       <Sparkles className="text-purple-500" size={24}/> {smartTitle}
                   </h2>
@@ -3595,7 +3595,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       })()}
       {/* --- FIM: VITRINE INTELIGENTE --- */}
 
-      <main className="px-6 mb-20 mt-8 min-h-[50vh]">
+      <main className="px-6 mb-20 mt-8 min-h-[80vh]">
         <h2 className="sr-only">Catálogo de Produtos</h2>
         {layoutTheme === 'grid' ? (
             <div className="grid grid-cols-2 gap-4">
@@ -3794,16 +3794,16 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                     })}
             </div>
         )}
-        {/* SKELETON E TRIGGER DE INFINITE SCROLL */}
-        {loading && (
+        {/* SKELETON DE CARREGAMENTO INICIAL (Evita CLS) */}
+        {loading && products.length === 0 && (
              <div className="grid grid-cols-2 gap-4 mt-4">
-                 {[1,2,3,4].map(n => (
-                     <div key={n} className="bg-slate-200 animate-pulse h-64 rounded-[2rem]"></div>
+                 {[1,2,3,4,5,6].map(n => (
+                     <div key={n} className="bg-slate-100 animate-pulse h-[250px] rounded-[2rem]"></div>
                  ))}
              </div>
         )}
         
-        <div ref={loaderRef} className="w-full h-10 mt-4 flex items-center justify-center">
+        <div ref={loaderRef} className="w-full h-10 mt-8 flex items-center justify-center">
             {loadingMore && <Loader2 className="animate-spin text-slate-400" size={24} />}
         </div>
       </main>
