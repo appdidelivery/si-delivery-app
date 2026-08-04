@@ -5,7 +5,7 @@ import { useStore } from '../context/StoreContext';
 import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Variáveis do Cloudinary (As mesmas usadas nos produtos)
+// Variáveis do Cloudinary
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -13,35 +13,70 @@ export default function AdminChat() {
     const { store } = useStore();
     const storeId = store?.slug; 
     const [messages, setMessages] = useState([]);
-    const [products, setProducts] = useState([]); // <-- ESTADO DOS PRODUTOS ADICIONADO
+    const [products, setProducts] = useState([]);
     const [activeChat, setActiveChat] = useState(null);
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
     const [replyingTo, setReplyingTo] = useState(null); 
-    const [addressBook, setAddressBook] = useState({}); // NOVO: Agenda de Contatos Inteligente
+    const [addressBook, setAddressBook] = useState({}); 
     
-    // --- NOVO: ESTADOS DO PERFIL DO CLIENTE (CRM) ---
     const [showContactInfo, setShowContactInfo] = useState(false);
-    const [showMiniPdv, setShowMiniPdv] = useState(false); // <-- ESTADO DO MINI PDV ADICIONADO
+    const [showMiniPdv, setShowMiniPdv] = useState(false); 
     const [customersData, setCustomersData] = useState({});
     const [contactForm, setContactForm] = useState({ name: '', email: '', notes: '' });
 
-    // --- LÓGICA DE BLOQUEIO DE CONTATOS (BLACKLIST) ---
     const [blockedContacts, setBlockedContacts] = useState([]);
-    
-    // --- LÓGICA DE ATRIBUIÇÃO (ASSUMIR CHAT) ---
     const [chatSessions, setChatSessions] = useState({});
+
+    // ESTADOS DO CHAT LIMPOS E CORRIGIDOS
+    const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
+    const [filterUnread, setFilterUnread] = useState(false); 
+    const [chatSearchTerm, setChatSearchTerm] = useState(''); 
+    const [isExportingGlobal, setIsExportingGlobal] = useState(false); // ESTADO DO BACKUP
+
+    // --- FUNÇÃO: EXPORTAR BACKUP GLOBAL (CSV) ---
+    const handleExportGlobalChat = async () => {
+        if (!window.confirm("Isso gerará um arquivo Excel (.csv) com o histórico de TODAS as conversas da loja (Limitado às últimas 20.000 mensagens por segurança). Pode levar alguns segundos.\n\nDeseja continuar?")) return;
+        
+        setIsExportingGlobal(true);
+        try {
+            const res = await fetch('/api/export-global-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId: storeId })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Erro na API.');
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Backup_Completo_Velo_${storeId}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
+        } catch (error) {
+            console.error("Erro ao exportar:", error);
+            alert("Erro ao tentar gerar o backup global. Verifique a conexão.");
+        } finally {
+            setIsExportingGlobal(false);
+        }
+    };
 
     useEffect(() => {
         if (!storeId) return;
         
-        // 1. Escuta em tempo real os números bloqueados pela loja
         const qBlocked = query(collection(db, 'blocked_contacts'), where('storeId', '==', storeId));
         const unsubBlocked = onSnapshot(qBlocked, (snapshot) => {
             setBlockedContacts(snapshot.docs.map(doc => doc.data().phone));
         });
 
-        // 2. Escuta quem assumiu qual chat
         const qSessions = query(collection(db, 'whatsapp_sessions'), where('storeId', '==', storeId));
         const unsubSessions = onSnapshot(qSessions, (snapshot) => {
             const sessionsObj = {};
@@ -80,7 +115,6 @@ export default function AdminChat() {
         }
     };
 
-    // --- ESTADOS DO PERFIL DA LOJA (ESTILO WPP WEB) ---
     const [showStoreProfile, setShowStoreProfile] = useState(false);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
     const [storeProfileForm, setStoreProfileForm] = useState({
@@ -113,53 +147,43 @@ export default function AdminChat() {
         }
     };
     
-    // --- ESTADOS PARA ÁUDIO E ARQUIVOS ---
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const timerIntervalRef = useRef(null);
     const fileInputRef = useRef(null);
-    // --- ESTADOS PARA NOVA CONVERSA ---
+
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatPhone, setNewChatPhone] = useState('');
     const [isImporting, setIsImporting] = useState(false);
-    const [selectedTemplate, setSelectedTemplate] = useState(''); // Armazena o template escolhido
-    const [isSendingTemplate, setIsSendingTemplate] = useState(false); // Loading do disparo
+    const [selectedTemplate, setSelectedTemplate] = useState('');
+    const [isSendingTemplate, setIsSendingTemplate] = useState(false);
 
-    // --- ESTADOS PARA DISPARO EM MASSA (BROADCAST) ---
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
     const [broadcastTemplate, setBroadcastTemplate] = useState('');
     const [isBroadcasting, setIsBroadcasting] = useState(false);
     const [broadcastSelectedProduct, setBroadcastSelectedProduct] = useState('');
 
-    // --- NOVO: ESTADO DO BOTÃO DE SOM DO CHAT ---
-    const [isMuted, setIsMuted] = useState(() => localStorage.getItem('mute_whatsapp_sound') === 'true');
-    const [filterUnread, setFilterUnread] = useState(false); // <-- NOVO: ESTADO DA ABA NÃO LIDOS
-    const [chatSearchTerm, setChatSearchTerm] = useState(''); // <-- NOVO: ESTADO DA BUSCA DE CHATS
-// --- NOVO: AVISA O SISTEMA GLOBAL QUAL CHAT ESTÁ ABERTO PARA NÃO TOCAR SOM ---
     useEffect(() => {
         if (activeChat) {
             localStorage.setItem('active_whatsapp_chat', activeChat);
         } else {
             localStorage.removeItem('active_whatsapp_chat');
         }
-        
-        // Limpa quando o lojista sai da tela de chat
         return () => localStorage.removeItem('active_whatsapp_chat');
     }, [activeChat]);
+
     const toggleMute = () => {
         const newState = !isMuted;
         setIsMuted(newState);
         localStorage.setItem('mute_whatsapp_sound', newState.toString());
     };
 
-    // Função provisória para evitar erro ao clicar em importar (Será implementada no futuro)
     const handleImportCSV = (e) => {
         alert("Função de importação em lote será ativada em breve.");
     };
 
-    // --- FUNÇÃO AUXILIAR PARA FORMATAR DATA E HORA ---
     const formatMessageTime = (dateObj) => {
         if (!dateObj || isNaN(dateObj.getTime())) return '';
         
@@ -178,11 +202,9 @@ export default function AdminChat() {
         }
     };
 
-    // Busca as mensagens da loja em tempo real (Blindado contra erro de Índice Composto)
     useEffect(() => {
         if (!storeId) return;
 
-        // Removemos o orderBy daqui para não depender de Índice Composto manual no Firebase
         const q = query(
             collection(db, 'whatsapp_inbound'),
             where('storeId', '==', storeId)
@@ -194,7 +216,6 @@ export default function AdminChat() {
                 ...doc.data()
             }));
             
-            // Ordenamos no próprio frontend de forma segura e cronológica
             msgs.sort((a, b) => {
                 const timeA = a.receivedAt?.toMillis ? a.receivedAt.toMillis() : (a.receivedAt?.seconds ? a.receivedAt.seconds * 1000 : Date.now());
                 const timeB = b.receivedAt?.toMillis ? b.receivedAt.toMillis() : (b.receivedAt?.seconds ? b.receivedAt.seconds * 1000 : Date.now());
@@ -203,14 +224,12 @@ export default function AdminChat() {
 
             setMessages(msgs);
         }, (error) => {
-            // Se der qualquer outro erro de permissão, agora aparecerá no console
             console.error("🔥 Erro no onSnapshot do WhatsApp:", error);
         });
 
         return () => unsubscribe();
     }, [storeId]);
 
-    // --- NOVO: BUSCA OS PRODUTOS DA LOJA PARA O DISPARO DINÂMICO ---
     useEffect(() => {
         if (!storeId) return;
         const q = query(collection(db, 'products'), where('storeId', '==', storeId), where('isActive', '==', true));
@@ -220,7 +239,6 @@ export default function AdminChat() {
         return () => unsub();
     }, [storeId]);
 
-    // --- NOVO: BUSCA O NOME DOS CLIENTES DIRETAMENTE DOS PEDIDOS (AGENDA) ---
     useEffect(() => {
         if (!storeId) return;
         const q = query(collection(db, 'orders'), where('storeId', '==', storeId));
@@ -229,12 +247,10 @@ export default function AdminChat() {
             snapshot.forEach(doc => {
                 const data = doc.data();
                 if (data.customerPhone && data.customerName) {
-                    // Limpa o telefone para cruzar perfeitamente com o chat (Trata o nono dígito)
                     let phone = String(data.customerPhone).replace(/\D/g, '');
                     if (phone.startsWith('55')) phone = phone.substring(2);
                     if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
                     
-                    // Associa o número ao nome (o último pedido sobreescreve, mantendo atualizado)
                     book[phone] = data.customerName;
                 }
             });
@@ -243,7 +259,6 @@ export default function AdminChat() {
         return () => unsub();
     }, [storeId]);
 
-    // Função para apagar mensagem do banco de dados
     const handleDeleteMessage = async (msgId) => {
         if (window.confirm("Tem certeza que deseja apagar esta mensagem para você?")) {
             try {
@@ -255,15 +270,13 @@ export default function AdminChat() {
         }
     };
 
-    // Agrupa mensagens BLINDADO (Garante que mensagens do cliente e da loja se unam pelo número certo)
     const chats = messages.reduce((acc, msg) => {
         let rawPhone = msg.direction === 'outbound' ? msg.to : msg.from; 
         if (!rawPhone) return acc;
         
-        // NORMALIZAÇÃO CIRÚRGICA (O TERROR DO NONO DÍGITO):
         let phone = String(rawPhone).replace(/\D/g, '');
-        if (phone.startsWith('55')) phone = phone.substring(2); // 1. Remove o 55
-        if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2); // 2. Força o 9º dígito se a Meta ocultar
+        if (phone.startsWith('55')) phone = phone.substring(2);
+        if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
         
         const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
@@ -282,26 +295,22 @@ export default function AdminChat() {
         }
         return acc;
     }, {});
-// Helper para o nome do cliente (Blindado)
+
     const getDisplayName = (phone) => {
-        // 1º Prioridade: O nome salvo manualmente pelo lojista no CRM
         const crmName = customersData[phone]?.name;
         if (crmName && crmName.trim() !== '') return crmName;
         
-        // 2º Prioridade: O nome que o cliente digitou no site ao fazer um pedido
         const addressBookName = addressBook[phone];
         if (addressBookName && addressBookName.trim() !== '') return addressBookName;
 
-        // 3º Prioridade: O nome público do perfil do WhatsApp att do cliente
         const pushName = chats[phone]?.pushName;
         if (pushName && pushName.trim() !== '') return pushName;
 
-        // 4º Falback: Se não tiver nada, mostra o número
         return `+${phone}`;
     };
-   // Transforma em array e ordena para que o cliente com a mensagem mais recente fique no topo da lista
+
     const chatList = Object.values(chats)
-        .filter(chat => filterUnread ? chat.unreadCount > 0 : true) // <-- FILTRO APLICADO AQUI
+        .filter(chat => filterUnread ? chat.unreadCount > 0 : true) 
         .filter(chat => {
             if (!chatSearchTerm) return true;
             const searchLower = chatSearchTerm.toLowerCase();
@@ -314,16 +323,14 @@ export default function AdminChat() {
         const lastMsgB = b.msgs[b.msgs.length - 1];
         const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds ? lastMsgA.receivedAt.seconds * 1000 : Date.now());
         const timeB = lastMsgB?.receivedAt?.toMillis ? lastMsgB.receivedAt.toMillis() : (lastMsgB?.receivedAt?.seconds ? lastMsgB.receivedAt.seconds * 1000 : Date.now());
-        return timeB - timeA; // Ordem decrescente (mais novos primeiro)
+        return timeB - timeA; 
     });
     
     const activeMessages = activeChat ? chats[activeChat]?.msgs || [] : [];
 
-   // Marca como lido ao abrir o chat
     const handleOpenChat = async (phone) => {
         setActiveChat(phone);
         
-        // Popula o formulário do painel lateral com os dados salvos
         setContactForm({
             name: customersData[phone]?.name || addressBook[phone] || chats[phone]?.pushName || '',
             email: customersData[phone]?.email || '',
@@ -336,23 +343,20 @@ export default function AdminChat() {
             await updateDoc(doc(db, 'whatsapp_inbound', msg.id), { status: 'read' });
         }
     };
-// --- NOVO: GERADOR DE AVATAR (Contorna o bloqueio de foto da Meta) ---
+
     const getAvatar = (phone, pushName) => {
         let displayName = getDisplayName(phone) || pushName || 'C';
         let initials = displayName.substring(0, 2).toUpperCase();
         
-        // Se tiver espaço (ex: Claudio Boing), pega a primeira letra de cada nome
         if (displayName.includes(' ') && displayName !== 'Cliente Google' && displayName !== 'Cliente WhatsApp') {
             const parts = displayName.split(' ');
             if (parts.length >= 2 && parts[1].length > 0) {
                 initials = (parts[0][0] + parts[1][0]).toUpperCase();
             }
         }
-        // Retorna uma imagem gerada dinamicamente com cores sorteadas
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=random&color=fff&size=128&font-size=0.4&bold=true`;
     };
 
-    // --- NOVO: GERADOR DE BACKUP DE CONVERSA (.TXT) ---
     const handleExportChat = () => {
         if (!activeChat || activeMessages.length === 0) return alert("Não há mensagens para exportar.");
 
@@ -363,7 +367,6 @@ export default function AdminChat() {
         chatText += `Exportado em: ${new Date().toLocaleString('pt-BR')}\n`;
         chatText += `-------------------------------------------\n\n`;
 
-        // Pega as mensagens da tela na ordem correta
         [...activeMessages].forEach(msg => {
             const dateObj = msg.receivedAt?.toDate ? msg.receivedAt.toDate() : new Date(msg.receivedAt?.seconds * 1000 || Date.now());
             const dateStr = dateObj.toLocaleDateString('pt-BR');
@@ -379,7 +382,6 @@ export default function AdminChat() {
             chatText += `[${dateStr} ${timeStr}] ${sender}: ${content.trim()}\n`;
         });
 
-        // Cria o arquivo virtual e força o download
         const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -390,13 +392,10 @@ export default function AdminChat() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
-    
 
-   // Função para salvar dados do cliente no banco (Com Atualização Otimista)
     const handleSaveCustomer = async () => {
         if (!activeChat || !storeId) return;
         
-        // 1. Atualiza a tela NA HORA (Optimistic Update) para o lojista não ter que esperar o banco
         setCustomersData(prev => ({
             ...prev,
             [activeChat]: {
@@ -409,7 +408,6 @@ export default function AdminChat() {
         }));
 
         try {
-            // 2. Salva no banco de dados em background
             await setDoc(doc(db, 'customers', `${storeId}_${activeChat}`), {
                 storeId: storeId,
                 phone: activeChat,
@@ -425,7 +423,6 @@ export default function AdminChat() {
         }
     };
 
-    // --- ESTADOS E LÓGICA DO MINI PDV ---
     const [miniPdvCart, setMiniPdvCart] = useState([]);
     const [miniPdvSearch, setMiniPdvSearch] = useState('');
     const [miniPdvCustomer, setMiniPdvCustomer] = useState({ payment: 'pix', changeFor: '', deliveryMethod: 'delivery', address: '' });
@@ -433,7 +430,6 @@ export default function AdminChat() {
     const [isSubmittingMiniPdv, setIsSubmittingMiniPdv] = useState(false);
     const [isCalculatingFreight, setIsCalculatingFreight] = useState(false);
 
-    // Fórmula para calcular distância em linha reta caso a API de rotas falhe
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
         if (!lat1 || !lon1 || !lat2 || !lon2) return null;
         const R = 6371; 
@@ -449,7 +445,6 @@ export default function AdminChat() {
         
         setIsCalculatingFreight(true);
         try {
-            // 1. Puxa os dados atualizados da loja (Mapas e Zonas) do banco
             const storeSnap = await getDoc(doc(db, "stores", storeId));
             const storeData = storeSnap.exists() ? storeSnap.data() : {};
             const zones = storeData.delivery_zones || [];
@@ -460,7 +455,6 @@ export default function AdminChat() {
             let logradouro = addressQuery;
             let bairro = "";
 
-            // 2. Se for CEP (só números), busca no ViaCEP primeiro para pegar a rua
             const cleanCep = addressQuery.replace(/\D/g, '');
             if (cleanCep.length === 8) {
                 const viaCepRes = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
@@ -472,7 +466,6 @@ export default function AdminChat() {
                 }
             }
 
-            // 3. Tenta calcular pelo Mapa (Google Geocoding)
             if (storeLat && storeLng && zones.length > 0 && GOOGLE_API_KEY) {
                 try {
                     const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(logradouro + ', Brasil')}&key=${GOOGLE_API_KEY}`);
@@ -518,7 +511,6 @@ export default function AdminChat() {
                 } catch (geoError) { console.warn("Google Maps falhou, indo para Fallback"); }
             }
 
-            // 4. Fallback (Tabela de CEPs antiga)
             alert("⚠️ Não foi possível calcular pelo mapa. Insira o valor do frete manualmente.");
         } catch (error) {
             console.error("Erro no cálculo:", error);
@@ -531,7 +523,6 @@ export default function AdminChat() {
     const handleLaunchMiniPdvOrder = async () => {
         if (miniPdvCart.length === 0) return alert("Adicione produtos ao carrinho!");
         
-        // Verifica se é delivery mas o endereço está vazio
         if (miniPdvCustomer.deliveryMethod === 'delivery' && (!miniPdvCustomer.address || miniPdvCustomer.address.length < 5)) {
             return alert("Digite o endereço de entrega do cliente!");
         }
@@ -547,7 +538,6 @@ export default function AdminChat() {
             let phoneForMeta = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
             const customerName = getDisplayName(activeChat);
 
-            // 1. Salva o pedido inicial no banco de dados com a autoria do Vendedor
             const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
             const sellerEmail = auth.currentUser?.email || 'owner';
 
@@ -566,8 +556,8 @@ export default function AdminChat() {
                 changeFor: miniPdvCustomer.payment === 'dinheiro' ? miniPdvCustomer.changeFor : null,
                 tipo: 'delivery',
                 source: 'whatsapp_pdv',
-                vendedor: sellerName,      // <-- NOVO: Salva o nome para o cupom
-                sellerEmail: sellerEmail,  // <-- NOVO: Salva o email para o filtro do relatório
+                vendedor: sellerName,
+                sellerEmail: sellerEmail,
                 createdAt: serverTimestamp()
             });
 
@@ -577,14 +567,11 @@ export default function AdminChat() {
 
             let pixCodeToShare = null;
 
-            // 2. SE FOR PIX: Chama o backend para gerar a cobrança (VeloPay ou MP)
             if (miniPdvCustomer.payment === 'pix') {
                 try {
-                    // Verifica rapidamente se a loja usa VeloPay ou MP para rotear certo
                     const storeSnap = await getDoc(doc(db, "stores", storeId));
                     const isVeloPay = storeSnap.exists() && storeSnap.data().velopayStatus === 'active';
 
-                    // Em ambiente local, se o Vite não estiver fazendo proxy, forçamos a porta 3000 (padrão de backends Next/Node)
                     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
                     const baseUrl = isLocal ? 'http://localhost:3000' : '';
                     
@@ -603,13 +590,11 @@ export default function AdminChat() {
                         body: JSON.stringify(payload)
                     });
 
-                    // 🛡️ BLINDAGEM: Verifica se a resposta não é um HTML (Erro 404) antes de tentar ler como JSON
                     const contentType = pixRes.headers.get("content-type");
                     if (contentType && contentType.indexOf("application/json") !== -1) {
                         const pixData = await pixRes.json();
 
                         if (pixRes.ok && (pixData.success || pixData.txid)) {
-                            // Polling de 3 segundos: Dá tempo para o Backend salvar o código PIX no Firestore
                             for (let i = 0; i < 3; i++) {
                                 await new Promise(resolve => setTimeout(resolve, 1000));
                                 const updatedOrderSnap = await getDoc(doc(db, "orders", orderId));
@@ -629,19 +614,16 @@ export default function AdminChat() {
                 }
             }
 
-            // 3. Montagem e Disparo das Mensagens no WhatsApp
             if (miniPdvCustomer.payment === 'pix') {
                 if (pixCodeToShare) {
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\nCopie o código na mensagem abaixo e pague no seu app do banco. 👇\n\n*A cozinha já foi avisada e começará a preparar assim que o pagamento for confirmado!* 🚀`;
                     
-                    // Dispara a Mensagem 1 (Instruções e Resumo)
                     await fetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
                     });
                     await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
 
-                    // Dispara a Mensagem 2 (Código PIX Isolado para o botão de copiar nativo funcionar)
                     await fetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: pixCodeToShare } })
@@ -649,7 +631,6 @@ export default function AdminChat() {
                     await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: pixCodeToShare, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
 
                 } else {
-                    // Fallback de segurança caso a API do Banco/Mercado Pago esteja instável
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\n_Ocorreu uma falha ao gerar o código automático. O atendente enviará a Chave PIX da loja em instantes._`;
                     await fetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -658,7 +639,6 @@ export default function AdminChat() {
                     await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
                 }
             } else {
-                // Fluxo Normal (Dinheiro ou Cartão Físico)
                 const formaPagtoTxt = miniPdvCustomer.payment === 'cartao' ? '💳 Cartão na Entrega' : '💵 Dinheiro';
                 const trocoTxt = miniPdvCustomer.payment === 'dinheiro' && miniPdvCustomer.changeFor ? `\n*Troco para:* R$ ${miniPdvCustomer.changeFor}` : '';
                 msgConfirmacao += `*Pagamento:* ${formaPagtoTxt}${trocoTxt}\n\nSeu pedido já foi enviado para a cozinha! 👨‍🍳`;
@@ -670,13 +650,11 @@ export default function AdminChat() {
                 await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
             }
 
-            // 4. Limpa o carrinho e fecha o Mini PDV
             setMiniPdvCart([]);
             setMiniPdvSearch('');
             setMiniPdvCustomer({ payment: 'pix', changeFor: '' });
             setShowMiniPdv(false);
             
-            // Pausa o bot automaticamente para o humano continuar se precisar
             await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${cleanPhone}`), {
                 storeId: storeId, phone: cleanPhone, botPaused: true, updatedAt: serverTimestamp()
             }, { merge: true });
@@ -689,7 +667,6 @@ export default function AdminChat() {
         }
     };
 
-// --- FUNÇÕES DE MÍDIA (ÁUDIO E IMAGEM) ---
     const uploadToCloudinary = async (file, resourceType = 'auto') => {
         const formData = new FormData();
         formData.append('file', file);
@@ -714,14 +691,14 @@ export default function AdminChat() {
                 setLoadingSend(true);
                 try {
                     const file = new File([audioBlob], "audio_message.mp3", { type: 'audio/mp3' });
-                    const mediaUrl = await uploadToCloudinary(file, 'video'); // Cloudinary usa 'video' para áudio
+                    const mediaUrl = await uploadToCloudinary(file, 'video'); 
                     await sendMediaMessage(mediaUrl, 'audio');
                 } catch (e) {
                     alert("Erro ao enviar áudio.");
                 } finally {
                     setLoadingSend(false);
                 }
-                stream.getTracks().forEach(track => track.stop()); // Desliga o microfone
+                stream.getTracks().forEach(track => track.stop()); 
             };
 
             mediaRecorderRef.current.start();
@@ -743,11 +720,10 @@ export default function AdminChat() {
 
     const cancelRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop(); // Para a gravação
-            audioChunksRef.current = []; // Limpa os dados para não enviar
+            mediaRecorderRef.current.stop(); 
+            audioChunksRef.current = []; 
             setIsRecording(false);
             clearInterval(timerIntervalRef.current);
-            // Um pequeno delay para garantir que o onstop não tente enviar array vazio
             setTimeout(() => setLoadingSend(false), 500); 
         }
     };
@@ -763,20 +739,18 @@ export default function AdminChat() {
             alert("Erro ao enviar imagem.");
         } finally {
             setLoadingSend(false);
-            e.target.value = ''; // Limpa o input
+            e.target.value = ''; 
         }
     };
 
    const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
 
-        // --- BLINDAGEM DO 9º DÍGITO PARA MÍDIAS ---
         let cleanActiveChat = activeChat.replace(/\D/g, '');
         if (cleanActiveChat.startsWith('55')) cleanActiveChat = cleanActiveChat.substring(2);
         const safePhone = `55${cleanActiveChat}`;
 
         try {
-            // Dispara a API
             const response = await fetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -793,10 +767,9 @@ export default function AdminChat() {
             });
 
             if (response.ok) {
-                // Salva no Firebase para renderizar no chat visualmente
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
-                    to: safePhone, // <-- CORREÇÃO AQUI
+                    to: safePhone, 
                     text: '',
                     mediaUrl: mediaUrl,
                     mediaType: type,
@@ -809,20 +782,17 @@ export default function AdminChat() {
             console.error('Erro ao enviar mídia:', error);
         }
     };
-    // ----------------------------------------
-    // Envia a resposta usando a nossa API e salva no banco
+
     const handleSendReply = async () => {
         if (!replyText.trim() || !activeChat) return;
         setLoadingSend(true);
 
         try {
-            // BLINDAGEM: Garante que o activeChat (que vem sem 55) receba o DDI antes de ir para a API
             let cleanActiveChat = activeChat.replace(/\D/g, '');
             if (cleanActiveChat.startsWith('55')) cleanActiveChat = cleanActiveChat.substring(2);
             
             const safePhone = `55${cleanActiveChat}`;
 
-            // 1. Dispara via API
             const response = await fetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -837,7 +807,6 @@ export default function AdminChat() {
             const data = await response.json();
 
             if (data.success || response.ok) {
-                // 2. Salva no Firebase para aparecer no histórico (como mensagem enviada pela loja)
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
                     to: safePhone,
@@ -845,10 +814,9 @@ export default function AdminChat() {
                     receivedAt: serverTimestamp(),
                     status: 'read',
                     direction: 'outbound', 
-                    quotedMsg: replyingTo ? replyingTo.text : null // Salva no banco o contexto da resposta
+                    quotedMsg: replyingTo ? replyingTo.text : null 
                 });
 
-                // 3. HANDOFF: Pausa o bot automaticamente, pois o lojista assumiu o controle
                 let normalizedPhoneForSession = safePhone.replace(/\D/g, '');
                 if (normalizedPhoneForSession.startsWith('55')) normalizedPhoneForSession = normalizedPhoneForSession.substring(2);
                 if (normalizedPhoneForSession.length === 10) normalizedPhoneForSession = normalizedPhoneForSession.substring(0, 2) + '9' + normalizedPhoneForSession.substring(2);
@@ -861,7 +829,7 @@ export default function AdminChat() {
                 }, { merge: true });
 
                 setReplyText('');
-                setReplyingTo(null); // Limpa o bloco de citação após enviar
+                setReplyingTo(null); 
             } else {
                 alert('Erro ao enviar mensagem: ' + (data.error || 'Falha na Meta'));
             }
@@ -872,13 +840,12 @@ export default function AdminChat() {
             setLoadingSend(false);
         }
     };
-// --- LÓGICA DE REATIVAR O BOT (ENCERRAR ATENDIMENTO) ---
+
     const handleEndSession = async () => {
         if (!activeChat || !storeId) return;
         
         if (window.confirm("Encerrar este atendimento? O robô voltará a responder este cliente automaticamente na próxima mensagem.")) {
             try {
-                // Atualiza a sessão para botPaused: false
                 await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${activeChat}`), {
                     storeId: storeId,
                     phone: activeChat,
@@ -887,7 +854,7 @@ export default function AdminChat() {
                 }, { merge: true });
                 
                 alert("✅ Atendimento encerrado! O bot foi reativado para este cliente.");
-                setActiveChat(null); // Fecha a tela de conversa atual
+                setActiveChat(null); 
             } catch (error) {
                 console.error("Erro ao reativar bot:", error);
                 alert("Erro ao encerrar atendimento.");
@@ -895,23 +862,20 @@ export default function AdminChat() {
         }
     };
 
-    // --- LÓGICA PARA APAGAR A CONVERSA INTEIRA ---
     const handleDeleteEntireChat = async () => {
         if (!activeChat || !storeId) return;
 
         if (window.confirm("🔴 Tem certeza que deseja apagar TODA a conversa com este cliente do seu painel? Esta ação não pode ser desfeita.")) {
             try {
-                // Pega todas as mensagens da conversa atual que já estão agrupadas na variável activeMessages
                 const msgsToDelete = chats[activeChat]?.msgs || [];
                 
-                // Apaga cada documento do Firebase
                 for (const msg of msgsToDelete) {
                     await deleteDoc(doc(db, 'whatsapp_inbound', msg.id));
                 }
 
                 alert("✅ Conversa apagada com sucesso!");
-                setActiveChat(null); // Fecha a tela de conversa
-                setShowContactInfo(false); // Fecha a aba lateral se estiver aberta
+                setActiveChat(null); 
+                setShowContactInfo(false); 
             } catch (error) {
                 console.error("Erro ao apagar conversa:", error);
                 alert("Erro ao tentar apagar a conversa. Verifique sua conexão.");
@@ -1050,6 +1014,15 @@ export default function AdminChat() {
                         title="Disparo em Massa (Campanhas)"
                     >
                         <Megaphone size={20} />
+                    </button>
+
+                    <button 
+                        onClick={handleExportGlobalChat}
+                        disabled={isExportingGlobal}
+                        className={`text-white p-2 rounded-lg transition-colors shadow-sm ${isExportingGlobal ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'}`}
+                        title="Baixar Backup Global (Excel / CSV)"
+                    >
+                        {isExportingGlobal ? <Loader2 size={20} className="animate-spin" /> : <DownloadCloud size={20} />}
                     </button>
 
                     <button 
