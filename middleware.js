@@ -50,6 +50,7 @@ export default async function middleware(request) {
             "macanudorex.com.br": "macanudorex",
             "ngconveniencia.com.br": "ng",
             "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
+            "coelhoscuca.com.br": "coelhoscuca",
         };
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
