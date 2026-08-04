@@ -242,7 +242,7 @@ export default function Admin() {
 
     // Matriz de Recursos: O que cada plano tem direito de acessar
     const PLAN_FEATURES = {
-        start: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance'],
+        start: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'store_settings'], // <-- 'store_settings' ADICIONADO AQUI
         pro: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'google_business', 'meta_ads', 'fiscal'],
         infinity: ['dashboard', 'orders', 'manual', 'products', 'categories', 'team', 'finance', 'abandoned', 'chat', 'integrations', 'banners', 'store_settings', 'insights', 'datafuel', 'fleet', 'ingredients', 'customers', 'marketing', 'partners', 'google_business', 'meta_ads', 'fiscal']
     };
