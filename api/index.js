@@ -1538,6 +1538,63 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
     }
 
     // ------------------------------------------------------------------------
+    // 9.5. WHATSAPP: EXPORTAÇÃO GLOBAL DE CHAT (BACKUP EXCEL/CSV)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/export-global-chat') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+        
+        try {
+            const { storeId } = req.body;
+            if (!storeId) return res.status(400).json({ error: 'StoreId é obrigatório' });
+
+            // Busca as últimas 20.000 mensagens (Limite de segurança para a Vercel não dar Timeout)
+            const msgsSnap = await db.collection('whatsapp_inbound')
+                .where('storeId', '==', storeId)
+                .orderBy('receivedAt', 'desc')
+                .limit(20000)
+                .get();
+
+            if (msgsSnap.empty) {
+                return res.status(404).json({ error: 'Nenhuma mensagem encontrada para esta loja.' });
+            }
+
+            // Cabeçalho do CSV (BOM do UTF-8 para o Excel reconhecer acentuação no Brasil)
+            let csvContent = '\uFEFF'; 
+            csvContent += "Data/Hora;Telefone;Direção;Mensagem;Tipo de Mídia;Link da Mídia\n";
+
+            msgsSnap.forEach(doc => {
+                const data = doc.data();
+                
+                // Formatação de Data Segura
+                let dataStr = '';
+                if (data.receivedAt) {
+                    const dateObj = data.receivedAt.toDate ? data.receivedAt.toDate() : new Date(data.receivedAt.seconds * 1000);
+                    dataStr = dateObj.toLocaleString('pt-BR');
+                }
+
+                // Limpeza de texto para não quebrar o CSV (Remove quebras de linha e ponto e vírgula)
+                const telefone = data.phone || data.to || data.from || '';
+                const direcao = data.direction === 'outbound' ? 'Loja -> Cliente' : 'Cliente -> Loja';
+                let mensagem = data.text ? data.text.replace(/(\r\n|\n|\r)/gm, " ").replace(/;/g, ",") : '';
+                const tipoMidia = data.mediaType || 'Texto';
+                const linkMidia = data.mediaUrl || '';
+
+                // Monta a linha
+                csvContent += `${dataStr};${telefone};${direcao};"${mensagem}";${tipoMidia};${linkMidia}\n`;
+            });
+
+            // Retorna o CSV puro para o Frontend baixar
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="Backup_Global_Velo_${storeId}.csv"`);
+            return res.status(200).send(csvContent);
+
+        } catch (error) {
+            console.error('Erro na Exportação Global:', error);
+            return res.status(500).json({ error: 'Erro interno ao gerar o backup.' });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 10. WHATSAPP WEBHOOK (BOTÕES, HANDOFF E AGENDA DE HORÁRIOS)
     // ------------------------------------------------------------------------
     else if (path === '/api/whatsapp-webhook') {
