@@ -940,11 +940,19 @@ export default function Home() {
   const takeInstaFunPhoto = () => {
       if (videoRef.current && canvasRef.current) {
           const context = canvasRef.current.getContext('2d');
-          canvasRef.current.width = videoRef.current.videoWidth;
-          canvasRef.current.height = videoRef.current.videoHeight;
+          
+          // Otimização: Trava a resolução máxima para evitar estouro de Payload na API da Vercel (4.5MB limit)
+          const MAX_WIDTH = 800;
+          const scale = Math.min(MAX_WIDTH / videoRef.current.videoWidth, 1);
+          
+          canvasRef.current.width = videoRef.current.videoWidth * scale;
+          canvasRef.current.height = videoRef.current.videoHeight * scale;
+          
           context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
           
-          const base64Image = canvasRef.current.toDataURL('image/jpeg');
+          // Otimização 2: Comprime a imagem para 70% da qualidade original
+          const base64Image = canvasRef.current.toDataURL('image/jpeg', 0.7);
+          
           stopInstaFunCamera();
           setInstaFunStep('loading');
 
@@ -957,7 +965,8 @@ export default function Home() {
                       body: JSON.stringify({
                           storeId: storeId,
                           selfieBase64: base64Image,
-                          theme: marketingSettings?.gamification?.instaFun?.theme || 'default'
+                          theme: marketingSettings?.gamification?.instaFun?.theme || 'default',
+                          templateUrl: marketingSettings?.gamification?.instaFun?.templateUrl || null // CORREÇÃO: Envia a imagem base configurada pelo lojista
                       })
                   });
                   const data = await res.json();
@@ -970,7 +979,7 @@ export default function Home() {
                       setShowInstaFun(false);
                   }
               } catch (error) {
-                  alert("Erro de conexão. A rede demorou muito.");
+                  alert("Erro de conexão. A rede demorou muito ou a imagem ficou muito pesada.");
                   setShowInstaFun(false);
               }
           };
@@ -2252,8 +2261,13 @@ export default function Home() {
       const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
       
       // NOVO: Extrai apenas os itens comprados pela vitrine de Upsell para o painel Financeiro
-      const upsellGenerated = sanitizedCart.filter(i => i.isUpsell).reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
-      
+// NOVO: Cálculo rigoroso e blindado do Upsell (Compre Junto)
+const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, i) => {
+    const itemPrice = Number(i.price) || 0;
+    const itemQty = Number(i.quantity) || 1;
+    return acc + (itemPrice * itemQty);
+}, 0);
+
       // NOVO: Se o cliente estiver tentando de novo após um erro, reaproveita o mesmo ID para não duplicar!
       if (!draftOrderIdRef.current) {
           draftOrderIdRef.current = doc(collection(db, "orders")).id;
@@ -2279,7 +2293,8 @@ export default function Home() {
         status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
         createdAt: serverTimestamp(),
         storeId: storeId || "",
-        upsellAmount: upsellGenerated, // NOVO: Faturamento gerado puramente por Upsell (Compre Junto)
+upsellTotal: upsellTotal, // CHAVE SEGREGADA NOVA E BLINDADA
+upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis antigos
         // Adicionando as TAGs para o Modo Garçom e Retirada:
         tipo: (isWaiterMode || tableSession) ? "local" : (isPickup ? "retirada" : "delivery"),
         mesa: isWaiterMode ? tableNumber : (tableSession ? tableSession : null),
@@ -3021,8 +3036,12 @@ if (window.fbq) {
                               try {
                                   const sanitizedCart = cart.map(item => ({ ...item, observation: item.observation || "" }));
                                   
-                                  // NOVO: Extração do Upsell para pagamentos transparentes
-                                  const upsellGenerated = sanitizedCart.filter(i => i.isUpsell).reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
+                                  // NOVO: Cálculo rigoroso e blindado do Upsell (Compre Junto) para MP
+                                  const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, i) => {
+                                      const itemPrice = Number(i.price) || 0;
+                                      const itemQty = Number(i.quantity) || 1;
+                                      return acc + (itemPrice * itemQty);
+                                  }, 0);
 
                                   newOrderRef = doc(collection(db, "orders"));
                                   const orderId = newOrderRef.id;
@@ -3046,7 +3065,8 @@ if (window.fbq) {
                                       usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
                                       referredBy: localStorage.getItem('veloReferredBy') || null,
                                       affiliateId: localStorage.getItem('veloAffiliateId') || null,
-                                      upsellAmount: upsellGenerated // INJETADO O FATURAMENTO DE UPSELL AQUI
+                                      upsellTotal: upsellTotal, // CHAVE SEGREGADA NOVA E BLINDADA
+                                      upsellAmount: upsellTotal // Mantido por retrocompatibilidade
                                   };
 
                                   if (appliedCoupon) {

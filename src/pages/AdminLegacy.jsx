@@ -4715,22 +4715,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
                                             <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
                                                 R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((acc, o) => {
-                                                    let upsellVal = Number(o.upsellAmount) || 0;
+                                                    let upsellVal = Number(o.upsellTotal) || Number(o.upsellAmount) || 0;
+                                                    
+                                                    // Fallback blindado para pedidos antigos que não tinham a chave no Firestore
                                                     if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
-                                                        upsellVal = o.items.filter(i => i.isUpsell).reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
+                                                        upsellVal = o.items.filter(i => i.isUpsell === true).reduce((sum, i) => {
+                                                            const itemPrice = Number(i.price) || 0;
+                                                            const itemQty = Number(i.quantity) || 1;
+                                                            return sum + (itemPrice * itemQty);
+                                                        }, 0);
                                                     }
-                                                    return acc + upsellVal;
+                                                    
+                                                    // Trava final de segurança contra NaN que causa o congelamento
+                                                    return acc + (Number.isNaN(upsellVal) ? 0 : upsellVal);
                                                 }, 0).toFixed(2)}
                                             </p>
                                             
                                             <div className="mt-3 pt-3 border-t border-indigo-400/50 flex justify-between items-end">
                                                 <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest">Histórico Total</span>
                                                 <span className="text-lg font-black text-white italic">R$ {orders.filter(o => o.status !== 'canceled').reduce((acc, o) => {
-                                                    let upsellVal = Number(o.upsellAmount) || 0;
+                                                    let upsellVal = Number(o.upsellTotal) || Number(o.upsellAmount) || 0;
+                                                    
+                                                    // Fallback blindado para pedidos antigos
                                                     if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
-                                                        upsellVal = o.items.filter(i => i.isUpsell).reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
+                                                        upsellVal = o.items.filter(i => i.isUpsell === true).reduce((sum, i) => {
+                                                            const itemPrice = Number(i.price) || 0;
+                                                            const itemQty = Number(i.quantity) || 1;
+                                                            return sum + (itemPrice * itemQty);
+                                                        }, 0);
                                                     }
-                                                    return acc + upsellVal;
+                                                    
+                                                    // Trava final de segurança contra NaN que causa o congelamento
+                                                    return acc + (Number.isNaN(upsellVal) ? 0 : upsellVal);
                                                 }, 0).toFixed(2)}</span>
                                             </div>
                                         </div>
@@ -5899,7 +5915,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <option value="pdv">💻 PDV (Balcão/Mesa)</option>
                                         <option value="whatsapp">💬 WhatsApp / Bot</option>
                                         <option value="whatsapp_pdv">🛒 Chat (PDV Wpp)</option>
-                                        <option value="google">🌐 Google Maps</option>
                                     </select>
                                 </div>
                             </div>
@@ -5933,18 +5948,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         // 2. Filtro de Status
                                         const matchesStatus = orderFilterStatus === 'all' || o.status === orderFilterStatus;
                                         
-                                        // 3. Filtro de Canal (Origem)
+                                       // 3. Filtro de Canal (Origem)
                                         let matchesSource = true;
                                         if (orderFilterSource !== 'all') {
                                             const isPDV = o.source === 'manual' || o.source === 'manual_pdv';
-                                            const isGoogle = o.source === 'google_food_marketplace';
                                             const isWpp = o.source === 'whatsapp';
                                             const isWppPdv = o.source === 'whatsapp_pdv';
-                                            // Se não for nenhum dos 4 manuais/externos, então foi o cliente que comprou no App sozinho
-                                            const isApp = !isPDV && !isGoogle && !isWpp && !isWppPdv; 
+                                            // Se não for nenhum dos 3 manuais/externos, então foi o cliente que comprou no App sozinho
+                                            const isApp = !isPDV && !isWpp && !isWppPdv; 
                                             
                                             if (orderFilterSource === 'pdv') matchesSource = isPDV;
-                                            else if (orderFilterSource === 'google') matchesSource = isGoogle;
                                             else if (orderFilterSource === 'whatsapp') matchesSource = isWpp;
                                             else if (orderFilterSource === 'whatsapp_pdv') matchesSource = isWppPdv;
                                             else if (orderFilterSource === 'app') matchesSource = isApp;
