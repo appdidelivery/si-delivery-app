@@ -2213,6 +2213,15 @@ export default function Home() {
         if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
     } else {
         if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
+        
+        // 🚨 TRAVA DO CPF (Se estiver ativado pelo Lojista)
+        if (storeSettings?.checkoutCpfMode === 'required') {
+            const cpfLimpo = customer.cpf ? String(customer.cpf).replace(/\D/g, '') : '';
+            if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
+                return alert("Por favor, preencha um CPF ou CNPJ válido para prosseguir com o pedido.");
+            }
+        }
+
         if (!isPickup && (!customer.cep || !customer.street || !customer.number)) return alert("Preencha o endereço de entrega completo.");
         if (!isPickup && shippingFee === null) return alert("Frete não calculado. Verifique se sua região é atendida.");
         if (!customer.payment) return alert("Por favor, selecione uma forma de pagamento para continuar.");
@@ -2259,11 +2268,12 @@ export default function Home() {
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
+        customerCpf: customer.cpf ? String(customer.cpf).replace(/\D/g, '') : "", // <--- CPF LIMPO SALVO AQUI
         paymentMethod: customer.payment || "", 
         paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
         items: sanitizedCart,
-        subtotal: subtotal || 0, 
+        subtotal: subtotal || 0,
         shippingFee: (isWaiterMode || isPickup || tableSession) ? 0 : (shippingFee || 0),
         total: finalTotal || 0, 
         status: 'pending', // CORREÇÃO: O pedido sempre nasce como 'pending' no kanban para não quebrar a tela de rastreio
@@ -4265,6 +4275,33 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                 <>
                                     <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     
+                                    {/* --- MÓDULO DE CPF NA NOTA (DINÂMICO) --- */}
+                                    {storeSettings?.checkoutCpfMode && storeSettings.checkoutCpfMode !== 'hidden' && (
+                                        <div className="relative mb-3 animate-in fade-in zoom-in-95">
+                                            <input 
+                                                type="text" 
+                                                placeholder={storeSettings.checkoutCpfMode === 'required' ? "CPF (Obrigatório) *" : "CPF na Nota (Opcional)"} 
+                                                className={`w-full p-5 pl-12 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none focus:ring-2 ring-blue-500 outline-none text-slate-700 ${storeSettings.checkoutCpfMode === 'required' ? 'placeholder-slate-500' : 'placeholder-slate-400'}`} 
+                                                value={customer.cpf || ''} 
+                                                onChange={e => {
+                                                    const rawValue = e.target.value.replace(/\D/g, '');
+                                                    let formattedValue = rawValue;
+                                                    if (rawValue.length > 11) {
+                                                        // Formata como CNPJ
+                                                        formattedValue = rawValue.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, '$1.$2.$3/$4-$5');
+                                                    } else if (rawValue.length > 0) {
+                                                        // Formata como CPF
+                                                        formattedValue = rawValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                                                    }
+                                                    handleCustomerChange('cpf', formattedValue);
+                                                }}
+                                                maxLength="18"
+                                            />
+                                            <FileText size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        </div>
+                                    )}
+                                    {/* ------------------------------------------- */}
+
                                     {/* --- MÓDULO DE FLORICULTURA E PRESENTES --- */}
                                     {storeSettings?.storeNiche === 'floricultura' && (
                                         <div className="mb-5 p-5 bg-pink-50 border border-pink-200 rounded-3xl flex flex-col gap-4 shadow-sm animate-in fade-in zoom-in-95">
