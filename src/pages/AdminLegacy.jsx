@@ -561,31 +561,6 @@ export default function Admin() {
     // 2. Define o storeId final: A URL ganha. Se não houver loja na URL, usa o usuário logado.
     let storeId = resolvedFromUrl || (store ? store.slug : null);
 
-    // TELA DE CARREGAMENTO
-    if (loading) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-                <Loader2 className="animate-spin text-blue-600" size={48} />
-                <p className="text-slate-500 font-bold">Identificando sua loja...</p>
-            </div>
-        );
-    }
-
-    // TELA DE ERRO REAL (Se não conseguiu ler NENHUM subdomínio)
-    if (!storeId || storeId === 'app' || storeId === 'www') {
-         return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-50">
-                <h1 className="text-2xl font-black text-slate-800">Loja não encontrada</h1>
-                <p className="text-slate-500 max-w-md">
-                    Verifique se o link da loja está digitado corretamente.
-                </p>
-                <div className="flex gap-2 justify-center mt-4">
-                    <button onClick={() => window.location.href = '/'} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Voltar ao Início</button>
-                    <button onClick={async () => { await signOut(auth); navigate('/login'); }} className="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold">Sair / Trocar Conta</button>
-                </div>
-            </div>
-         );
-    }
   // --- LÓGICA DE BLOQUEIO FINANCEIRO ATIVADA (SAAS) ---
     const [trialInfo, setTrialInfo] = useState({ isTrial: false, daysLeft: 999, isOverdue: false });
     // A variável isOverdue desceu para evitar o erro de tela branca!
@@ -1336,6 +1311,50 @@ const educationalBanners = [
     const [currentProductPage, setCurrentProductPage] = useState(1);
     const [productFilterCategory, setProductFilterCategory] = useState('all');
     const [productFilterStatus, setProductFilterStatus] = useState('all');
+    const [productSmartFilter, setProductSmartFilter] = useState('all'); // NOVO: Filtros Rápidos (Smart Tabs)
+
+    // --- 🧠 MOTOR DE CÁLCULO GLOBAL: CURVA ABC E CAPITAL PARADO ---
+    // Movido para o topo para respeitar as Regras de Hooks do React
+    const { abcData, capitalParado } = React.useMemo(() => {
+        if (activeTab !== 'products') return { abcData: {}, capitalParado: 0 };
+        
+        const trintaDiasAtras = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        const vendasPorProduto = {};
+        let faturamentoTotal = 0;
+        const produtosVendidosSet = new Set();
+
+        orders.forEach(o => {
+            if (o.status !== 'canceled' && o.createdAt?.toMillis && o.createdAt.toMillis() > trintaDiasAtras) {
+                (o.items || []).forEach(item => {
+                    produtosVendidosSet.add(item.id);
+                    const receita = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+                    vendasPorProduto[item.id] = (vendasPorProduto[item.id] || 0) + receita;
+                    faturamentoTotal += receita;
+                });
+            }
+        });
+
+        const arrayVendas = Object.entries(vendasPorProduto).map(([id, receita]) => ({ id, receita })).sort((a, b) => b.receita - a.receita);
+        let receitaAcumulada = 0;
+        const abcMap = {};
+        
+        arrayVendas.forEach((item) => {
+            receitaAcumulada += item.receita;
+            const percentual = faturamentoTotal > 0 ? (receitaAcumulada / faturamentoTotal) * 100 : 0;
+            if (percentual <= 80) abcMap[item.id] = 'A';
+            else if (percentual <= 95) abcMap[item.id] = 'B';
+            else abcMap[item.id] = 'C';
+        });
+
+        let capParado = 0;
+        products.forEach(p => {
+            if (!produtosVendidosSet.has(p.id) && p.stock !== undefined && p.stock !== '' && Number(p.stock) > 0) {
+                capParado += (Number(p.costPrice) || 0) * Number(p.stock);
+            }
+        });
+
+        return { abcData: abcMap, capitalParado: capParado };
+    }, [orders, products, activeTab]);
 
     // --- ESTADOS DO MODAL DE MOVIMENTAÇÃO DE ESTOQUE ---
     const [isStockModalOpen, setIsStockModalOpen] = useState(false);
@@ -1374,7 +1393,7 @@ const educationalBanners = [
 
     useEffect(() => {
         setCurrentProductPage(1);
-    }, [productSearch, activeTab, productsPerPage, productFilterCategory, productFilterStatus]);
+    }, [productSearch, activeTab, productsPerPage, productFilterCategory, productFilterStatus, productSmartFilter]);
 
     // --- NOVO: LÓGICA DE ATIVAÇÃO RÁPIDA E EM MASSA ---
     const [selectedProductIds, setSelectedProductIds] = useState([]);
@@ -4156,6 +4175,32 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
 
+    // TELA DE CARREGAMENTO (Movida para o final para respeitar a Regra dos Hooks do React)
+    if (loading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+                <Loader2 className="animate-spin text-blue-600" size={48} />
+                <p className="text-slate-500 font-bold">Identificando sua loja...</p>
+            </div>
+        );
+    }
+
+    // TELA DE ERRO REAL (Se não conseguiu ler NENHUM subdomínio)
+    if (!storeId || storeId === 'app' || storeId === 'www') {
+         return (
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-50">
+                <h1 className="text-2xl font-black text-slate-800">Loja não encontrada</h1>
+                <p className="text-slate-500 max-w-md">
+                    Verifique se o link da loja está digitado corretamente.
+                </p>
+                <div className="flex gap-2 justify-center mt-4">
+                    <button onClick={() => window.location.href = '/'} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Voltar ao Início</button>
+                    <button onClick={async () => { await signOut(auth); navigate('/login'); }} className="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold">Sair / Trocar Conta</button>
+                </div>
+            </div>
+         );
+    }
+
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
@@ -6752,6 +6797,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
+                        {/* NOVO: SMART TABS (FILTROS RÁPIDOS) */}
+                        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-4 mb-2 -mt-2">
+                            <button onClick={() => setProductSmartFilter('all')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>📦 Todos</button>
+                            <button onClick={() => setProductSmartFilter('zerado')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'zerado' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-red-500 border-red-100 hover:bg-red-50'}`}>🚨 Estoque Zerado</button>
+                            <button onClick={() => setProductSmartFilter('fiscal')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'fiscal' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-500 border-orange-100 hover:bg-orange-50'}`}>⚠️ Pendência Fiscal</button>
+                            <button onClick={() => setProductSmartFilter('imagem')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'imagem' ? 'bg-purple-500 text-white border-purple-500' : 'bg-white text-purple-500 border-purple-100 hover:bg-purple-50'}`}>🖼️ Sem Imagem</button>
+                        </div>
+
                         {/* BARRA DE AÇÕES EM MASSA (PRODUTOS) */}
                         {selectedProductIds.length > 0 && (
                             <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex justify-between items-center animate-in fade-in slide-in-from-top-2 mb-6 shadow-sm">
@@ -6778,7 +6831,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 const matchesCategory = productFilterCategory === 'all' || p.category === productFilterCategory || (p.categories && p.categories.includes(productFilterCategory));
                                 const matchesStatus = productFilterStatus === 'all' || (productFilterStatus === 'active' ? p.isActive !== false : p.isActive === false);
                                 
-                                return matchesSearch && matchesCategory && matchesStatus;
+                                // Filtros Rápidos (Smart Tabs)
+                                let matchesSmart = true;
+                                if (productSmartFilter === 'zerado') matchesSmart = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
+                                if (productSmartFilter === 'fiscal') matchesSmart = !p.ncm || !p.cfop || !p.cest;
+                                if (productSmartFilter === 'imagem') matchesSmart = !p.imageUrl;
+
+                                return matchesSearch && matchesCategory && matchesStatus && matchesSmart;
                             });
 
                             const totalProductPagesList = Math.max(1, Math.ceil(filteredProductsList.length / productsPerPage));
@@ -6795,21 +6854,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             return (
                                 <>
                                     {/* CARDS DE RESUMO DE ESTOQUE */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                                         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Package size={14}/> Total de Unidades</p>
                                             <p className="text-3xl font-black text-slate-800 italic">{summaryTotalUnits}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Soma física baseada no filtro atual.</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Soma baseada no filtro atual.</p>
                                         </div>
                                         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14}/> Custo Total (Imobilizado)</p>
-                                            <p className="text-3xl font-black text-red-500 italic">R$ {summaryTotalCost.toFixed(2)}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Capital parado no estoque.</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14}/> Custo Imobilizado</p>
+                                            <p className="text-3xl font-black text-slate-800 italic">R$ {summaryTotalCost.toFixed(2)}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Capital no estoque filtrado.</p>
                                         </div>
                                         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Landmark size={14}/> Previsão de Venda Bruta</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-2 flex items-center gap-2"><Clock size={14}/> Capital Parado {'>'}30d</p>
+                                            <p className="text-3xl font-black text-red-500 italic">R$ {capitalParado.toFixed(2)}</p>
+                                            <p className="text-[9px] font-bold text-red-400 mt-1">Custo de itens sem venda recente.</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-green-600 mb-2 flex items-center gap-2"><Landmark size={14}/> Venda Bruta Prev.</p>
                                             <p className="text-3xl font-black text-green-500 italic">R$ {summaryTotalSales.toFixed(2)}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 mt-1">Se todo o estoque for vendido hoje.</p>
+                                            <p className="text-[9px] font-bold text-green-600/70 mt-1">Se todo o estoque for vendido.</p>
                                         </div>
                                     </div>
 
@@ -6874,6 +6938,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     {/* COLUNA 2: Textos (Pode crescer, mas se for muito longo vira ... e corta pra não empurrar os botões) */}
                                                     <div className="flex-1 min-w-0 flex flex-col justify-center relative z-10">
                                                         <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                            {abcData[p.id] && (
+                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border ${abcData[p.id] === 'A' ? 'bg-green-100 text-green-700 border-green-200' : abcData[p.id] === 'B' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`} title={`Curva ${abcData[p.id]} (Faturamento)`}>
+                                                                    {abcData[p.id]}
+                                                                </span>
+                                                            )}
                                                             <h3 className={`font-black text-sm md:text-base leading-tight truncate ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`} title={p.name}>
                                                                 {p.name}
                                                             </h3>
@@ -6883,6 +6952,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 </span>
                                                             )}
                                                         </div>
+
+                                                        {/* Alertas Visuais */}
+                                                        {(!p.ncm || !p.cfop || !p.cest || !p.imageUrl) && (
+                                                            <div className="flex gap-1 mb-1">
+                                                                {(!p.ncm || !p.cfop || !p.cest) && <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="Faltam dados fiscais (NCM/CFOP/CEST)">⚠️ Fiscal</span>}
+                                                                {!p.imageUrl && <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="Produto sem foto cadastrada">🖼️ Sem Foto</span>}
+                                                            </div>
+                                                        )}
                                                         
                                                         <div className='flex items-center gap-2 mt-1'>
                                                             <p className={`text-blue-600 font-black text-lg ${p.promotionalPrice > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
@@ -6900,10 +6977,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                  Custo: <span className="text-slate-500">R$ {Number(p.costPrice).toFixed(2)}</span>
                                                              </p>
                                                         )}
-                                                        <p className={`text-[10px] font-bold mt-1 uppercase tracking-widest ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>
-                                                            Estoque: <span className={p.stock <= 2 ? 'text-red-600' : 'text-slate-500'}>{p.stock !== undefined ? p.stock : 'N/A'}</span>
-                                                        </p>
-                                                        
+
+                                                        {/* NOVO: Edição In-line de Estoque com Chave Reativa (Protege contra conflito do Firebase) */}
+                                                        <div className={`flex items-center gap-1 mt-1 text-[10px] font-bold uppercase tracking-widest ${p.stock <= 2 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                            <span>Estoque:</span>
+                                                            {p.stock !== undefined && p.stock !== '' ? (
+                                                                <input 
+                                                                    key={`stock-${p.id}-${p.stock}`}
+                                                                    type="number"
+                                                                    defaultValue={p.stock}
+                                                                    onBlur={async (e) => {
+                                                                        const newVal = e.target.value;
+                                                                        if (newVal === '' || Number(newVal) === Number(p.stock)) return;
+                                                                        try {
+                                                                            await updateDoc(doc(db, "products", p.id), { stock: Number(newVal) });
+                                                                        } catch (err) {
+                                                                            console.error("Erro in-line:", err);
+                                                                            e.target.value = p.stock;
+                                                                        }
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') e.target.blur();
+                                                                    }}
+                                                                    className={`w-14 px-1.5 py-0.5 rounded border border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all ${p.stock <= 2 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}
+                                                                    title="Clique para editar rapidamente"
+                                                                />
+                                                            ) : (
+                                                                <span className="text-slate-500">N/A</span>
+                                                            )}
+                                                        </div>
                                                     </div>
 
                                                     {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}
