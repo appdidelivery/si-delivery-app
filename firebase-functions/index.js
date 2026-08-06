@@ -276,12 +276,11 @@ exports.emitirNotaFiscal = functions.firestore
                 return itemPayload;
             });
 
-            // 2. Limpa o CPF
-            const cpfLimpo = order.customerDocument ? order.customerDocument.replace(/\D/g, '') : null;
+            // 2. Limpa o CPF (Lê do campo correto vindo do Front-end)
+            const cpfLimpo = order.customerCpf ? order.customerCpf.replace(/\D/g, '') : null;
 
-            // 🚀 CORREÇÃO FISCAL MESTRA: Forçamos o indicador "1" (Operação Presencial/Balcão)
-            // para todos os cupons (NFC-e). Isso isenta o sistema de enviar a árvore complexa
-            // de endereço do cliente e evita o bloqueio da SEFAZ quando não há CPF cadastrado.
+            // 🚀 CORREÇÃO FISCAL MESTRA 2.0: Forçamos o indicador "1" (Operação Presencial/Balcão)
+            // para todos os cupons (NFC-e) para isentar o endereço.
             const presencaComprador = "1";
 
             // 3. Monta o Payload Final EXATAMENTE como a Focus exigiu
@@ -305,18 +304,15 @@ exports.emitirNotaFiscal = functions.firestore
                 ]
             };
 
-            // BLINDAGEM DO DESTINATÁRIO: O Nó "cliente" só será adicionado se houver CPF ou Nome.
-            // Retiramos toda a exigência de endereço, pois o 'presenca_comprador = 1' não precisa.
-            if (cpfLimpo || (order.customerName && order.customerName.length > 2)) {
+            // BLINDAGEM DO DESTINATÁRIO: A Sefaz trava a nota se enviarmos o nó "cliente" sem CPF.
+            // Portanto, a condição agora EXIGE a existência de um CPF válido para montar essa estrutura.
+            if (cpfLimpo && (cpfLimpo.length === 11 || cpfLimpo.length === 14)) {
                 payloadNFCe.cliente = {
-                    nome_completo: order.customerName ? order.customerName.substring(0, 60) : "Consumidor Final"
+                    nome_completo: order.customerName ? order.customerName.substring(0, 60) : "Consumidor Final",
+                    cpf: cpfLimpo.length === 11 ? cpfLimpo : undefined,
+                    cnpj: cpfLimpo.length === 14 ? cpfLimpo : undefined
                 };
-
-                if (cpfLimpo && (cpfLimpo.length === 11 || cpfLimpo.length === 14)) {
-                    if (cpfLimpo.length === 11) payloadNFCe.cliente.cpf = cpfLimpo;
-                    else payloadNFCe.cliente.cnpj = cpfLimpo;
-                }
-            }
+            } // <-- ESSA É A CHAVE DE FECHAMENTO QUE FALTAVA!
 
            // --- INÍCIO DA INTEGRAÇÃO BLINDADA (MOTOR AUTO-DISCOVERY) ---
             
