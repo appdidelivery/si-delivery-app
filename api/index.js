@@ -703,9 +703,17 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
                     // Dispara a partir de 30 minutos pós-entrega
                     if (now.getTime() - orderTime.getTime() > 30 * 60000) { 
                         const storeId = oData.storeId;
-                        const customerPhone = oData.customerPhone;
+                        const rawPhone = oData.customerPhone;
 
-                        if (customerPhone) {
+                        // 🛑 BLINDAGEM MESTRA: Early Return para pedidos do PDV sem telefone ou números inválidos
+                        if (!rawPhone) continue;
+                        
+                        let cleanPhoneStr = String(rawPhone).replace(/\D/g, '');
+                        if (cleanPhoneStr.length < 10) continue; // Descarta números curtos (inválidos na Meta)
+                        if (cleanPhoneStr.startsWith('55')) cleanPhoneStr = cleanPhoneStr.substring(2);
+                        const cleanPhone = `55${cleanPhoneStr}`;
+
+                        if (cleanPhone) {
                             const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
                             const storeDoc = await db.collection('stores').doc(storeId).get();
 
@@ -1714,6 +1722,41 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
                             } else if (message.type === 'button') {
                                 messageText = message.button.text;
                                 interactivePayload = message.button.payload;
+                            }
+
+                            // 🚀 MÓDULO DE AUTOVERIFICAÇÃO DE MISSÃO (CASHBACK AUTOMÁTICO)
+                            if (interactivePayload === 'btn_mission_google_done') {
+                                try {
+                                    let senderPhone = String(message.from).replace(/\D/g, '');
+                                    if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
+                                    
+                                    // 1. Acha a loja correspondente ao número que recebeu
+                                    const setSnap = await db.collection('settings').where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)]).limit(1).get();
+                                    if (!setSnap.empty) {
+                                        const foundStoreId = setSnap.docs[0].id;
+                                        const walletRef = db.collection("wallets").doc(`${foundStoreId}_${senderPhone}`);
+                                        
+                                        // 2. Credita o valor da Missão (Ex: R$ 5.00 => equivalente a 500 pontos na lógica base)
+                                        await db.runTransaction(async (t) => {
+                                            const wDoc = await t.get(walletRef);
+                                            if (wDoc.exists) {
+                                                t.update(walletRef, { balance: admin.firestore.FieldValue.increment(5.00) });
+                                            } else {
+                                                t.set(walletRef, { storeId: foundStoreId, customerPhone: senderPhone, balance: 5.00 });
+                                            }
+                                        });
+
+                                        // 3. Responde o cliente confirmando o bônus
+                                        const apiTok = setSnap.docs[0].data()?.integrations?.whatsapp?.apiToken;
+                                        if (apiTok) {
+                                            await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                method: 'POST', headers: { 'Authorization': `Bearer ${apiTok}`, 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: message.from, type: "text", text: { body: "🎉 Bônus Autoverificado! R$ 5,00 foram adicionados na sua Carteira Digital para o seu próximo pedido." } })
+                                            });
+                                        }
+                                    }
+                                } catch (err) { console.error("Erro no autoverificador de missão:", err); }
+                                continue; // Interrompe para não ir para o chat humano nem pro robô padrão
                             }
 
                             if (messageText || isMedia) {

@@ -68,7 +68,7 @@ import {
     FaBowlFood, FaCarrot, FaLeaf, FaAppleWhole, FaBasketShopping, 
     FaStore, FaCheese, FaPills, FaPrescriptionBottleMedical, 
     FaPaw, FaDog, FaBone, FaSnowflake, FaFireFlameSimple, 
-    FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar, FaHeart
+    FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar, FaHeart, FaGoogle
 } from 'react-icons/fa6';
 
 const Reviews = React.lazy(() => import('../components/Reviews'));
@@ -3092,7 +3092,7 @@ if (window.fbq) {
                                           customerData: customer
                                       })
                                   });
-                                  
+
                                   const result = await response.json();
 
                                   if (response.ok && result.success && (result.status === 'approved' || result.status === 'in_process')) {
@@ -5057,14 +5057,40 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   </div>
               )}
 
-              <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4 pl-2">Missões Disponíveis (Ganhe Pontos)</h3>
+              <h3 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4 pl-2">Missões de Cashback Automático</h3>
               
               <div className="space-y-4">
-                {/* Missão Nova: Avaliar Produto do App */}
-                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
+                  {/* Missão Automatizada: Google (DESTAQUE) */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center hover:border-blue-400 transition-all shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 bg-blue-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-sm">
+                          Autoverificável
+                      </div>
+                      <div className="flex-1 pr-4 z-10">
+                          <h4 className="font-black text-blue-900 text-lg flex items-center gap-2">
+                              <FaGoogle className="text-blue-600"/> Avaliação no Google
+                          </h4>
+                          <p className="text-xs font-bold text-blue-700/80 leading-tight mt-1">
+                              Avalie nosso delivery com 5 estrelas no Google e receba o cashback na hora! O sistema verifica seu clique automaticamente.
+                          </p>
+                      </div>
+                      <button 
+                          onClick={() => {
+                              // Dispara o fluxo de autoverificação (Opcionalmente abrindo o link com a flag de webhook)
+                              const googleLink = storeSettings.googleReviewUrl || '#';
+                              window.open(`${googleLink}?ref=velo_mission_auto`, '_blank');
+                              alert("Ao postar sua avaliação, o sistema processará seu bônus via WhatsApp!");
+                          }} 
+                          className="mt-4 md:mt-0 w-full md:w-auto bg-blue-600 text-white px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-700 active:scale-95 transition-all z-10 flex items-center justify-center gap-2"
+                      >
+                          Resgatar R$ 5,00
+                      </button>
+                  </div>
+                  
+                  {/* Missão 2: Avaliar Produto do App */}
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex justify-between items-center hover:border-green-400 transition-all">
                       <div className="flex-1 pr-2">
-                          <h4 className="font-black text-slate-800 text-sm">Avaliar Produto</h4>
-                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">Dê 5 estrelas para o seu último pedido.</p>
+                          <h4 className="font-black text-slate-800 text-sm">Avaliar Último Pedido</h4>
+                          <p className="text-[10px] font-bold text-slate-500 leading-tight mt-1">Classifique sua experiência no app.</p>
                       </div>
                       <button 
                           onClick={() => {
@@ -5075,36 +5101,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                   alert("Você não possui pedidos recentes pendentes de avaliação no momento.");
                               }
                           }} 
-                          className={`${pendingReviewOrder ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-400'} px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm`}
+                          className={`${pendingReviewOrder ? 'bg-green-500 text-white shadow-md active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'} px-4 py-2 rounded-xl font-black text-xs uppercase transition-all`}
                       >
-                          10 Pontos
+                          + R$ 2,00
                       </button>
-                  </div>
-                  {/* Missão 1: Google Simples */}
-                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
-                      <div className="flex-1">
-                          <h4 className="font-black text-slate-800 text-sm">Avaliar no Google</h4>
-                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">Dê 5 estrelas e cole o texto sugerido.</p>
-                      </div>
-                      <button onClick={() => setMissionModal({ isOpen: true, type: 'google_simple', title: 'Avaliação Google', points: 20 })} className="bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm">20 Pontos</button>
-                  </div>
-
-                  {/* Missão 2: Google com Foto */}
-                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
-                      <div className="flex-1">
-                          <h4 className="font-black text-slate-800 text-sm">Avaliar com Foto</h4>
-                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">GMB: Poste uma foto linda do seu pedido.</p>
-                      </div>
-                      <button onClick={() => setMissionModal({ isOpen: true, type: 'google_photo', title: 'Google + Foto', points: 30 })} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm">30 Pontos</button>
-                  </div>
-
-                  {/* Missão 3: Instagram */}
-                  <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex justify-between items-center hover:border-yellow-400 transition-all">
-                      <div className="flex-1">
-                          <h4 className="font-black text-slate-800 text-sm">Postar no Instagram</h4>
-                          <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1">Tire uma foto e marque nosso @oficial.</p>
-                      </div>
-                      <button onClick={() => setMissionModal({ isOpen: true, type: 'instagram', title: 'Post Instagram', points: 40 })} className="bg-pink-100 text-pink-700 px-4 py-2 rounded-xl font-black text-xs uppercase shadow-sm">40 Pontos</button>
                   </div>
               </div>
             </motion.div>
