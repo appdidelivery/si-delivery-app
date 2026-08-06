@@ -2669,35 +2669,97 @@ const handleGenerateProductCopy = async () => {
         }
     };
 
+    // COMPRESSÃO NATIVA E SEO NAMING (Executado no navegador do Lojista da Velo Delivery)
+    const compressAndRenameImage = (file, productName) => {
+        return new Promise((resolve, reject) => {
+            // 1. Gerador de Nome Focado em SEO
+            const rawName = productName && productName.trim() !== '' ? productName : 'produto-velo-delivery';
+            const slugifiedName = rawName
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "") // Remove acentuações
+                .replace(/[^a-z0-9]+/g, "-") // Troca espaços por hífens
+                .replace(/^-+|-+$/g, "");
+
+            const finalFileName = `${slugifiedName}-${Math.floor(Math.random() * 9999)}.webp`;
+
+            // 2. Leitura da Imagem
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 800; // Resolução ideal para cardápios
+
+                    // 3. Cálculos de proporção perfeita
+                    if (width > height) {
+                        if (width > maxDim) {
+                            height = Math.round(height * (maxDim / width));
+                            width = maxDim;
+                        }
+                    } else {
+                        if (height > maxDim) {
+                            width = Math.round(width * (maxDim / height));
+                            height = maxDim;
+                        }
+                    }
+
+                    // 4. Desenha no Canvas
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return reject(new Error("Erro ao instanciar o Canvas."));
+                    
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 5. Gera o blob convertido para WebP (Qualidade 85%)
+                    canvas.toBlob((blob) => {
+                        if (!blob) return reject(new Error("Falha ao gerar binário do WebP."));
+                        
+                        const optimizedFile = new File([blob], finalFileName, {
+                            type: 'image/webp',
+                            lastModified: Date.now(),
+                        });
+                        
+                        resolve(optimizedFile);
+                    }, 'image/webp', 0.85); 
+                };
+                img.onerror = (error) => reject(error);
+            };
+            reader.onerror = (error) => reject(error);
+        });
+    };
+
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
         
-        // NOVO: Validação de formato
-        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-        if (!validTypes.includes(imageFile.type)) {
-            setUploadError('Formato inválido. Use .jpg, .png ou .webp');
-            return alert("Formato de imagem inválido! Por favor, selecione arquivos .jpg, .jpeg, .png ou .webp.");
-        }
+        // A TRAVA DE 2MB FOI REMOVIDA PARA SEMPRE!
+        setUploading(true); 
+        setUploadError('');
 
-        // NOVO: Limite de tamanho (2MB)
-        const MAX_SIZE_MB = 2;
-        if (imageFile.size > MAX_SIZE_MB * 1024 * 1024) {
-            setUploadError(`Imagem muito grande. O limite máximo é ${MAX_SIZE_MB}MB.`);
-            return alert(`A imagem excede o tamanho máximo de ${MAX_SIZE_MB}MB. Por favor, comprima e tente novamente.`);
-        }
-
-        setUploading(true); setUploadError('');
         try {
-            const url = await uploadImageToCloudinary(imageFile);
-            setForm(prev => ({ ...prev, imageUrl: url })); // Só salva se o upload der certo
+            // Passa a imagem bruta e o nome atual do formulário (form.name)
+            const optimizedFile = await compressAndRenameImage(imageFile, form.name);
+            
+            // Sobe o arquivo WEBP otimizado
+            const url = await uploadImageToCloudinary(optimizedFile);
+            
+            // Salva na Velo Delivery
+            setForm(prev => ({ ...prev, imageUrl: url })); 
             setImageFile(null);
-            alert("Imagem anexada com sucesso!");
+            alert("✅ Imagem anexada e otimizada com sucesso!");
+
         } catch (error) { 
             console.error(error); 
-            setUploadError('Erro ao enviar imagem. O link não foi salvo.'); 
-            alert('Falha ao enviar a imagem para o servidor. Tente novamente.');
-        } 
-        finally { setUploading(false); }
+            setUploadError('Erro ao processar ou enviar imagem.'); 
+            alert('Falha ao processar ou enviar a imagem para o servidor. Tente novamente.');
+        } finally { 
+            setUploading(false); 
+        }
     };
 
     const handleLogoUpload = async () => {
