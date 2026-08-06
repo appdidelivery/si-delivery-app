@@ -12634,7 +12634,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2 block">Ação ao clicar (Link)</label>
-                                        <input type="text" placeholder="Ex: # ou https://..." className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold border border-slate-100 focus:ring-2 ring-blue-500 text-sm" value={bannerForm.linkTo} onChange={e => setBannerForm({ ...bannerForm, linkTo: e.target.value })} required />
+                                        
+                                        {/* NOVO: SELETOR INTELIGENTE DE PRODUTO */}
+                                        <select 
+                                            className="w-full p-3 mb-1 bg-blue-50 text-blue-700 rounded-xl outline-none font-bold border border-blue-100 focus:ring-2 ring-blue-500 text-xs cursor-pointer shadow-sm"
+                                            onChange={(e) => {
+                                                if (e.target.value) {
+                                                    const prod = products.find(p => p.id === e.target.value);
+                                                    if (prod) {
+                                                        const safeSlug = prod.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+                                                        const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                                                        setBannerForm({ ...bannerForm, linkTo: `${baseUrl}/p/${safeSlug}` });
+                                                    }
+                                                }
+                                            }}
+                                        >
+                                            <option value="">🔗 Vincular a um Produto do Estoque...</option>
+                                            {products.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+
+                                        <input type="text" placeholder="Ou digite o link manual (Ex: https://...)" className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold border border-slate-100 focus:ring-2 ring-blue-500 text-sm" value={bannerForm.linkTo} onChange={e => setBannerForm({ ...bannerForm, linkTo: e.target.value })} required />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2 block">Ordem de Exibição</label>
