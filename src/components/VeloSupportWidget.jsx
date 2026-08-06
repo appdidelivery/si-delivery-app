@@ -107,11 +107,21 @@ const helpCategories = [
     }
 ];
 
-export default function VeloSupportWidget() {
+export default function VeloSupportWidget({ position = 'bottom-right' }) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState(null);
     const [activeArticle, setActiveArticle] = useState(null);
+
+    // --- MAPA DE POSIÇÕES DINÂMICAS ---
+    const posClasses = {
+        'bottom-right': 'bottom-24 right-4 md:bottom-6 md:right-6',
+        'bottom-left': 'bottom-24 left-4 md:bottom-6 md:left-6',
+        'top-right': 'top-20 right-4 md:top-6 md:right-6',
+        'top-left': 'top-20 left-4 md:top-6 md:left-6',
+    };
+    const currentPos = posClasses[position] || posClasses['bottom-right'];
+    // ----------------------------------
 
     // Filtragem de Busca
     const filteredCategories = helpCategories.map(category => {
@@ -140,8 +150,8 @@ export default function VeloSupportWidget() {
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0, opacity: 0 }}
                         onClick={() => setIsOpen(true)}
-                        // CORREÇÃO RESPONSIVA: No mobile sobe para bottom-24, no desktop fica em bottom-6
-                        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[90] bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-slate-800 transition-all hover:scale-105 flex items-center justify-center border-4 border-slate-100"
+                        // CORREÇÃO RESPONSIVA: Posicionamento dinâmico controlado pelo Lojista
+                        className={`fixed z-[90] bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-slate-800 transition-all hover:scale-105 flex items-center justify-center border-4 border-slate-100 ${currentPos}`}
                     >
                         <HelpCircle size={32} />
                     </motion.button>
@@ -155,8 +165,8 @@ export default function VeloSupportWidget() {
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        // CORREÇÃO RESPONSIVA: A janela do widget também precisa subir no mobile para não encostar na barra de navegação
-                        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[100] w-[380px] max-w-[calc(100vw-32px)] h-[600px] max-h-[calc(100vh-120px)] md:max-h-[calc(100vh-32px)] bg-white rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200"
+                        // CORREÇÃO RESPONSIVA: Posicionamento dinâmico controlado pelo Lojista
+                        className={`fixed z-[100] w-[380px] max-w-[calc(100vw-32px)] h-[600px] max-h-[calc(100vh-120px)] md:max-h-[calc(100vh-32px)] bg-white rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200 ${currentPos}`}
                     >
                         {/* Header */}
                         <div className="bg-blue-600 text-white p-6 relative flex-shrink-0">

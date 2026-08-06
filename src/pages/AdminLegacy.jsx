@@ -6746,6 +6746,54 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <span className="md:hidden">Notas Antigas</span>
                                 </button>
 
+                                {/* NOVO: BOTÃO MASTER PARA ZERAR ESTOQUE EM MASSA */}
+                                <button 
+                                    id="btn-zerar-estoque"
+                                    onClick={async (e) => {
+                                        if (products.length === 0) return alert("Sua loja ainda não possui produtos cadastrados.");
+                                        
+                                        const confirm1 = window.confirm("🚨 ATENÇÃO EXTREMA: Você está prestes a ZERAR O ESTOQUE FÍSICO de TODOS os produtos da sua loja. Esta ação não pode ser desfeita. Tem certeza absoluta?");
+                                        if (!confirm1) return;
+                                        
+                                        const confirm2 = window.prompt('Para confirmar sua decisão de zerar a loja, digite "ZERAR TUDO" (com letras maiúsculas) no campo abaixo:');
+                                        if (confirm2 !== "ZERAR TUDO") {
+                                            alert("Ação cancelada. O texto digitado não confere.");
+                                            return;
+                                        }
+
+                                        const btn = e.currentTarget;
+                                        const oldText = btn.innerHTML;
+                                        btn.innerHTML = 'Zerando...';
+                                        btn.disabled = true;
+
+                                        try {
+                                            // Processamento otimizado em lotes de 500 (Limite máximo permitido pela Google/Firebase por requisição)
+                                            const chunkSize = 500;
+                                            for (let i = 0; i < products.length; i += chunkSize) {
+                                                const chunk = products.slice(i, i + chunkSize);
+                                                const batch = writeBatch(db);
+                                                chunk.forEach(p => {
+                                                    const ref = doc(db, "products", p.id);
+                                                    batch.update(ref, { stock: 0 });
+                                                });
+                                                await batch.commit();
+                                            }
+                                            alert(`✅ Operação Concluída! O estoque de todos os ${products.length} produtos foi zerado.`);
+                                        } catch (error) {
+                                            console.error("Erro ao zerar estoque em massa:", error);
+                                            alert("❌ Erro ao zerar estoque. Verifique sua conexão e tente novamente.");
+                                        } finally {
+                                            btn.innerHTML = oldText;
+                                            btn.disabled = false;
+                                        }
+                                    }} 
+                                    className="bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 hover:bg-red-600 hover:text-white active:scale-95 transition-all uppercase tracking-widest text-[10px]"
+                                    title="Zerar o estoque de todos os produtos ao mesmo tempo"
+                                >
+                                    ⚠️ <span className="hidden md:inline">Zerar Todo o Estoque</span>
+                                    <span className="md:hidden">Zerar Tudo</span>
+                                </button>
+
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
                                <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs">
                                    + Novo Item
@@ -7992,6 +8040,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 />
                                             )}
                                         </div>
+
+                                        {/* NOVA LINHA: CAPTURA DE WHATSAPP NO BALCÃO (CASHBACK/CRM) */}
+                                        {manualCustomer.deliveryMethod === 'pickup' && (
+                                            <div className="flex flex-col gap-1 mt-1 mb-1 animate-in fade-in">
+                                                <input 
+                                                    type="tel" 
+                                                    placeholder="WhatsApp do Cliente (Opcional)" 
+                                                    className="w-full p-3 bg-emerald-50/50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-emerald-400 border border-emerald-200 text-emerald-800 placeholder-emerald-600/60 shadow-inner transition-all" 
+                                                    value={manualCustomer.phone || ''} 
+                                                    onChange={e => setManualCustomer({ ...manualCustomer, phone: e.target.value })} 
+                                                />
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 ml-2">
+                                                    🎁 Informe para acumular Cashback e Ofertas VIP
+                                                </span>
+                                            </div>
+                                        )}
                                         
                                         {/* LINHA 2: ENDEREÇO E FRETE (SÓ DELIVERY) */}
                                         {manualCustomer.deliveryMethod === 'delivery' && (
@@ -10681,6 +10745,25 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <span className="text-lg">🍔 Lista (Restaurante)</span>
                                     <span className="text-xs font-normal text-center">Cardápio vertical, abre foto gigante (Lanches/Sushi/Porções).</span>
                                 </button>
+                            </div>
+                            
+                            {/* NOVO: CONTROLE DO WIDGET DE SUPORTE */}
+                            <div className="pt-6 border-t border-slate-100 mt-6">
+                                <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    💬 Botão de Suporte Velo (Flutuante)
+                                </h3>
+                                <select 
+                                    value={storeStatus.supportWidgetPosition || 'bottom-right'} 
+                                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { supportWidgetPosition: e.target.value }, { merge: true })}
+                                    className="w-full p-4 bg-white rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer text-slate-700"
+                                >
+                                    <option value="bottom-right">Canto Inferior Direito (Padrão)</option>
+                                    <option value="bottom-left">Canto Inferior Esquerdo</option>
+                                    <option value="top-right">Canto Superior Direito</option>
+                                    <option value="top-left">Canto Superior Esquerdo</option>
+                                    <option value="hidden">🚫 Ocultar Botão Completamente</option>
+                                </select>
+                                <p className="text-[10px] text-slate-400 font-bold mt-2">Escolha onde o botão de ajuda da Velo Delivery deve ficar na sua tela, ou oculte-o se estiver atrapalhando.</p>
                             </div>
                         </div>
 
@@ -15970,10 +16053,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </motion.div>
                     </motion.div>
                 )}
-            </AnimatePresence>
+           </AnimatePresence>
             {/* --- FIM: MODAL DE FECHAMENTO DE CAIXA --- */}
 
-            <VeloSupportWidget />
+            {storeStatus?.supportWidgetPosition !== 'hidden' && (
+                <VeloSupportWidget position={storeStatus?.supportWidgetPosition || 'bottom-right'} />
+            )}
         </div>
     );
 }
