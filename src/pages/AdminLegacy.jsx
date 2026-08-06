@@ -1153,6 +1153,7 @@ const educationalBanners = [
         }
     };
     const [unreadChatsCount, setUnreadChatsCount] = useState(0); // NOVO: Contador de notificações do WhatsApp
+    const [totalLeadsCount, setTotalLeadsCount] = useState(0); // NOVO: Contador de TODOS os contatos do WhatsApp (CRM)
     // --- ESTADO DO MONITOR DE FROTA ---
     const [fleetLocations, setFleetLocations] = useState([]);
     const [withdrawalsList, setWithdrawalsList] = useState([]); // NOVO: Lista de Saques para abater do saldo
@@ -2453,6 +2454,11 @@ const [vipMissions, setVipMissions] = useState([]);
             const unreadDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().status === 'unread');
             const unreadSenders = new Set(unreadDocs.map(d => d.data().from));
             setUnreadChatsCount(unreadSenders.size);
+
+            // NOVO: CRM - Conta o total absoluto de pessoas únicas que já interagiram com o WhatsApp da loja
+            const allInboundDocs = s.docs.filter(d => d.data().direction !== 'outbound' && d.data().from);
+            const allSenders = new Set(allInboundDocs.map(d => d.data().from));
+            setTotalLeadsCount(allSenders.size);
         });
 
        // NOVO: Escuta a versão e changelog global do sistema
@@ -7139,6 +7145,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             >
                                 + NOVO CLIENTE
                             </button>
+                        </div>
+
+                        {/* --- NOVO: PAINEL DE CRM GLOBAL (LEADS VS COMPRADORES) --- */}
+                        <div className="max-w-4xl mx-auto mb-6 animate-in fade-in slide-in-from-top-2">
+                            <div className="bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border-4 border-slate-800">
+                                <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
+                                    <Users size={150} className="text-blue-500" />
+                                </div>
+                                <div className="relative z-10 text-center md:text-left">
+                                    <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">CRM Base de Contatos</p>
+                                    <h2 className="text-4xl font-black text-white italic">{totalLeadsCount} <span className="text-xl not-italic font-bold text-slate-400 uppercase">Leads no WhatsApp</span></h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-2 max-w-sm">Este é o número total de pessoas únicas que já interagiram com o seu bot. A lista abaixo mostra apenas aqueles que efetivamente compraram pelo app.</p>
+                                </div>
+                                <div className="relative z-10 bg-slate-800 p-4 rounded-2xl border border-slate-700 w-full md:w-auto text-center shrink-0">
+                                    <p className="text-[10px] font-black uppercase text-green-400 tracking-widest mb-1">Clientes Compradores</p>
+                                    <p className="text-3xl font-black text-white">{customers.length}</p>
+                                </div>
+                            </div>
                         </div>
 
                         {/* --- PAINEL FINANCEIRO DA CADERNETA (RELATÓRIO DE DEVEDORES) --- */}
