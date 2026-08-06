@@ -1371,18 +1371,35 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
             // --- 🛡️ FIM DO MOTOR DE FAILOVER MULTI-TENANT ---
 
             if (action === 'broadcast') {
-                const templateVariables = req.body.variables || []; // Captura variáveis dinâmicas
+                const templateVariables = req.body.variables || []; 
                 if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
                 
-                const ordersSnap = await db.collection('orders').where('storeId', '==', storeId).limit(500).get();
+                // 1. Busca todos os Leads (Qualquer pessoa que já interagiu no WhatsApp)
+                // Limite de 1500 para proteger o servidor da Vercel contra erro 504 (Timeout)
+                const inboundSnap = await db.collection('whatsapp_inbound')
+                    .where('storeId', '==', storeId)
+                    .where('direction', '!=', 'outbound')
+                    .limit(1500) 
+                    .get();
+
                 const uniquePhones = new Set();
-                ordersSnap.forEach(doc => { if (doc.data().customerPhone) uniquePhones.add(doc.data().customerPhone); });
+                inboundSnap.forEach(doc => { 
+                    if (doc.data().from) uniquePhones.add(doc.data().from); 
+                });
+
+                // 2. Fallback de Segurança: Se a loja acabou de ligar o WhatsApp e não tem histórico de chat, pega dos pedidos antigos
+                if (uniquePhones.size < 50) {
+                    const ordersSnap = await db.collection('orders').where('storeId', '==', storeId).limit(1000).get();
+                    ordersSnap.forEach(doc => { 
+                        if (doc.data().customerPhone) uniquePhones.add(doc.data().customerPhone); 
+                    });
+                }
                 
-                // Repassa as variáveis para a função base
+                // 3. Repassa as variáveis para a função base
                 const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables));
                 await Promise.allSettled(sendPromises);
                 
-                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes.` });
+                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes/leads.` });
             }
 
             // --- INÍCIO: ENVIAR TEMPLATE INDIVIDUAL (ABRIR JANELA 24H) ---
