@@ -1022,8 +1022,15 @@ const educationalBanners = [
 
             // 🚀 MÁGICA: CÁLCULO CEGO E EXATO DO TURNO DO OPERADOR
             const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-            // Se por algum motivo perder a hora, pega a meia-noite de hoje
-            const dataAbertura = rawAbertura ? new Date(rawAbertura) : new Date(new Date().setHours(0,0,0,0));
+            
+            // Se por algum motivo perder a hora do botão, assume o turno comercial que virou às 06h da manhã
+            let defaultStart = new Date();
+            if (defaultStart.getHours() < 6) {
+                defaultStart.setDate(defaultStart.getDate() - 1);
+            }
+            defaultStart.setHours(6, 0, 0, 0);
+
+            const dataAbertura = rawAbertura ? new Date(rawAbertura) : defaultStart;
             const dataFechamento = new Date();
 
             // Filtra os pedidos estritamente do turno
@@ -3942,11 +3949,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
    const getFilteredOrdersForReport = () => {
         const now = new Date();
         
-        // 🚀 CORREÇÃO DO "DIA OPERACIONAL" (MADRUGADA)
-        // Em vez de forçar o início de hoje (00:00), buscamos a hora real de abertura do caixa.
-        // Se o caixa não tiver sido aberto na máquina, fazemos um fallback para as últimas 24h.
+        // 🚀 CORREÇÃO DEFINITIVA DO "DIA OPERACIONAL" (MADRUGADA)
         const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-        const startOfShift = rawAbertura ? new Date(rawAbertura) : new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        
+        // SE NÃO TIVER HORA DE ABERTURA, USA O "DIA COMERCIAL" (Vira apenas às 06:00 da manhã)
+        let defaultStart = new Date(now);
+        if (now.getHours() < 6) {
+            // Se for antes das 6 da manhã (ex: 02:00), o turno "Hoje" começou ontem às 06:00
+            defaultStart.setDate(defaultStart.getDate() - 1);
+        }
+        defaultStart.setHours(6, 0, 0, 0);
+
+        const startOfShift = rawAbertura ? new Date(rawAbertura) : defaultStart;
         
         // Mantido para os outros filtros (7d, 30d, mês)
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());

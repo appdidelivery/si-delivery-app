@@ -1572,23 +1572,34 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
             const { storeId } = req.body;
             if (!storeId) return res.status(400).json({ error: 'StoreId é obrigatório' });
 
-            // Busca as últimas 20.000 mensagens (Limite de segurança para a Vercel não dar Timeout)
+            // 🚨 CORREÇÃO: Removemos o orderBy do Firebase (que exige Índice Composto) 
+            // e buscamos direto pelo StoreId para não travar a API.
             const msgsSnap = await db.collection('whatsapp_inbound')
                 .where('storeId', '==', storeId)
-                .orderBy('receivedAt', 'desc')
-                .limit(20000)
                 .get();
 
             if (msgsSnap.empty) {
                 return res.status(404).json({ error: 'Nenhuma mensagem encontrada para esta loja.' });
             }
 
+            // Mapeia os dados e faz a ordenação via JavaScript (Memória da Vercel)
+            let msgsData = [];
+            msgsSnap.forEach(doc => msgsData.push(doc.data()));
+
+            msgsData.sort((a, b) => {
+                const timeA = a.receivedAt?.toMillis ? a.receivedAt.toMillis() : (a.receivedAt?.seconds ? a.receivedAt.seconds * 1000 : 0);
+                const timeB = b.receivedAt?.toMillis ? b.receivedAt.toMillis() : (b.receivedAt?.seconds ? b.receivedAt.seconds * 1000 : 0);
+                return timeB - timeA; // Ordem decrescente (Mais recentes primeiro)
+            });
+
+            // Aplica o limite de segurança de 20.000 mensagens no array
+            const finalMsgs = msgsData.slice(0, 20000);
+
             // Cabeçalho do CSV (BOM do UTF-8 para o Excel reconhecer acentuação no Brasil)
             let csvContent = '\uFEFF'; 
             csvContent += "Data/Hora;Telefone;Direção;Mensagem;Tipo de Mídia;Link da Mídia\n";
 
-            msgsSnap.forEach(doc => {
-                const data = doc.data();
+            finalMsgs.forEach(data => {
                 
                 // Formatação de Data Segura
                 let dataStr = '';
