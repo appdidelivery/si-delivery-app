@@ -3121,7 +3121,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
         const {
             storeId, orderId, transaction_amount, token, description, 
-            installments, payment_method_id, issuer_id, payer
+            installments, payment_method_id, issuer_id, payer, customerData
         } = req.body;
 
         if (!storeId || !payment_method_id || !payer) {
@@ -3159,7 +3159,32 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 payer: {
                     email: payer.email && payer.email.includes('@') ? payer.email : `cliente_${orderId.slice(-6)}@velodelivery.com.br`,
                     first_name: firstName,
-                    last_name: lastName
+                    last_name: lastName,
+                    ...(customerData?.cpf ? {
+                        identification: {
+                            type: String(customerData.cpf).replace(/\D/g, '').length === 14 ? "CNPJ" : "CPF",
+                            number: String(customerData.cpf).replace(/\D/g, '')
+                        }
+                    } : {}),
+                    ...(customerData?.phone ? {
+                        phone: {
+                            area_code: String(customerData.phone).replace(/\D/g, '').substring(0, 2),
+                            number: String(customerData.phone).replace(/\D/g, '').substring(2)
+                        }
+                    } : {})
+                },
+                additional_info: {
+                    ...(customerData?.street ? {
+                        shipments: {
+                            receiver_address: {
+                                zip_code: String(customerData.cep || '').replace(/\D/g, ''),
+                                state_name: customerData.state || '',
+                                city_name: customerData.city || '',
+                                street_name: customerData.street || '',
+                                street_number: customerData.number || ''
+                            }
+                        }
+                    } : {})
                 },
                 external_reference: orderId,
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,

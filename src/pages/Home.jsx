@@ -3088,10 +3088,11 @@ if (window.fbq) {
                                           installments: cardFormData.installments,
                                           payment_method_id: cardFormData.payment_method_id,
                                           issuer_id: cardFormData.issuer_id,
-                                          payer: cardFormData.payer
+                                          payer: cardFormData.payer,
+                                          customerData: customer
                                       })
                                   });
-
+                                  
                                   const result = await response.json();
 
                                   if (response.ok && result.success && (result.status === 'approved' || result.status === 'in_process')) {
