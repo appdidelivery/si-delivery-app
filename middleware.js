@@ -9,7 +9,7 @@ export default async function middleware(request) {
 
     // 1. O SEGREDO DO WHATSAPP: REDIRECIONAR O ROBÔ DIRETO NO MIDDLEWARE
     // Como o middleware roda ANTES do vercel.json, precisamos repassar o bot aqui.
-// Deixamos apenas redes sociais. Os buscadores (Google, Bing) PRECISAM passar direto para ler o HTML e o SEO.jsx
+    // Deixamos apenas redes sociais. Os buscadores (Google, Bing) PRECISAM passar direto para ler o HTML e o SEO.jsx
     const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber/i.test(userAgent);
     
     if (isBot) {
@@ -30,6 +30,12 @@ export default async function middleware(request) {
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
+    // --- REGRA DE FALLBACK/REDIRECIONAMENTO LIMPO ---
+    // Intercepta qualquer tentativa de acesso ao domínio ou subdomínio da Cowburguer
+    if (cleanHost === 'cowburguer.com.br' || cleanHost === 'cowburguer.velodelivery.com.br') {
+        return Response.redirect('https://www.velodelivery.com.br', 301);
+    }
+
     // 2. MOTOR DE ROTEAMENTO DE DOMÍNIOS
     const baseDomain = 'velodelivery.com.br';
     let storeId = 'csi'; 
@@ -45,7 +51,6 @@ export default async function middleware(request) {
         const domainMap = {
             "convenienciasantaisabel.com.br": "csi",
             "csi.com.br": "csi",
-            "cowburguer.com.br": "cowburguer",
             "encantolilas.app.br": "encantolilas",
             "macanudorex.com.br": "macanudorex",
             "ngconveniencia.com.br": "ng",
@@ -112,7 +117,6 @@ export default async function middleware(request) {
     }
 
     // 6. LIMPEZA VORAZ DE META-TAGS ANTIGAS
-    // Usamos a flag 'gis' para garantir que ele apague mesmo se a tag quebrar linha
     html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');

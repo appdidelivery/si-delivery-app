@@ -237,7 +237,7 @@ export default function Admin() {
     // 🧠 MOTOR DE PLANOS E FEATURE TOGGLING (SAAS)
     // =========================================================================
     // Defina aqui qual e-mail tem poder de "Deus" no sistema para ver a aba secreta
-    const adminEmails = ['appdedelivery@gmail.com', 'appdidelivery@gmail.com', 'projetosdiego.l@gmail.com', 'cowburguer@velo.com.br'];
+    const adminEmails = ['appdedelivery@gmail.com', 'appdidelivery@gmail.com', 'projetosdiego.l@gmail.com'];
     const isSuperAdmin = adminEmails.includes(auth.currentUser?.email?.toLowerCase());
 
     // Matriz de Recursos: O que cada plano tem direito de acessar
@@ -532,7 +532,6 @@ export default function Admin() {
     const domainMap = {
         "convenienciasantaisabel.com.br": "csi",
         "csi.com.br": "csi",
-        "cowburguer.com.br": "cowburguer",
         "encantolilas.app.br": "encantolilas",
         "macanudorex.com.br": "macanudorex",
         "ngconveniencia.com.br": "ng",
