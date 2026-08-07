@@ -2705,7 +2705,8 @@ if (window.fbq) {
                           payer: {
                               email: customer.email || 'cliente@velodelivery.com.br',
                               first_name: customer.name || 'Cliente'
-                          }
+                          },
+                          customerData: customer // 🚨 DADOS DO CLIENTE INJETADOS AQUI PARA O BACKEND LER
                       })
                   });
 
@@ -3028,6 +3029,22 @@ if (window.fbq) {
                           onSubmit: async (cardFormData) => {
                               if (!isStoreOpenNow) return alert(storeMessage);
                               if (cart.length === 0) return alert("Carrinho vazio!");
+                              
+                              // 🚨 TRAVA DO CPF INJETADA AQUI PARA O MP BRICKS
+                              if (storeSettings?.checkoutCpfMode === 'required') {
+                                  const cpfLimpo = customer.cpf ? String(customer.cpf).replace(/\D/g, '') : '';
+                                  if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
+                                      return alert("Por favor, preencha um CPF ou CNPJ válido para prosseguir com o pedido.");
+                                  }
+                              }
+
+                              if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
+                              if (!customer.cep || !customer.street || !customer.number) return alert("Preencha o endereço de entrega completo.");
+                              
+                              if (storeSettings?.minOrderValue > 0 && subtotal < storeSettings.minOrderValue) {
+                                  return alert(`⚠️ O valor mínimo para pedidos é R$ ${storeSettings.minOrderValue.toFixed(2)}.`);
+                              }
+
                               if (submitLock.current) return; 
                               submitLock.current = true;
                               setIsFinalizing(true);
@@ -3052,6 +3069,7 @@ if (window.fbq) {
                                       customerName: customer.name || "", 
                                       customerAddress: fullAddress || "", 
                                       customerPhone: customer.phone || "",
+                                      customerCpf: customer.cpf ? String(customer.cpf).replace(/\D/g, '') : "", // 🚨 CPF AGORA É SALVO NO BANCO
                                       paymentMethod: "mp_transparent", 
                                       paymentStatus: 'processing',
                                       items: sanitizedCart,
