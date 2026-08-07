@@ -2059,6 +2059,31 @@ const [vipMissions, setVipMissions] = useState([]);
     });
     const [editingCouponId, setEditingCouponId] = useState(null);
 
+    // Efeito para calcular desconto do cupom automaticamente no PDV
+    useEffect(() => {
+        if (activeTab === 'manual' && manualCouponCode) {
+            const selectedCoupon = coupons.find(c => c.code === manualCouponCode);
+            if (selectedCoupon) {
+                const cartSubtotal = manualCart.reduce((a, i) => a + (i.price * i.quantity), 0);
+                
+                // Valida se atingiu o pedido mínimo
+                if (selectedCoupon.minimumOrderValue > 0 && cartSubtotal < selectedCoupon.minimumOrderValue) {
+                    setManualCouponCode('');
+                    setManualDiscountAmount(0);
+                } else {
+                    let calculatedDiscount = 0;
+                    if (selectedCoupon.type === 'percentage') {
+                        calculatedDiscount = cartSubtotal * (Number(selectedCoupon.value) / 100);
+                    } else if (selectedCoupon.type === 'fixed_amount') {
+                        calculatedDiscount = Number(selectedCoupon.value);
+                    }
+                    // Limita o desconto para não ficar negativo
+                    setManualDiscountAmount(Math.min(calculatedDiscount, cartSubtotal));
+                }
+            }
+        }
+    }, [manualCart, manualCouponCode, coupons, activeTab]);
+
     const handleLogout = async () => {
         try { await signOut(auth); navigate('/login'); } catch (error) { console.error("Erro logout:", error); }
     };
@@ -8311,16 +8336,52 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     return (
         <>
         <div className="flex flex-col gap-3 mb-6 pt-4 border-t border-dashed border-slate-200">
-            {/* CAMPO DE DESCONTO PDV */}
-            <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100 mb-2">
-                <span className="font-black text-green-700 uppercase tracking-widest text-[10px]">Desconto Extra R$</span>
-                <input 
-                    type="number" 
-                    placeholder="0.00" 
-                    className="w-24 p-2 bg-white rounded-lg font-black text-xs text-green-700 outline-none text-right focus:ring-2 ring-green-400 shadow-sm"
-                    value={manualDiscountAmount || ''}
-                    onChange={(e) => setManualDiscountAmount(Number(e.target.value))}
-                />
+            {/* --- NOVO: SELEÇÃO DE CUPOM E DESCONTO MANUAL PDV --- */}
+            <div className="flex flex-col gap-2 bg-green-50 p-3 rounded-2xl border border-green-100 mb-2">
+                
+                {/* Dropdown Inteligente de Cupons */}
+                <div className="flex justify-between items-center gap-2">
+                    <span className="font-black text-green-700 uppercase tracking-widest text-[10px]">Aplicar Cupom</span>
+                    <select
+                        className="flex-1 p-2 bg-white rounded-lg font-bold text-xs text-green-800 outline-none border border-green-200 focus:ring-2 ring-green-400 shadow-sm cursor-pointer"
+                        value={manualCouponCode || ''}
+                        onChange={(e) => {
+                            const code = e.target.value;
+                            setManualCouponCode(code);
+                            if (!code) setManualDiscountAmount(0);
+                        }}
+                    >
+                        <option value="">Nenhum cupom</option>
+                        {coupons.filter(c => {
+                            if (!c.active) return false;
+                            if (c.expirationDate) {
+                                const today = new Date().setHours(0,0,0,0);
+                                const expDate = new Date(c.expirationDate + 'T00:00:00').setHours(0,0,0,0);
+                                if (today > expDate) return false; // Ignora os vencidos
+                            }
+                            return true;
+                        }).map(c => (
+                            <option key={c.id} value={c.code}>
+                                {c.code} ({c.type === 'percentage' ? `${c.value}%` : `R$ ${c.value}`})
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Input Manual de Reais (Caso queira dar desconto fora do cupom) */}
+                <div className="flex justify-between items-center pt-2 border-t border-green-200/50">
+                    <span className="font-black text-green-700 uppercase tracking-widest text-[10px]">Ou Desconto Extra (R$)</span>
+                    <input 
+                        type="number" 
+                        placeholder="0.00" 
+                        className="w-24 p-2 bg-white rounded-lg font-black text-xs text-green-700 outline-none text-right focus:ring-2 ring-green-400 shadow-sm border border-green-200"
+                        value={manualDiscountAmount || ''}
+                        onChange={(e) => {
+                            setManualCouponCode(''); // Desmarca o cupom se o caixa digitar manual
+                            setManualDiscountAmount(Number(e.target.value));
+                        }}
+                    />
+                </div>
             </div>
 
             {/* Total Principal */}
@@ -8442,7 +8503,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         shippingFee: isPickup ? 0 : manualShippingFee,
                         extraFee: 0,
                         discountAmount: manualDiscountAmount,
-                        couponCode: manualDiscountAmount > 0 ? 'DESCONTO_PDV' : '',
+                        couponCode: manualCouponCode || (manualDiscountAmount > 0 ? 'DESCONTO_MANUAL' : ''),
                         total: cartTotal,
                         
                         // ✅ SALVAMENTO DO PAGAMENTO MISTO
@@ -8470,6 +8531,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     });
                     setManualShippingFee(0);
                     setManualDiscountAmount(0);
+                    setManualCouponCode('');
                     alert("✅ Comanda lançada com sucesso!");
                 } catch (e) {
                     alert("Erro ao lançar venda no PDV.");
