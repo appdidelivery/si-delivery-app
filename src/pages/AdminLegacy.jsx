@@ -7001,7 +7001,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 // Filtros Rápidos (Smart Tabs)
                                 let matchesSmart = true;
                                 if (productSmartFilter === 'zerado') matchesSmart = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
-                                if (productSmartFilter === 'fiscal') matchesSmart = !p.ncm || !p.cfop || !p.cest;
+                                if (productSmartFilter === 'fiscal') matchesSmart = !p.ncm || !p.cfop || !p.csosn_cst;
                                 if (productSmartFilter === 'imagem') matchesSmart = !p.imageUrl;
 
                                 return matchesSearch && matchesCategory && matchesStatus && matchesSmart;
@@ -7121,9 +7121,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         </div>
 
                                                         {/* Alertas Visuais */}
-                                                        {(!p.ncm || !p.cfop || !p.cest || !p.imageUrl) && (
+                                                        {(!p.ncm || !p.cfop || !p.csosn_cst || !p.imageUrl) && (
                                                             <div className="flex gap-1 mb-1">
-                                                                {(!p.ncm || !p.cfop || !p.cest) && <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="Faltam dados fiscais (NCM/CFOP/CEST)">⚠️ Fiscal</span>}
+                                                                {(!p.ncm || !p.cfop || !p.csosn_cst) && <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="Faltam dados fiscais (NCM, CFOP ou CSOSN)">⚠️ Fiscal</span>}
                                                                 {!p.imageUrl && <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="Produto sem foto cadastrada">🖼️ Sem Foto</span>}
                                                             </div>
                                                         )}
