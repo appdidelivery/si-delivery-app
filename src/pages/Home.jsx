@@ -4314,32 +4314,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                 <>
                                     <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     
-                                    {/* --- MÓDULO DE CPF NA NOTA (DINÂMICO) --- */}
-                                    {storeSettings?.checkoutCpfMode && storeSettings.checkoutCpfMode !== 'hidden' && (
-                                        <div className="relative mb-3 animate-in fade-in zoom-in-95">
-                                            <input 
-                                                type="text" 
-                                                placeholder={storeSettings.checkoutCpfMode === 'required' ? "CPF (Obrigatório) *" : "CPF na Nota (Opcional)"} 
-                                                className={`w-full p-5 pl-12 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none focus:ring-2 ring-blue-500 outline-none text-slate-700 ${storeSettings.checkoutCpfMode === 'required' ? 'placeholder-slate-500' : 'placeholder-slate-400'}`} 
-                                                value={customer.cpf || ''} 
-                                                onChange={e => {
-                                                    const rawValue = e.target.value.replace(/\D/g, '');
-                                                    let formattedValue = rawValue;
-                                                    if (rawValue.length > 11) {
-                                                        // Formata como CNPJ
-                                                        formattedValue = rawValue.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, '$1.$2.$3/$4-$5');
-                                                    } else if (rawValue.length > 0) {
-                                                        // Formata como CPF
-                                                        formattedValue = rawValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                                                    }
-                                                    handleCustomerChange('cpf', formattedValue);
-                                                }}
-                                                maxLength="18"
-                                            />
-                                            <FileText size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                        </div>
-                                    )}
-                                    {/* ------------------------------------------- */}
+                            {/* O Módulo de CPF foi movido para baixo para não sumir quando o cliente for recorrente */}
 
                                     {/* --- MÓDULO DE FLORICULTURA E PRESENTES --- */}
                                     {storeSettings?.storeNiche === 'floricultura' && (
@@ -4453,9 +4428,33 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                     )}
                                 </>
                             )}
-                        </div>
+                       </div>
                     )}
                   </div>
+
+                  {/* --- MÓDULO DE CPF NA NOTA (AGORA LIVRE E SEMPRE VISÍVEL PARA TODOS OS CLIENTES) --- */}
+                  {!isWaiterMode && !tableSession && storeSettings?.checkoutCpfMode && storeSettings.checkoutCpfMode !== 'hidden' && (
+                      <div className="relative mb-4 mt-2 animate-in fade-in zoom-in-95">
+                          <input 
+                              type="text" 
+                              placeholder={storeSettings.checkoutCpfMode === 'required' ? "CPF ou CNPJ (Obrigatório) *" : "CPF na Nota (Opcional)"} 
+                              className={`w-full p-5 pl-12 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none focus:ring-2 ring-blue-500 outline-none text-slate-700 ${storeSettings.checkoutCpfMode === 'required' ? 'placeholder-slate-500' : 'placeholder-slate-400'}`} 
+                              value={customer.cpf || ''} 
+                              onChange={e => {
+                                  const rawValue = e.target.value.replace(/\D/g, '');
+                                  let formattedValue = rawValue;
+                                  if (rawValue.length > 11) {
+                                      formattedValue = rawValue.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, '$1.$2.$3/$4-$5');
+                                  } else if (rawValue.length > 0) {
+                                      formattedValue = rawValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                                  }
+                                  handleCustomerChange('cpf', formattedValue);
+                              }}
+                              maxLength="18"
+                          />
+                          <FileText size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      </div>
+                  )}
 
                   {!isWaiterMode && !tableSession && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
                   {!isWaiterMode && !tableSession && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
