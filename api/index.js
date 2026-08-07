@@ -3222,7 +3222,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // Pacote Base (Aceito perfeitamente pelo PIX)
+            // Pacote Base Limpo (Aceito perfeitamente pelo PIX e Cartão)
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`,
@@ -3233,37 +3233,44 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     last_name: lastName
                 },
                 external_reference: orderId,
-                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,
-                statement_descriptor: "VELO DELIVERY"
+                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // 🚨 BLINDAGEM MESTRA: Antifraude APENAS para Cartão de Crédito!
-            // O Mercado Pago recusa o PIX (Erro 400) se enviarmos o nó "additional_info".
-            if (payment_method_id !== 'pix' && customerData) {
-                if (customerData.cpf) {
-                    paymentPayload.payer.identification = {
-                        type: String(customerData.cpf).replace(/\D/g, '').length === 14 ? "CNPJ" : "CPF",
-                        number: String(customerData.cpf).replace(/\D/g, '')
-                    };
-                }
-                if (customerData.phone) {
-                    paymentPayload.payer.phone = {
-                        area_code: String(customerData.phone).replace(/\D/g, '').substring(0, 2),
-                        number: String(customerData.phone).replace(/\D/g, '').substring(2)
-                    };
-                }
-                if (customerData.street) {
-                    paymentPayload.additional_info = {
-                        shipments: {
-                            receiver_address: {
-                                zip_code: String(customerData.cep || '').replace(/\D/g, ''),
-                                state_name: customerData.state || 'SP', 
-                                city_name: customerData.city || 'Cidade', 
-                                street_name: customerData.street || '',
-                                street_number: customerData.number || ''
+            // Injeta Documentos (Ajuda na segurança do PIX e do Cartão)
+            if (customerData && customerData.cpf) {
+                paymentPayload.payer.identification = {
+                    type: String(customerData.cpf).replace(/\D/g, '').length === 14 ? "CNPJ" : "CPF",
+                    number: String(customerData.cpf).replace(/\D/g, '')
+                };
+            }
+
+            // 🚨 BLINDAGEM MESTRA: Dados exclusivos para Cartão de Crédito!
+            if (payment_method_id !== 'pix') {
+                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Módulo movido para cá!
+                paymentPayload.token = token;
+                paymentPayload.installments = Number(installments) || 1;
+                paymentPayload.issuer_id = issuer_id;
+
+                if (customerData) {
+                    if (customerData.phone) {
+                        paymentPayload.payer.phone = {
+                            area_code: String(customerData.phone).replace(/\D/g, '').substring(0, 2),
+                            number: String(customerData.phone).replace(/\D/g, '').substring(2)
+                        };
+                    }
+                    if (customerData.street) {
+                        paymentPayload.additional_info = {
+                            shipments: {
+                                receiver_address: {
+                                    zip_code: String(customerData.cep || '').replace(/\D/g, ''),
+                                    state_name: customerData.state || 'SP', 
+                                    city_name: customerData.city || 'Cidade', 
+                                    street_name: customerData.street || '',
+                                    street_number: customerData.number || ''
+                                }
                             }
-                        }
-                    };
+                        };
+                    }
                 }
             }
 
