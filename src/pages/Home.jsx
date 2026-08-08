@@ -2700,8 +2700,7 @@ if (window.fbq) {
                           payer: {
                               email: customer.email || 'cliente@velodelivery.com.br',
                               first_name: customer.name || 'Cliente'
-                          },
-                          customerData: customer // Enviamos para o backend, mas o backend vai IGNORAR se for PIX
+                          }
                       })
                   });
 
