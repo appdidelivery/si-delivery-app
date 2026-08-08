@@ -3222,7 +3222,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // Pacote Base Mínimo Absoluto
+            // Pacote Original e Estável
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`,
@@ -3233,48 +3233,18 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     last_name: lastName
                 },
                 external_reference: orderId,
-                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
+                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,
+                statement_descriptor: "VELO DELIVERY"
             };
-
-            // Injeta o CPF apenas se for matematicamente perfeito
-            if (customerData && customerData.cpf) {
-                const docLimpo = String(customerData.cpf).replace(/\D/g, '');
-                if (docLimpo.length === 11 || docLimpo.length === 14) {
-                    paymentPayload.payer.identification = {
-                        type: docLimpo.length === 14 ? "CNPJ" : "CPF",
-                        number: docLimpo
-                    };
-                }
-            }
 
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
-            // 🚨 BLINDAGEM MESTRA: Tudo que está aqui dentro só roda se for Cartão
             if (payment_method_id !== 'pix') {
-                paymentPayload.statement_descriptor = "VELO DELIVERY";
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
-
-                // Injeta endereço pro Antifraude com valores padrão para o MP não travar com campos vazios
-                if (customerData) {
-                    const safeCep = String(customerData.cep || '').replace(/\D/g, '');
-                    if (safeCep.length === 8) {
-                        paymentPayload.additional_info = {
-                            shipments: {
-                                receiver_address: {
-                                    zip_code: safeCep,
-                                    state_name: customerData.state || 'SP', 
-                                    city_name: customerData.city || 'Cidade', 
-                                    street_name: customerData.street || 'Rua Nao Informada',
-                                    street_number: customerData.number || 'SN'
-                                }
-                            }
-                        };
-                    }
-                }
             }
 
             const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {

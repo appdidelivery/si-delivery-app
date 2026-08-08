@@ -11395,24 +11395,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 <input type="checkbox" checked={storeStatus.checkoutRequireNumber !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { checkoutRequireNumber: e.target.checked }, { merge: true })} className="w-5 h-5 accent-blue-600 cursor-pointer" />
             </label>
 
-            {/* NOVO: OPÇÕES DE CPF NA NOTA (EXPERIÊNCIA DE COMPRA E FISCAL) */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 mt-2 space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-1">
-                    Campo de CPF (Nota Fiscal) no App
-                </label>
-                <select 
-                    value={storeStatus.checkoutCpfMode || 'hidden'} 
-                    onChange={(e) => updateDoc(doc(db, "stores", storeId), { checkoutCpfMode: e.target.value }, { merge: true })}
-                    className="w-full p-3 bg-slate-50 rounded-xl font-bold text-sm outline-none border border-slate-200 focus:ring-2 ring-blue-500 cursor-pointer text-slate-700"
-                >
-                    <option value="hidden">❌ Escondido (Não pedir CPF)</option>
-                    <option value="optional">📄 Opcional (O cliente digita se quiser a nota)</option>
-                    <option value="required">⚠️ Obrigatório (Trava a venda sem CPF)</option>
-                </select>
-                <p className="text-[9px] text-slate-400 font-bold leading-relaxed mt-1">
-                    Se você usar o Módulo NFC-e, a opção "Opcional" é a melhor para não perder vendas. O sistema emitirá a nota como Consumidor Final se o CPF ficar vazio.
-                </p>
-            </div>
+            
         </div>
 
        {/* CAMPO DE PONTO DE ESTOQUE */}

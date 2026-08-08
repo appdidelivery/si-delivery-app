@@ -2223,13 +2223,7 @@ export default function Home() {
     } else {
         if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
         
-        // 🚨 TRAVA DO CPF (Se estiver ativado pelo Lojista)
-        if (storeSettings?.checkoutCpfMode === 'required') {
-            const cpfLimpo = customer.cpf ? String(customer.cpf).replace(/\D/g, '') : '';
-            if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
-                return alert("Por favor, preencha um CPF ou CNPJ válido para prosseguir com o pedido.");
-            }
-        }
+        
 
         if (!isPickup && (!customer.cep || !customer.street || !customer.number)) return alert("Preencha o endereço de entrega completo.");
         if (!isPickup && shippingFee === null) return alert("Frete não calculado. Verifique se sua região é atendida.");
@@ -2282,7 +2276,7 @@ const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, 
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
-        customerCpf: customer.cpf ? String(customer.cpf).replace(/\D/g, '') : "", // <--- CPF LIMPO SALVO AQUI
+        customerCpf: "", // <--- CPF LIMPO SALVO AQUI
         paymentMethod: customer.payment || "", 
         paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
         customerChangeFor: customer.payment === 'dinheiro' ? (customer.changeFor || "") : "",
@@ -3069,7 +3063,7 @@ if (window.fbq) {
                                       customerName: customer.name || "", 
                                       customerAddress: fullAddress || "", 
                                       customerPhone: customer.phone || "",
-                                      customerCpf: customer.cpf ? String(customer.cpf).replace(/\D/g, '') : "", // 🚨 CPF AGORA É SALVO NO BANCO
+                                      customerCpf: "",// 🚨 CPF AGORA É SALVO NO BANCO
                                       paymentMethod: "mp_transparent", 
                                       paymentStatus: 'processing',
                                       items: sanitizedCart,
@@ -4432,29 +4426,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                     )}
                   </div>
 
-                  {/* --- MÓDULO DE CPF NA NOTA (AGORA LIVRE E SEMPRE VISÍVEL PARA TODOS OS CLIENTES) --- */}
-                  {!isWaiterMode && !tableSession && storeSettings?.checkoutCpfMode && storeSettings.checkoutCpfMode !== 'hidden' && (
-                      <div className="relative mb-4 mt-2 animate-in fade-in zoom-in-95">
-                          <input 
-                              type="text" 
-                              placeholder={storeSettings.checkoutCpfMode === 'required' ? "CPF ou CNPJ (Obrigatório) *" : "CPF na Nota (Opcional)"} 
-                              className={`w-full p-5 pl-12 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none focus:ring-2 ring-blue-500 outline-none text-slate-700 ${storeSettings.checkoutCpfMode === 'required' ? 'placeholder-slate-500' : 'placeholder-slate-400'}`} 
-                              value={customer.cpf || ''} 
-                              onChange={e => {
-                                  const rawValue = e.target.value.replace(/\D/g, '');
-                                  let formattedValue = rawValue;
-                                  if (rawValue.length > 11) {
-                                      formattedValue = rawValue.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, '$1.$2.$3/$4-$5');
-                                  } else if (rawValue.length > 0) {
-                                      formattedValue = rawValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                                  }
-                                  handleCustomerChange('cpf', formattedValue);
-                              }}
-                              maxLength="18"
-                          />
-                          <FileText size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                  )}
+                  
 
                   {!isWaiterMode && !tableSession && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
                   {!isWaiterMode && !tableSession && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
