@@ -3222,7 +3222,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // Pacote Original e Estável
+            // PACOTE BASE (Mínimo e limpo para o PIX nunca dar erro 400)
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`,
@@ -3233,32 +3233,52 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     last_name: lastName
                 },
                 external_reference: orderId,
-                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,
-                statement_descriptor: "VELO DELIVERY"
+                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
+            // 🚨 BLINDAGEM MESTRA: TUDO QUE ESTÁ AQUI DENTRO SÓ VAI PARA O CARTÃO DE CRÉDITO!
+            // O PIX NUNCA PODE RECEBER CPF OU ENDEREÇO, SENÃO GERA ERRO "FINANCIAL IDENTITY".
             if (payment_method_id !== 'pix') {
+                paymentPayload.statement_descriptor = "VELO DELIVERY";
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
+
+                if (customerData) {
+                    // Injeta CPF só no Cartão
+                    if (customerData.cpf) {
+                        const docLimpo = String(customerData.cpf).replace(/\D/g, '');
+                        if (docLimpo.length === 11 || docLimpo.length === 14) {
+                            paymentPayload.payer.identification = {
+                                type: docLimpo.length === 14 ? "CNPJ" : "CPF",
+                                number: docLimpo
+                            };
+                        }
+                    }
+                    
+                    // Injeta Endereço só no Cartão
+                    const safeCep = String(customerData.cep || '').replace(/\D/g, '');
+                    if (safeCep.length === 8) {
+                        paymentPayload.additional_info = {
+                            shipments: {
+                                receiver_address: {
+                                    zip_code: safeCep,
+                                    state_name: customerData.state || 'SP', 
+                                    city_name: customerData.city || 'Cidade', 
+                                    street_name: customerData.street || 'Rua',
+                                    street_number: customerData.number || 'SN'
+                                }
+                            }
+                        };
+                    }
+                }
             }
 
-            // Prepara a requisição inicial
-            const mpOptions = {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${mpConfig.accessToken}`,
-                    'Content-Type': 'application/json',
-                    'X-Idempotency-Key': `velo_${orderId}_${Date.now()}`
-                },
-                body: JSON.stringify(paymentPayload)
-            };
-
-            let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
+            const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
             let data = await mpResponse.json();
 
             // 🚀 MOTOR DE AUTO-CURA (FALLBACK INVISÍVEL)
