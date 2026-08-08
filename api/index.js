@@ -3265,6 +3265,11 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
                 else if (data.message) exactError = data.message;
                 
+                // 🚨 TRADUTOR DE ERRO DO PIX: Explica o problema de forma clara para o Lojista
+                if (exactError.includes("Collector user without key enabled for QR") || exactError.includes("Financial Identity")) {
+                    exactError = "A conta Mercado Pago desta loja não tem uma Chave PIX habilitada. O lojista precisa abrir o App do Mercado Pago, ir em PIX > Minhas Chaves e cadastrar uma chave aleatória para ativar as vendas.";
+                }
+                
                 console.error("❌ Erro MP Detalhado:", JSON.stringify(data));
                 return res.status(400).json({ error: exactError, details: data });
             }
