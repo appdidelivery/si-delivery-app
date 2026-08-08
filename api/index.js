@@ -3278,7 +3278,18 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+            // Prepara a requisição corretamente fechada
+            const mpOptions = {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${mpConfig.accessToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Idempotency-Key': `velo_${orderId}_${Date.now()}`
+                },
+                body: JSON.stringify(paymentPayload)
+            };
+
+            let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
             let data = await mpResponse.json();
 
             // 🚀 MOTOR DE AUTO-CURA (FALLBACK INVISÍVEL)
