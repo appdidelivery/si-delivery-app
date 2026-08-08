@@ -3216,13 +3216,13 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             if (payer.first_name) {
                 const nameParts = String(payer.first_name).trim().split(' ');
-                firstName = nameParts[0];
+                firstName = nameParts[0] || 'Cliente';
                 if (nameParts.length > 1) {
-                    lastName = nameParts.slice(1).join(' ');
+                    lastName = nameParts.slice(1).join(' ') || 'Velo';
                 }
             }
 
-            // Pacote Base Minimalista (O Mercado Pago ama isso para o PIX)
+            // Pacote Base Mínimo Absoluto
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`,
@@ -3236,7 +3236,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // Injeta o CPF apenas se for estritamente válido
+            // Injeta o CPF apenas se for matematicamente perfeito
             if (customerData && customerData.cpf) {
                 const docLimpo = String(customerData.cpf).replace(/\D/g, '');
                 if (docLimpo.length === 11 || docLimpo.length === 14) {
@@ -3247,22 +3247,34 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // Se for Cartão, injeta o token e o parcelamento
+            if (marketplaceFee > 0) {
+                paymentPayload.application_fee = marketplaceFee;
+            }
+
+            // 🚨 BLINDAGEM MESTRA: Tudo que está aqui dentro só roda se for Cartão
             if (payment_method_id !== 'pix') {
                 paymentPayload.statement_descriptor = "VELO DELIVERY";
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
-            }
 
-            if (marketplaceFee > 0) {
-                paymentPayload.application_fee = marketplaceFee;
-            }
-
-            if (payment_method_id !== 'pix') {
-                paymentPayload.token = token;
-                paymentPayload.installments = Number(installments) || 1;
-                paymentPayload.issuer_id = issuer_id;
+                // Injeta endereço pro Antifraude com valores padrão para o MP não travar com campos vazios
+                if (customerData) {
+                    const safeCep = String(customerData.cep || '').replace(/\D/g, '');
+                    if (safeCep.length === 8) {
+                        paymentPayload.additional_info = {
+                            shipments: {
+                                receiver_address: {
+                                    zip_code: safeCep,
+                                    state_name: customerData.state || 'SP', 
+                                    city_name: customerData.city || 'Cidade', 
+                                    street_name: customerData.street || 'Rua Nao Informada',
+                                    street_number: customerData.number || 'SN'
+                                }
+                            }
+                        };
+                    }
+                }
             }
 
             const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
@@ -3278,8 +3290,13 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             const data = await mpResponse.json();
 
             if (!mpResponse.ok) {
-                console.error("❌ Erro MP Transparent:", JSON.stringify(data.cause || data));
-                return res.status(400).json({ error: "Erro ao processar pagamento no Mercado Pago.", details: data });
+                // DETETIVE DE ERROS: Puxa o motivo exato de dentro do Mercado Pago para a tela
+                let exactError = "Erro não especificado pelo banco.";
+                if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
+                else if (data.message) exactError = data.message;
+                
+                console.error("❌ Erro MP Detalhado:", JSON.stringify(data));
+                return res.status(400).json({ error: exactError, details: data });
             }
 
             if (payment_method_id === 'pix') {
