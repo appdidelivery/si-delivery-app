@@ -2682,55 +2682,7 @@ if (window.fbq) {
          const hasStripe = STRIPE_ENABLED && storeSettings?.stripeConnectId;
           const hasMP = marketingSettings?.integrations?.mercadopago?.accessToken;
 
-          // --- NOVO FLUXO: PIX TRANSPARENTE MERCADO PAGO ---
-          if (customer.payment === 'pix' && hasMP) {
-              try {
-                  // CORREÇÃO: O status precisa ser 'pending' para o sistema e a tela de rastreio reconhecerem
-                  await setDoc(newOrderRef, { ...orderData, paymentStatus: 'pending' });
-
-                  const response = await fetch('/api/processar-pagamento-transparente-velo', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                          storeId: storeId,
-                          orderId: orderId,
-                          transaction_amount: finalTotal,
-                          payment_method_id: 'pix',
-                          payer: {
-                              email: customer.email || 'cliente@velodelivery.com.br',
-                              first_name: customer.name || 'Cliente'
-                          },
-                          customerData: customer // 🚨 DADOS DO CLIENTE INJETADOS AQUI PARA O BACKEND LER
-                      })
-                  });
-
-                  const result = await response.json();
-                  
-                  if (!response.ok || !result.success) {
-                      throw new Error(result.error || "Erro ao gerar PIX");
-                  }
-
-                  // Limpa carrinho e vai pra tela de Tracking (que já exibirá o PIX gerado)
-                  if (cashbackDiscount > 0) {
-                      const cleanPhone = customer.phone.replace(/\D/g, '');
-                      try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
-                  }
-
-                  localStorage.setItem('activeOrderId', orderId);
-                  setActiveOrderId(orderId);
-                  draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
-                  
-                  window.location.href = `/track/${orderId}?payment=pix_pending`;
-                  return;
-
-              } catch (err) {
-                  try { await updateDoc(newOrderRef, { status: 'cancelado', paymentStatus: 'failed', observation: 'Sistema: Falha ao gerar PIX Mercado Pago.' }); } catch(e) {}
-                  alert(`Erro ao gerar PIX: ${err.message}`);
-                  setIsFinalizing(false); submitLock.current = false;
-                  return;
-              }
-          }
-          // --- FIM FLUXO PIX TRANSPARENTE ---
+        
 
           // 2. Fluxo Antigo: Mercado Pago (Fallback de Link) ou Stripe
 
