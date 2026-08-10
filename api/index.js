@@ -3229,29 +3229,32 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             }
 
             // Pacote Limpo para o PIX (Não trava no Mercado Pago)
+            // 2. Monta o Payload ESTRITO para o Mercado Pago (SEM O STATEMENT_DESCRIPTOR AQUI)
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
-                description: description || `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`,
+                description: description || `Pedido #${orderId.slice(-5).toUpperCase()}`,
                 payment_method_id: payment_method_id,
                 payer: {
-                    email: payer.email && payer.email.includes('@') ? payer.email : `cliente_${orderId.slice(-6)}@velodelivery.com.br`,
+                    email: payer?.email && payer.email.includes('@') ? payer.email : `cliente_${orderId.slice(-6)}@velodelivery.com.br`,
                     first_name: firstName,
                     last_name: lastName
                 },
                 external_reference: orderId,
-                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`,
-                statement_descriptor: "VELO DELIVERY"
+                notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
+            // 3. Taxa da Plataforma (Split de 4,99%)
+            const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
-            // 🚨 BLINDAGEM MESTRA: O CPF só vai para o MP se o cliente estiver usando Cartão de Crédito!
+            // 4. Injeção Específica para Cartão de Crédito (Aqui entra CPF e o Descriptor)
             if (payment_method_id !== 'pix') {
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
+                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Correção vital: Só para cartão!
 
                 if (customerData && customerData.cpf) {
                     const docLimpo = String(customerData.cpf).replace(/\D/g, '');
@@ -3264,7 +3267,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // Prepara a requisição corretamente fechada
+            // 5. Requisição Inicial
             const mpOptions = {
                 method: 'POST',
                 headers: {
@@ -3278,75 +3281,27 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
             let data = await mpResponse.json();
 
-            // 🚀 MOTOR DE AUTO-CURA (FALLBACK INVISÍVEL MULTI-ERROS)
+            // 6. MOTOR DE AUTO-CURA SIMPLIFICADO (SEM DESTRUIR OS DADOS DO CLIENTE)
             if (!mpResponse.ok) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
-                // FALLBACK 1: ERRO DE IDENTIDADE FINANCEIRA (Bloqueio de Split)
-                // Se a conta do lojista não for validada no MP, removemos a taxa da plataforma para salvar a venda
-                if (errorStr.includes('financial identity') || errorStr.includes('financial_identity')) {
-                    console.warn(`🚨 [Velo Fallback] Lojista sem KYC no MP. Removendo application_fee para salvar a venda PIX...`);
+                // Se a conta do Lojista não tiver a "Identidade Financeira" pra fazer o split, 
+                // removemos apenas a SUA taxa e mandamos o Pix 100% pra ele.
+                if (errorStr.includes('financial') || mpResponse.status === 400) {
+                    console.warn(`🚨 [Velo Recovery] Lojista com KYC pendente. Limpando taxa de plataforma e tentando novamente...`);
                     delete paymentPayload.application_fee;
                     
                     mpOptions.body = JSON.stringify(paymentPayload);
-                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fbkyc_${Date.now()}`;
-                    
-                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-                    data = await mpResponse.json();
-                }
-
-                // FALLBACK 2: DADOS DO CLIENTE INVÁLIDOS (Bad Request)
-                // Se ainda falhar com Erro 400 (ex: CPF fake, nome com símbolo), limpamos o cliente e forçamos a venda
-                if (!mpResponse.ok && mpResponse.status === 400) {
-                    console.warn(`⚠️ [Velo Fallback] Mercado Pago rejeitou dados do cliente. Limpando payload...`);
-                    delete paymentPayload.payer.identification;
-                    delete paymentPayload.payer.phone;
-                    delete paymentPayload.additional_info;
-                    paymentPayload.payer.last_name = "Cliente";
-                    
-                    mpOptions.body = JSON.stringify(paymentPayload);
-                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fdata_${Date.now()}`;
+                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_retry_${Date.now()}`;
                     
                     mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
                     data = await mpResponse.json();
                 }
             }
 
-            // Se DEPOIS de limpar tudo ainda der erro, é porque o problema é no limite do cartão, saldo ou Token do Lojista
+            // 7. Validação Final
             if (!mpResponse.ok) {
-                const errorStr = JSON.stringify(data).toLowerCase();
-                
-                // Erro 1: Dados do Cliente inválidos (400)
-                if (mpResponse.status === 400 && !errorStr.includes('financial identity')) {
-                    console.warn(`⚠️ [Fallback 1] Mercado Pago rejeitou dados do cliente. Limpando payload...`);
-                    delete paymentPayload.payer.identification;
-                    delete paymentPayload.payer.phone;
-                    delete paymentPayload.additional_info;
-                    paymentPayload.payer.last_name = "Cliente";
-                    
-                    mpOptions.body = JSON.stringify(paymentPayload);
-                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fb1_${Date.now()}`;
-                    
-                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-                    data = await mpResponse.json();
-                }
-
-                // Erro 2: Lojista sem KYC/Chave Pix no MP ou falha no Split de Pagamento
-                if (!mpResponse.ok && (errorStr.includes('financial identity') || errorStr.includes('financial_identity'))) {
-                    console.warn(`🚨 [Fallback 2] Erro de Identidade Financeira do Lojista detectado. Removendo taxa de split para salvar a venda...`);
-                    delete paymentPayload.application_fee; // Arranca a taxa para o PIX passar direto para a conta do lojista
-                    
-                    mpOptions.body = JSON.stringify(paymentPayload);
-                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fb2_${Date.now()}`;
-                    
-                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-                    data = await mpResponse.json();
-                }
-            }
-
-            // Se DEPOIS de limpar tudo ainda der erro, é porque o problema é no limite do cartão, saldo ou Token do Lojista
-            if (!mpResponse.ok) {
-                let exactError = "Erro não especificado pelo banco.";
+                let exactError = "Erro ao processar o pagamento no banco.";
                 if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
                 else if (data.message) exactError = data.message;
                 
@@ -3358,10 +3313,11 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     exactError = "A conta do restaurante possui pendências no Mercado Pago. Por favor, escolha pagamento na entrega ou cartão.";
                 }
                 
-                console.error("❌ Falha Crítica Mercado Pago:", JSON.stringify(data));
+                console.error("❌ Falha MP Transparente:", exactError, data);
                 return res.status(400).json({ error: exactError, details: data });
             }
 
+            // Se for PIX, processa o QR Code...
             if (payment_method_id === 'pix') {
                 if (!data.point_of_interaction?.transaction_data?.qr_code) {
                     return res.status(400).json({ error: "O Mercado Pago não conseguiu gerar a chave PIX." });
