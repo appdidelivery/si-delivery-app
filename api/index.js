@@ -3227,7 +3227,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 lastName = nameParts.slice(1).join(' ') || 'Velo';
             }
 
-            // 3. Monta o Payload ESTRITO para o Mercado Pago (SEM O STATEMENT_DESCRIPTOR AQUI)
+            // 3. Monta o Payload ESTRITO
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()}`,
@@ -3241,17 +3241,43 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // Adiciona a taxa se houver
+            // 🔄 RESTAURAÇÃO: Devolvendo o Telefone para o Antifraude do MP (Para Cartão E Pix)
+            if (customerData && customerData.phone) {
+                const phoneClean = String(customerData.phone).replace(/\D/g, '');
+                if (phoneClean.length >= 10) {
+                    paymentPayload.payer.phone = {
+                        area_code: phoneClean.substring(0, 2),
+                        number: phoneClean.substring(2)
+                    };
+                }
+            }
+
+            // 🔄 RESTAURAÇÃO: Devolvendo o Endereço para o Antifraude do MP (Para Cartão E Pix)
+            if (customerData && customerData.street) {
+                paymentPayload.additional_info = {
+                    shipments: {
+                        receiver_address: {
+                            zip_code: String(customerData.cep || '').replace(/\D/g, ''),
+                            state_name: customerData.state || 'SP',
+                            city_name: customerData.city || 'Cidade',
+                            street_name: customerData.street || '',
+                            street_number: customerData.number || ''
+                        }
+                    }
+                };
+            }
+
+            // Adiciona a taxa de split se houver
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
-            // 4. Injeção Específica para Cartão de Crédito
+            // 4. Injeção Específica SOMENTE para Cartão de Crédito
             if (payment_method_id !== 'pix') {
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
-                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Correção vital: Só para cartão!
+                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Isso quebrava o PIX. Fica isolado aqui.
 
                 if (customerData && customerData.cpf) {
                     const docLimpo = String(customerData.cpf).replace(/\D/g, '');
@@ -3282,6 +3308,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             if (!mpResponse.ok) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
+                // Se a conta tiver bloqueio pesado, removemos a taxa da plataforma para forçar a aprovação
                 if (errorStr.includes('financial') || mpResponse.status === 400) {
                     console.warn(`🚨 [Velo Recovery] Limpando restrições do Mercado Pago e tentando novamente...`);
                     delete paymentPayload.application_fee;
