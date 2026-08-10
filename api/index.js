@@ -3185,7 +3185,28 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
    // ------------------------------------------------------------------------
     // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
     // ------------------------------------------------------------------------
-    try {
+    else if (path === '/api/processar-pagamento-transparente-velo') {
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+        if (req.method === 'OPTIONS') return res.status(200).end();
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const {
+            storeId, orderId, transaction_amount, token, description, 
+            installments, payment_method_id, issuer_id, payer, customerData
+        } = req.body;
+
+        if (!storeId || !payment_method_id || !payer) {
+            return res.status(400).json({ error: 'Faltam dados obrigatórios para processar o pagamento.' });
+        }
+        if (payment_method_id !== 'pix' && !token) {
+            return res.status(400).json({ error: 'Token do cartão não fornecido.' });
+        }
+
+        try {
             const settingsDoc = await db.collection('settings').doc(storeId).get();
             const mpConfig = settingsDoc.data()?.integrations?.mercadopago;
 
@@ -3193,11 +3214,10 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(400).json({ error: 'Mercado Pago não está configurado.' });
             }
 
-            // 1. CÁLCULO SEGURO E ARREDONDADO (Impede erro 400 por dízimas ou centavos quebrados)
-            const valorFinalTratado = Number(Number(transaction_amount).toFixed(2));
-            const marketplaceFee = Number((valorFinalTratado * 0.0499).toFixed(2));
+            // 1. TAXA DA PLATAFORMA (Declarada apenas uma vez)
+            const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
 
-            // 2. FORMATAÇÃO RÍGIDA DOS NOMES (O MP odeia nomes vazios ou falsos)
+            // 2. Limpeza Segura dos Nomes (Impede crash)
             let firstName = 'Cliente';
             let lastName = 'Velo';
 
@@ -3207,9 +3227,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 lastName = nameParts.slice(1).join(' ') || 'Velo';
             }
 
-            // 3. PAYLOAD BASE DO MERCADO PAGO (Aceito por Cartão e PIX)
+            // 3. Monta o Payload ESTRITO para o Mercado Pago (SEM O STATEMENT_DESCRIPTOR AQUI)
             const paymentPayload = {
-                transaction_amount: valorFinalTratado,
+                transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()}`,
                 payment_method_id: payment_method_id,
                 payer: {
@@ -3221,36 +3241,18 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // Aplica a taxa de comissão da Velo
+            // Adiciona a taxa se houver
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
-            // ==============================================================
-            // 🚨 BLINDAGEM MESTRA: TRATAMENTO ESPECÍFICO POR MEIO DE PAGAMENTO
-            // ==============================================================
-
-            if (payment_method_id === 'pix') {
-                // PARA O PIX: O Mercado Pago exige que não exista NENHUM campo extra, 
-                // senão ele tenta validar como cartão e estoura o erro 400 "Collector user without key..."
-                
-                // Forçamos o apagamento de qualquer sujeira que o frontend tenha mandado
-                delete paymentPayload.token;
-                delete paymentPayload.installments;
-                delete paymentPayload.issuer_id;
-                delete paymentPayload.statement_descriptor;
-                delete paymentPayload.payer.identification;
-                delete paymentPayload.additional_info;
-                delete paymentPayload.payer.phone;
-
-            } else {
-                // PARA O CARTÃO DE CRÉDITO: Injetamos todos os dados do Antifraude e o Descriptor
+            // 4. Injeção Específica para Cartão de Crédito
+            if (payment_method_id !== 'pix') {
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
-                paymentPayload.statement_descriptor = "VELO DELIVERY";
+                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Correção vital: Só para cartão!
 
-                // Injeção de CPF para o Cartão
                 if (customerData && customerData.cpf) {
                     const docLimpo = String(customerData.cpf).replace(/\D/g, '');
                     if (docLimpo.length === 11 || docLimpo.length === 14) {
@@ -3260,35 +3262,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         };
                     }
                 }
-
-                // Injeção de Telefone para o Cartão
-                if (customerData && customerData.phone) {
-                    const phoneClean = String(customerData.phone).replace(/\D/g, '');
-                    if (phoneClean.length >= 10) {
-                        paymentPayload.payer.phone = {
-                            area_code: phoneClean.substring(0, 2),
-                            number: phoneClean.substring(2)
-                        };
-                    }
-                }
-
-                // Injeção de Endereço para o Cartão
-                if (customerData && customerData.street) {
-                    paymentPayload.additional_info = {
-                        shipments: {
-                            receiver_address: {
-                                zip_code: String(customerData.cep || '').replace(/\D/g, ''),
-                                state_name: customerData.state || 'SP',
-                                city_name: customerData.city || 'Cidade',
-                                street_name: customerData.street || '',
-                                street_number: customerData.number || ''
-                            }
-                        }
-                    };
-                }
             }
 
-            // 4. DISPARO PARA A API DO MERCADO PAGO
+            // 5. Requisição Inicial
             const mpOptions = {
                 method: 'POST',
                 headers: {
@@ -3302,13 +3278,12 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
             let data = await mpResponse.json();
 
-            // 5. MOTOR DE RECOVERY (Caso o Lojista não tenha KYC para o Split)
+            // 6. MOTOR DE AUTO-CURA SIMPLIFICADO
             if (!mpResponse.ok) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
-                // Se der erro 400 ou envolver identidade, removemos a taxa da Velo e tentamos passar o PIX limpo
                 if (errorStr.includes('financial') || mpResponse.status === 400) {
-                    console.warn(`🚨 [Velo Recovery] Limpando restrições (Split/KYC) e tentando novamente...`);
+                    console.warn(`🚨 [Velo Recovery] Limpando restrições do Mercado Pago e tentando novamente...`);
                     delete paymentPayload.application_fee;
                     
                     mpOptions.body = JSON.stringify(paymentPayload);
@@ -3319,23 +3294,25 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // 6. VALIDAÇÃO E RETORNO DE ERRO
+            // 7. Validação Final
             if (!mpResponse.ok) {
                 let exactError = "Erro ao processar o pagamento no banco.";
                 if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
                 else if (data.message) exactError = data.message;
                 
-                // Tradutor Amigável
+                // TRADUTOR DE ERROS PARA O CLIENTE FINAL
                 const lowerError = exactError.toLowerCase();
                 if (lowerError.includes("collector user without key")) {
-                    exactError = "O PIX falhou. O banco rejeitou a transação por falta de dados do lojista (Chave PIX ou Identidade). Escolha pagar na entrega.";
+                    exactError = "A loja não está habilitada no banco para receber PIX no momento. Por favor, escolha pagamento na entrega ou cartão.";
+                } else if (lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
+                    exactError = "A conta do restaurante possui pendências no Mercado Pago. Por favor, escolha pagamento na entrega ou cartão.";
                 }
                 
                 console.error("❌ Falha MP Transparente:", exactError, data);
                 return res.status(400).json({ error: exactError, details: data });
             }
 
-            // 7. SUCESSO - SALVAMENTO NO FIREBASE
+            // Se for PIX, salva o QR Code
             if (payment_method_id === 'pix') {
                 if (!data.point_of_interaction?.transaction_data?.qr_code) {
                     return res.status(400).json({ error: "O Mercado Pago não conseguiu gerar a chave PIX." });
