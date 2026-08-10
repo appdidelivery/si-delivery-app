@@ -583,7 +583,7 @@ export default function WppWebview() {
 
                             if (hasMP) {
                                 if (!hasVeloPix && pmConf.pix !== false) {
-                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX (Mercado Pago)' });
+                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX ' });
                                 }
                                 if (pmConf.online !== false) {
                                     methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito (Mercado Pago)' });
