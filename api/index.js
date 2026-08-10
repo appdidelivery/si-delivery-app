@@ -3185,28 +3185,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
    // ------------------------------------------------------------------------
     // 15.5. MERCADO PAGO CHECKOUT TRANSPARENTE (CARTÃO E PIX NATIVO)
     // ------------------------------------------------------------------------
-    else if (path === '/api/processar-pagamento-transparente-velo') {
-        res.setHeader('Access-Control-Allow-Credentials', true);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-        if (req.method === 'OPTIONS') return res.status(200).end();
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
-
-        const {
-            storeId, orderId, transaction_amount, token, description, 
-            installments, payment_method_id, issuer_id, payer, customerData
-        } = req.body;
-
-        if (!storeId || !payment_method_id || !payer) {
-            return res.status(400).json({ error: 'Faltam dados obrigatórios para processar o pagamento.' });
-        }
-        if (payment_method_id !== 'pix' && !token) {
-            return res.status(400).json({ error: 'Token do cartão não fornecido.' });
-        }
-
-        try {
+   try {
             const settingsDoc = await db.collection('settings').doc(storeId).get();
             const mpConfig = settingsDoc.data()?.integrations?.mercadopago;
 
@@ -3214,22 +3193,20 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(400).json({ error: 'Mercado Pago não está configurado.' });
             }
 
+            // 1. TAXA DA PLATAFORMA (Declarada apenas uma vez)
             const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
 
-            // Correção da Leitura de Nomes (Respeita o que o front manda, evita split duplo)
-            let firstName = payer?.first_name || 'Cliente';
-            let lastName = payer?.last_name || 'Velo';
+            // 2. Limpeza Segura dos Nomes (Impede crash)
+            let firstName = 'Cliente';
+            let lastName = 'Velo';
 
-            if (payer.first_name && !payer.last_name) {
+            if (payer && payer.first_name) {
                 const nameParts = String(payer.first_name).trim().split(' ');
                 firstName = nameParts[0] || 'Cliente';
-                if (nameParts.length > 1) {
-                    lastName = nameParts.slice(1).join(' ') || 'Velo';
-                }
+                lastName = nameParts.slice(1).join(' ') || 'Velo';
             }
 
-            // Pacote Limpo para o PIX (Não trava no Mercado Pago)
-            // 2. Monta o Payload ESTRITO para o Mercado Pago (SEM O STATEMENT_DESCRIPTOR AQUI)
+            // 3. Monta o Payload ESTRITO para o Mercado Pago (SEM O STATEMENT_DESCRIPTOR AQUI)
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()}`,
@@ -3243,13 +3220,12 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // 3. Taxa da Plataforma (Split de 4,99%)
-            const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
+            // Adiciona a taxa se houver
             if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
-            // 4. Injeção Específica para Cartão de Crédito (Aqui entra CPF e o Descriptor)
+            // 4. Injeção Específica para Cartão de Crédito
             if (payment_method_id !== 'pix') {
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
@@ -3281,14 +3257,12 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
             let data = await mpResponse.json();
 
-            // 6. MOTOR DE AUTO-CURA SIMPLIFICADO (SEM DESTRUIR OS DADOS DO CLIENTE)
+            // 6. MOTOR DE AUTO-CURA SIMPLIFICADO
             if (!mpResponse.ok) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
-                // Se a conta do Lojista não tiver a "Identidade Financeira" pra fazer o split, 
-                // removemos apenas a SUA taxa e mandamos o Pix 100% pra ele.
                 if (errorStr.includes('financial') || mpResponse.status === 400) {
-                    console.warn(`🚨 [Velo Recovery] Lojista com KYC pendente. Limpando taxa de plataforma e tentando novamente...`);
+                    console.warn(`🚨 [Velo Recovery] Limpando restrições do Mercado Pago e tentando novamente...`);
                     delete paymentPayload.application_fee;
                     
                     mpOptions.body = JSON.stringify(paymentPayload);
@@ -3305,7 +3279,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
                 else if (data.message) exactError = data.message;
                 
-                // 🛡️ TRADUTOR DE ERROS DO MERCADO PAGO PARA O CLIENTE FINAL
+                // TRADUTOR DE ERROS PARA O CLIENTE FINAL
                 const lowerError = exactError.toLowerCase();
                 if (lowerError.includes("collector user without key")) {
                     exactError = "A loja não está habilitada no banco para receber PIX no momento. Por favor, escolha pagamento na entrega ou cartão.";
@@ -3317,7 +3291,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(400).json({ error: exactError, details: data });
             }
 
-            // Se for PIX, processa o QR Code...
+            // Se for PIX, salva o QR Code
             if (payment_method_id === 'pix') {
                 if (!data.point_of_interaction?.transaction_data?.qr_code) {
                     return res.status(400).json({ error: "O Mercado Pago não conseguiu gerar a chave PIX." });
