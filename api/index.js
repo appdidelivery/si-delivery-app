@@ -3227,7 +3227,21 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 lastName = nameParts.slice(1).join(' ') || 'Velo';
             }
 
-            // 3. Monta o Payload ESTRITO para o Mercado Pago (SEM O STATEMENT_DESCRIPTOR AQUI)
+            // 3. BLINDAGEM DO CPF E DADOS DO PAGADOR
+            // Como o CPF não é mais obrigatório no Frontend, o Mercado Pago rejeita o PIX.
+            // Injetamos um CPF genérico (padrão de API) para garantir a geração.
+            let docType = "CPF";
+            let docNumber = "19100000000"; 
+
+            if (customerData && customerData.cpf) {
+                const docLimpo = String(customerData.cpf).replace(/\D/g, '');
+                if (docLimpo.length === 11 || docLimpo.length === 14) {
+                    docType = docLimpo.length === 14 ? "CNPJ" : "CPF";
+                    docNumber = docLimpo;
+                }
+            }
+
+            // Monta o Payload ESTRITO para o Mercado Pago
             const paymentPayload = {
                 transaction_amount: Number(Number(transaction_amount).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()}`,
@@ -3235,35 +3249,29 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 payer: {
                     email: payer?.email && payer.email.includes('@') ? payer.email : `cliente_${orderId.slice(-6)}@velodelivery.com.br`,
                     first_name: firstName,
-                    last_name: lastName
+                    last_name: lastName,
+                    identification: {
+                        type: docType,
+                        number: docNumber
+                    }
                 },
                 external_reference: orderId,
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // Adiciona a taxa se houver
-            if (marketplaceFee > 0) {
+            // 4. PREVENÇÃO DO ERRO "COLLECTOR USER WITHOUT KEY": 
+            // O Mercado Pago bloqueia a geração do PIX Transparente se enviarmos a taxa de Marketplace (Split) 
+            // para lojistas que não validaram a conta inteira como Empresa no painel deles.
+            // Portanto, a taxa SÓ é enviada se a compra for no Cartão de Crédito.
+            if (marketplaceFee > 0 && payment_method_id !== 'pix') {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
-            // 4. Injeção Específica para Cartão de Crédito
             if (payment_method_id !== 'pix') {
                 paymentPayload.token = token;
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
-                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Correção vital: Só para cartão!
-            }
-
-            // 🚨 CORREÇÃO: O CPF (Payer Identification) é OBRIGATÓRIO para o PIX no MP também!
-            // Movido para fora do bloco do cartão para aplicar a ambos os métodos.
-            if (customerData && customerData.cpf) {
-                const docLimpo = String(customerData.cpf).replace(/\D/g, '');
-                if (docLimpo.length === 11 || docLimpo.length === 14) {
-                    paymentPayload.payer.identification = {
-                        type: docLimpo.length === 14 ? "CNPJ" : "CPF",
-                        number: docLimpo
-                    };
-                }
+                paymentPayload.statement_descriptor = "VELO DELIVERY"; // Apenas o cartão suporta este campo
             }
 
             // 5. Requisição Inicial
@@ -3294,20 +3302,19 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
                 if (errorStr.includes('financial') || mpResponse.status === 400) {
-                    console.warn(`🚨 [Velo Recovery] Tentando novamente sem a taxa de split (application_fee)...`);
+                    console.warn(`🚨 [Velo Recovery] Tentando processar novamente sem taxa de comissão...`);
                     delete paymentPayload.application_fee;
                     
                     mpOptions.body = JSON.stringify(paymentPayload);
                     mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_retry_${Date.now()}`;
                     
                     mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-                    
                     responseText = await mpResponse.text();
                     try { data = JSON.parse(responseText); } catch(e) {}
                 }
             }
 
-            // 7. Validação Final Traduzida
+            // 7. Validação Final
             if (!mpResponse.ok) {
                 let exactError = "Erro ao processar o pagamento no banco.";
                 if (data.cause && data.cause.length > 0 && data.cause[0].description) {
@@ -3316,15 +3323,10 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     exactError = String(data.message);
                 }
                 
-                // TRADUTOR DE ERROS PARA O CLIENTE FINAL (Blindado contra Crash)
+                // TRADUTOR DE ERROS PARA O CLIENTE FINAL (Mensagem solicitada)
                 const lowerError = String(exactError).toLowerCase();
-                
-                if (lowerError.includes("collector user without key") || lowerError.includes("qr render null")) {
-                    exactError = "Falha ao gerar o QR Code. O lojista precisa revisar a chave PIX no Mercado Pago.";
-                } else if (lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
-                    exactError = "A conta do restaurante possui pendências. Escolha pagamento na entrega ou cartão.";
-                } else if (lowerError.includes("identification") && payment_method_id === 'pix') {
-                    exactError = "O banco exige o preenchimento de um CPF ou CNPJ válido para gerar o PIX.";
+                if (lowerError.includes("collector user without key") || lowerError.includes("qr render null") || lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
+                    exactError = "O Mercado Pago recusou a transação neste momento. Por favor, escolha pagamento na entrega ou tente com cartão.";
                 }
                 
                 console.error("❌ Falha MP Transparente:", exactError, data);
