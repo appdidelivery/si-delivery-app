@@ -257,7 +257,12 @@ export default async function handler(req, res) {
     // Ler o corpo da requisição (Raw Body)
     let rawBody = '';
     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
-        rawBody = await getRawBody(req);
+        // BLINDAGEM LOCALHOST: Evita Timeout se o middleware local já tiver lido o stream
+        if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+            rawBody = JSON.stringify(req.body);
+        } else {
+            rawBody = await getRawBody(req);
+        }
     }
 
     // Se a rota não for o Stripe Webhook ou o Binance Webhook, converte o Raw Body para JSON e joga no req.body
@@ -3211,10 +3216,11 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
 
-            let firstName = 'Cliente';
-            let lastName = 'Velo';
+            // Correção da Leitura de Nomes (Respeita o que o front manda, evita split duplo)
+            let firstName = payer?.first_name || 'Cliente';
+            let lastName = payer?.last_name || 'Velo';
 
-            if (payer.first_name) {
+            if (payer.first_name && !payer.last_name) {
                 const nameParts = String(payer.first_name).trim().split(' ');
                 firstName = nameParts[0] || 'Cliente';
                 if (nameParts.length > 1) {
@@ -3272,24 +3278,70 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
             let data = await mpResponse.json();
 
-            // 🚀 MOTOR DE AUTO-CURA (FALLBACK INVISÍVEL)
-            // Se o Mercado Pago der Erro 400 (Bad Request) por causa de um CPF falso digitado no teste, 
-            // telefone com formato estranho ou CEP inválido, nós "limpamos" o pacote e forçamos a venda de novo na mesma hora!
-            if (!mpResponse.ok && mpResponse.status === 400) {
-                console.warn(`⚠️ [Fallback Ativado] Mercado Pago rejeitou os dados. Retirando CPF/Endereço e forçando a venda...`);
+            // 🚀 MOTOR DE AUTO-CURA (FALLBACK INVISÍVEL MULTI-ERROS)
+            if (!mpResponse.ok) {
+                const errorStr = JSON.stringify(data).toLowerCase();
                 
-                // Arrancamos tudo que pode causar rejeição por validação do banco
-                delete paymentPayload.payer.identification;
-                delete paymentPayload.payer.phone;
-                delete paymentPayload.additional_info;
-                paymentPayload.payer.last_name = "Cliente"; // Evita erro de sobrenomes com números/símbolos
+                // FALLBACK 1: ERRO DE IDENTIDADE FINANCEIRA (Bloqueio de Split)
+                // Se a conta do lojista não for validada no MP, removemos a taxa da plataforma para salvar a venda
+                if (errorStr.includes('financial identity') || errorStr.includes('financial_identity')) {
+                    console.warn(`🚨 [Velo Fallback] Lojista sem KYC no MP. Removendo application_fee para salvar a venda PIX...`);
+                    delete paymentPayload.application_fee;
+                    
+                    mpOptions.body = JSON.stringify(paymentPayload);
+                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fbkyc_${Date.now()}`;
+                    
+                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
+                    data = await mpResponse.json();
+                }
+
+                // FALLBACK 2: DADOS DO CLIENTE INVÁLIDOS (Bad Request)
+                // Se ainda falhar com Erro 400 (ex: CPF fake, nome com símbolo), limpamos o cliente e forçamos a venda
+                if (!mpResponse.ok && mpResponse.status === 400) {
+                    console.warn(`⚠️ [Velo Fallback] Mercado Pago rejeitou dados do cliente. Limpando payload...`);
+                    delete paymentPayload.payer.identification;
+                    delete paymentPayload.payer.phone;
+                    delete paymentPayload.additional_info;
+                    paymentPayload.payer.last_name = "Cliente";
+                    
+                    mpOptions.body = JSON.stringify(paymentPayload);
+                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fdata_${Date.now()}`;
+                    
+                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
+                    data = await mpResponse.json();
+                }
+            }
+
+            // Se DEPOIS de limpar tudo ainda der erro, é porque o problema é no limite do cartão, saldo ou Token do Lojista
+            if (!mpResponse.ok) {
+                const errorStr = JSON.stringify(data).toLowerCase();
                 
-                // Atualizamos a requisição e tentamos novamente
-                mpOptions.body = JSON.stringify(paymentPayload);
-                mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fallback_${Date.now()}`; // Nova chave para evitar duplicidade
-                
-                mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-                data = await mpResponse.json();
+                // Erro 1: Dados do Cliente inválidos (400)
+                if (mpResponse.status === 400 && !errorStr.includes('financial identity')) {
+                    console.warn(`⚠️ [Fallback 1] Mercado Pago rejeitou dados do cliente. Limpando payload...`);
+                    delete paymentPayload.payer.identification;
+                    delete paymentPayload.payer.phone;
+                    delete paymentPayload.additional_info;
+                    paymentPayload.payer.last_name = "Cliente";
+                    
+                    mpOptions.body = JSON.stringify(paymentPayload);
+                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fb1_${Date.now()}`;
+                    
+                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
+                    data = await mpResponse.json();
+                }
+
+                // Erro 2: Lojista sem KYC/Chave Pix no MP ou falha no Split de Pagamento
+                if (!mpResponse.ok && (errorStr.includes('financial identity') || errorStr.includes('financial_identity'))) {
+                    console.warn(`🚨 [Fallback 2] Erro de Identidade Financeira do Lojista detectado. Removendo taxa de split para salvar a venda...`);
+                    delete paymentPayload.application_fee; // Arranca a taxa para o PIX passar direto para a conta do lojista
+                    
+                    mpOptions.body = JSON.stringify(paymentPayload);
+                    mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_fb2_${Date.now()}`;
+                    
+                    mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
+                    data = await mpResponse.json();
+                }
             }
 
             // Se DEPOIS de limpar tudo ainda der erro, é porque o problema é no limite do cartão, saldo ou Token do Lojista
