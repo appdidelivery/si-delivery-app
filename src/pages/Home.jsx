@@ -2700,14 +2700,23 @@ if (window.fbq) {
                           payer: {
                               email: customer.email || 'cliente@velodelivery.com.br',
                               first_name: customer.name || 'Cliente'
-                          }
+                          },
+                          customerData: customer // <-- CRÍTICO: Envia o CPF para o backend gerar o PIX
                       })
                   });
 
-                  const result = await response.json();
+                  // 🚨 BLINDAGEM MESTRA: Impede o "Unexpected token A" lendo como texto primeiro
+                  const responseText = await response.text();
+                  let result = {};
+                  try {
+                      result = JSON.parse(responseText);
+                  } catch (e) {
+                      console.error("Erro HTML da Vercel/MP:", responseText);
+                      throw new Error("Sistema do banco indisponível no momento. Tente novamente ou use outra forma de pagamento.");
+                  }
                   
                   if (!response.ok || !result.success) {
-                      throw new Error(result.error || "Erro ao gerar PIX");
+                      throw new Error(result.error || "Erro ao processar PIX no banco.");
                   }
 
                   // Limpa carrinho e vai pra tela de Tracking (que já exibirá o PIX gerado)

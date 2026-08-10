@@ -3252,15 +3252,17 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 paymentPayload.installments = Number(installments) || 1;
                 paymentPayload.issuer_id = issuer_id;
                 paymentPayload.statement_descriptor = "VELO DELIVERY"; // Correção vital: Só para cartão!
+            }
 
-                if (customerData && customerData.cpf) {
-                    const docLimpo = String(customerData.cpf).replace(/\D/g, '');
-                    if (docLimpo.length === 11 || docLimpo.length === 14) {
-                        paymentPayload.payer.identification = {
-                            type: docLimpo.length === 14 ? "CNPJ" : "CPF",
-                            number: docLimpo
-                        };
-                    }
+            // 🚨 CORREÇÃO: O CPF (Payer Identification) é OBRIGATÓRIO para o PIX no MP também!
+            // Movido para fora do bloco do cartão para aplicar a ambos os métodos.
+            if (customerData && customerData.cpf) {
+                const docLimpo = String(customerData.cpf).replace(/\D/g, '');
+                if (docLimpo.length === 11 || docLimpo.length === 14) {
+                    paymentPayload.payer.identification = {
+                        type: docLimpo.length === 14 ? "CNPJ" : "CPF",
+                        number: docLimpo
+                    };
                 }
             }
 
@@ -3276,36 +3278,53 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             };
 
             let mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-            let data = await mpResponse.json();
+            
+            // BLINDAGEM DE RESPOSTA HTML DO MP
+            let responseText = await mpResponse.text();
+            let data = {};
+            try { 
+                data = JSON.parse(responseText); 
+            } catch(e) { 
+                console.error("❌ O MP retornou HTML em vez de JSON:", responseText); 
+                return res.status(400).json({ error: "Banco indisponível. A conexão com o Mercado Pago falhou." });
+            }
 
             // 6. MOTOR DE AUTO-CURA SIMPLIFICADO
             if (!mpResponse.ok) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
                 if (errorStr.includes('financial') || mpResponse.status === 400) {
-                    console.warn(`🚨 [Velo Recovery] Limpando restrições do Mercado Pago e tentando novamente...`);
+                    console.warn(`🚨 [Velo Recovery] Tentando novamente sem a taxa de split (application_fee)...`);
                     delete paymentPayload.application_fee;
                     
                     mpOptions.body = JSON.stringify(paymentPayload);
                     mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_retry_${Date.now()}`;
                     
                     mpResponse = await fetch('https://api.mercadopago.com/v1/payments', mpOptions);
-                    data = await mpResponse.json();
+                    
+                    responseText = await mpResponse.text();
+                    try { data = JSON.parse(responseText); } catch(e) {}
                 }
             }
 
-            // 7. Validação Final
+            // 7. Validação Final Traduzida
             if (!mpResponse.ok) {
                 let exactError = "Erro ao processar o pagamento no banco.";
-                if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
-                else if (data.message) exactError = data.message;
+                if (data.cause && data.cause.length > 0 && data.cause[0].description) {
+                    exactError = String(data.cause[0].description);
+                } else if (data.message) {
+                    exactError = String(data.message);
+                }
                 
-                // TRADUTOR DE ERROS PARA O CLIENTE FINAL
-                const lowerError = exactError.toLowerCase();
-                if (lowerError.includes("collector user without key")) {
-                    exactError = "A loja não está habilitada no banco para receber PIX no momento. Por favor, escolha pagamento na entrega ou cartão.";
+                // TRADUTOR DE ERROS PARA O CLIENTE FINAL (Blindado contra Crash)
+                const lowerError = String(exactError).toLowerCase();
+                
+                if (lowerError.includes("collector user without key") || lowerError.includes("qr render null")) {
+                    exactError = "Falha ao gerar o QR Code. O lojista precisa revisar a chave PIX no Mercado Pago.";
                 } else if (lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
-                    exactError = "A conta do restaurante possui pendências no Mercado Pago. Por favor, escolha pagamento na entrega ou cartão.";
+                    exactError = "A conta do restaurante possui pendências. Escolha pagamento na entrega ou cartão.";
+                } else if (lowerError.includes("identification") && payment_method_id === 'pix') {
+                    exactError = "O banco exige o preenchimento de um CPF ou CNPJ válido para gerar o PIX.";
                 }
                 
                 console.error("❌ Falha MP Transparente:", exactError, data);
