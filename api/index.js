@@ -3314,7 +3314,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // 7. Validação Final
+           // 7. Validação Final
             if (!mpResponse.ok) {
                 let exactError = "Erro ao processar o pagamento no banco.";
                 if (data.cause && data.cause.length > 0 && data.cause[0].description) {
@@ -3323,10 +3323,15 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     exactError = String(data.message);
                 }
                 
-                // TRADUTOR DE ERROS PARA O CLIENTE FINAL (Mensagem solicitada)
+                // TRADUTOR DE ERROS CLARO E SEPARADO
                 const lowerError = String(exactError).toLowerCase();
-                if (lowerError.includes("collector user without key") || lowerError.includes("qr render null") || lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
-                    exactError = "O Mercado Pago recusou a transação neste momento. Por favor, escolha pagamento na entrega ou tente com cartão.";
+                
+                if (lowerError.includes("collector user without key") || lowerError.includes("qr render null")) {
+                    exactError = "⚠️ AVISO PARA A LOJA: O Mercado Pago bloqueou a geração do PIX porque o lojista não possui uma Chave PIX cadastrada na conta do banco.";
+                } else if (lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
+                    exactError = "⚠️ AVISO PARA A LOJA: A conta do Mercado Pago possui pendências de documentação. Regularize o app do banco.";
+                } else if (lowerError.includes("identification") && payment_method_id === 'pix') {
+                    exactError = "O banco exige o preenchimento de um CPF ou CNPJ válido para gerar o PIX.";
                 }
                 
                 console.error("❌ Falha MP Transparente:", exactError, data);
