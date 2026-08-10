@@ -235,7 +235,7 @@ export default function SEO({ title, description, image, productData }) {
 
                 let menuData = {};
                 if (!isRetail) {
-                    if (seoProducts.length > 0) {
+                    if (seoProducts.length > 0 && !productData) {
                         menuData = {
                             "hasMenu": {
                                 "@type": "Menu",
@@ -295,7 +295,7 @@ export default function SEO({ title, description, image, productData }) {
                     ...menuData
                 };
 
-                if (isRetail && seoProducts.length > 0) {
+                if (isRetail && seoProducts.length > 0 && !productData) {
                     baseStoreSchema.containsPlace = seoProducts.slice(0, 30).map((prod) => ({
                         "@type": "Product",
                         "name": prod.name || prod.nome || "",
@@ -338,8 +338,23 @@ export default function SEO({ title, description, image, productData }) {
 
                 let structuredData;
 
-                if (productData) {
+               if (productData) {
                     const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
+
+                    const relatedProductsSchema = seoProducts
+                        .filter(prod => prod.id !== (productData.id || productData.sku))
+                        .slice(0, 10)
+                        .map(prod => ({
+                            "@type": "Product",
+                            "name": prod.name || prod.nome || "",
+                            "image": ensureAbsoluteUrl(prod.imageUrl || prod.fotoUrl || fetchedImage),
+                            "url": `${safeBaseUrl}/produto/${prod.id}`,
+                            "offers": {
+                                "@type": "Offer",
+                                "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
+                                "priceCurrency": "BRL"
+                            }
+                        }));
 
                     // 🚨 RETORNO DA TAG @graph (O Google ama isso)
                     structuredData = {
@@ -349,6 +364,8 @@ export default function SEO({ title, description, image, productData }) {
                             {
                                 "@type": ["Product", "MenuItem"],
                                 "@id": `${baseUrl}#product`,
+                                "mainEntityOfPage": currentUrl,
+                                ...(relatedProductsSchema.length > 0 ? { "isSimilarTo": relatedProductsSchema } : {}),
                                 "name": productData.name || "Produto",
                                 "description": productData.description || fullDescription || "Produto oficial da loja.",
                                 "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
