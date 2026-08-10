@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { db } from '../services/firebase'; 
 import { doc, getDoc, collection, query, where, getDocs, serverTimestamp, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, X, Plus, Minus, Search } from 'lucide-react';
+import { ShoppingCart, X, Plus, Minus, Search, Camera } from 'lucide-react';
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 
@@ -404,7 +404,13 @@ export default function WppWebview() {
           {filteredMenu.map(p => (
             <motion.div key={p.id} whileTap={{ scale: 0.95 }} onClick={() => { setSelectedProduct(p); setItemObservation(''); setItemRemoved([]); setSelectedOptions({}); }} className="bg-[#1E293B] rounded-[32px] p-3 border border-slate-700/50 flex flex-col h-full shadow-sm cursor-pointer">
               <div className="relative mb-3 aspect-square w-full">
-                <img src={p.image || p.imageUrl || p.img} className="w-full h-full rounded-[24px] object-cover bg-slate-800" />
+                {p.image || p.imageUrl || p.img ? (
+                    <img src={p.image || p.imageUrl || p.img} className="w-full h-full rounded-[24px] object-cover bg-slate-800" />
+                ) : (
+                    <div className="w-full h-full rounded-[24px] bg-slate-800 flex items-center justify-center text-slate-500">
+                        <Camera size={32} />
+                    </div>
+                )}
                 <button className="absolute -bottom-2 -right-1 text-white p-2.5 rounded-2xl shadow-xl z-20 border-4 border-[#1E293B]" style={{ backgroundColor: themeColor }}>
                   <Plus size={20} />
                 </button>
@@ -424,7 +430,13 @@ export default function WppWebview() {
           <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="fixed inset-0 bg-black/80 z-[80] backdrop-blur-sm flex flex-col justify-end">
             <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 p-3 bg-black/50 text-white rounded-full z-[90]"><X size={20} /></button>
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0F172A] w-full rounded-t-[40px] flex flex-col max-h-[90vh] overflow-hidden">
-              <img src={selectedProduct.image || selectedProduct.imageUrl} className="w-full h-56 object-cover bg-slate-800" />
+              {selectedProduct.image || selectedProduct.imageUrl ? (
+                  <img src={selectedProduct.image || selectedProduct.imageUrl} className="w-full h-56 object-cover bg-slate-800" />
+              ) : (
+                  <div className="w-full h-56 bg-slate-800 flex items-center justify-center text-slate-500">
+                      <Camera size={48} />
+                  </div>
+              )}
               <div className="p-6 overflow-y-auto custom-scrollbar flex-1 -mt-4 bg-[#0F172A] rounded-t-[40px] relative z-10">
                   <h2 className="text-2xl font-black italic text-white uppercase leading-none mb-2">{selectedProduct.name}</h2>
                   <p className="text-slate-400 text-xs font-bold mb-6">{selectedProduct.description}</p>
