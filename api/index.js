@@ -3350,6 +3350,14 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 if (data.cause && data.cause.length > 0) exactError = data.cause[0].description;
                 else if (data.message) exactError = data.message;
                 
+                // 🛡️ TRADUTOR DE ERROS DO MERCADO PAGO PARA O CLIENTE FINAL
+                const lowerError = exactError.toLowerCase();
+                if (lowerError.includes("collector user without key")) {
+                    exactError = "A loja não está habilitada no banco para receber PIX no momento. Por favor, escolha pagamento na entrega ou cartão.";
+                } else if (lowerError.includes("financial identity") || lowerError.includes("financial_identity")) {
+                    exactError = "A conta do restaurante possui pendências no Mercado Pago. Por favor, escolha pagamento na entrega ou cartão.";
+                }
+                
                 console.error("❌ Falha Crítica Mercado Pago:", JSON.stringify(data));
                 return res.status(400).json({ error: exactError, details: data });
             }
