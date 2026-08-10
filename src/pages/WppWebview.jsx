@@ -330,7 +330,12 @@ export default function WppWebview() {
                       })
                   });
 
-                  const data = await res.json();
+                  let data;
+                  try {
+                      data = await res.json();
+                  } catch (jsonError) {
+                      throw new Error("Servidor indisponível ou resposta inválida. Tente novamente em instantes.");
+                  }
 
                   if (res.ok && data.success) {
                       setCart([]); localStorage.removeItem(`veloCart_${slug}`);
