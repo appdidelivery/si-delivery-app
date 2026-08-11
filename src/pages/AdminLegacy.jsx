@@ -11399,23 +11399,121 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         </div>
 
        {/* CAMPO DE PONTO DE ESTOQUE */}
-        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 md:col-span-2 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-                <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-1 flex items-center gap-2"><Package size={16} className="text-orange-500"/> Ponto de Estoque Ativo</h3>
-                <p className="text-[10px] text-slate-400 font-bold">Digite o número ou nome do ponto de estoque (Ex: 1, 2, 10, Matriz).</p>
-            </div>
-            <input 
-                type="text"
-                placeholder="Ex: 1"
-                value={storeStatus.stockLocation || ''} 
-                onChange={(e) => {
-                    // Atualiza a tela imediatamente e salva no Firebase
-                    setStoreStatus(prev => ({...prev, stockLocation: e.target.value}));
-                    updateDoc(doc(db, "stores", storeId), { stockLocation: e.target.value }, { merge: true });
-                }}
-                className="w-full md:w-64 p-4 bg-white rounded-xl font-black text-sm uppercase outline-none border border-slate-200 focus:ring-2 ring-orange-400 text-slate-700 placeholder-slate-300"
-            />
-        </div>
+          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 md:col-span-2 flex flex-col gap-4">
+              <div>
+                  <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Ponto de Estoque</h3>
+                  <p className="text-[10px] text-slate-400 font-bold">Digite o número ou nome da prateleira</p>
+              </div>
+              <input 
+                  type="text" 
+                  placeholder="Ex: 1"
+                  value={storeStatus.stockLocation || ''} 
+                  onChange={(e) => {
+                      // Atualiza a tela imediatamente e salva no Firebase
+                      setStoreStatus(prev => ({...prev, stockLocation: e.target.value}));
+                      updateDoc(doc(db, "stores", storeId), { stockLocation: e.target.value });
+                  }} 
+                  className="bg-white border-2 border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-slate-300 transition-colors w-full"
+              />
+          </div>
+
+          {/* NOVO: PORTAL WI-FI GAMIFICADO (PLG) */}
+          <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 md:col-span-2 flex flex-col gap-4 mt-2">
+              <div>
+                  <h3 className="text-[13px] font-black text-emerald-800 uppercase tracking-wider mb-1 flex items-center gap-2">
+                      🛜 Portal Wi-Fi Gamificado (QR Code nas Mesas)
+                  </h3>
+                  <p className="text-[11px] text-emerald-600 font-bold mb-2">
+                      Capture os dados de quem come no local (Nome e WhatsApp) oferecendo sua senha do Wi-Fi e um prêmio.
+                  </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* SSID */}
+                  <div>
+                      <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Nome da Rede (SSID)</label>
+                      <input
+                          type="text"
+                          placeholder="Ex: LOJA_CLIENTES"
+                          value={storeStatus.wifiSsid || ''}
+                          onChange={(e) => {
+                              setStoreStatus(prev => ({ ...prev, wifiSsid: e.target.value }));
+                              updateDoc(doc(db, "stores", storeId), { wifiSsid: e.target.value });
+                          }}
+                          className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
+                      />
+                  </div>
+                  
+                  {/* Senha */}
+                  <div>
+                      <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Senha do Wi-Fi</label>
+                      <input
+                          type="text"
+                          placeholder="Ex: senha123"
+                          value={storeStatus.wifiPassword || ''}
+                          onChange={(e) => {
+                              setStoreStatus(prev => ({ ...prev, wifiPassword: e.target.value }));
+                              updateDoc(doc(db, "stores", storeId), { wifiPassword: e.target.value });
+                          }}
+                          className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
+                      />
+                  </div>
+
+                  {/* Prêmio */}
+                  <div className="md:col-span-2">
+                      <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Prêmio (Isca para Capturar o Lead)</label>
+                      <input
+                          type="text"
+                          placeholder="Ex: Ganhe 1 Sobremesa Grátis ou R$5 de Cashback!"
+                          value={storeStatus.wifiPrize || ''}
+                          onChange={(e) => {
+                              setStoreStatus(prev => ({ ...prev, wifiPrize: e.target.value }));
+                              updateDoc(doc(db, "stores", storeId), { wifiPrize: e.target.value });
+                          }}
+                          className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
+                      />
+                  </div>
+              </div>
+
+              {/* Botão de Gerar PDF / QR Code */}
+              <div className="mt-2 pt-4 border-t border-emerald-200 flex flex-col md:flex-row items-center gap-4 justify-between">
+                  <div className="text-[11px] text-emerald-700 font-medium leading-tight max-w-sm">
+                      O cliente escaneia a placa na mesa, ganha o prêmio, e o contato dele cai automaticamente na sua base!
+                  </div>
+                  <button
+                      type="button"
+                      onClick={() => {
+                          const wifiUrl = `${window.location.origin}/${storeId}/wifi`;
+                          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=800x800&data=${encodeURIComponent(wifiUrl)}`;
+                          const printWindow = window.open('', '_blank');
+                          printWindow.document.write(`
+                              <html>
+                                  <head><title>Placa QR Code Wi-Fi</title></head>
+                                  <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:system-ui,-apple-system,sans-serif;text-align:center;background-color:#f8fafc;">
+                                      <div style="background:white;padding:40px;border-radius:24px;box-shadow:0 10px 25px rgba(0,0,0,0.1);max-width:500px;width:100%;">
+                                          <h1 style="font-size:42px;margin:0 0 10px 0;color:#059669;">🛜 Wi-Fi Grátis</h1>
+                                          <p style="font-size:22px;color:#475569;margin:0 0 30px 0;font-weight:500;">
+                                              Escaneie para conectar e<br/><strong style="color:#ea580c;">ganhar um prêmio!</strong>
+                                          </p>
+                                          <img src="${qrUrl}" width="350" height="350" style="margin-bottom:20px;" />
+                                          <p style="margin-top:20px;font-size:18px;color:#64748b;font-weight:bold;">Aponte a câmera do celular</p>
+                                      </div>
+                                      <p style="margin-top:30px;font-size:14px;color:#94a3b8;">Powered by Velo Delivery</p>
+                                      <script>
+                                          // Aguarda a imagem carregar para disparar a impressão
+                                          setTimeout(() => { window.print(); }, 1500);
+                                      </script>
+                                  </body>
+                              </html>
+                          `);
+                          printWindow.document.close();
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[12px] py-3 px-6 rounded-2xl shadow-md uppercase tracking-wider transition-all"
+                  >
+                      🖨️ Gerar Placa (PDF)
+                  </button>
+              </div>
+          </div>
 
     </div>
 </div>
