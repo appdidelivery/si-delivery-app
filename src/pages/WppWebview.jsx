@@ -1,7 +1,7 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import { db } from '../services/firebase'; 
-import { doc, getDoc, collection, query, where, getDocs, serverTimestamp, updateDoc, increment, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, serverTimestamp, updateDoc, increment, setDoc, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, X, Plus, Minus, Search, Camera } from 'lucide-react';
 import { Carousel } from 'react-responsive-carousel';
@@ -56,6 +56,10 @@ export default function WppWebview() {
   const [cepError, setCepError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLock = useRef(false);
+  
+  // Cashback (Gamificação)
+  const [cashbackBalance, setCashbackBalance] = useState(0);
+  const [useCashback, setUseCashback] = useState(false);
 
   // --- MOTOR DE TEMA DINÂMICO (MULTI-TENANT) ---
   const getThemeColor = () => {
@@ -235,8 +239,21 @@ export default function WppWebview() {
     return () => clearTimeout(t);
   }, [cart, customerPhoneQuery, slug, store]);
 
+  // Escuta a carteira digital (Cashback)
+  useEffect(() => {
+      if (settings?.gamification?.cashback && customer.phone && customer.phone.length >= 10) {
+          const cleanPhone = customer.phone.replace(/\D/g, '');
+          const unsubWallet = onSnapshot(doc(db, "wallets", `${slug}_${cleanPhone}`), (docSnap) => {
+              setCashbackBalance(docSnap.exists() ? docSnap.data().balance || 0 : 0);
+          });
+          return () => unsubWallet();
+      }
+  }, [settings?.gamification?.cashback, slug, customer.phone]);
+
   const cartSub = cart.reduce((a, i) => a + (i.price * i.quantity), 0);
-  const cartTotal = Math.max(0, cartSub + (deliveryMethod === 'delivery' ? deliveryFee : 0));
+  const baseTotal = Math.max(0, cartSub + (deliveryMethod === 'delivery' ? deliveryFee : 0));
+  const cashbackDiscount = (settings?.gamification?.cashback && useCashback) ? Math.min(cashbackBalance, baseTotal) : 0;
+  const cartTotal = baseTotal - cashbackDiscount;
   const cartCount = cart.reduce((a, i) => a + i.quantity, 0);
 
   // Finalização do Pedido
@@ -285,7 +302,16 @@ export default function WppWebview() {
               createdAt: serverTimestamp(), 
               storeId: slug, 
               tipo: deliveryMethod === 'pickup' ? "retirada" : "delivery", 
-              source: 'whatsapp_bot' 
+              source: 'whatsapp_bot',
+              usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0
+          };
+
+          // Função auxiliar para abater o saldo da carteira
+          const deductCashback = async () => {
+              if (cashbackDiscount > 0) {
+                  const cleanPhone = customer.phone.replace(/\D/g, '');
+                  try { await updateDoc(doc(db, "wallets", `${slug}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+              }
           };
 
           // Trava de segurança: somente métodos online
@@ -297,6 +323,7 @@ export default function WppWebview() {
           // VeloPay Pix Nativo
           if (customer.payment === 'velopay_pix') {
               await setDoc(orderRef, oData);
+              await deductCashback();
               const res = await fetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
               if (!res.ok) throw new Error((await res.json()).error);
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
@@ -308,7 +335,7 @@ export default function WppWebview() {
           if (customer.payment === 'mercadopago_pix') {
               try {
                   await setDoc(orderRef, oData);
-                  
+                  await deductCashback();
                   // Formata nome para Mercado Pago não travar
                   let firstName = customer.name.split(' ')[0];
                   let lastName = customer.name.split(' ').slice(1).join(' ') || 'Velo';
@@ -354,6 +381,7 @@ export default function WppWebview() {
           // Cartão MP Link
           if (customer.payment === 'mercadopago_link') {
               await setDoc(orderRef, oData);
+              await deductCashback();
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
               setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=mp_link`; }, 500);
               return;
@@ -613,9 +641,32 @@ export default function WppWebview() {
                     </div>
                 </div>
 
+                {settings?.gamification?.cashback && cashbackBalance > 0 && (
+                    <div className="mb-6 bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl flex justify-between items-center shadow-sm">
+                        <div className="flex flex-col">
+                            <span className="text-emerald-400 font-black text-xs uppercase tracking-widest flex items-center gap-1">
+                                Seu Cashback
+                            </span>
+                            <span className="text-emerald-200 font-bold text-[10px] leading-tight mt-0.5">
+                                Saldo: <b>R$ {cashbackBalance.toFixed(2)}</b>
+                            </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={useCashback}
+                                onChange={() => setUseCashback(!useCashback)}
+                            />
+                            <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                    </div>
+                )}
+
                 <div className="bg-[#1E293B] rounded-[2rem] p-5 border border-slate-700">
                     <div className="flex justify-between items-center text-sm mb-3 font-bold text-slate-300"><span>Subtotal</span><span>R$ {cartSub.toFixed(2)}</span></div>
                     {deliveryMethod === 'delivery' && <div className="flex justify-between items-center text-sm mb-4 font-bold text-slate-300"><span>Frete</span><span>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Grátis'}</span></div>}
+                    {useCashback && cashbackDiscount > 0 && <div className="flex justify-between items-center text-sm mb-4 font-bold text-emerald-400"><span>Cashback</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
                     <div className="flex justify-between items-center pt-4 border-t border-slate-700"><span className="text-xs font-black uppercase text-slate-400">Total</span><span className="text-3xl font-black italic" style={{ color: themeColor }}>R$ {cartTotal.toFixed(2)}</span></div>
                 </div>
               </div>

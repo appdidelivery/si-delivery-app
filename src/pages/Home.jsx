@@ -4571,7 +4571,32 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       </>
                   )}
 
-                  <div className="mt-8 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
+                  {/* --- MÓDULO DE RESGATE DE CASHBACK NO CHECKOUT --- */}
+                  {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && !isWaiterMode && (
+                      <div className="mt-6 mb-2 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-3xl flex justify-between items-center shadow-sm transition-all">
+                          <div className="flex flex-col">
+                              <span className="text-emerald-800 font-black text-xs uppercase tracking-widest flex items-center gap-1">
+                                  <Wallet size={14} className="text-emerald-600" /> Seu Cashback
+                              </span>
+                              <span className="text-emerald-600 font-bold text-[10px] leading-tight mt-0.5">
+                                  Saldo disponível: <b>R$ {cashbackBalance.toFixed(2)}</b>
+                              </span>
+                          </div>
+                          
+                          <label className="relative inline-flex items-center cursor-pointer">
+                              <input 
+                                  type="checkbox" 
+                                  className="sr-only peer" 
+                                  checked={useCashback}
+                                  onChange={() => setUseCashback(!useCashback)}
+                              />
+                              <div className="w-11 h-6 bg-emerald-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-emerald-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
+                          </label>
+                      </div>
+                  )}
+                  {/* ----------------------------------------------- */}
+
+                  <div className="mt-4 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
                     {!isWaiterMode && (
                           <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
                               <span>Frete</span>
@@ -4581,6 +4606,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                           </div>
                       )}
                       {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
+                      {useCashback && cashbackDiscount > 0 && <div className="flex justify-between text-sm font-bold text-emerald-400 mb-2"><span>Desconto de Cashback</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
                       
                       <div className="flex justify-between text-xl font-black italic mt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
