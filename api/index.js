@@ -6103,6 +6103,61 @@ Retorne APENAS um JSON válido com 3 chaves:
     }
 
    // ------------------------------------------------------------------------
+    // 29. PORTAL WI-FI GAMIFICADO (PLG): DISPARO DE WHATSAPP O2O
+    // ------------------------------------------------------------------------
+    else if (path === '/api/wifi-webhook') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { phone, name, storeId, storeName, prize } = req.body;
+            if (!phone || !storeId) return res.status(400).json({ error: 'Faltam dados do lead.' });
+
+            // 1. Busca a configuração de WhatsApp da loja para extrair tokens da Evolution
+            const settingsDoc = await db.collection('settings').doc(storeId).get();
+            const waConfig = settingsDoc.data()?.integrations?.whatsapp;
+
+            if (!waConfig || !waConfig.backup_instance_token) {
+                console.warn(`[Wi-Fi PLG] WhatsApp não configurado para a loja ${storeId}`);
+                return res.status(400).json({ error: 'WhatsApp não configurado nesta loja.' });
+            }
+
+            // 2. Copywriting O2O (Offline-to-Online) com Link da Loja
+            const domainLink = settingsDoc.data()?.customDomain 
+                ? `https://${settingsDoc.data().customDomain}` 
+                : `https://${storeId}.velodelivery.com.br`;
+
+            const message = `Olá *${name}*! Vimos que você acabou de se conectar ao Wi-Fi do *${storeName}* 🛜\n\n🎉 Aqui está o seu prêmio:\n*${prize}*\n\n_Apresente esta mensagem no balcão para resgatar._\n\nE quando bater aquela fome em casa, peça nosso delivery:\n👉 ${domainLink}`;
+
+            // 3. Disparo usando sua função nativa já existente no topo do arquivo (sendViaEvolutionAPI)
+            const evoResult = await sendViaEvolutionAPI(waConfig, phone, message);
+
+            if (evoResult.ok) {
+                // 4. Salva no banco para renderizar no Painel Admin (Omnichannel) do lojista
+                let cleanPhone = String(phone).replace(/\D/g, '');
+                if (!cleanPhone.startsWith('55')) cleanPhone = `55${cleanPhone}`;
+
+                await db.collection('whatsapp_inbound').add({
+                    storeId: storeId,
+                    to: cleanPhone,
+                    phone: cleanPhone,
+                    text: `[Portal Wi-Fi Gamificado] ${message}`,
+                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'read',
+                    direction: 'outbound'
+                });
+
+                return res.status(200).json({ success: true, message: 'WhatsApp PLG enviado!' });
+            } else {
+                return res.status(400).json({ error: 'Falha no disparo via Evolution.', details: evoResult.error });
+            }
+
+        } catch (error) {
+            console.error('Erro no Webhook do Wi-Fi:', error);
+            return res.status(500).json({ error: 'Erro interno no processamento do disparo Wi-Fi.' });
+        }
+    }
+
+    // ------------------------------------------------------------------------
     // 30. BINANCE PAY: GERAR PAGAMENTO (CRIPTOMOEDAS)
     // ------------------------------------------------------------------------
     else if (path === '/api/binance-checkout') {

@@ -87,7 +87,7 @@ export default function WifiPortal() {
       // Disparo em background (sem await) para não atrasar a tela de sucesso do cliente.
       // SUBSTITUA "URL_DA_SUA_API_AQUI" pelo endpoint correto da sua API (ex: /api/webhook/wifi)
       // --------------------------------------------------------------------------
-      fetch("URL_DA_SUA_API_AQUI", {
+      fetch("/api/wifi-webhook", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
