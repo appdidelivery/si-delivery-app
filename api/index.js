@@ -1981,6 +1981,7 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
 
                                             const isStatusTrigger = interactivePayload === 'btn_status' || (!interactivePayload && ['status', 'rastrear', 'meu pedido', 'cade meu', 'saiu', 'chegando'].some(kw => incomingTextLower.includes(kw)));
                                             const isRepeatTrigger = interactivePayload === 'btn_repeat' || (!interactivePayload && ['repetir', 'mesmo pedido', 'quero o mesmo'].some(kw => incomingTextLower.includes(kw)));
+                                            const isWifiTrigger = incomingTextLower.includes('senha do wi-fi') || incomingTextLower.includes('senha do wifi') || incomingTextLower.includes('senha de wifi');
 
                                             const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
                                             const storeName = storeDynamicData.name || 'nossa loja';
@@ -2075,6 +2076,33 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                             else if (isGreeting) {
                                                 replyPayload = generateMainMenu();
                                                 logTextForPanel = `🤖 [Menu de Boas Vindas Enviado para ${firstName || 'Cliente'}]`;
+                                            }
+                                            else if (isWifiTrigger) {
+                                                // 1. Busca os dados configurados pelo lojista
+                                                const wifiSsid = storeDynamicData.wifiSsid || 'WIFI_CLIENTES';
+                                                const wifiPassword = storeDynamicData.wifiPassword || 'Não configurada';
+                                                const wifiPrize = storeDynamicData.wifiPrize || 'Uma surpresa no balcão!';
+                                                
+                                                // 2. Extrai o nome diretamente do WhatsApp do cliente (Fricção Zero)
+                                                const clientRealName = customerName || message.profile?.name || 'Cliente';
+                                                const firstNameOnly = clientRealName.split(' ')[0];
+                                                
+                                                // 3. Upsert Seguro: Salva o lead no Banco de Dados atrelando à loja
+                                                const customerRef = db.collection('stores').doc(storeId).collection('customers').doc(normalizedPhone);
+                                                await customerRef.set({
+                                                    name: clientRealName,
+                                                    whatsapp: normalizedPhone,
+                                                    tenantId: storeId,
+                                                    isWifiLead: true,
+                                                    tags: admin.firestore.FieldValue.arrayUnion("wifi_leads"),
+                                                    lastWifiLoginAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                }, { merge: true });
+
+                                                // 4. Monta a resposta automática com Isca de Delivery
+                                                const wifiMsg = `Olá, *${firstNameOnly}*! 🛜 Que bom ter você aqui na loja.\n\nAqui está o seu acesso liberado:\n*Rede:* ${wifiSsid}\n*Senha:* ${wifiPassword}\n\n🎁 *Seu Prêmio:* ${wifiPrize}\n_Apresente esta mensagem no balcão para resgatar!_\n\nE quando bater aquela fome em casa, o nosso cardápio está sempre aqui: ${storeDomain}`;
+                                                
+                                                replyPayload = { type: "text", text: { body: wifiMsg } };
+                                                logTextForPanel = `🤖 [Wi-Fi PLG] Lead Capturado. Senha e Prêmio enviados para ${firstNameOnly}.`;
                                             }
                                             else if (isStatusTrigger) {
                                                 if (lastOrder) {

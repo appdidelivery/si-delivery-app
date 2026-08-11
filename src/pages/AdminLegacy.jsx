@@ -11417,18 +11417,35 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
               />
           </div>
 
-          {/* NOVO: PORTAL WI-FI GAMIFICADO (PLG) */}
+          {/* NOVO: PORTAL WI-FI GAMIFICADO 100% WHATSAPP (PLG) */}
           <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-200 md:col-span-2 flex flex-col gap-4 mt-2">
               <div>
                   <h3 className="text-[13px] font-black text-emerald-800 uppercase tracking-wider mb-1 flex items-center gap-2">
-                      🛜 Portal Wi-Fi Gamificado (QR Code nas Mesas)
+                      🛜 Portal Wi-Fi Gamificado (Fricção Zero via WhatsApp)
                   </h3>
                   <p className="text-[11px] text-emerald-600 font-bold mb-2">
-                      Capture os dados de quem come no local (Nome e WhatsApp) oferecendo sua senha do Wi-Fi e um prêmio.
+                      O cliente escaneia o QR Code na mesa e o celular dele abre o WhatsApp enviando uma mensagem pronta para você. 
+                      O seu robô responde na mesma hora com a senha, captura o contato real e te ajuda a vender mais.
                   </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* WhatsApp da Loja */}
+                  <div>
+                      <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">WhatsApp da Loja (DDD+Nº)</label>
+                      <input
+                          type="text"
+                          placeholder="Ex: 48999999999"
+                          value={storeStatus.wifiWaNumber || ''}
+                          onChange={(e) => {
+                              const numbersOnly = e.target.value.replace(/\D/g, '');
+                              setStoreStatus(prev => ({ ...prev, wifiWaNumber: numbersOnly }));
+                              updateDoc(doc(db, "stores", storeId), { wifiWaNumber: numbersOnly });
+                          }}
+                          className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
+                      />
+                  </div>
+
                   {/* SSID */}
                   <div>
                       <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Nome da Rede (SSID)</label>
@@ -11460,7 +11477,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                   </div>
 
                   {/* Prêmio */}
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-3">
                       <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Prêmio (Isca para Capturar o Lead)</label>
                       <input
                           type="text"
@@ -11478,13 +11495,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
               {/* Botão de Gerar PDF / QR Code */}
               <div className="mt-2 pt-4 border-t border-emerald-200 flex flex-col md:flex-row items-center gap-4 justify-between">
                   <div className="text-[11px] text-emerald-700 font-medium leading-tight max-w-sm">
-                      O cliente escaneia a placa na mesa, ganha o prêmio, e o contato dele cai automaticamente na sua base!
+                      Preencha o WhatsApp com DDD (sem símbolos). Ao clicar no botão, o PDF será gerado automaticamente.
                   </div>
                   <button
                       type="button"
                       onClick={() => {
-                          const wifiUrl = `${window.location.origin}/${storeId}/wifi`;
-                          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=800x800&data=${encodeURIComponent(wifiUrl)}`;
+                          if (!storeStatus.wifiWaNumber) {
+                              alert("Por favor, digite o número do WhatsApp da loja para gerar o QR Code.");
+                              return;
+                          }
+                          // Link direto para o WhatsApp da Loja
+                          const waLink = `https://wa.me/55${storeStatus.wifiWaNumber}?text=Quero%20a%20senha%20do%20Wi-Fi!`;
+                          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=800x800&data=${encodeURIComponent(waLink)}`;
+                          
                           const printWindow = window.open('', '_blank');
                           printWindow.document.write(`
                               <html>
@@ -11496,11 +11519,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                               Escaneie para conectar e<br/><strong style="color:#ea580c;">ganhar um prêmio!</strong>
                                           </p>
                                           <img src="${qrUrl}" width="350" height="350" style="margin-bottom:20px;" />
-                                          <p style="margin-top:20px;font-size:18px;color:#64748b;font-weight:bold;">Aponte a câmera do celular</p>
+                                          <p style="margin-top:20px;font-size:18px;color:#64748b;font-weight:bold;">Aponte a câmera, abra o WhatsApp e envie a mensagem!</p>
                                       </div>
                                       <p style="margin-top:30px;font-size:14px;color:#94a3b8;">Powered by Velo Delivery</p>
                                       <script>
-                                          // Aguarda a imagem carregar para disparar a impressão
                                           setTimeout(() => { window.print(); }, 1500);
                                       </script>
                                   </body>
