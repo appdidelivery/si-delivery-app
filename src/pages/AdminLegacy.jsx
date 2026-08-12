@@ -3877,27 +3877,55 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         checkMilestones();
     }, [orders.length, customers.length, storeStatus?.achievedMilestones, storeId]);
 
-    // Função que baixa o Card em JPG (Agora usando html-to-image)
-    const handleDownloadMilestoneCard = async () => {
+    // --- NOVA FUNÇÃO DE COMPARTILHAMENTO INTELIGENTE (DETECTA MOBILE VS DESKTOP) ---
+    const handleShareMilestoneCard = async () => {
         if (!milestoneCardRef.current) return;
         setIsGeneratingMilestone(true);
         try {
-            // A biblioteca html-to-image suporta perfeitamente o Tailwind e o formato oklch
+            // 1. Gera a imagem em alta resolução
             const dataUrl = await htmlToImage.toJpeg(milestoneCardRef.current, { 
                 quality: 0.95,
-                pixelRatio: 2 // Escala 2x para garantir alta resolução na hora de postar
+                pixelRatio: 2 
             });
             
-            const link = document.createElement("a");
-            link.download = `conquista-velo-${activeMilestone.value}.jpg`;
-            link.href = dataUrl;
-            link.click();
-            
-            navigator.clipboard.writeText(milestoneCopy);
-            alert("✅ Arte baixada e legenda copiada! Abra seu Instagram e faça a postagem.");
+            // 2. Converte o Base64 para um Arquivo
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+            const file = new File([blob], `conquista-velo-${activeMilestone.value}.jpg`, { type: 'image/jpeg' });
+
+            // 3. Copia a legenda para a área de transferência (Backup para o Insta)
+            try { await navigator.clipboard.writeText(milestoneCopy); } catch (e) {}
+
+            // 4. DETECTOR INTELIGENTE DE CELULAR VS PC
+            // Verifica se o dispositivo é iOS, Android, ou tem tela de toque
+            const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.matchMedia && window.matchMedia("(max-width: 767px)").matches);
+
+            // 5. Se for CELULAR e o celular suportar compartilhamento de arquivos
+            if (isMobileDevice && navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: 'Conquista Velo Delivery',
+                    text: milestoneCopy,
+                    files: [file]
+                });
+            } 
+            // 6. Se for COMPUTADOR (ou celular antigo que não suporta a API) -> Força o Download
+            else {
+                const link = document.createElement("a");
+                link.download = file.name;
+                link.href = dataUrl;
+                link.click();
+                
+                // Só exibe o alerta se estiver no Desktop (para orientar o lojista)
+                if (!isMobileDevice) {
+                    alert("✅ Arte baixada com sucesso e legenda copiada (Ctrl+V)!\n\n💡 Dica: Para compartilhar diretamente nos Stories do Instagram, abra o painel da Velo pelo seu celular. Aqui no PC, você pode enviar a imagem para o seu WhatsApp Web.");
+                }
+            }
         } catch (err) {
-            console.error("Erro ao gerar imagem", err);
-            alert("Erro ao gerar a imagem. Tente tirar um print da tela!");
+            // Se o usuário apenas cancelar a gaveta de compartilhamento no celular, não exibe erro
+            if (err.name !== 'AbortError') {
+                console.error("Erro ao gerar imagem", err);
+                alert("Erro ao gerar a imagem. Tente tirar um print da tela!");
+            }
         } finally {
             setIsGeneratingMilestone(false);
         }
@@ -16632,42 +16660,128 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <X size={32} />
                             </button>
 
-                            {/* LADO ESQUERDO: O CARD QUE VAI SER GERADO EM IMAGEM */}
-                            <div className="flex-1 flex justify-center items-center">
-                                {/* Esta é a div capturada pelo html2canvas */}
-                                <div 
-                                    ref={milestoneCardRef} 
-                                    className={`w-[360px] h-[360px] bg-gradient-to-br ${activeMilestone.color} rounded-[3rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-2xl`}
-                                >
-                                    {/* Efeitos de Fundo */}
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/20 rounded-full blur-3xl"></div>
+                            {/* LADO ESQUERDO: O CARD QUE VAI SER GERADO EM IMAGEM (NOVO FORMATO VERTICAL 9:16) */}
+<div className="flex-1 flex justify-center items-center py-4">
+    
+    {activeMilestone.type === 'orders' && (
+        <div 
+            ref={milestoneCardRef} 
+            className="w-[360px] h-[640px] bg-gradient-to-b from-blue-900 via-indigo-900 to-purple-900 rounded-[3rem] p-6 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xl"
+        >
+            <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 rounded-full blur-3xl"></div>
 
-                                    {/* Logo da Loja */}
-                                    <img src={storeStatus.storeLogoUrl} crossOrigin="anonymous" className="w-20 h-20 rounded-full border-4 border-white/20 shadow-xl mb-4 relative z-10 object-cover" />
-                                    
-                                    <h3 className="text-white/80 font-black tracking-widest uppercase text-[10px] mb-1 relative z-10">{activeMilestone.title}</h3>
-                                    
-                                    <div className="flex items-center justify-center gap-2 mb-2 relative z-10">
-                                        <span className="text-5xl">{activeMilestone.icon}</span>
-                                        <span className="text-6xl font-black italic text-white drop-shadow-lg leading-none">
-                                            {activeMilestone.type === 'daily' ? '' : '+'}
-                                            {activeMilestone.value}
-                                        </span>
-                                    </div>
-                                    
-                                    <p className="text-white font-bold text-sm max-w-[80%] relative z-10 mt-2 leading-tight">
-                                        {activeMilestone.type === 'orders' ? 'Pedidos Entregues com Sucesso!' : 
-                                         activeMilestone.type === 'vips' ? 'Membros no Clube VIP!' : 
-                                         'Pedidos em um Único Dia!'}
-                                    </p>
+            <div className="mt-4 p-2 bg-white/5 backdrop-blur-md rounded-full border border-white/10 shadow-lg relative z-10">
+                <img src={storeStatus.storeLogoUrl} crossOrigin="anonymous" className="w-16 h-16 rounded-full object-cover" />
+            </div>
 
-                                    {/* Selo Velo Delivery */}
-                                    <div className="absolute bottom-4 flex items-center justify-center w-full opacity-50">
-                                        <span className="text-[8px] font-black uppercase text-white tracking-widest">Powered by Velo Delivery</span>
-                                    </div>
-                                </div>
-                            </div>
+            <div className="relative z-10 flex flex-col items-center mt-2">
+                <span className="text-white/80 font-black tracking-widest uppercase text-[10px] mb-2">{activeMilestone.title}</span>
+                <div className="relative">
+                    <span className="absolute -top-6 -left-6 text-5xl animate-bounce drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">{activeMilestone.icon}</span>
+                    <h2 className="text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 drop-shadow-xl leading-none">
+                        +{activeMilestone.value}
+                    </h2>
+                </div>
+                <p className="text-white font-bold text-sm mt-3 uppercase tracking-wider">Pedidos Entregues<br/>com Sucesso!</p>
+            </div>
+
+            <div className="w-full bg-black/20 backdrop-blur-sm border border-white/10 rounded-3xl p-5 relative z-10 mb-8">
+                <div className="relative h-1.5 bg-white/10 rounded-full mb-3">
+                    <div className="absolute top-0 left-0 h-full w-[75%] bg-gradient-to-r from-blue-400 to-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
+                    <div className="absolute -top-1.5 left-[10%] w-4 h-4 bg-purple-500 rounded-full border-2 border-white"></div>
+                    <div className="absolute -top-1.5 left-[40%] w-4 h-4 bg-purple-500 rounded-full border-2 border-white"></div>
+                    <div className="absolute -top-2.5 left-[75%] w-6 h-6 bg-yellow-400 rounded-full border-2 border-white shadow-[0_0_15px_rgba(250,204,21,0.8)] flex items-center justify-center text-[10px]">⭐</div>
+                    <div className="absolute -top-1.5 right-0 w-4 h-4 bg-slate-700 rounded-full border-2 border-slate-500 flex items-center justify-center"><Lock size={8} className="text-slate-400"/></div>
+                </div>
+                <div className="flex justify-between text-[8px] font-black uppercase text-white/60">
+                    <span>100</span>
+                    <span>1K</span>
+                    <span className="text-yellow-400 ml-4">{activeMilestone.value > 1000 ? `${activeMilestone.value/1000}K` : activeMilestone.value} Atual</span>
+                    <span>10K ?</span>
+                </div>
+            </div>
+
+            <div className="w-full flex flex-col items-center justify-center opacity-80 mb-2 relative z-10">
+                <span className="text-[10px] font-black uppercase text-white tracking-widest flex items-center gap-1">
+                    <Zap size={10} className="text-yellow-400"/> Powered by Velo Delivery
+                </span>
+                <span className="text-[8px] text-white/50 mt-1">#VeloConquistas #CrescemosJuntos</span>
+            </div>
+        </div>
+    )}
+
+    {activeMilestone.type === 'vips' && (
+        <div 
+            ref={milestoneCardRef} 
+            className="w-[360px] h-[640px] bg-slate-900 rounded-[3rem] p-6 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xl border border-slate-800"
+        >
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-yellow-500/20 rounded-full blur-[80px]"></div>
+
+            <img src={storeStatus.storeLogoUrl} crossOrigin="anonymous" className="w-16 h-16 rounded-full border-2 border-white/20 shadow-xl mt-6 relative z-10 object-cover" />
+
+            <div className="relative z-10 flex flex-col items-center">
+                <div className="text-7xl mb-4 drop-shadow-[0_0_25px_rgba(250,204,21,0.6)]">{activeMilestone.icon}</div>
+                <h2 className="text-6xl font-black italic text-white drop-shadow-lg leading-none tracking-tighter">
+                    +{activeMilestone.value}
+                </h2>
+                <div className="bg-gradient-to-r from-transparent via-yellow-500 to-transparent h-px w-48 my-3"></div>
+                <h3 className="text-yellow-400 font-black uppercase text-lg tracking-widest leading-tight">Membros<br/>No Clube VIP!</h3>
+                <p className="text-white/70 font-medium text-xs mt-2">Nossa comunidade não para de crescer!</p>
+            </div>
+
+            <div className="relative z-10 w-full bg-gradient-to-br from-white/10 to-white/5 border border-white/20 backdrop-blur-md rounded-3xl p-5 mb-8">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-500 text-slate-900 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap">
+                    Responda Abaixo 👇
+                </div>
+                <p className="text-white font-black uppercase text-sm mt-2">Quem será que foi o cliente VIP nº {activeMilestone.value}?</p>
+                <p className="text-white/50 text-[10px] mt-2">Comente "EU ACHO QUE FUI EU" para ganhar um mimo no direct!</p>
+            </div>
+
+            <div className="w-full relative z-10 mb-4 flex justify-center">
+                <span className="bg-white/10 px-4 py-1.5 rounded-full text-[9px] font-black uppercase text-white/60 tracking-widest">
+                    Tecnologia Velo Delivery
+                </span>
+            </div>
+        </div>
+    )}
+
+    {activeMilestone.type === 'daily' && (
+        <div 
+            ref={milestoneCardRef} 
+            className="w-[360px] h-[640px] bg-gradient-to-br from-[#020617] via-[#0f172a] to-[#1e1b4b] rounded-[3rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-2xl"
+        >
+            <div className="absolute inset-4 border border-white/10 rounded-[2rem] pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px]"></div>
+
+            <div className="relative z-10 flex flex-col items-center justify-center h-full">
+                <img src={storeStatus.storeLogoUrl} crossOrigin="anonymous" className="w-14 h-14 rounded-full border border-white/10 opacity-80 mb-10 object-cover grayscale hover:grayscale-0 transition-all" />
+                
+                <p className="text-blue-400 font-bold tracking-[0.3em] uppercase text-[8px] mb-4">Edição Limitada</p>
+                
+                <div className="relative mb-6">
+                    <h2 className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-300 to-slate-500 drop-shadow-[0_10px_20px_rgba(255,255,255,0.1)] tracking-tighter">
+                        {activeMilestone.value}
+                    </h2>
+                    <div className="absolute -bottom-2 -right-4 text-3xl opacity-80 mix-blend-screen">{activeMilestone.icon}</div>
+                </div>
+
+                <div className="w-12 h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent mb-6"></div>
+
+                <h3 className="text-white font-medium uppercase text-xs tracking-[0.2em] leading-relaxed">
+                    Pedidos em um <br/>único dia!<br/>
+                    <span className="text-white/40 text-[9px] mt-2 block">Aprovado pela Comunidade</span>
+                </h3>
+            </div>
+
+            <div className="absolute bottom-10 w-full text-center">
+                <p className="text-[7px] text-slate-500 tracking-[0.4em] uppercase font-medium">Velo Delivery System</p>
+            </div>
+        </div>
+    )}
+
+</div>
 
                             {/* LADO DIREITO: TEXTO E AÇÕES */}
                             <div className="flex-1 flex flex-col justify-center bg-white p-8 rounded-[3rem] shadow-2xl border border-slate-100">
@@ -16689,14 +16803,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     />
                                 </div>
 
-                                <button 
-                                    onClick={handleDownloadMilestoneCard}
-                                    disabled={isGeneratingMilestone}
-                                    className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isGeneratingMilestone ? <Loader2 size={18} className="animate-spin" /> : <FaInstagram size={20} />}
-                                    {isGeneratingMilestone ? 'Gerando Arte...' : 'Baixar Arte & Copiar Legenda'}
-                                </button>
+                                {/* --- BOTÃO INTELIGENTE DE COMPARTILHAMENTO --- */}
+{(() => {
+    // Detecta se é mobile apenas para mudar o visual do botão
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.matchMedia && window.matchMedia("(max-width: 767px)").matches);
+    
+    return (
+        <div className="flex flex-col gap-3">
+            <button 
+                onClick={handleShareMilestoneCard}
+                disabled={isGeneratingMilestone}
+                className={`w-full text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${isMobileDevice ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-indigo-600/30 hover:from-blue-700 hover:to-indigo-700' : 'bg-slate-900 shadow-slate-900/20 hover:bg-slate-800'}`}
+            >
+                {isGeneratingMilestone ? (
+                    <Loader2 size={18} className="animate-spin" />
+                ) : (
+                    isMobileDevice ? <Share2 size={20} /> : <FaInstagram size={20} />
+                )}
+                
+                {isGeneratingMilestone 
+                    ? 'Preparando...' 
+                    : (isMobileDevice ? 'Compartilhar (Insta/Whats)' : 'Baixar Imagem & Copiar Legenda')
+                }
+            </button>
+            
+            <div className="flex items-center gap-2 mt-1 justify-center text-[10px] font-black uppercase text-slate-400">
+                <CheckCircle size={14} className="text-green-500" />
+                A legenda será copiada automaticamente
+            </div>
+        </div>
+    );
+})()}
                                 <button 
                                     onClick={() => setShowMilestoneModal(false)}
                                     className="mt-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all w-full text-center py-2"
