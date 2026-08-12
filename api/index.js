@@ -727,9 +727,6 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
 
                             if (waConfig && waConfig.phoneNumberId && waConfig.apiToken) {
                                 const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
-                                let rawPhone = String(customerPhone).replace(/\D/g, '');
-                                if (rawPhone.startsWith('55')) rawPhone = rawPhone.substring(2);
-                                let cleanPhone = `55${rawPhone}`;
 
                                 const firstName = oData.customerName ? oData.customerName.split(' ')[0] : 'Cliente';
                                 const firstProductName = (oData.items && oData.items[0]) ? oData.items[0].name : 'pedido';
@@ -743,6 +740,13 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
 
                                 // Puxa o link oficial do Google cadastrado pelo lojista no painel
                                 const googleLink = storeData.googleReviewUrl || `https://${storeId}.velodelivery.com.br`;
+
+                                // 🎲 [CORREÇÃO] SORTEIO DA VARIANTE A/B/C (Isolado e Seguro)
+                                let finalVariantId = 'default';
+                                if (settingsData.gamification?.cashback) {
+                                    const copyVariants = ['A', 'B', 'C'];
+                                    finalVariantId = copyVariants[Math.floor(Math.random() * copyVariants.length)];
+                                }
 
                                 postOrderPromises.push((async () => {
                                     try {
@@ -764,18 +768,29 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
                                         }
                                         const pointsLeft = Math.max(0, loyaltyGoal - currentPoints);
 
-                                        // 3. Monta a Mensagem de Retenção (FOMO Dinâmico)
+                                        // 3. Monta a Mensagem de Retenção (TESTE A/B/C)
                                         let msgRetencao = `Oi ${firstName}, esperamos que o seu pedido da *${storeName}* tenha sido incrível! 😋\n\n`;
-                                        
+
                                         if (settingsData.gamification?.cashback && currentCashback > 0) {
-                                            msgRetencao += `💰 *Seu Saldo de Cashback:* R$ ${currentCashback.toFixed(2)}\nLembre-se que você pode usar esse valor como desconto no seu próximo pedido!\n\n`;
+                                            const storeLink = `https://${storeId}.velodelivery.com.br`;
+                                            const inviteLink = `${storeLink}/invite/${cleanPhone}`;
+                                            const cashbackFmt = currentCashback.toFixed(2).replace('.', ',');
+
+                                            // INJETA O TEXTO BASEADO NO SORTEIO
+                                            if (finalVariantId === 'A') {
+                                                msgRetencao = `E aí ${firstName}, tudo certo com a entrega? 🛵 Passando pra avisar que pingou dinheiro na sua conta! Você acabou de ganhar *R$ ${cashbackFmt}* de Cashback no seu Velo Game. Esse saldo já tá liberado pra você usar e abater no seu próximo pedido. Vai deixar expirar? 👀 Já garante a saideira de hoje aqui: ${storeLink}`;
+                                            } else if (finalVariantId === 'B') {
+                                                msgRetencao = `Fala ${firstName}! Espero que tenha curtido o pedido de hoje. 🍔 Sabia que você é um cliente Nível VIP com a gente? Isso significa que você já tem *R$ ${cashbackFmt}* guardados na carteira e tá quase batendo a meta pro próximo nível! Bora subir de nível e gastar esse saldo? Pede aqui: ${storeLink}`;
+                                            } else if (finalVariantId === 'C') {
+                                                msgRetencao = `${firstName}, me diz uma coisa: quer transformar esses *R$ ${cashbackFmt}* de cashback que você acabou de ganhar em muito mais? 💸 Como você é cliente VIP, liberamos seu link exclusivo. Manda esse link pros amigos e ganhe pontos por cada um que comprar: ${inviteLink}. Se bater a fome de novo, seu saldo tá lá te esperando!`;
+                                            }
+                                        } else {
+                                            // Fallback se a loja não usar cashback
+                                            if (settingsData.loyaltyActive) {
+                                                msgRetencao += `🏆 *Seu Clube VIP:* ${currentPoints} pontos.\nFaltam apenas ${pointsLeft} pontos para você resgatar: *${loyaltyReward}*! Não deixe seus pontos expirarem.\n\n`;
+                                            }
+                                            msgRetencao += `👉 Faça um novo pedido: https://${storeId}.velodelivery.com.br`;
                                         }
-                                        
-                                        if (settingsData.loyaltyActive) {
-                                            msgRetencao += `🏆 *Seu Clube VIP:* ${currentPoints} pontos.\nFaltam apenas ${pointsLeft} pontos para você resgatar: *${loyaltyReward}*! Não deixe seus pontos expirarem.\n\n`;
-                                        }
-                                        
-                                        msgRetencao += `👉 Faça um novo pedido: https://${storeId}.velodelivery.com.br`;
 
                                         // 4. Monta a Mensagem do Google (Gamificada)
                                         const msgGoogleInstrucoes = `⭐ *Missão VIP: Ganhe pontos extras!*\n\nAvalie seu pedido no Google e suba no nosso ranking:\n• Avaliação em texto = 50 pontos\n• Avaliação com FOTO do pedido = 100 pontos 📸🔥\n\nCopiamos um textinho pronto pra facilitar na mensagem abaixo. É só copiar e colar no link a seguir:\n👉 ${googleLink}`;
@@ -802,13 +817,17 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
 
                                         // 6. Registra no log do chat do Lojista
                                         await db.collection('whatsapp_inbound').add({
-                                            storeId: storeId, to: cleanPhone, text: `[Automação] Resumo de Cashback/VIP e Pedido de Avaliação Google enviados para o cliente.`,
+                                            storeId: storeId, to: cleanPhone, text: `[Automação] Variante de Retenção [${finalVariantId}] e Pedido de Avaliação Google enviados para o cliente.`,
                                             receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'read', direction: 'outbound'
                                         });
                                     } catch(e) { console.error('Erro no Motor de Retenção Pós-Venda:', e); }
                                 })());
 
-                                batch.update(doc.ref, { postOrderAlertSent: true });
+                                // CARIMBA NO BANCO A MESMA VARIANTE QUE FOI ENVIADA!
+                                batch.update(doc.ref, { 
+                                    postOrderAlertSent: true,
+                                    abTestVariant: finalVariantId 
+                                });
                                 postOrderAlertsSent++;
                             }
                         }

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db, auth } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
-import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud } from 'lucide-react';
+import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud, BarChart3, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Variáveis do Cloudinary
@@ -33,6 +33,44 @@ export default function AdminChat() {
     const [filterUnread, setFilterUnread] = useState(false); 
     const [chatSearchTerm, setChatSearchTerm] = useState(''); 
     const [isExportingGlobal, setIsExportingGlobal] = useState(false); // ESTADO DO BACKUP
+
+    // --- ESTADOS DO TESTE A/B ---
+    const [showABTestModal, setShowABTestModal] = useState(false);
+    const [abMetrics, setAbMetrics] = useState({ A: { sent: 0, converted: 0 }, B: { sent: 0, converted: 0 }, C: { sent: 0, converted: 0 } });
+    const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+
+    const fetchAbMetrics = async () => {
+        setIsLoadingMetrics(true);
+        try {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const q = query(collection(db, 'orders'), where('storeId', '==', storeId), where('createdAt', '>=', thirtyDaysAgo));
+            const snapshot = await getDocs(q);
+            
+            let counts = { A: { sent: 0, converted: 0 }, B: { sent: 0, converted: 0 }, C: { sent: 0, converted: 0 } };
+            let customerLastVariant = {};
+
+            snapshot.docs.forEach(doc => {
+                const order = doc.data();
+                const phone = order.customerPhone;
+                
+                if (customerLastVariant[phone]) {
+                    const prevVariant = customerLastVariant[phone];
+                    if (counts[prevVariant]) counts[prevVariant].converted += 1;
+                }
+                
+                if (order.abTestVariant && ['A', 'B', 'C'].includes(order.abTestVariant)) {
+                    counts[order.abTestVariant].sent += 1;
+                    customerLastVariant[phone] = order.abTestVariant;
+                }
+            });
+            setAbMetrics(counts);
+        } catch (error) {
+            console.error("Erro AB:", error);
+        } finally {
+            setIsLoadingMetrics(false);
+        }
+    };
 
     // --- FUNÇÃO: EXPORTAR BACKUP GLOBAL (CSV) ---
     const handleExportGlobalChat = async () => {
@@ -1025,6 +1063,15 @@ export default function AdminChat() {
                         {isExportingGlobal ? <Loader2 size={20} className="animate-spin" /> : <DownloadCloud size={20} />}
                     </button>
 
+                    {/* BOTÃO DO LABORATÓRIO IA (TESTE A/B) */}
+                    <button 
+                        onClick={() => { setShowABTestModal(true); fetchAbMetrics(); }}
+                        className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
+                        title="Resultados Teste A/B (Retenção IA)"
+                    >
+                        <BarChart3 size={20} />
+                    </button>
+
                     <button 
                         onClick={() => setShowNewChatModal(true)}
                         className="bg-[#008069] text-white p-2 rounded-lg hover:bg-[#016d5a] transition-colors shadow-sm"
@@ -1263,7 +1310,73 @@ export default function AdminChat() {
                         </div>
                     )}
                 </AnimatePresence>
-                
+
+                {/* MODAL DE RESULTADOS TESTE A/B */}
+                <AnimatePresence>
+                    {showABTestModal && (
+                        <div className="absolute inset-0 bg-white z-40 flex flex-col animate-in slide-in-from-bottom-full">
+                            <div className="h-16 bg-purple-600 text-white flex items-center px-4 shrink-0 shadow-md gap-4">
+                                <button onClick={() => setShowABTestModal(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors">
+                                    <ArrowLeft size={20} />
+                                </button>
+                                <h2 className="text-lg font-bold">Laboratório de Retenção (IA)</h2>
+                            </div>
+                            
+                            <div className="p-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar bg-slate-50">
+                                <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl flex gap-3 items-start shadow-sm">
+                                    <div className="text-purple-500 mt-0.5"><Trophy size={20} /></div>
+                                    <p className="text-[12px] text-purple-800 leading-relaxed font-medium">
+                                        O robô dispara mensagens automáticas para reter seus clientes. Nossa IA está testando <strong>3 abordagens diferentes</strong> ao mesmo tempo. Acompanhe abaixo qual texto converte mais recompras (Últimos 30 dias).
+                                    </p>
+                                </div>
+
+                                {isLoadingMetrics ? (
+                                    <div className="flex flex-col items-center justify-center p-10 text-purple-500">
+                                        <Loader2 size={32} className="animate-spin mb-2" />
+                                        <p className="text-xs font-bold uppercase tracking-widest">Calculando Algoritmo...</p>
+                                    </div>
+                                ) : (
+                                    ['A', 'B', 'C'].map((variant) => {
+                                        const focus = variant === 'A' ? 'Cashback Agressivo' : variant === 'B' ? 'Status VIP' : 'Indique e Ganhe';
+                                        const sent = abMetrics[variant].sent;
+                                        const converted = abMetrics[variant].converted;
+                                        const conversionRate = sent > 0 ? ((converted / sent) * 100).toFixed(1) : 0;
+                                        
+                                        const maxConv = Math.max(...['A','B','C'].map(v => (abMetrics[v].sent > 0 ? (abMetrics[v].converted / abMetrics[v].sent) : 0)));
+                                        const isWinner = maxConv > 0 && conversionRate == (maxConv * 100).toFixed(1);
+
+                                        return (
+                                            <div key={variant} className={`p-4 rounded-xl border ${isWinner ? 'bg-green-50 border-green-400 shadow-md relative' : 'bg-white border-slate-200'}`}>
+                                                {isWinner && <span className="absolute -top-3 -right-2 bg-green-500 text-white text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"><Trophy size={12}/> VENCEDOR (IA)</span>}
+                                                
+                                                <h3 className="font-black text-slate-800 flex items-center gap-2">
+                                                    Variante {variant} <span className="text-[10px] font-bold text-slate-400 uppercase">({focus})</span>
+                                                </h3>
+                                                
+                                                <div className="flex items-end justify-between mt-4">
+                                                    <div className="flex gap-4">
+                                                        <div>
+                                                            <p className="text-[10px] uppercase text-slate-500 font-bold">Enviados (30d)</p>
+                                                            <p className="font-black text-xl text-slate-700">{sent}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] uppercase text-slate-500 font-bold">Compraram de Novo</p>
+                                                            <p className="font-black text-xl text-slate-700">{converted}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] uppercase text-slate-500 font-bold">Tx. de Conversão</p>
+                                                        <p className={`font-black text-3xl ${isWinner ? 'text-green-600' : 'text-slate-700'}`}>{conversionRate}%</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </AnimatePresence>
 
                 {/* Abas de Filtro de Lidos/Não Lidos */}
                 <div className="flex bg-white border-b border-gray-200 shrink-0">
