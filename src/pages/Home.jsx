@@ -4980,6 +4980,24 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       </div>
                   )}
               </div>
+              {/* --- NOVA CARTEIRA DE CASHBACK --- */}
+              {marketingSettings?.gamification?.cashback && (
+                  <div className="bg-gradient-to-br from-emerald-500 to-teal-700 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-teal-200/50 relative overflow-hidden animate-in fade-in zoom-in">
+                      <div className="absolute -top-10 -left-10 opacity-10 pointer-events-none">
+                          <Wallet size={120} />
+                      </div>
+                      <Wallet size={40} className="mx-auto text-emerald-100 mb-2 relative z-10" />
+                      <h2 className="text-2xl font-black italic uppercase text-white leading-none relative z-10">Sua Carteira</h2>
+                      <p className="text-teal-100 font-bold mt-2 relative z-10">
+                          Saldo disponível: <span className="text-2xl font-black bg-slate-900 text-emerald-400 px-3 py-1 rounded-xl mx-1 shadow-inner">R$ {cashbackBalance.toFixed(2)}</span>
+                      </p>
+                      <div className="mt-4 pt-3 border-t border-teal-500/30 relative z-10">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-teal-100">
+                              {cashbackBalance > 0 ? '✨ Use este saldo no seu próximo pedido!' : 'Faça pedidos para ganhar dinheiro de volta!'}
+                          </p>
+                      </div>
+                  </div>
+              )}
 
               {/* MÓDULOS DE GAMIFICAÇÃO */}
               <div className="grid grid-cols-2 gap-4 mb-6">
