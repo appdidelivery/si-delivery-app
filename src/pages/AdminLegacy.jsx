@@ -3903,6 +3903,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
     const handleAddProductToEditingOrder = (productToAdd) => {
+        // --- Função para reabrir um troféu já conquistado no Mural ---
+    const handleReopenMilestone = (milestoneId) => {
+        const [type, valueStr] = milestoneId.split('_');
+        const val = Number(valueStr);
+        let milestoneData = null;
+
+        if (type === 'orders') {
+            milestoneData = {
+                type: 'orders', value: val, id: milestoneId, title: 'Certificado de Excelência',
+                text: `Sua loja atingiu a marca histórica de ${val} pedidos processados!`, icon: '🚀', color: 'from-blue-600 to-indigo-900',
+                geminiPrompt: `Chegamos a ${val} pedidos! Obrigado a cada um de vocês que confia na nossa loja. E se você ainda não fez o seu pedido, clica no link da bio e pede agora! 👇 #Delivery #Top1 #VeloDelivery`
+            };
+        } else if (type === 'vips') {
+            milestoneData = {
+                type: 'vips', value: val, id: milestoneId, title: 'Comunidade Forte',
+                text: `Sua loja chegou a ${val} clientes fidelizados no Clube VIP!`, icon: '👑', color: 'from-amber-400 to-orange-600',
+                geminiPrompt: `Somos ${val} no Clube VIP! 🥂 Para comemorar, liberamos um cupom especial. Vem fazer parte da nossa família! Acesse o nosso app no link da bio.`
+            };
+        } else if (type === 'daily') {
+            milestoneData = {
+                type: 'daily', value: val, id: milestoneId, title: 'Recorde Quebrado',
+                text: `Sua cozinha pegou fogo! Mais de ${val} pedidos em um único dia.`, icon: '🔥', color: 'from-red-500 to-rose-700',
+                geminiPrompt: `Nossa cozinha não parou um minuto! 🔥 Batemos nosso recorde de vendas. Corre pro app antes que nosso estoque zere de novo! Link na bio 🚀`
+            };
+        }
+
+        if (milestoneData) {
+            setActiveMilestone(milestoneData);
+            setMilestoneCopy(milestoneData.geminiPrompt);
+            setShowMilestoneModal(true);
+        }
+    };
         // 1. Trava inicial: Verifica se tem estoque
         if (productToAdd.stock !== undefined && Number(productToAdd.stock) <= 0) {
             return alert(`⚠️ O produto ${productToAdd.name} está esgotado!`);
@@ -4990,7 +5022,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 </div>
                                 </div>
                             </div>
+{/* --- MURAL DE CONQUISTAS (TROPHY ROOM) --- */}
+                            <div className="pt-8 mt-8 border-t border-slate-100">
+                                <div className="flex justify-between items-end mb-6">
+                                    <div>
+                                        <h2 className="text-2xl font-black italic tracking-tighter uppercase text-slate-800 flex items-center gap-2">
+                                            <Trophy size={24} className="text-amber-500"/> Mural de Conquistas
+                                        </h2>
+                                        <p className="text-slate-400 font-bold mt-1 text-sm">Compartilhe suas vitórias e aumente sua autoridade nas redes.</p>
+                                    </div>
+                                    <div className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm">
+                                        {(storeStatus?.achievedMilestones || []).length} Desbloqueadas
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4">
+                                    {(() => {
+                                        // Gera a lista de todos os troféus possíveis
+                                        const allTrophies = [
+                                            ...MILESTONES.orders.map(v => ({ id: `orders_${v}`, title: `${v} Pedidos`, desc: 'Processados', icon: '🚀', color: 'bg-blue-50 text-blue-600 border-blue-200' })),
+                                            ...MILESTONES.vips.map(v => ({ id: `vips_${v}`, title: `${v} Clientes VIP`, desc: 'Fidelizados', icon: '👑', color: 'bg-amber-50 text-amber-600 border-amber-200' })),
+                                            { id: `daily_50`, title: `50 Ped. Diários`, desc: 'Recorde Quebrado', icon: '🔥', color: 'bg-red-50 text-red-600 border-red-200' }
+                                        ];
 
+                                        return allTrophies.map(trophy => {
+                                            const isUnlocked = (storeStatus?.achievedMilestones || []).includes(trophy.id);
+                                            return (
+                                                <button
+                                                    key={trophy.id}
+                                                    onClick={() => isUnlocked && handleReopenMilestone(trophy.id)}
+                                                    disabled={!isUnlocked}
+                                                    className={`min-w-[140px] flex-shrink-0 flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all duration-300 ${
+                                                        isUnlocked 
+                                                        ? `${trophy.color} shadow-md hover:scale-105 hover:shadow-lg active:scale-95 cursor-pointer` 
+                                                        : 'bg-slate-50 border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    <span className={`text-4xl mb-2 ${!isUnlocked && 'grayscale opacity-50'}`}>{trophy.icon}</span>
+                                                    <span className="font-black text-xs uppercase tracking-tight text-center leading-none">{trophy.title}</span>
+                                                    <span className={`text-[9px] font-bold uppercase mt-1 ${isUnlocked ? 'opacity-70' : 'opacity-0'}`}>{trophy.desc}</span>
+                                                    
+                                                    {!isUnlocked && (
+                                                        <div className="mt-3 bg-slate-200 p-1.5 rounded-full text-slate-400">
+                                                            <Lock size={12} />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            </div>
                             <div className="pt-8 mt-8 border-t border-slate-100">
                                 <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 text-slate-800">Estatísticas Gerais</h2>
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
@@ -10002,7 +10084,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     }} className="bg-slate-800 hover:bg-slate-700 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-700 transition-all">
                                         Liberar Apenas Essencial
                                     </button>
-                                    
+                                    <button onClick={async () => {
+                                        if(!window.confirm("Isso vai ZERAR as conquistas dessa loja! Se eles tiverem mais de 100 pedidos, o pop-up vai disparar na cara deles de novo. Confirma?")) return;
+                                        await updateDoc(doc(db, "stores", storeId), { achievedMilestones: [] });
+                                        alert("✅ Conquistas zeradas! Atualize a página e vá para Início para ver o Pop-up pular na tela!");
+                                    }} className="bg-emerald-600 hover:bg-emerald-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-1">
+                                        <Trophy size={14}/> Testar Conquistas (Zerar)
+                                    </button>
                                     <button onClick={async () => {
                                         if(!window.confirm("Isto vai liberar os recursos do Plano Crescimento, MANTENDO o valor da fatura atual. Confirma?")) return;
                                         
