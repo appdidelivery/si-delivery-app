@@ -4814,51 +4814,56 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* SUPER CARD: UPSELL INTELIGENTE */}
-                                    <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-indigo-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
-                                        <div className="flex justify-between items-start z-10 relative mb-1">
-                                            <p className="text-indigo-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Flame size={12}/> Upsell (Compre Junto)</p>
-                                        </div>
-                                        <div className="mt-1 z-10 relative">
-                                            <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest mb-1">Hoje</p>
-                                            <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
-                                                R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((acc, o) => {
-                                                    let upsellVal = Number(o.upsellTotal) || Number(o.upsellAmount) || 0;
-                                                    
-                                                    // Fallback blindado para pedidos antigos que não tinham a chave no Firestore
-                                                    if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
-                                                        upsellVal = o.items.filter(i => i.isUpsell === true).reduce((sum, i) => {
-                                                            const itemPrice = Number(i.price) || 0;
-                                                            const itemQty = Number(i.quantity) || 1;
-                                                            return sum + (itemPrice * itemQty);
-                                                        }, 0);
-                                                    }
-                                                    
-                                                    // Trava final de segurança contra NaN que causa o congelamento
-                                                    return acc + (Number.isNaN(upsellVal) ? 0 : upsellVal);
-                                                }, 0).toFixed(2)}
-                                            </p>
-                                            
-                                            <div className="mt-3 pt-3 border-t border-indigo-400/50 flex justify-between items-end">
-                                                <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest">Histórico Total</span>
-                                                <span className="text-lg font-black text-white italic">R$ {orders.filter(o => o.status !== 'canceled').reduce((acc, o) => {
-                                                    let upsellVal = Number(o.upsellTotal) || Number(o.upsellAmount) || 0;
-                                                    
-                                                    // Fallback blindado para pedidos antigos
-                                                    if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
-                                                        upsellVal = o.items.filter(i => i.isUpsell === true).reduce((sum, i) => {
-                                                            const itemPrice = Number(i.price) || 0;
-                                                            const itemQty = Number(i.quantity) || 1;
-                                                            return sum + (itemPrice * itemQty);
-                                                        }, 0);
-                                                    }
-                                                    
-                                                    // Trava final de segurança contra NaN que causa o congelamento
-                                                    return acc + (Number.isNaN(upsellVal) ? 0 : upsellVal);
-                                                }, 0).toFixed(2)}</span>
-                                            </div>
-                                        </div>
-                                        <div className="absolute -left-4 -bottom-4 text-white opacity-10"><Flame size={120}/></div>
-                                    </div>
+<div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-indigo-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
+    <div className="flex justify-between items-start z-10 relative mb-1">
+        <p className="text-indigo-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Flame size={12}/> Upsell (Compre Junto)</p>
+        <div className="flex flex-col items-end gap-1">
+            <span className="bg-white text-indigo-600 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm">
+                30 Dias
+            </span>
+        </div>
+    </div>
+    <div className="mt-1 z-10 relative">
+        <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest mb-1">Últimos 30 Dias</p>
+        <p className="text-3xl lg:text-4xl font-black text-white italic leading-none">
+            R$ {orders.filter(o => {
+                if (o.status === 'canceled' || !o.createdAt) return false;
+                const orderTime = o.createdAt.toMillis ? o.createdAt.toMillis() : (o.createdAt.seconds * 1000);
+                // Filtra apenas os últimos 30 dias
+                return orderTime > (Date.now() - 30 * 24 * 60 * 60 * 1000);
+            }).reduce((acc, o) => {
+                let upsellVal = Number(o.upsellTotal) || Number(o.upsellAmount) || 0;
+                
+                // Fallback blindado para pedidos antigos
+                if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
+                    upsellVal = o.items.filter(i => i.isUpsell === true).reduce((sum, i) => {
+                        const itemPrice = Number(i.price) || 0;
+                        const itemQty = Number(i.quantity) || 1;
+                        return sum + (itemPrice * itemQty);
+                    }, 0);
+                }
+                return acc + (Number.isNaN(upsellVal) ? 0 : upsellVal);
+            }, 0).toFixed(2)}
+        </p>
+        
+        <div className="mt-3 pt-3 border-t border-indigo-400/50 flex justify-between items-end">
+            <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-widest">Hoje</span>
+            <span className="text-lg font-black text-white italic">R$ {orders.filter(o => o.status !== 'canceled' && isToday(o.createdAt)).reduce((acc, o) => {
+                let upsellVal = Number(o.upsellTotal) || Number(o.upsellAmount) || 0;
+                
+                if (upsellVal === 0 && o.items && Array.isArray(o.items)) {
+                    upsellVal = o.items.filter(i => i.isUpsell === true).reduce((sum, i) => {
+                        const itemPrice = Number(i.price) || 0;
+                        const itemQty = Number(i.quantity) || 1;
+                        return sum + (itemPrice * itemQty);
+                    }, 0);
+                }
+                return acc + (Number.isNaN(upsellVal) ? 0 : upsellVal);
+            }, 0).toFixed(2)}</span>
+        </div>
+    </div>
+    <div className="absolute -left-4 -bottom-4 text-white opacity-10"><Flame size={120}/></div>
+</div>
                                 </div>
                             </div>
 
