@@ -13,6 +13,10 @@ import {
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut, sendPasswordResetEmail } from 'firebase/auth';
+// --- NOVAS IMPORTAÇÕES GROWTH HACKER ---
+import Confetti from 'react-confetti';
+import html2canvas from 'html2canvas';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
@@ -589,6 +593,20 @@ export default function Admin() {
     const [currentTime, setCurrentTime] = useState(new Date()); // <-- ADICIONADO PARA CORRIGIR A TELA BRANCA
     const [orderFilterStatus, setOrderFilterStatus] = useState('all'); // NOVO: Filtro de Status
     const [orderFilterSource, setOrderFilterSource] = useState('all'); // NOVO: Filtro de Canal (App, PDV, Wpp)
+    // =========================================================================
+    // 🏆 MOTOR DE GROWTH HACKING (GAMIFICAÇÃO DO LOJISTA)
+    // =========================================================================
+    const milestoneCardRef = useRef(null);
+    const [showMilestoneModal, setShowMilestoneModal] = useState(false);
+    const [activeMilestone, setActiveMilestone] = useState(null);
+    const [milestoneCopy, setMilestoneCopy] = useState('');
+    const [isGeneratingMilestone, setIsGeneratingMilestone] = useState(false);
+
+    // Definição das Metas
+    const MILESTONES = {
+        orders: [100, 500, 1000, 5000, 10000],
+        vips: [50, 100, 500, 1000]
+    };
 // Controle do Banner Educacional da Dashboard
 const [showEduBanner, setShowEduBanner] = useState(true);
 const [currentEduBanner, setCurrentEduBanner] = useState(0);
@@ -2529,6 +2547,7 @@ const [vipMissions, setVipMissions] = useState([]);
             if (typeof unsubInfluencers === 'function') unsubInfluencers(); // <-- LIMPEZA DOS INFLUENCIADORES
         };
     },[storeId]);
+
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
     useEffect(() => {
         const cleanFakeCarts = async () => {
@@ -3777,7 +3796,112 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         return customerList.sort((a, b) => loyaltyEnabled ? b.points - a.points : b.totalSpent - a.totalSpent);
         
     }, [orders, loyaltyRedemptions, settings, storeCustomersDB, vipMissions]);
+// =========================================================================
+    // 🏆 MOTOR DE CONQUISTAS (MILESTONES DETECTOR) E GERAÇÃO DE IMAGEM
+    // =========================================================================
+    useEffect(() => {
+        if (!storeId || orders.length === 0) return;
 
+        const checkMilestones = async () => {
+            // Puxa as conquistas que a loja já comemorou do banco
+            const achieved = storeStatus?.achievedMilestones || [];
+            let newMilestone = null;
+
+            // 1. Checa Metas de Volume de Pedidos
+            const totalOrders = orders.filter(o => o.status === 'completed' || o.status === 'paid').length;
+            const reachedOrderTarget = MILESTONES.orders.slice().reverse().find(target => totalOrders >= target);
+            
+            if (reachedOrderTarget && !achieved.includes(`orders_${reachedOrderTarget}`)) {
+                newMilestone = {
+                    type: 'orders',
+                    value: reachedOrderTarget,
+                    id: `orders_${reachedOrderTarget}`,
+                    title: 'Certificado de Excelência',
+                    text: `Sua loja atingiu a marca histórica de ${reachedOrderTarget} pedidos processados!`,
+                    icon: '🚀',
+                    color: 'from-blue-600 to-indigo-900',
+                    geminiPrompt: `Chegamos a ${reachedOrderTarget} pedidos! Obrigado a cada um de vocês que confia na nossa loja. E se você ainda não fez o seu pedido, clica no link da bio e pede agora! 👇 #Delivery #Top1 #VeloDelivery`
+                };
+            }
+
+            // 2. Checa Metas de Comunidade VIP (Aqui não dá mais erro, pois customers já foi criado!)
+            if (!newMilestone && customers.length > 0) {
+                const reachedVipTarget = MILESTONES.vips.slice().reverse().find(target => customers.length >= target);
+                if (reachedVipTarget && !achieved.includes(`vips_${reachedVipTarget}`)) {
+                    newMilestone = {
+                        type: 'vips',
+                        value: reachedVipTarget,
+                        id: `vips_${reachedVipTarget}`,
+                        title: 'Comunidade Forte',
+                        text: `Sua loja acaba de chegar a ${reachedVipTarget} clientes fidelizados no Clube VIP!`,
+                        icon: '👑',
+                        color: 'from-amber-400 to-orange-600',
+                        geminiPrompt: `Somos ${reachedVipTarget} no Clube VIP! 🥂 Para comemorar, liberamos um cupom especial. Vem fazer parte da nossa família! Acesse o nosso app no link da bio.`
+                    };
+                }
+            }
+
+            // 3. Checa Meta Diária (Ideia 3 - Fim de Semana)
+            if (!newMilestone) {
+                const todayOrders = orders.filter(o => o.status !== 'canceled' && new Date(o.createdAt?.toDate ? o.createdAt.toDate() : o.createdAt).toDateString() === new Date().toDateString()).length;
+                if (todayOrders >= 50 && !achieved.includes(`daily_50`)) {
+                    newMilestone = {
+                        type: 'daily',
+                        value: 50,
+                        id: `daily_50`,
+                        title: 'Recorde Quebrado',
+                        text: 'Sua cozinha pegou fogo hoje! Mais de 50 pedidos em um único dia.',
+                        icon: '🔥',
+                        color: 'from-red-500 to-rose-700',
+                        geminiPrompt: `Nossa cozinha não parou um minuto hoje! 🔥 Batemos nosso recorde de vendas. Corre pro app antes que nosso estoque zere de novo! Link na bio 🚀`
+                    };
+                }
+            }
+
+            // Se achou uma meta nova, dispara a comemoração!
+            if (newMilestone) {
+                // Toca som de vitória
+                new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3').play().catch(()=>{});
+                
+                setActiveMilestone(newMilestone);
+                setMilestoneCopy(newMilestone.geminiPrompt); // Simulando o retorno imediato da IA
+                setShowMilestoneModal(true);
+
+                // Grava no banco para não repetir
+                await updateDoc(doc(db, "stores", storeId), {
+                    achievedMilestones: [...achieved, newMilestone.id]
+                });
+            }
+        };
+
+        checkMilestones();
+    }, [orders.length, customers.length, storeStatus?.achievedMilestones, storeId]);
+
+    // Função que baixa o Card em JPG
+    const handleDownloadMilestoneCard = async () => {
+        if (!milestoneCardRef.current) return;
+        setIsGeneratingMilestone(true);
+        try {
+            const canvas = await html2canvas(milestoneCardRef.current, { 
+                scale: 2, 
+                useCORS: true,
+                backgroundColor: null 
+            });
+            const image = canvas.toDataURL("image/jpeg", 0.9);
+            const link = document.createElement("a");
+            link.href = image;
+            link.download = `conquista-velo-${activeMilestone.value}.jpg`;
+            link.click();
+            
+            navigator.clipboard.writeText(milestoneCopy);
+            alert("✅ Arte baixada e legenda copiada! Abra seu Instagram e faça a postagem.");
+        } catch (err) {
+            console.error("Erro ao gerar imagem", err);
+            alert("Erro ao gerar a imagem. Tente tirar um print da tela!");
+        } finally {
+            setIsGeneratingMilestone(false);
+        }
+    };
     const handleAddProductToEditingOrder = (productToAdd) => {
         // 1. Trava inicial: Verifica se tem estoque
         if (productToAdd.stock !== undefined && Number(productToAdd.stock) <= 0) {
@@ -16345,8 +16469,107 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
            </AnimatePresence>
-            {/* --- FIM: MODAL DE FECHAMENTO DE CAIXA --- */}
+           {/* ========================================================= */}
+            {/* 🏆 MODAL DE CONQUISTAS (GROWTH HACKER SOCIAL) */}
+            {/* ========================================================= */}
+            <AnimatePresence>
+                {showMilestoneModal && activeMilestone && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-xl">
+                        
+                        {/* Chuva de Confetes */}
+                        <Confetti 
+                            width={window.innerWidth} 
+                            height={window.innerHeight} 
+                            recycle={false} 
+                            numberOfPieces={500} 
+                            gravity={0.15}
+                        />
 
+                        <motion.div initial={{ scale: 0.5, y: 50 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", bounce: 0.5 }} className="w-full max-w-4xl flex flex-col md:flex-row gap-6 relative z-10">
+                            
+                            <button onClick={() => setShowMilestoneModal(false)} className="absolute -top-12 right-0 md:-right-12 text-white/50 hover:text-white p-2">
+                                <X size={32} />
+                            </button>
+
+                            {/* LADO ESQUERDO: O CARD QUE VAI SER GERADO EM IMAGEM */}
+                            <div className="flex-1 flex justify-center items-center">
+                                {/* Esta é a div capturada pelo html2canvas */}
+                                <div 
+                                    ref={milestoneCardRef} 
+                                    className={`w-[360px] h-[360px] bg-gradient-to-br ${activeMilestone.color} rounded-[3rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-2xl`}
+                                >
+                                    {/* Efeitos de Fundo */}
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/20 rounded-full blur-3xl"></div>
+
+                                    {/* Logo da Loja */}
+                                    <img src={storeStatus.storeLogoUrl} crossOrigin="anonymous" className="w-20 h-20 rounded-full border-4 border-white/20 shadow-xl mb-4 relative z-10 object-cover" />
+                                    
+                                    <h3 className="text-white/80 font-black tracking-widest uppercase text-[10px] mb-1 relative z-10">{activeMilestone.title}</h3>
+                                    
+                                    <div className="flex items-center justify-center gap-2 mb-2 relative z-10">
+                                        <span className="text-5xl">{activeMilestone.icon}</span>
+                                        <span className="text-6xl font-black italic text-white drop-shadow-lg leading-none">
+                                            {activeMilestone.type === 'daily' ? '' : '+'}
+                                            {activeMilestone.value}
+                                        </span>
+                                    </div>
+                                    
+                                    <p className="text-white font-bold text-sm max-w-[80%] relative z-10 mt-2 leading-tight">
+                                        {activeMilestone.type === 'orders' ? 'Pedidos Entregues com Sucesso!' : 
+                                         activeMilestone.type === 'vips' ? 'Membros no Clube VIP!' : 
+                                         'Pedidos em um Único Dia!'}
+                                    </p>
+
+                                    {/* Selo Velo Delivery */}
+                                    <div className="absolute bottom-4 flex items-center justify-center w-full opacity-50">
+                                        <span className="text-[8px] font-black uppercase text-white tracking-widest">Powered by Velo Delivery</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* LADO DIREITO: TEXTO E AÇÕES */}
+                            <div className="flex-1 flex flex-col justify-center bg-white p-8 rounded-[3rem] shadow-2xl border border-slate-100">
+                                <div className="inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full w-fit mb-4">
+                                    <Trophy size={16} />
+                                    <span className="text-xs font-black uppercase tracking-widest">Nova Conquista Desbloqueada!</span>
+                                </div>
+
+                                <h2 className="text-3xl font-black text-slate-800 italic uppercase leading-none mb-2">Parabéns!</h2>
+                                <p className="text-slate-500 font-bold text-sm mb-6">{activeMilestone.text} Celebre esse momento com os seus clientes nas redes sociais.</p>
+
+                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 relative group">
+                                    <div className="absolute top-0 right-0 bg-blue-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-bl-lg">IA Copywriter</div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 mb-2 flex items-center gap-1"><Sparkles size={12} className="text-purple-500"/> Legenda Sugerida (Pronta para postar):</p>
+                                    <textarea 
+                                        value={milestoneCopy}
+                                        onChange={(e) => setMilestoneCopy(e.target.value)}
+                                        className="w-full bg-transparent border-none outline-none text-sm font-medium text-slate-700 resize-none h-24"
+                                    />
+                                </div>
+
+                                <button 
+                                    onClick={handleDownloadMilestoneCard}
+                                    disabled={isGeneratingMilestone}
+                                    className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isGeneratingMilestone ? <Loader2 size={18} className="animate-spin" /> : <FaInstagram size={20} />}
+                                    {isGeneratingMilestone ? 'Gerando Arte...' : 'Baixar Arte & Copiar Legenda'}
+                                </button>
+                                <button 
+                                    onClick={() => setShowMilestoneModal(false)}
+                                    className="mt-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all w-full text-center py-2"
+                                >
+                                    Pular e Ir para o Painel
+                                </button>
+                            </div>
+
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* WIDGET E FECHAMENTO DO ARQUIVO */}
             {storeStatus?.supportWidgetPosition !== 'hidden' && (
                 <VeloSupportWidget position={storeStatus?.supportWidgetPosition || 'bottom-right'} />
             )}
