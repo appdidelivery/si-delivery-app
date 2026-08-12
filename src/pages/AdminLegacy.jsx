@@ -1042,8 +1042,8 @@ const educationalBanners = [
                 // Apenas pedidos feitos DEPOIS que ele abriu o caixa hoje
                 if (orderDate < dataAbertura) return false;
 
-                // Apenas pedidos lançados no PDV (ignora vendas que caíram sozinhas pelo App/iFood, a não ser que ele seja o Dono e responda por tudo)
-                const isManualOrder = o.source === 'manual' || o.source === 'manual_pdv';
+                // Apenas pedidos lançados no PDV/WhatsApp (ignora vendas que caíram sozinhas pelo App, a não ser que ele seja o Dono)
+                const isManualOrder = ['manual', 'manual_pdv', 'whatsapp_pdv'].includes(o.source);
                 if (!isManualOrder) return false;
 
                 // Apenas pedidos lançados pelo e-mail do operador atual
@@ -4056,7 +4056,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             if (o.status === 'canceled' || !o.createdAt) return false;
 
             // FILTRO 1: VENDEDOR / ORIGEM
-            const isManualOrder = o.source === 'manual' || o.source === 'manual_pdv';
+            // ✅ Agora inclui os pedidos lançados pela aba de Chat do WhatsApp!
+            const isManualOrder = ['manual', 'manual_pdv', 'whatsapp_pdv'].includes(o.source);
 
             if (reportSeller === 'online' && isManualOrder) return false;
             
@@ -6220,9 +6221,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 {o.customerName} 
                                                                 {o.waiterName && <span className="text-xs text-purple-500 font-bold">(Garçom: {o.waiterName})</span>}
                                                                 {o.source === 'manual' || o.source === 'manual_pdv' ? (
-                                                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1">💻 PDV / BALCÃO</span>
+                                                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-purple-200 shadow-sm flex items-center gap-1" title={`Atendente: ${o.vendedor || 'Equipe'}`}>💻 PDV {o.vendedor ? `(${o.vendedor.split(' ')[0]})` : ''}</span>
                                                                 ) : o.source === 'whatsapp_pdv' ? (
-                                                                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200 shadow-sm flex items-center gap-1">🛒 CHAT (WPP)</span>
+                                                                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200 shadow-sm flex items-center gap-1" title={`Atendente: ${o.vendedor || 'Equipe'}`}>🛒 CHAT WPP {o.vendedor ? `(${o.vendedor.split(' ')[0]})` : ''}</span>
                                                                 ) : o.source === 'whatsapp' ? (
                                                                     <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200 shadow-sm flex items-center gap-1">💬 WHATSAPP BOT</span>
                                                                 ) : o.source === 'google_food_marketplace' ? (
