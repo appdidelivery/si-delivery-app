@@ -5060,7 +5060,6 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             
                                             <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4">
                                                 {allTrophies.map(trophy => {
-                                                    // A MÁGICA RETROATIVA: Se o número atual é maior que a meta, tá liberado!
                                                     let isUnlocked = false;
                                                     if (trophy.type === 'orders') isUnlocked = countOrders >= trophy.value;
                                                     if (trophy.type === 'vips') isUnlocked = countVips >= trophy.value;
@@ -5071,10 +5070,37 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             key={trophy.id}
                                                             type="button"
                                                             onClick={(e) => {
-                                                                e.preventDefault(); // Impede travamento da tela
+                                                                e.preventDefault();
                                                                 if (isUnlocked) {
-                                                                    console.log("Abrindo Troféu:", trophy.id);
-                                                                    handleReopenMilestone(trophy.id);
+                                                                    // LÓGICA EMBUTIDA DIRETO NO BOTÃO (À PROVA DE FALHAS)
+                                                                    let milestoneData = null;
+                                                                    
+                                                                    if (trophy.type === 'orders') {
+                                                                        milestoneData = {
+                                                                            type: 'orders', value: trophy.value, id: trophy.id, title: 'Certificado de Excelência',
+                                                                            text: `Sua loja atingiu a marca histórica de ${trophy.value} pedidos processados!`, icon: '🚀', color: 'from-blue-600 to-indigo-900',
+                                                                            geminiPrompt: `Chegamos a ${trophy.value} pedidos! Obrigado a cada um de vocês que confia na nossa loja. E se você ainda não fez o seu pedido, clica no link da bio e pede agora! 👇 #Delivery #Top1 #VeloDelivery`
+                                                                        };
+                                                                    } else if (trophy.type === 'vips') {
+                                                                        milestoneData = {
+                                                                            type: 'vips', value: trophy.value, id: trophy.id, title: 'Comunidade Forte',
+                                                                            text: `Sua loja chegou a ${trophy.value} clientes fidelizados no Clube VIP!`, icon: '👑', color: 'from-amber-400 to-orange-600',
+                                                                            geminiPrompt: `Somos ${trophy.value} no Clube VIP! 🥂 Para comemorar, liberamos um cupom especial. Vem fazer parte da nossa família! Acesse o nosso app no link da bio.`
+                                                                        };
+                                                                    } else if (trophy.type === 'daily') {
+                                                                        milestoneData = {
+                                                                            type: 'daily', value: trophy.value, id: trophy.id, title: 'Recorde Quebrado',
+                                                                            text: `Sua cozinha pegou fogo! Mais de ${trophy.value} pedidos em um único dia.`, icon: '🔥', color: 'from-red-500 to-rose-700',
+                                                                            geminiPrompt: `Nossa cozinha não parou um minuto! 🔥 Batemos nosso recorde de vendas. Corre pro app antes que nosso estoque zere de novo! Link na bio 🚀`
+                                                                        };
+                                                                    }
+
+                                                                    // Aciona os estados que abrem o Modal
+                                                                    if (milestoneData) {
+                                                                        setActiveMilestone(milestoneData);
+                                                                        setMilestoneCopy(milestoneData.geminiPrompt);
+                                                                        setShowMilestoneModal(true);
+                                                                    }
                                                                 }
                                                             }}
                                                             className={`min-w-[140px] flex-shrink-0 flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all duration-300 ${
