@@ -5024,54 +5024,81 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 {/* --- MURAL DE CONQUISTAS (TROPHY ROOM) --- */}
                             <div className="pt-8 mt-8 border-t border-slate-100">
-                                <div className="flex justify-between items-end mb-6">
-                                    <div>
-                                        <h2 className="text-2xl font-black italic tracking-tighter uppercase text-slate-800 flex items-center gap-2">
-                                            <Trophy size={24} className="text-amber-500"/> Mural de Conquistas
-                                        </h2>
-                                        <p className="text-slate-400 font-bold mt-1 text-sm">Compartilhe suas vitórias e aumente sua autoridade nas redes.</p>
-                                    </div>
-                                    <div className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm">
-                                        {(storeStatus?.achievedMilestones || []).length} Desbloqueadas
-                                    </div>
-                                </div>
-                                
-                                <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4">
-                                    {(() => {
-                                        // Gera a lista de todos os troféus possíveis
-                                        const allTrophies = [
-                                            ...MILESTONES.orders.map(v => ({ id: `orders_${v}`, title: `${v} Pedidos`, desc: 'Processados', icon: '🚀', color: 'bg-blue-50 text-blue-600 border-blue-200' })),
-                                            ...MILESTONES.vips.map(v => ({ id: `vips_${v}`, title: `${v} Clientes VIP`, desc: 'Fidelizados', icon: '👑', color: 'bg-amber-50 text-amber-600 border-amber-200' })),
-                                            { id: `daily_50`, title: `50 Ped. Diários`, desc: 'Recorde Quebrado', icon: '🔥', color: 'bg-red-50 text-red-600 border-red-200' }
-                                        ];
+                                {(() => {
+                                    // 1. Calcula o total real para liberar retroativamente
+                                    const countOrders = orders.filter(o => o.status === 'completed' || o.status === 'paid').length;
+                                    const countVips = customers.length;
 
-                                        return allTrophies.map(trophy => {
-                                            const isUnlocked = (storeStatus?.achievedMilestones || []).includes(trophy.id);
-                                            return (
-                                                <button
-                                                    key={trophy.id}
-                                                    onClick={() => isUnlocked && handleReopenMilestone(trophy.id)}
-                                                    disabled={!isUnlocked}
-                                                    className={`min-w-[140px] flex-shrink-0 flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all duration-300 ${
-                                                        isUnlocked 
-                                                        ? `${trophy.color} shadow-md hover:scale-105 hover:shadow-lg active:scale-95 cursor-pointer` 
-                                                        : 'bg-slate-50 border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
-                                                    }`}
-                                                >
-                                                    <span className={`text-4xl mb-2 ${!isUnlocked && 'grayscale opacity-50'}`}>{trophy.icon}</span>
-                                                    <span className="font-black text-xs uppercase tracking-tight text-center leading-none">{trophy.title}</span>
-                                                    <span className={`text-[9px] font-bold uppercase mt-1 ${isUnlocked ? 'opacity-70' : 'opacity-0'}`}>{trophy.desc}</span>
-                                                    
-                                                    {!isUnlocked && (
-                                                        <div className="mt-3 bg-slate-200 p-1.5 rounded-full text-slate-400">
-                                                            <Lock size={12} />
-                                                        </div>
-                                                    )}
-                                                </button>
-                                            );
-                                        });
-                                    })()}
-                                </div>
+                                    // 2. Monta a lista de troféus
+                                    const allTrophies = [
+                                        ...MILESTONES.orders.map(v => ({ type: 'orders', value: v, id: `orders_${v}`, title: `${v} Pedidos`, desc: 'Processados', icon: '🚀', color: 'bg-blue-50 text-blue-600 border-blue-200' })),
+                                        ...MILESTONES.vips.map(v => ({ type: 'vips', value: v, id: `vips_${v}`, title: `${v} Clientes VIP`, desc: 'Fidelizados', icon: '👑', color: 'bg-amber-50 text-amber-600 border-amber-200' })),
+                                        { type: 'daily', value: 50, id: `daily_50`, title: `50 Ped. Diários`, desc: 'Recorde Quebrado', icon: '🔥', color: 'bg-red-50 text-red-600 border-red-200' }
+                                    ];
+
+                                    // 3. Verifica quais estão desbloqueados de verdade
+                                    const unlockedTrophies = allTrophies.filter(trophy => {
+                                        if (trophy.type === 'orders') return countOrders >= trophy.value;
+                                        if (trophy.type === 'vips') return countVips >= trophy.value;
+                                        if (trophy.type === 'daily') return (storeStatus?.achievedMilestones || []).includes('daily_50');
+                                        return false;
+                                    });
+
+                                    return (
+                                        <>
+                                            <div className="flex justify-between items-end mb-6">
+                                                <div>
+                                                    <h2 className="text-2xl font-black italic tracking-tighter uppercase text-slate-800 flex items-center gap-2">
+                                                        <Trophy size={24} className="text-amber-500"/> Mural de Conquistas
+                                                    </h2>
+                                                    <p className="text-slate-400 font-bold mt-1 text-sm">Compartilhe suas vitórias e aumente sua autoridade nas redes.</p>
+                                                </div>
+                                                <div className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm">
+                                                    {unlockedTrophies.length} Desbloqueadas
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-4">
+                                                {allTrophies.map(trophy => {
+                                                    // A MÁGICA RETROATIVA: Se o número atual é maior que a meta, tá liberado!
+                                                    let isUnlocked = false;
+                                                    if (trophy.type === 'orders') isUnlocked = countOrders >= trophy.value;
+                                                    if (trophy.type === 'vips') isUnlocked = countVips >= trophy.value;
+                                                    if (trophy.type === 'daily') isUnlocked = (storeStatus?.achievedMilestones || []).includes('daily_50');
+
+                                                    return (
+                                                        <button
+                                                            key={trophy.id}
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault(); // Impede travamento da tela
+                                                                if (isUnlocked) {
+                                                                    console.log("Abrindo Troféu:", trophy.id);
+                                                                    handleReopenMilestone(trophy.id);
+                                                                }
+                                                            }}
+                                                            className={`min-w-[140px] flex-shrink-0 flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all duration-300 ${
+                                                                isUnlocked 
+                                                                ? `${trophy.color} shadow-md hover:scale-105 hover:shadow-lg active:scale-95 cursor-pointer` 
+                                                                : 'bg-slate-50 border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
+                                                            }`}
+                                                        >
+                                                            <span className={`text-4xl mb-2 ${!isUnlocked ? 'grayscale opacity-50' : ''}`}>{trophy.icon}</span>
+                                                            <span className="font-black text-xs uppercase tracking-tight text-center leading-none">{trophy.title}</span>
+                                                            <span className={`text-[9px] font-bold uppercase mt-1 ${isUnlocked ? 'opacity-70' : 'opacity-0'}`}>{trophy.desc}</span>
+                                                            
+                                                            {!isUnlocked && (
+                                                                <div className="mt-3 bg-slate-200 p-1.5 rounded-full text-slate-400">
+                                                                    <Lock size={12} />
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                             <div className="pt-8 mt-8 border-t border-slate-100">
                                 <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 text-slate-800">Estatísticas Gerais</h2>
