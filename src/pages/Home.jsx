@@ -2486,7 +2486,7 @@ if (window.fbq) {
      // ======================================================================
       // FLUXO DE PAGAMENTO ONLINE (VELOPAY, STRIPE OU MERCADO PAGO E BINANCE)
       // ======================================================================
-      if (['cartao', 'pix', 'online', 'velopay_pix', 'voucherOnline', 'binance_pay'].includes(customer.payment)) {
+      if (['cartao', 'pix', 'online', 'velopay_pix', 'voucherOnline', 'binance_pay', 'velo_credito'].includes(customer.payment)) {
           
          // 1. Prioridade Máxima: Se escolheu Pix Nativo do VeloPay
           if (customer.payment === 'velopay_pix') {
@@ -2987,6 +2987,7 @@ if (window.fbq) {
       let isActive = true; 
 
       const mountMpBrick = async () => {
+          // 🚀 VOLTAMOS O BRICK APENAS PARA O CARTÃO TRANSPARENTE
           if (!isActive || customer.payment !== 'mp_transparent') return;
 
           // 1. ESPERA O SCRIPT BAIXAR: Se a internet piscar, ele tenta de novo a cada 300ms
@@ -3015,13 +3016,17 @@ if (window.fbq) {
                           amount: finalTotal,
                           payer: {
                               email: customer.email || 'cliente@velodelivery.com.br',
-                          },
+                          }
                       },
                       customization: {
                           visual: {
                               style: { theme: 'default' }
                           },
-                          paymentMethods: { maxInstallments: 1 }
+                          paymentMethods: {
+                              creditCard: 'all',
+                              debitCard: 'all',
+                              maxInstallments: 1
+                          }
                       },
                       callbacks: {
                           onReady: () => {
@@ -3181,7 +3186,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   };
 
                   if (isActive) {
-                      cardPaymentBrickController = await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', settings);
+                      // 🧠 MÁGICA: Se for o Cartão Velo (BNPL), usamos a interface global 'payment' para abrir o Login e o Limite do cliente.
+                      // Se for Cartão App normal, mantemos o 'cardPayment' para mostrar os campos de digitação.
+                      const brickTypeToLoad = customer.payment === 'velo_credito' ? 'payment' : 'cardPayment';
+                      cardPaymentBrickController = await bricksBuilder.create(brickTypeToLoad, 'cardPaymentBrick_container', settings);
                   }
               } catch(e) {
                   console.error("Falha ao montar o MP Brick:", e);
@@ -3191,7 +3199,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
       // Inicia a tentativa de montagem com um milissegundo de folga para a animação do Modal
       const initTimeout = setTimeout(() => {
-          if (customer.payment === 'mp_transparent') mountMpBrick();
+          if (customer.payment === 'mp_transparent' || customer.payment === 'velo_credito') mountMpBrick();
       }, 50);
 
       return () => {
@@ -4492,8 +4500,9 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                     const hasGateway = hasStripe || hasMP;
                                     const isPickup = customer.deliveryMethod === 'pickup';
 
-                                    // Para o cliente, não importa qual banco processa. Ofertamos opções claras.
+                                   // Para o cliente, não importa qual banco processa. Ofertamos opções claras.
                                     let allMethods =[
+                                        { id: 'velo_credito', name: 'CARTÃO VELO (LIMITE)', icon: <div className="flex flex-col items-center gap-1"><CreditCard size={20}/><span className="bg-[#009EE3] text-white text-[7px] px-1.5 py-0.5 rounded-sm tracking-wider shadow-sm font-bold leading-none">MERCADO PAGO</span></div>, showIf: marketingSettings?.veloCardEnabled && hasMP && hasMPPublicKey && pmConfig.online !== false, isVeloCard: true },
                                         { id: 'binance_pay', name: 'CRIPTO (BINANCE)', icon: <Bitcoin size={24}/>, showIf: !!pmConfig.binance_pay, isCrypto: true },
                                         { id: 'velopay_pix', name: 'PIX (NA HORA)', icon: <QrCode size={24}/>, showIf: hasVeloPayPix && pmConfig.pix !== false, isPixHighlight: true },
                                         { id: 'pix', name: 'PIX (NA HORA)', icon: <QrCode size={24}/>, showIf: hasGateway && pmConfig.pix !== false && !hasVeloPayPix, isPixHighlight: true },
@@ -4516,11 +4525,13 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                         
                                         if (isSelected) {
                                             if (m.isPixHighlight) btnClasses = 'bg-emerald-500 border-emerald-500 text-white shadow-lg scale-[1.02] ring-2 ring-emerald-300 ring-offset-2';
+                                            else if (m.isVeloCard) btnClasses = 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-blue-500/50 scale-[1.02] ring-2 ring-slate-800';
                                             else if (m.isCrypto) btnClasses = 'bg-yellow-400 border-yellow-400 text-slate-900 shadow-lg scale-[1.02] ring-2 ring-yellow-200 ring-offset-2';
                                             else if (m.isPremium) btnClasses = 'bg-blue-600 border-blue-600 text-white shadow-md';
                                             else btnClasses = `${currentTheme.lightBg} ${currentTheme.border} ${currentTheme.text}`;
                                         } else {
                                             if (m.isPixHighlight) btnClasses = 'border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 shadow-sm shadow-emerald-100';
+                                            else if (m.isVeloCard) btnClasses = 'border-slate-800 bg-slate-900 text-blue-400 hover:text-white shadow-lg';
                                             else if (m.isCrypto) btnClasses = 'border-yellow-400 bg-yellow-50 text-yellow-800 hover:bg-yellow-100 shadow-sm shadow-yellow-100';
                                             else if (m.isPremium) btnClasses = 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100';
                                         }
@@ -4563,6 +4574,18 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                     <div className="text-center text-slate-400 text-xs py-4 font-bold uppercase tracking-widest animate-pulse" id="mp_brick_loading">
                                         Carregando Ambiente Seguro...
                                     </div>
+                                </div>
+                            )}
+
+                            {customer.payment === 'velo_credito' && (
+                                <div className="mt-4 w-full bg-blue-50 p-6 rounded-3xl border border-blue-200 text-center animate-in fade-in zoom-in-95">
+                                    <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+                                        <ShieldCheck size={24}/>
+                                    </div>
+                                    <h4 className="text-blue-900 font-black uppercase tracking-widest text-sm mb-1">Ambiente Seguro</h4>
+                                    <p className="text-blue-700 text-xs font-bold leading-relaxed">
+                                        Clique em <b>Confirmar Pedido</b> abaixo. Você será levado ao Mercado Pago para acessar sua conta e usar seu limite de crédito.
+                                    </p>
                                 </div>
                             )}
                             {/* --- FIM: DIV DO MERCADO PAGO BRICK --- */}
@@ -4996,6 +5019,62 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                               {cashbackBalance > 0 ? '✨ Use este saldo no seu próximo pedido!' : 'Faça pedidos para ganhar dinheiro de volta!'}
                           </p>
                       </div>
+                  </div>
+              )}
+
+              {/* --- NOVO: CARTÃO VELO (BUY NOW, PAY LATER) --- */}
+              {marketingSettings?.veloCardEnabled && (
+                  <div className="bg-gradient-to-tr from-slate-900 via-slate-800 to-black p-6 rounded-3xl mb-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in border border-slate-700">
+                      {/* Efeitos Visuais Premium (Holográfico e Brilho) */}
+                      <div className="absolute -top-16 -right-16 w-40 h-40 bg-blue-500 rounded-full blur-[70px] opacity-30 pointer-events-none"></div>
+                      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-blue-900/20 to-transparent pointer-events-none"></div>
+                      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
+
+                      {/* Header do Cartão */}
+                      <div className="relative z-10 flex justify-between items-start mb-6">
+                          <div className="flex flex-col">
+                              <h2 className="text-2xl font-black italic uppercase text-white leading-none tracking-tighter flex items-center gap-2">
+                                  <CreditCard size={20} className="text-blue-400" /> Cartão Velo
+                              </h2>
+                              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mt-1">Mercado Crédito</p>
+                          </div>
+                          
+                          {/* Chip Virtual Premium */}
+                          <div className="w-10 h-8 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md flex items-center justify-center shadow-[0_0_10px_rgba(250,204,21,0.3)] opacity-90 border border-yellow-700">
+                              <div className="w-7 h-5 border border-yellow-800/40 rounded-sm grid grid-cols-2 gap-px opacity-60">
+                                  <div className="border-r border-b border-yellow-800/40"></div>
+                                  <div className="border-b border-yellow-800/40"></div>
+                                  <div className="border-r border-yellow-800/40"></div>
+                                  <div></div>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Copy */}
+                      <div className="relative z-10 mb-6">
+                          <p className="text-slate-300 text-sm font-medium leading-relaxed">
+                              Compre agora e pague depois. Use seu limite pré-aprovado de forma rápida e segura.
+                          </p>
+                      </div>
+
+                      {/* CTA */}
+                      <button 
+                          onClick={() => {
+                              // Fecha a área VIP, seleciona o Mercado Pago Transparente e abre o Carrinho
+                              setShowVipArea(false);
+                              setCustomer(prev => ({ ...prev, payment: 'velo_credito' }));
+                              setShowCheckout(true);
+                              
+                              setTimeout(() => {
+                                  const el = document.getElementById('area-pagamento');
+                                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 300);
+                          }}
+                          className="w-full relative z-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2 border border-blue-500/50"
+                      >
+                          <Zap size={16} className="text-yellow-300" />
+                          Usar Meu Limite Velo
+                      </button>
                   </div>
               )}
 

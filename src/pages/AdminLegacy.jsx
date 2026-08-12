@@ -10710,26 +10710,54 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {settings?.integrations?.mercadopago?.accessToken ? (
-                                <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <div>
-                                        <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Mercado Pago Conectada</p>
-                                        <p className="text-green-600 font-bold text-xs mt-1">UserID do Lojista: {settings.integrations.mercadopago.userId}</p>
+                                <>
+                                    <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Mercado Pago Conectada</p>
+                                            <p className="text-green-600 font-bold text-xs mt-1">UserID do Lojista: {settings.integrations.mercadopago.userId}</p>
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={async () => {
+                                                if(window.confirm("Deseja desconectar o Mercado Pago? O lojista perderá o PIX/Cartão até conectar de novo.")) {
+                                                    await updateDoc(doc(db, "settings", storeId), {
+                                                        "integrations.mercadopago": null
+                                                    });
+                                                    alert("Mercado Pago desconectado.");
+                                                }
+                                            }} 
+                                            className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                                        >
+                                            Desconectar
+                                        </button>
                                     </div>
-                                    
-                                    <button 
-                                        onClick={async () => {
-                                            if(window.confirm("Deseja desconectar o Mercado Pago? O lojista perderá o PIX/Cartão até conectar de novo.")) {
-                                                await updateDoc(doc(db, "settings", storeId), {
-                                                    "integrations.mercadopago": null
-                                                });
-                                                alert("Mercado Pago desconectado.");
-                                            }
-                                        }} 
-                                        className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
-                                    >
-                                        Desconectar
-                                    </button>
-                                </div>
+
+                                    {/* --- NOVO: TOGGLE DO CARTÃO VELO (MERCADO CRÉDITO) --- */}
+                                    <div className="mt-4 border-t border-slate-100 pt-6 animate-in fade-in">
+                                        <div className="flex items-start justify-between bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
+                                            <div className="flex items-center gap-4 relative z-10">
+                                                <div className="bg-blue-500/20 p-3 rounded-2xl text-blue-400"><CreditCard size={24}/></div>
+                                                <div>
+                                                    <p className="font-black text-white text-sm uppercase flex items-center gap-2">
+                                                        Cartão Velo <span className="bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-md">BNPL</span>
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-1 max-w-sm leading-relaxed">
+                                                        Ofereça crédito aos seus clientes usando a infraestrutura do Mercado Pago (Compre agora, pague depois). Você recebe o valor na hora.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                className="w-6 h-6 accent-blue-500 cursor-pointer relative z-10 mt-2" 
+                                                checked={settings?.veloCardEnabled || false} 
+                                                onChange={async (e) => {
+                                                    await updateDoc(doc(db, "settings", storeId), { veloCardEnabled: e.target.checked }, { merge: true });
+                                                }} 
+                                            />
+                                        </div>
+                                    </div>
+                                </>
                             ) : (
                                 <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
                                     <p className="text-slate-500 font-bold text-sm">Autorize a Velo Delivery a processar pagamentos de Cartão e PIX direto na sua conta do Mercado Pago.</p>
