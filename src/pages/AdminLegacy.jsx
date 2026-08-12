@@ -2032,6 +2032,17 @@ const [vipMissions, setVipMissions] = useState([]);
         }
     }, [storeStatus?.name, store?.name]);
     // --------------------------------------------------------------
+    // --- CORREÇÃO: FORÇA O FAVICON DA LOJA NA ABA DO PAINEL ---
+    useEffect(() => {
+        if (storeStatus && storeStatus.storeLogoUrl) {
+            const favicon = document.getElementById('dynamic-favicon');
+            const appleIcon = document.getElementById('dynamic-apple-icon');
+            
+            if (favicon) favicon.href = storeStatus.storeLogoUrl;
+            if (appleIcon) appleIcon.href = storeStatus.storeLogoUrl;
+        }
+    }, [storeStatus?.storeLogoUrl]);
+    // ----------------------------------------------------------
 
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
