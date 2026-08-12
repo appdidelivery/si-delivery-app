@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { signOut, sendPasswordResetEmail } from 'firebase/auth';
 // --- NOVAS IMPORTAÇÕES GROWTH HACKER ---
 import Confetti from 'react-confetti';
-import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
@@ -3877,20 +3877,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         checkMilestones();
     }, [orders.length, customers.length, storeStatus?.achievedMilestones, storeId]);
 
-    // Função que baixa o Card em JPG
+    // Função que baixa o Card em JPG (Agora usando html-to-image)
     const handleDownloadMilestoneCard = async () => {
         if (!milestoneCardRef.current) return;
         setIsGeneratingMilestone(true);
         try {
-            const canvas = await html2canvas(milestoneCardRef.current, { 
-                scale: 2, 
-                useCORS: true,
-                backgroundColor: null 
+            // A biblioteca html-to-image suporta perfeitamente o Tailwind e o formato oklch
+            const dataUrl = await htmlToImage.toJpeg(milestoneCardRef.current, { 
+                quality: 0.95,
+                pixelRatio: 2 // Escala 2x para garantir alta resolução na hora de postar
             });
-            const image = canvas.toDataURL("image/jpeg", 0.9);
+            
             const link = document.createElement("a");
-            link.href = image;
             link.download = `conquista-velo-${activeMilestone.value}.jpg`;
+            link.href = dataUrl;
             link.click();
             
             navigator.clipboard.writeText(milestoneCopy);
