@@ -3306,11 +3306,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 notification_url: `https://${req.headers.host}/api/mp-webhook?store=${storeId}`
             };
 
-            // 4. PREVENÇÃO DO ERRO "COLLECTOR USER WITHOUT KEY": 
-            // O Mercado Pago bloqueia a geração do PIX Transparente se enviarmos a taxa de Marketplace (Split) 
-            // para lojistas que não validaram a conta inteira como Empresa no painel deles.
-            // Portanto, a taxa SÓ é enviada se a compra for no Cartão de Crédito.
-            if (marketplaceFee > 0 && payment_method_id !== 'pix') {
+            // 4. TAXA DE MARKETPLACE (SPLIT VELO DELIVERY)
+            // Agora enviamos a taxa para a Conta Master (Velo) tanto no Cartão quanto no PIX.
+            if (marketplaceFee > 0) {
                 paymentPayload.application_fee = marketplaceFee;
             }
 
@@ -3344,13 +3342,16 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(400).json({ error: "Banco indisponível. A conexão com o Mercado Pago falhou." });
             }
 
-            // 6. MOTOR DE AUTO-CURA SIMPLIFICADO
+            // 6. MOTOR DE AUTO-CURA (RECOVERY INTELIGENTE)
+            // Se o MP negar o PIX por causa do Split (geralmente porque a loja não cadastrou chave PIX no MP),
+            // nós tentamos passar o pedido SEM a taxa para o lojista não perder a venda do cliente final.
             if (!mpResponse.ok) {
                 const errorStr = JSON.stringify(data).toLowerCase();
                 
-                if (errorStr.includes('financial') || mpResponse.status === 400) {
-                    console.warn(`🚨 [Velo Recovery] Tentando processar novamente sem taxa de comissão...`);
-                    delete paymentPayload.application_fee;
+                if (errorStr.includes('financial') || errorStr.includes('collector user without key') || mpResponse.status === 400) {
+                    console.warn(`🚨 [Velo Recovery] MP negou o Split. Tentando processar a venda sem a taxa Velo...`);
+                    
+                    delete paymentPayload.application_fee; // Tira a taxa para salvar a venda
                     
                     mpOptions.body = JSON.stringify(paymentPayload);
                     mpOptions.headers['X-Idempotency-Key'] = `velo_${orderId}_retry_${Date.now()}`;
