@@ -616,7 +616,7 @@ export default function WppWebview() {
                                 }
 
                                 if (!hasVeloPix && pmConf.pix !== false) {
-                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX (Na Hora)' });
+                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX' });
                                 }
                                 if (pmConf.online !== false) {
                                     methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito/Débito' });
