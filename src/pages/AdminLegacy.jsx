@@ -2612,155 +2612,64 @@ const [vipMissions, setVipMissions] = useState([]);
         cleanFakeCarts();
     }, [orders, abandonedCarts]);
     // --------------------------------------------------------------
-    // --- FUNÇÕES AUXILIARES ---
-    const uploadImageToCloudinary = async (file, customFileName = null) => {
-        if (!file) throw new Error("Selecione um arquivo primeiro!");
+    // 1. FUNÇÃO DA NUVEM (Aceita Blob puro e nome customizado sem usar 'new File')
+    const uploadImageToCloudinary = async (fileData, customFileName = null) => {
+        if (!fileData) throw new Error("Selecione um arquivo primeiro!");
         
-        // Aceita o nome vindo da compressão ou tenta ler do arquivo nativo (Vídeos)
-        const rawName = customFileName || file.name || 'upload-velo';
-        const hasExtension = rawName.includes('.');
-        const ext = hasExtension ? rawName.split('.').pop() : (file.type ? file.type.split('/')[1] : 'bin');
-        const baseName = hasExtension ? rawName.substring(0, rawName.lastIndexOf('.')) : rawName;
-        
-        const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
-        const finalFileName = `${sanitizedName}.${ext}`;
+        const finalName = customFileName || fileData.name || 'upload.webp';
 
         const formData = new FormData();
-        // MÁGICA: O 3º parâmetro do append força o nome do arquivo na nuvem, dispensando o 'new File()'
-        formData.append('file', file, finalFileName);
+        // MÁGICA: O 3º parâmetro passa o nome do arquivo pro Cloudinary, sem dar erro de construtor
+        formData.append('file', fileData, finalName);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: 'POST', body: formData });
         
         if (!response.ok) {
             const err = await response.json().catch(()=>({}));
-            throw new Error(err?.error?.message || 'Falha na nuvem.');
+            throw new Error(err?.error?.message || 'Falha no upload para a nuvem.');
         }
         const data = await response.json();
         return data.secure_url;
     };
-const handleGenerateProductCopy = async () => {
-        if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
-        setIsGeneratingCopy(true);
-        
-        try {
-            const res = await fetch('/api/generate-product-copy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    termoRaw: termoIA, 
-                    lojaNome: storeStatus.name,
-                    lojaNicho: storeStatus.storeNiche,
-                    lojaLocalizacao: storeStatus.address
-                })
-            });
 
-            const result = await res.json();
-            
-            if (res.ok && result.success) {
-                setForm(prev => ({
-                    ...prev,
-                    name: result.nome || prev.name,
-                    description: result.descricao || prev.description
-                }));
-                setTermoIA(''); 
-            } else {
-                alert(`Erro na IA: ${result.error || 'Tente novamente.'}`);
-            }
-        } catch (error) {
-            alert("Erro de conexão com o servidor. Verifique a internet e tente novamente.");
-        } finally {
-            setIsGeneratingCopy(false);
-        }
-    };
-    const handleGeneratePromoCopy = async (product) => {
-        setIsPromoCopyModalOpen(true);
-        setPromoCopyProduct(product);
-        setIsGeneratingPromoCopy(true);
-        setPromoCopyResult({ whatsapp: '', instagram: '', hashtags: '' });
-
-        try {
-            const response = await fetch('/api/generate-promo-copy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    storeName: storeStatus.name,
-                    storeNiche: storeStatus.storeNiche,
-                    productName: product.name,
-                    productDesc: product.description || '',
-                    productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price,
-                    productId: product.id
-                })
-            });
-
-            const data = await response.json();
-            
-            if (response.ok && data.success) {
-                setPromoCopyResult({
-                    whatsapp: data.whatsapp,
-                    instagram: data.instagram,
-                    hashtags: data.hashtags
-                });
-            } else {
-                alert(`Erro na IA: ${data.error || 'Falha ao conectar com o servidor.'}`);
-                setIsPromoCopyModalOpen(false);
-            }
-        } catch (error) {
-            console.error("Erro ao gerar Copy:", error);
-            alert("Falha de conexão. Verifique sua internet e tente novamente.");
-            setIsPromoCopyModalOpen(false);
-        } finally {
-            setIsGeneratingPromoCopy(false);
-        }
-    };
-
-    // FUNÇÃO NOVA: UPLOAD DE VÍDEO DIRETO (AGORA NO ESCOPO CORRETO)
+    // 2. FUNÇÃO DO VÍDEO (SEO Naming Blindado)
     const handleProductVideoUpload = async (file) => {
         if (!file) return;
         setUploadingVideo(true);
         try {
-            // 1. Gerador de Nome Focado em SEO para o Vídeo
             const rawName = form.name && form.name.trim() !== '' ? form.name : 'video-produto-velo';
-            const slugifiedName = rawName
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "") // Remove acentuações
-                .replace(/[^a-z0-9]+/g, "-") // Troca espaços por hífens
-                .replace(/^-+|-+$/g, ""); // Remove hífens sobrando nas pontas
-
+            const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
             const hasExtension = file.name && file.name.includes('.');
             const ext = hasExtension ? file.name.split('.').pop() : 'mp4';
             const finalFileName = `${slugifiedName}-video-${Math.floor(Math.random() * 9999)}.${ext}`;
 
-            // 2. Recria o arquivo com o nome SEO otimizado sem alterar os dados binários do vídeo
-            const seoFile = new File([file], finalFileName, { type: file.type || 'video/mp4' });
-
-            // 3. Envia para a nuvem
-            const url = await uploadImageToCloudinary(seoFile);
+            // Passa o arquivo original puro e o nome SEO otimizado
+            const url = await uploadImageToCloudinary(file, finalFileName);
             setForm(prev => ({ ...prev, videoUrl: url }));
-            alert("✅ Vídeo enviado e otimizado para buscas com sucesso!");
+            alert("✅ Vídeo enviado e otimizado para o Google com sucesso!");
         } catch (error) {
-            console.error(error);
+            console.error("Erro no vídeo:", error);
             alert("❌ Erro ao subir vídeo. Tente um arquivo menor (até 10MB).");
         } finally {
             setUploadingVideo(false);
         }
     };
 
-    // COMPRESSÃO NATIVA E SEO NAMING (Executado no navegador do Lojista da Velo Delivery)
+    // 3. FUNÇÃO DE COMPRESSÃO WEB-P (Retorna Blob puro para não quebrar no Android/iOS)
     const compressAndRenameImage = (file, productName) => {
         return new Promise((resolve, reject) => {
-            try {
-                const rawName = productName && productName.trim() !== '' ? productName : 'produto-velo-delivery';
-                const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-                const finalFileName = `${slugifiedName}-${Math.floor(Math.random() * 9999)}.webp`;
+            const rawName = productName && productName.trim() !== '' ? productName : 'produto-velo-delivery';
+            const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            const finalFileName = `${slugifiedName}-${Math.floor(Math.random() * 9999)}.webp`;
 
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.src = event.target.result;
-                    img.onload = () => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error("Falha na leitura do arquivo."));
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onerror = () => reject(new Error("Falha na renderização da imagem."));
+                img.onload = () => {
+                    try {
                         const canvas = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
@@ -2775,27 +2684,27 @@ const handleGenerateProductCopy = async () => {
                         canvas.width = width;
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
-                        if (!ctx) return reject(new Error("Erro no Canvas."));
+                        if (!ctx) return reject(new Error("Erro ao criar Canvas."));
                         
                         ctx.drawImage(img, 0, 0, width, height);
 
                         canvas.toBlob((blob) => {
-                            // Se o navegador falhar (ex: iOS muito antigo), retorna a imagem original com o nome original
-                            if (!blob) return resolve({ blob: file, fileName: file.name });
+                            if (!blob) return resolve({ fileBlob: file, fileName: file.name }); // Fallback de segurança
                             
-                            // Retorna o BLOB PURO + NOME (Evita o TypeError Ql is not a constructor)
-                            resolve({ blob: blob, fileName: finalFileName });
+                            // Retorna o BLOB puro e o NOME, sem instanciar nada que quebre o navegador
+                            resolve({ fileBlob: blob, fileName: finalFileName });
                         }, 'image/webp', 0.85); 
-                    };
-                    img.onerror = () => reject(new Error("Erro ao carregar a imagem na memória."));
+                    } catch (err) {
+                        reject(err);
+                    }
                 };
-                reader.onerror = () => reject(new Error("Falha na leitura do arquivo."));
-            } catch (err) {
-                reject(err);
-            }
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
         });
     };
 
+    // 4. DISPARADOR DA FOTO (Unindo tudo)
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
         
@@ -2803,21 +2712,20 @@ const handleGenerateProductCopy = async () => {
         setUploadError('');
 
         try {
-            // Extrai o Blob puro e o nome SEO gerado
-            const { blob, fileName } = await compressAndRenameImage(imageFile, form.name);
+            // Recebe o Blob e o Nome SEO
+            const { fileBlob, fileName } = await compressAndRenameImage(imageFile, form.name);
             
-            // Envia o Blob e o Nome para a nuvem
-            const url = await uploadImageToCloudinary(blob, fileName);
+            // Envia para a nuvem
+            const url = await uploadImageToCloudinary(fileBlob, fileName);
             
-            // Salva na Velo Delivery
             setForm(prev => ({ ...prev, imageUrl: url })); 
             setImageFile(null);
-            alert("✅ Imagem processada e enviada com sucesso!");
+            alert("✅ Imagem processada, comprimida e enviada com sucesso!");
 
         } catch (error) { 
             console.error("Erro no upload:", error); 
             setUploadError('Erro ao processar ou enviar imagem.'); 
-            alert('Falha ao processar ou enviar a imagem para o servidor. Tente novamente.');
+            alert('Falha ao processar ou enviar a imagem. Tente novamente.');
         } finally { 
             setUploading(false); 
         }
