@@ -2032,7 +2032,6 @@ const [vipMissions, setVipMissions] = useState([]);
         }
     }, [storeStatus?.name, store?.name]);
     // --------------------------------------------------------------
-    
 
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
@@ -2603,21 +2602,26 @@ const [vipMissions, setVipMissions] = useState([]);
     }, [orders, abandonedCarts]);
     // --------------------------------------------------------------
     // --- FUNÇÕES AUXILIARES ---
-    const uploadImageToCloudinary = async (file) => {
-        if (!file) throw new Error("Selecione um arquivo primeiro!");
+    const uploadImageToCloudinary = async (fileData, customFileName = null) => {
+        if (!fileData) throw new Error("Selecione um arquivo primeiro!");
         
-        const ext = file.name.split('.').pop();
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const rawName = customFileName || fileData.name || 'upload-velo';
+        const hasExtension = rawName.includes('.');
+        const ext = hasExtension ? rawName.split('.').pop() : (fileData.type ? fileData.type.split('/')[1] : 'bin');
+        const baseName = hasExtension ? rawName.substring(0, rawName.lastIndexOf('.')) : rawName;
+        
         const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
-        const safeFile = new File([file], `${sanitizedName}.${ext}`, { type: file.type });
+        const finalFileName = `${sanitizedName}.${ext}`;
 
         const formData = new FormData();
-        formData.append('file', safeFile);
+        // MÁGICA: O 3º parâmetro força o nome para SEO, evitando o uso do 'new File()' que causa o erro "Ql"
+        formData.append('file', fileData, finalFileName);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         
-        // MUDANÇA AQUI: Alterado de /image/upload para /auto/upload para aceitar mp3
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: 'POST', body: formData });
+        
         if (!response.ok) throw new Error('Falha no upload.');
+        
         const data = await response.json();
         return data.secure_url;
     };
@@ -2716,43 +2720,28 @@ const handleGenerateProductCopy = async () => {
     // COMPRESSÃO NATIVA E SEO NAMING (Executado no navegador do Lojista da Velo Delivery)
     const compressAndRenameImage = (file, productName) => {
         return new Promise((resolve, reject) => {
-            // 1. Gerador de Nome Focado em SEO
             const rawName = productName && productName.trim() !== '' ? productName : 'produto-velo-delivery';
-            const slugifiedName = rawName
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "") // Remove acentuações
-                .replace(/[^a-z0-9]+/g, "-") // Troca espaços por hífens
-                .replace(/^-+|-+$/g, "");
-
+            const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
             const finalFileName = `${slugifiedName}-${Math.floor(Math.random() * 9999)}.webp`;
 
-            // 2. Leitura da Imagem
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = (event) => {
-                const img = new Image();
+                // BLINDAGEM 1: createElement ao invés de 'new Image()' para evitar conflito com Lucide-React
+                const img = document.createElement('img');
                 img.src = event.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    const maxDim = 800; // Resolução ideal para cardápios
+                    const maxDim = 800;
 
-                    // 3. Cálculos de proporção perfeita
                     if (width > height) {
-                        if (width > maxDim) {
-                            height = Math.round(height * (maxDim / width));
-                            width = maxDim;
-                        }
+                        if (width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
                     } else {
-                        if (height > maxDim) {
-                            width = Math.round(width * (maxDim / height));
-                            height = maxDim;
-                        }
+                        if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
                     }
 
-                    // 4. Desenha no Canvas
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
@@ -2760,16 +2749,11 @@ const handleGenerateProductCopy = async () => {
                     
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // 5. Gera o blob convertido para WebP (Qualidade 85%)
                     canvas.toBlob((blob) => {
                         if (!blob) return reject(new Error("Falha ao gerar binário do WebP."));
                         
-                        const optimizedFile = new File([blob], finalFileName, {
-                            type: 'image/webp',
-                            lastModified: Date.now(),
-                        });
-                        
-                        resolve(optimizedFile);
+                        // BLINDAGEM 2: Retorna o blob puro e o nome string separados, abolindo o 'new File()'
+                        resolve({ fileBlob: blob, fileName: finalFileName });
                     }, 'image/webp', 0.85); 
                 };
                 img.onerror = (error) => reject(error);
@@ -2781,18 +2765,16 @@ const handleGenerateProductCopy = async () => {
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
         
-        // A TRAVA DE 2MB FOI REMOVIDA PARA SEMPRE!
         setUploading(true); 
         setUploadError('');
 
         try {
-            // Passa a imagem bruta e o nome atual do formulário (form.name)
-            const optimizedFile = await compressAndRenameImage(imageFile, form.name);
+            // Extrai o Blob e o Nome separadamente
+            const { fileBlob, fileName } = await compressAndRenameImage(imageFile, form.name);
             
-            // Sobe o arquivo WEBP otimizado
-            const url = await uploadImageToCloudinary(optimizedFile);
+            // Envia para o Cloudinary
+            const url = await uploadImageToCloudinary(fileBlob, fileName);
             
-            // Salva na Velo Delivery
             setForm(prev => ({ ...prev, imageUrl: url })); 
             setImageFile(null);
             alert("✅ Imagem anexada e otimizada com sucesso!");
