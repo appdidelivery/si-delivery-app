@@ -2719,10 +2719,26 @@ const handleGenerateProductCopy = async () => {
         if (!file) return;
         setUploadingVideo(true);
         try {
-            // Reutiliza sua lógica de Cloudinary (que já aceita vídeo via /auto/upload)
-            const url = await uploadImageToCloudinary(file);
+            // 1. Gerador de Nome Focado em SEO para o Vídeo
+            const rawName = form.name && form.name.trim() !== '' ? form.name : 'video-produto-velo';
+            const slugifiedName = rawName
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "") // Remove acentuações
+                .replace(/[^a-z0-9]+/g, "-") // Troca espaços por hífens
+                .replace(/^-+|-+$/g, ""); // Remove hífens sobrando nas pontas
+
+            const hasExtension = file.name && file.name.includes('.');
+            const ext = hasExtension ? file.name.split('.').pop() : 'mp4';
+            const finalFileName = `${slugifiedName}-video-${Math.floor(Math.random() * 9999)}.${ext}`;
+
+            // 2. Recria o arquivo com o nome SEO otimizado sem alterar os dados binários do vídeo
+            const seoFile = new File([file], finalFileName, { type: file.type || 'video/mp4' });
+
+            // 3. Envia para a nuvem
+            const url = await uploadImageToCloudinary(seoFile);
             setForm(prev => ({ ...prev, videoUrl: url }));
-            alert("✅ Vídeo enviado com sucesso!");
+            alert("✅ Vídeo enviado e otimizado para buscas com sucesso!");
         } catch (error) {
             console.error(error);
             alert("❌ Erro ao subir vídeo. Tente um arquivo menor (até 10MB).");
