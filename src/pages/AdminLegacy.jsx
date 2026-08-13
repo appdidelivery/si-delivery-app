@@ -2616,18 +2616,22 @@ const [vipMissions, setVipMissions] = useState([]);
     const uploadImageToCloudinary = async (file) => {
         if (!file) throw new Error("Selecione um arquivo primeiro!");
         
-        const hasExtension = file.name && file.name.includes('.');
-        const ext = hasExtension ? file.name.split('.').pop() : 'bin';
-        const baseName = hasExtension ? file.name.substring(0, file.name.lastIndexOf('.')) : (file.name || 'upload');
+        // 1. Tratamento seguro de nome e extensão
+        const fileName = file.name || 'upload-velo';
+        const hasExtension = fileName.includes('.');
+        // Se não tiver extensão no nome, tenta pegar pelo MIME Type (ex: image/jpeg -> jpeg)
+        const ext = hasExtension ? fileName.split('.').pop() : (file.type ? file.type.split('/')[1] : 'bin');
+        const baseName = hasExtension ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
         
+        // 2. Higienização SEO e Anti-Bugs
         const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
-        const safeFile = new File([file], `${sanitizedName}.${ext}`, { type: file.type || 'application/octet-stream' });
+        const finalFileName = `${sanitizedName}.${ext}`;
 
+        // 3. MÁGICA AQUI: O FormData aceita Blobs nativamente. O 3º parâmetro força o nome do arquivo, dispensando o 'new File()' que causa o TypeError.
         const formData = new FormData();
-        formData.append('file', safeFile);
+        formData.append('file', file, finalFileName);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         
-        // MUDANÇA AQUI: Alterado de /image/upload para /auto/upload para aceitar mp3, video, etc
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: 'POST', body: formData });
         
         if (!response.ok) {
@@ -2799,19 +2803,18 @@ const handleGenerateProductCopy = async () => {
                                 
                                 ctx.drawImage(img, 0, 0, width, height);
 
-                                // 5. Gera o blob convertido para WebP (Qualidade 85%)
+                                // 5. Gera o blob convertido para WebP e injeta o nome (Sem usar new File que quebra em alguns browsers)
                                 canvas.toBlob((blob) => {
                                     if (!blob) {
                                         console.warn("Navegador não suporta WebP. Realizando fallback para imagem original.");
                                         return resolve(file);
                                     }
                                     
-                                    const optimizedFile = new File([blob], finalFileName, {
-                                        type: 'image/webp',
-                                        lastModified: Date.now(),
-                                    });
+                                    // MÁGICA AQUI: Injetamos as propriedades direto no Blob nativo.
+                                    blob.name = finalFileName;
+                                    blob.lastModified = Date.now();
                                     
-                                    resolve(optimizedFile);
+                                    resolve(blob);
                                 }, 'image/webp', 0.85); 
                             } catch (canvasError) {
                                 reject(canvasError);
