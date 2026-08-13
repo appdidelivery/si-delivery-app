@@ -13918,16 +13918,45 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     {/* UPLOAD DE IMAGEM */}
                                     <div className="space-y-3">
-                                        <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
-                                        <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 transition-all">
-                                            <div className="flex items-center gap-3">
-                                                {imageFile ? imageFile.name : (form.imageUrl ? 'Mudar Imagem' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                        
+                                        {/* NOVO: CAIXA DE PRÉVIA DA IMAGEM */}
+                                        {(imageFile || form.imageUrl) && (
+                                            <div className="relative rounded-2xl overflow-hidden border-2 border-blue-100 aspect-square w-32 mx-auto bg-slate-100">
+                                                <img 
+                                                    src={imageFile ? URL.createObjectURL(imageFile) : form.imageUrl} 
+                                                    className="w-full h-full object-cover" 
+                                                    alt="Preview do Produto" 
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => {
+                                                        setImageFile(null);
+                                                        setForm({ ...form, imageUrl: '' });
+                                                    }}
+                                                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white font-black text-[10px] uppercase opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                                                >
+                                                    <Trash2 size={16} className="mb-1" /> Remover
+                                                </button>
                                             </div>
-                                            <p className="text-[10px] text-slate-400 font-medium">PNG ou JPG (Evite .webp ou .svg)</p>
-                                        </label>
+                                        )}
+
+                                        <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} className="hidden" id="product-image-upload" />
+                                        
+                                        {/* Label (Botão de Escolher) - Se esconde caso esteja enviando para não confundir o usuário */}
+                                        {!uploading && (
+                                            <label htmlFor="product-image-upload" className="w-full p-6 bg-slate-50 rounded-3xl flex flex-col items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 hover:bg-blue-50 transition-all">
+                                                <div className="flex items-center gap-3">
+                                                    {imageFile ? imageFile.name : (form.imageUrl ? 'Trocar Arquivo' : 'Selecionar Imagem')} <UploadCloud size={20} />
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-medium">PNG ou JPG (Evite .webp ou .svg)</p>
+                                            </label>
+                                        )}
+                                        
+                                        {/* Botão de Enviar Definitivo */}
                                         {imageFile && (
-                                            <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white ${uploading ? 'bg-blue-400' : 'bg-blue-600'}`}>
-                                                {uploading ? 'Enviando...' : 'Confirmar Upload Foto'}
+                                            <button type="button" onClick={handleProductImageUpload} disabled={uploading} className={`w-full p-4 rounded-3xl font-black text-white shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 ${uploading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                                                {uploading ? <Loader2 size={18} className="animate-spin" /> : null}
+                                                {uploading ? 'Enviando para a Nuvem...' : 'Confirmar Upload Foto'}
                                             </button>
                                         )}
                                     </div>
