@@ -2613,33 +2613,29 @@ const [vipMissions, setVipMissions] = useState([]);
     }, [orders, abandonedCarts]);
     // --------------------------------------------------------------
     // --- FUNÇÕES AUXILIARES ---
-    const uploadImageToCloudinary = async (file) => {
+    const uploadImageToCloudinary = async (file, customFileName = null) => {
         if (!file) throw new Error("Selecione um arquivo primeiro!");
         
-        // 1. Tratamento seguro de nome e extensão
-        const fileName = file.name || 'upload-velo';
-        const hasExtension = fileName.includes('.');
-        // Se não tiver extensão no nome, tenta pegar pelo MIME Type (ex: image/jpeg -> jpeg)
-        const ext = hasExtension ? fileName.split('.').pop() : (file.type ? file.type.split('/')[1] : 'bin');
-        const baseName = hasExtension ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        // Aceita o nome vindo da compressão ou tenta ler do arquivo nativo (Vídeos)
+        const rawName = customFileName || file.name || 'upload-velo';
+        const hasExtension = rawName.includes('.');
+        const ext = hasExtension ? rawName.split('.').pop() : (file.type ? file.type.split('/')[1] : 'bin');
+        const baseName = hasExtension ? rawName.substring(0, rawName.lastIndexOf('.')) : rawName;
         
-        // 2. Higienização SEO e Anti-Bugs
         const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
         const finalFileName = `${sanitizedName}.${ext}`;
 
-        // 3. MÁGICA AQUI: O FormData aceita Blobs nativamente. O 3º parâmetro força o nome do arquivo, dispensando o 'new File()' que causa o TypeError.
         const formData = new FormData();
+        // MÁGICA: O 3º parâmetro do append força o nome do arquivo na nuvem, dispensando o 'new File()'
         formData.append('file', file, finalFileName);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: 'POST', body: formData });
         
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error("Erro detalhado do Cloudinary:", errorData);
-            throw new Error(errorData?.error?.message || 'Falha no upload para a nuvem.');
+            const err = await response.json().catch(()=>({}));
+            throw new Error(err?.error?.message || 'Falha na nuvem.');
         }
-        
         const data = await response.json();
         return data.secure_url;
     };
@@ -2755,79 +2751,47 @@ const handleGenerateProductCopy = async () => {
     const compressAndRenameImage = (file, productName) => {
         return new Promise((resolve, reject) => {
             try {
-                // 1. Gerador de Nome Focado em SEO
                 const rawName = productName && productName.trim() !== '' ? productName : 'produto-velo-delivery';
-                const slugifiedName = rawName
-                    .toLowerCase()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "") // Remove acentuações
-                    .replace(/[^a-z0-9]+/g, "-") // Troca espaços por hífens
-                    .replace(/^-+|-+$/g, "");
-
+                const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
                 const finalFileName = `${slugifiedName}-${Math.floor(Math.random() * 9999)}.webp`;
 
-                // 2. Leitura da Imagem
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
-                
                 reader.onload = (event) => {
-                    try {
-                        const img = new Image();
-                        img.src = event.target.result;
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const maxDim = 800;
+
+                        if (width > height) {
+                            if (width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+                        } else {
+                            if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return reject(new Error("Erro no Canvas."));
                         
-                        img.onload = () => {
-                            try {
-                                const canvas = document.createElement('canvas');
-                                let width = img.width;
-                                let height = img.height;
-                                const maxDim = 800; // Resolução ideal para cardápios
+                        ctx.drawImage(img, 0, 0, width, height);
 
-                                // 3. Cálculos de proporção perfeita
-                                if (width > height) {
-                                    if (width > maxDim) {
-                                        height = Math.round(height * (maxDim / width));
-                                        width = maxDim;
-                                    }
-                                } else {
-                                    if (height > maxDim) {
-                                        width = Math.round(width * (maxDim / height));
-                                        height = maxDim;
-                                    }
-                                }
-
-                                // 4. Desenha no Canvas
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                if (!ctx) return reject(new Error("Erro ao instanciar o Canvas."));
-                                
-                                ctx.drawImage(img, 0, 0, width, height);
-
-                                // 5. Gera o blob convertido para WebP e injeta o nome (Sem usar new File que quebra em alguns browsers)
-                                canvas.toBlob((blob) => {
-                                    if (!blob) {
-                                        console.warn("Navegador não suporta WebP. Realizando fallback para imagem original.");
-                                        return resolve(file);
-                                    }
-                                    
-                                    // MÁGICA AQUI: Injetamos as propriedades direto no Blob nativo.
-                                    blob.name = finalFileName;
-                                    blob.lastModified = Date.now();
-                                    
-                                    resolve(blob);
-                                }, 'image/webp', 0.85); 
-                            } catch (canvasError) {
-                                reject(canvasError);
-                            }
-                        };
-                        img.onerror = () => reject(new Error("Falha na renderização da imagem."));
-                    } catch (imgError) {
-                        reject(imgError);
-                    }
+                        canvas.toBlob((blob) => {
+                            // Se o navegador falhar (ex: iOS muito antigo), retorna a imagem original com o nome original
+                            if (!blob) return resolve({ blob: file, fileName: file.name });
+                            
+                            // Retorna o BLOB PURO + NOME (Evita o TypeError Ql is not a constructor)
+                            resolve({ blob: blob, fileName: finalFileName });
+                        }, 'image/webp', 0.85); 
+                    };
+                    img.onerror = () => reject(new Error("Erro ao carregar a imagem na memória."));
                 };
                 reader.onerror = () => reject(new Error("Falha na leitura do arquivo."));
-            } catch (globalError) {
-                reject(globalError);
+            } catch (err) {
+                reject(err);
             }
         });
     };
@@ -2835,24 +2799,23 @@ const handleGenerateProductCopy = async () => {
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
         
-        // A TRAVA DE 2MB FOI REMOVIDA PARA SEMPRE!
         setUploading(true); 
         setUploadError('');
 
         try {
-            // Passa a imagem bruta e o nome atual do formulário (form.name)
-            const optimizedFile = await compressAndRenameImage(imageFile, form.name);
+            // Extrai o Blob puro e o nome SEO gerado
+            const { blob, fileName } = await compressAndRenameImage(imageFile, form.name);
             
-            // Sobe o arquivo WEBP otimizado
-            const url = await uploadImageToCloudinary(optimizedFile);
+            // Envia o Blob e o Nome para a nuvem
+            const url = await uploadImageToCloudinary(blob, fileName);
             
             // Salva na Velo Delivery
             setForm(prev => ({ ...prev, imageUrl: url })); 
             setImageFile(null);
-            alert("✅ Imagem anexada e otimizada com sucesso!");
+            alert("✅ Imagem processada e enviada com sucesso!");
 
         } catch (error) { 
-            console.error(error); 
+            console.error("Erro no upload:", error); 
             setUploadError('Erro ao processar ou enviar imagem.'); 
             alert('Falha ao processar ou enviar a imagem para o servidor. Tente novamente.');
         } finally { 
