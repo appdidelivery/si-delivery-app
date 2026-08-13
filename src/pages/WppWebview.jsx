@@ -315,7 +315,7 @@ export default function WppWebview() {
           };
 
           // Trava de segurança: somente métodos online
-          if (!['velopay_pix', 'mercadopago_pix', 'mercadopago_link'].includes(customer.payment)) {
+          if (!['velopay_pix', 'mercadopago_pix', 'mercadopago_link', 'velo_credito'].includes(customer.payment)) {
               setIsSubmitting(false); submitLock.current = false;
               return alert("Esta forma de pagamento não é permitida neste canal. Escolha PIX ou Cartão Online.");
           }
@@ -610,11 +610,16 @@ export default function WppWebview() {
                             }
 
                             if (hasMP) {
+                                // NOVO: Módulo do Mercado Crédito / BNPL
+                                if (settings?.veloCardEnabled && pmConf.online !== false) {
+                                    methods.push({ id: 'velo_credito', label: '💳 Cartão Velo (Usar Limite)' });
+                                }
+
                                 if (!hasVeloPix && pmConf.pix !== false) {
-                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX ' });
+                                    methods.push({ id: 'mercadopago_pix', label: '⚡ PIX (Na Hora)' });
                                 }
                                 if (pmConf.online !== false) {
-                                    methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito (Mercado Pago)' });
+                                    methods.push({ id: 'mercadopago_link', label: '💳 Cartão de Crédito/Débito' });
                                 }
                             }
 
