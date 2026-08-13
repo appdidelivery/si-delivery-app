@@ -2032,17 +2032,7 @@ const [vipMissions, setVipMissions] = useState([]);
         }
     }, [storeStatus?.name, store?.name]);
     // --------------------------------------------------------------
-    // --- CORREÇÃO: FORÇA O FAVICON DA LOJA NA ABA DO PAINEL ---
-    useEffect(() => {
-        if (storeStatus && storeStatus.storeLogoUrl) {
-            const favicon = document.getElementById('dynamic-favicon');
-            const appleIcon = document.getElementById('dynamic-apple-icon');
-            
-            if (favicon) favicon.href = storeStatus.storeLogoUrl;
-            if (appleIcon) appleIcon.href = storeStatus.storeLogoUrl;
-        }
-    }, [storeStatus?.storeLogoUrl]);
-    // ----------------------------------------------------------
+    
 
     const[logoFile, setLogoFile] = useState(null);
     const [bannerFile, setBannerFile] = useState(null); // Manter este para upload, mesmo que não seja exibido em settings
@@ -2612,120 +2602,205 @@ const [vipMissions, setVipMissions] = useState([]);
         cleanFakeCarts();
     }, [orders, abandonedCarts]);
     // --------------------------------------------------------------
-    // 1. FUNÇÃO DA NUVEM (Aceita Blob puro e nome customizado sem usar 'new File')
-    const uploadImageToCloudinary = async (fileData, customFileName = null) => {
-        if (!fileData) throw new Error("Selecione um arquivo primeiro!");
+    // --- FUNÇÕES AUXILIARES ---
+    const uploadImageToCloudinary = async (file) => {
+        if (!file) throw new Error("Selecione um arquivo primeiro!");
         
-        const finalName = customFileName || fileData.name || 'upload.webp';
+        const ext = file.name.split('.').pop();
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const sanitizedName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+        const safeFile = new File([file], `${sanitizedName}.${ext}`, { type: file.type });
 
         const formData = new FormData();
-        // MÁGICA: O 3º parâmetro passa o nome do arquivo pro Cloudinary, sem dar erro de construtor
-        formData.append('file', fileData, finalName);
+        formData.append('file', safeFile);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         
+        // MUDANÇA AQUI: Alterado de /image/upload para /auto/upload para aceitar mp3
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: 'POST', body: formData });
-        
-        if (!response.ok) {
-            const err = await response.json().catch(()=>({}));
-            throw new Error(err?.error?.message || 'Falha no upload para a nuvem.');
-        }
+        if (!response.ok) throw new Error('Falha no upload.');
         const data = await response.json();
         return data.secure_url;
     };
+const handleGenerateProductCopy = async () => {
+        if (!termoIA) return alert("Digite o nome básico do produto primeiro!");
+        setIsGeneratingCopy(true);
+        
+        try {
+            const res = await fetch('/api/generate-product-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    termoRaw: termoIA, 
+                    lojaNome: storeStatus.name,
+                    lojaNicho: storeStatus.storeNiche,
+                    lojaLocalizacao: storeStatus.address
+                })
+            });
 
-    // 2. FUNÇÃO DO VÍDEO (SEO Naming Blindado)
+            const result = await res.json();
+            
+            if (res.ok && result.success) {
+                setForm(prev => ({
+                    ...prev,
+                    name: result.nome || prev.name,
+                    description: result.descricao || prev.description
+                }));
+                setTermoIA(''); 
+            } else {
+                alert(`Erro na IA: ${result.error || 'Tente novamente.'}`);
+            }
+        } catch (error) {
+            alert("Erro de conexão com o servidor. Verifique a internet e tente novamente.");
+        } finally {
+            setIsGeneratingCopy(false);
+        }
+    };
+    const handleGeneratePromoCopy = async (product) => {
+        setIsPromoCopyModalOpen(true);
+        setPromoCopyProduct(product);
+        setIsGeneratingPromoCopy(true);
+        setPromoCopyResult({ whatsapp: '', instagram: '', hashtags: '' });
+
+        try {
+            const response = await fetch('/api/generate-promo-copy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    storeName: storeStatus.name,
+                    storeNiche: storeStatus.storeNiche,
+                    productName: product.name,
+                    productDesc: product.description || '',
+                    productPrice: product.promotionalPrice > 0 ? product.promotionalPrice : product.price,
+                    productId: product.id
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                setPromoCopyResult({
+                    whatsapp: data.whatsapp,
+                    instagram: data.instagram,
+                    hashtags: data.hashtags
+                });
+            } else {
+                alert(`Erro na IA: ${data.error || 'Falha ao conectar com o servidor.'}`);
+                setIsPromoCopyModalOpen(false);
+            }
+        } catch (error) {
+            console.error("Erro ao gerar Copy:", error);
+            alert("Falha de conexão. Verifique sua internet e tente novamente.");
+            setIsPromoCopyModalOpen(false);
+        } finally {
+            setIsGeneratingPromoCopy(false);
+        }
+    };
+
+    // FUNÇÃO NOVA: UPLOAD DE VÍDEO DIRETO (AGORA NO ESCOPO CORRETO)
     const handleProductVideoUpload = async (file) => {
         if (!file) return;
         setUploadingVideo(true);
         try {
-            const rawName = form.name && form.name.trim() !== '' ? form.name : 'video-produto-velo';
-            const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-            const hasExtension = file.name && file.name.includes('.');
-            const ext = hasExtension ? file.name.split('.').pop() : 'mp4';
-            const finalFileName = `${slugifiedName}-video-${Math.floor(Math.random() * 9999)}.${ext}`;
-
-            // Passa o arquivo original puro e o nome SEO otimizado
-            const url = await uploadImageToCloudinary(file, finalFileName);
+            // Reutiliza sua lógica de Cloudinary (que já aceita vídeo via /auto/upload)
+            const url = await uploadImageToCloudinary(file);
             setForm(prev => ({ ...prev, videoUrl: url }));
-            alert("✅ Vídeo enviado e otimizado para o Google com sucesso!");
+            alert("✅ Vídeo enviado com sucesso!");
         } catch (error) {
-            console.error("Erro no vídeo:", error);
+            console.error(error);
             alert("❌ Erro ao subir vídeo. Tente um arquivo menor (até 10MB).");
         } finally {
             setUploadingVideo(false);
         }
     };
 
-    // 3. FUNÇÃO DE COMPRESSÃO WEB-P (Retorna Blob puro para não quebrar no Android/iOS)
+    // COMPRESSÃO NATIVA E SEO NAMING (Executado no navegador do Lojista da Velo Delivery)
     const compressAndRenameImage = (file, productName) => {
         return new Promise((resolve, reject) => {
+            // 1. Gerador de Nome Focado em SEO
             const rawName = productName && productName.trim() !== '' ? productName : 'produto-velo-delivery';
-            const slugifiedName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            const slugifiedName = rawName
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "") // Remove acentuações
+                .replace(/[^a-z0-9]+/g, "-") // Troca espaços por hífens
+                .replace(/^-+|-+$/g, "");
+
             const finalFileName = `${slugifiedName}-${Math.floor(Math.random() * 9999)}.webp`;
 
+            // 2. Leitura da Imagem
             const reader = new FileReader();
-            reader.onerror = () => reject(new Error("Falha na leitura do arquivo."));
+            reader.readAsDataURL(file);
             reader.onload = (event) => {
                 const img = new Image();
-                img.onerror = () => reject(new Error("Falha na renderização da imagem."));
-                img.onload = () => {
-                    try {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-                        const maxDim = 800;
-
-                        if (width > height) {
-                            if (width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
-                        } else {
-                            if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        if (!ctx) return reject(new Error("Erro ao criar Canvas."));
-                        
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        canvas.toBlob((blob) => {
-                            if (!blob) return resolve({ fileBlob: file, fileName: file.name }); // Fallback de segurança
-                            
-                            // Retorna o BLOB puro e o NOME, sem instanciar nada que quebre o navegador
-                            resolve({ fileBlob: blob, fileName: finalFileName });
-                        }, 'image/webp', 0.85); 
-                    } catch (err) {
-                        reject(err);
-                    }
-                };
                 img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 800; // Resolução ideal para cardápios
+
+                    // 3. Cálculos de proporção perfeita
+                    if (width > height) {
+                        if (width > maxDim) {
+                            height = Math.round(height * (maxDim / width));
+                            width = maxDim;
+                        }
+                    } else {
+                        if (height > maxDim) {
+                            width = Math.round(width * (maxDim / height));
+                            height = maxDim;
+                        }
+                    }
+
+                    // 4. Desenha no Canvas
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return reject(new Error("Erro ao instanciar o Canvas."));
+                    
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 5. Gera o blob convertido para WebP (Qualidade 85%)
+                    canvas.toBlob((blob) => {
+                        if (!blob) return reject(new Error("Falha ao gerar binário do WebP."));
+                        
+                        const optimizedFile = new File([blob], finalFileName, {
+                            type: 'image/webp',
+                            lastModified: Date.now(),
+                        });
+                        
+                        resolve(optimizedFile);
+                    }, 'image/webp', 0.85); 
+                };
+                img.onerror = (error) => reject(error);
             };
-            reader.readAsDataURL(file);
+            reader.onerror = (error) => reject(error);
         });
     };
 
-    // 4. DISPARADOR DA FOTO (Unindo tudo)
     const handleProductImageUpload = async () => {
         if (!imageFile) return alert("Selecione uma imagem primeiro!");
         
+        // A TRAVA DE 2MB FOI REMOVIDA PARA SEMPRE!
         setUploading(true); 
         setUploadError('');
 
         try {
-            // Recebe o Blob e o Nome SEO
-            const { fileBlob, fileName } = await compressAndRenameImage(imageFile, form.name);
+            // Passa a imagem bruta e o nome atual do formulário (form.name)
+            const optimizedFile = await compressAndRenameImage(imageFile, form.name);
             
-            // Envia para a nuvem
-            const url = await uploadImageToCloudinary(fileBlob, fileName);
+            // Sobe o arquivo WEBP otimizado
+            const url = await uploadImageToCloudinary(optimizedFile);
             
+            // Salva na Velo Delivery
             setForm(prev => ({ ...prev, imageUrl: url })); 
             setImageFile(null);
-            alert("✅ Imagem processada, comprimida e enviada com sucesso!");
+            alert("✅ Imagem anexada e otimizada com sucesso!");
 
         } catch (error) { 
-            console.error("Erro no upload:", error); 
+            console.error(error); 
             setUploadError('Erro ao processar ou enviar imagem.'); 
-            alert('Falha ao processar ou enviar a imagem. Tente novamente.');
+            alert('Falha ao processar ou enviar a imagem para o servidor. Tente novamente.');
         } finally { 
             setUploading(false); 
         }
@@ -10625,54 +10700,26 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                             
                             {settings?.integrations?.mercadopago?.accessToken ? (
-                                <>
-                                    <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
-                                        <div>
-                                            <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Mercado Pago Conectada</p>
-                                            <p className="text-green-600 font-bold text-xs mt-1">UserID do Lojista: {settings.integrations.mercadopago.userId}</p>
-                                        </div>
-                                        
-                                        <button 
-                                            onClick={async () => {
-                                                if(window.confirm("Deseja desconectar o Mercado Pago? O lojista perderá o PIX/Cartão até conectar de novo.")) {
-                                                    await updateDoc(doc(db, "settings", storeId), {
-                                                        "integrations.mercadopago": null
-                                                    });
-                                                    alert("Mercado Pago desconectado.");
-                                                }
-                                            }} 
-                                            className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
-                                        >
-                                            Desconectar
-                                        </button>
+                                <div className="bg-green-50 border border-green-200 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <div>
+                                        <p className="text-green-800 font-black flex items-center gap-2 uppercase tracking-widest text-sm">✅ Conta Mercado Pago Conectada</p>
+                                        <p className="text-green-600 font-bold text-xs mt-1">UserID do Lojista: {settings.integrations.mercadopago.userId}</p>
                                     </div>
-
-                                    {/* --- NOVO: TOGGLE DO CARTÃO VELO (MERCADO CRÉDITO) --- */}
-                                    <div className="mt-4 border-t border-slate-100 pt-6 animate-in fade-in">
-                                        <div className="flex items-start justify-between bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
-                                            <div className="flex items-center gap-4 relative z-10">
-                                                <div className="bg-blue-500/20 p-3 rounded-2xl text-blue-400"><CreditCard size={24}/></div>
-                                                <div>
-                                                    <p className="font-black text-white text-sm uppercase flex items-center gap-2">
-                                                        Cartão Velo <span className="bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-md">BNPL</span>
-                                                    </p>
-                                                    <p className="text-[10px] text-slate-400 font-bold mt-1 max-w-sm leading-relaxed">
-                                                        Ofereça crédito aos seus clientes usando a infraestrutura do Mercado Pago (Compre agora, pague depois). Você recebe o valor na hora.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <input 
-                                                type="checkbox" 
-                                                className="w-6 h-6 accent-blue-500 cursor-pointer relative z-10 mt-2" 
-                                                checked={settings?.veloCardEnabled || false} 
-                                                onChange={async (e) => {
-                                                    await updateDoc(doc(db, "settings", storeId), { veloCardEnabled: e.target.checked }, { merge: true });
-                                                }} 
-                                            />
-                                        </div>
-                                    </div>
-                                </>
+                                    
+                                    <button 
+                                        onClick={async () => {
+                                            if(window.confirm("Deseja desconectar o Mercado Pago? O lojista perderá o PIX/Cartão até conectar de novo.")) {
+                                                await updateDoc(doc(db, "settings", storeId), {
+                                                    "integrations.mercadopago": null
+                                                });
+                                                alert("Mercado Pago desconectado.");
+                                            }
+                                        }} 
+                                        className="bg-red-100 hover:bg-red-200 text-red-600 px-6 py-4 rounded-2xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        Desconectar
+                                    </button>
+                                </div>
                             ) : (
                                 <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center flex flex-col items-center justify-center gap-4">
                                     <p className="text-slate-500 font-bold text-sm">Autorize a Velo Delivery a processar pagamentos de Cartão e PIX direto na sua conta do Mercado Pago.</p>
