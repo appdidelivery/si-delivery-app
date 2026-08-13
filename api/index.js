@@ -2117,8 +2117,15 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                     lastWifiLoginAt: admin.firestore.FieldValue.serverTimestamp(),
                                                 }, { merge: true });
 
-                                                // 4. Monta a resposta automática com Isca de Delivery
-                                                const wifiMsg = `Olá, *${firstNameOnly}*! 🛜 Que bom ter você aqui na loja.\n\nAqui está o seu acesso liberado:\n*Rede:* ${wifiSsid}\n*Senha:* ${wifiPassword}\n\n🎁 *Seu Prêmio:* ${wifiPrize}\n_Apresente esta mensagem no balcão para resgatar!_\n\nE quando bater aquela fome em casa, o nosso cardápio está sempre aqui: ${storeDomain}`;
+                                                // 4. Monta a resposta automática com Isca de Delivery e Copy Dinâmica
+                                                const defaultFooter = ['default', 'drinks'].includes(storeDynamicData.storeNiche) 
+                                                    ? 'E quando bater aquela sede em casa, nosso cardápio está sempre aqui:' 
+                                                    : 'E quando bater aquela vontade em casa, nosso cardápio está sempre aqui:';
+                                                    
+                                                const footerMsg = storeDynamicData.wifiFooterMessage || defaultFooter;
+                                                const couponMsg = storeDynamicData.wifiCoupon ? `\n🎟️ *Use o cupom:* ${storeDynamicData.wifiCoupon}\n` : '';
+
+                                                const wifiMsg = `Olá, *${firstNameOnly}*! 🛜 Que bom ter você aqui na loja.\n\nAqui está o seu acesso liberado:\n*Rede:* ${wifiSsid}\n*Senha:* ${wifiPassword}\n\n🎁 *Seu Prêmio:* ${wifiPrize}\n_Apresente esta mensagem no balcão para resgatar!_\n\n${footerMsg}${couponMsg}\n👉 ${storeDomain}`;
                                                 
                                                 replyPayload = { type: "text", text: { body: wifiMsg } };
                                                 logTextForPanel = `🤖 [Wi-Fi PLG] Lead Capturado. Senha e Prêmio enviados para ${firstNameOnly}.`;
@@ -6169,12 +6176,22 @@ Retorne APENAS um JSON válido com 3 chaves:
                 return res.status(400).json({ error: 'WhatsApp não configurado nesta loja.' });
             }
 
-            // 2. Copywriting O2O (Offline-to-Online) com Link da Loja
+            // 2. Copywriting O2O (Offline-to-Online) com Link da Loja e Copy Dinâmica
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const storeDynamicData = storeDoc.exists ? storeDoc.data() : {};
+
             const domainLink = settingsDoc.data()?.customDomain 
                 ? `https://${settingsDoc.data().customDomain}` 
                 : `https://${storeId}.velodelivery.com.br`;
 
-            const message = `Olá *${name}*! Vimos que você acabou de se conectar ao Wi-Fi do *${storeName}* 🛜\n\n🎉 Aqui está o seu prêmio:\n*${prize}*\n\n_Apresente esta mensagem no balcão para resgatar._\n\nE quando bater aquela fome em casa, peça nosso delivery:\n👉 ${domainLink}`;
+            const defaultFooter = ['default', 'drinks'].includes(storeDynamicData.storeNiche) 
+                ? 'E quando bater aquela sede em casa, nosso cardápio está sempre aqui:' 
+                : 'E quando bater aquela vontade em casa, nosso cardápio está sempre aqui:';
+                
+            const footerMsg = storeDynamicData.wifiFooterMessage || defaultFooter;
+            const couponMsg = storeDynamicData.wifiCoupon ? `\n🎟️ *Use o cupom:* ${storeDynamicData.wifiCoupon}\n` : '';
+
+            const message = `Olá *${name}*! Vimos que você acabou de se conectar ao Wi-Fi do *${storeName}* 🛜\n\n🎉 Aqui está o seu prêmio:\n*${prize}*\n\n_Apresente esta mensagem no balcão para resgatar._\n\n${footerMsg}${couponMsg}\n👉 ${domainLink}`;
 
             // 3. Disparo usando sua função nativa já existente no topo do arquivo (sendViaEvolutionAPI)
             const evoResult = await sendViaEvolutionAPI(waConfig, phone, message);

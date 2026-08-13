@@ -11758,19 +11758,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                       />
                   </div>
 
-                  {/* Prêmio */}
-                  <div className="md:col-span-3">
-                      <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Prêmio (Isca para Capturar o Lead)</label>
-                      <input
-                          type="text"
-                          placeholder="Ex: Ganhe 1 Sobremesa Grátis ou R$5 de Cashback!"
-                          value={storeStatus.wifiPrize || ''}
-                          onChange={(e) => {
-                              setStoreStatus(prev => ({ ...prev, wifiPrize: e.target.value }));
-                              updateDoc(doc(db, "stores", storeId), { wifiPrize: e.target.value });
-                          }}
-                          className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
-                      />
+                  {/* Prêmio, Cupom e Texto Final (Wi-Fi) */}
+                  <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                          <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Prêmio Promocional (Isca)</label>
+                          <input
+                              type="text"
+                              placeholder="Ex: Ganhe 10% OFF no seu próximo pedido!"
+                              value={storeStatus.wifiPrize || ''}
+                              onChange={(e) => {
+                                  setStoreStatus(prev => ({ ...prev, wifiPrize: e.target.value }));
+                                  updateDoc(doc(db, "stores", storeId), { wifiPrize: e.target.value });
+                              }}
+                              className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
+                          />
+                      </div>
+                      
+                      <div>
+                          <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Vincular Cupom Automático</label>
+                          <select
+                              value={storeStatus.wifiCoupon || ''}
+                              onChange={(e) => {
+                                  setStoreStatus(prev => ({ ...prev, wifiCoupon: e.target.value }));
+                                  updateDoc(doc(db, "stores", storeId), { wifiCoupon: e.target.value });
+                              }}
+                              className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full cursor-pointer"
+                          >
+                              <option value="">Sem cupom vinculado</option>
+                              {coupons.filter(c => c.active).map(c => (
+                                  <option key={c.id} value={c.code}>
+                                      🎟️ {c.code} ({c.type === 'percentage' ? `${c.value}% OFF` : `R$ ${c.value} OFF`})
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                          <label className="text-[11px] font-bold text-emerald-700 uppercase mb-1 block">Frase Final (Call to Action para o Cardápio)</label>
+                          <input
+                              type="text"
+                              placeholder={['default', 'drinks'].includes(storeStatus?.storeNiche) ? 'E quando bater aquela sede em casa, nosso cardápio está sempre aqui:' : 'E quando bater aquela vontade em casa, nosso cardápio está sempre aqui:'}
+                              value={storeStatus.wifiFooterMessage || ''}
+                              onChange={(e) => {
+                                  setStoreStatus(prev => ({ ...prev, wifiFooterMessage: e.target.value }));
+                                  updateDoc(doc(db, "stores", storeId), { wifiFooterMessage: e.target.value });
+                              }}
+                              className="bg-white border-2 border-emerald-100 rounded-2xl px-4 py-3 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-300 transition-colors w-full"
+                          />
+                          <p className="text-[9px] text-emerald-600 font-bold mt-1.5 ml-1">
+                              Deixe em branco para usar o texto automático baseado no seu nicho. O link da sua loja online será adicionado logo após essa frase.
+                          </p>
+                      </div>
                   </div>
               </div>
 
