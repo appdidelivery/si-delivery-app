@@ -2106,7 +2106,13 @@ export default function Home() {
   // Zera o frete se for Modo Garçom, Retirada na Loja ou Autoatendimento na Mesa
   const finalShippingFee = (isFreeShipping || isWaiterMode || isPickup || tableSession) ? 0 : Number(shippingFee || 0);
   
-  const baseTotal = Number(subtotal) + finalShippingFee - Number(discountAmount || 0);
+  // LÓGICA DINÂMICA DE DESCONTO (Protege o Frete Grátis se o cliente trocar o CEP depois de aplicar o cupom)
+  let actualDiscountAmount = Number(discountAmount || 0);
+  if (appliedCoupon && appliedCoupon.type === 'free_shipping') {
+      actualDiscountAmount = finalShippingFee;
+  }
+  
+  const baseTotal = Number(subtotal) + finalShippingFee - actualDiscountAmount;
   // Cálculo do Cashback dinâmico: Não pode abater mais do que o total do pedido.
   const cashbackDiscount = (marketingSettings?.gamification?.cashback && useCashback) ? Math.min(cashbackBalance, baseTotal) : 0;
   const finalTotal = baseTotal - cashbackDiscount;
@@ -2176,6 +2182,17 @@ export default function Home() {
         // Desconto fixo nunca pode ser maior que o subtotal dos itens elegíveis
         calculatedDiscount = Math.min(coupon.value, eligibleSubtotal); 
     } 
+    else if (coupon.type === 'free_shipping') {
+        if (customer.deliveryMethod === 'pickup') {
+            setCouponError('Este cupom não se aplica a Retirada no Balcão.');
+            return;
+        }
+        if (!shippingFee || shippingFee <= 0) {
+            setCouponError('Não há taxa de entrega para ser descontada neste endereço.');
+            return;
+        }
+        calculatedDiscount = Number(shippingFee);
+    }
     else if (coupon.type === 'bogo_50') {
         // LÓGICA DO 2º ITEM COM 50% OFF (Compre 1, o 2º igual sai pela metade)
         eligibleItems.forEach(item => {
@@ -2309,7 +2326,7 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
 
       if (appliedCoupon) {
         orderData.couponCode = appliedCoupon.code || "";
-        orderData.discountAmount = discountAmount || 0;
+        orderData.discountAmount = (appliedCoupon.type === 'free_shipping') ? finalShippingFee : (discountAmount || 0);
       }
 
       // === 🚨 NOVA LÓGICA: VALIDAÇÃO E BAIXA DE INSUMOS DA FICHA TÉCNICA ===
@@ -4628,7 +4645,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                               </span>
                           </div>
                       )}
-                      {discountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {discountAmount.toFixed(2)}</span></div>}
+                      {actualDiscountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {actualDiscountAmount.toFixed(2)}</span></div>}
                       {useCashback && cashbackDiscount > 0 && <div className="flex justify-between text-sm font-bold text-emerald-400 mb-2"><span>Desconto de Cashback</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
                       
                       <div className="flex justify-between text-xl font-black italic mt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>

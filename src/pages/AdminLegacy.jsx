@@ -9962,7 +9962,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div key={c.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center hover:bg-slate-100 transition-colors">
                                         <div>
                                             <p className="font-black text-slate-800 text-lg uppercase">{c.code}</p>
-                                            <p className="text-[10px] font-bold text-slate-500">{c.type === 'percentage' ? `${c.value}% OFF` : `R$ ${c.value} OFF`} {c.minimumOrderValue > 0 && `| Min: R$ ${c.minimumOrderValue}`}</p>
+                                            <p className="text-[10px] font-bold text-slate-500">
+                                                {c.type === 'free_shipping' ? '🚚 FRETE GRÁTIS' : c.type === 'bogo_50' ? '🔥 2º ITEM 50% OFF' : c.type === 'percentage' ? `${c.value}% OFF` : `R$ ${c.value} OFF`} 
+                                                {c.minimumOrderValue > 0 && ` | Min: R$ ${c.minimumOrderValue}`}
+                                            </p>
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => { setEditingCouponId(c.id); setCouponForm(c); setIsCouponModalOpen(true); }} className="p-2 bg-white rounded-lg text-blue-600 shadow-sm hover:bg-blue-50"><Edit3 size={16} /></button>
