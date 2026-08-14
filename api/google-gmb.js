@@ -263,7 +263,7 @@ export default async function handler(req, res) {
             return res.status(200).json({ success: true, media: data });
         }
 
-        // 9. CARDÁPIO: Sincronização em Massa de Produtos (POST)
+        // 9. CARDÁPIO: Sincronização NATIVA (PriceLists / Menu) e Posts
         if (action === 'syncVeloProducts') {
             const productsSnap = await db.collection('products')
                 .where('storeId', '==', storeId)
@@ -272,10 +272,89 @@ export default async function handler(req, res) {
                 
             if (productsSnap.empty) throw new Error("Nenhum produto ativo encontrado para sincronizar.");
 
-            const products = productsSnap.docs.map(doc => doc.data());
-            let syncedCount = 0;
+            // Pegamos o ID do doc para compor o ID do produto no Google
+            const products = productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            let menuInjected = false;
+            let menuError = null;
             
-            // Cria postagens no formato "Offer/Standard" para preencher o catálogo do Google
+            // --- PARTE A: ISOLAMENTO TOTAL DA INJEÇÃO DO CARDÁPIO (Risco Zero para o Legado) ---
+            try {
+                const categoriesMap = {};
+                products.forEach(p => {
+                    const catName = p.category || 'Destaques';
+                    if (!categoriesMap[catName]) categoriesMap[catName] = [];
+                    categoriesMap[catName].push(p);
+                });
+
+                const sections = Object.keys(categoriesMap).map((catName, index) => {
+                    const items = categoriesMap[catName].map((p) => {
+                        const finalPrice = Number(p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0));
+                        const units = Math.floor(finalPrice);
+                        const nanos = Math.round((finalPrice - units) * 1000000000);
+
+                        const itemPayload = {
+                            itemId: `item_${p.id}`,
+                            labels: {
+                                displayName: (p.name || '').substring(0, 140),
+                                description: (p.description || '').substring(0, 1000)
+                            },
+                            price: { currencyCode: "BRL", units: String(units), nanos: nanos }
+                        };
+
+                        if (p.imageUrl) itemPayload.photoUrl = encodeURI(p.imageUrl);
+                        return itemPayload;
+                    });
+
+                    return {
+                        sectionId: `sec_${index}`,
+                        sectionType: "FOOD_AND_DRINK",
+                        labels: { displayName: catName.substring(0, 140) },
+                        items: items.slice(0, 100) 
+                    };
+                });
+
+                const priceListsPayload = {
+                    priceLists: [{
+                        priceListId: "menu_velo_delivery",
+                        labels: {
+                            displayName: "Cardápio Principal",
+                            description: "Nosso cardápio atualizado. Faça seu pedido diretamente conosco!"
+                        },
+                        sections: sections.slice(0, 100)
+                    }]
+                };
+
+                // SE O PARÂMETRO 'dryRun' FOR ENVIADO, ELE NÃO BATE NO GOOGLE, APENAS TESTA O PAYLOAD
+                if (params.dryRun === 'true') {
+                    console.log("DRY RUN PAYLOAD (Não enviado ao Google):", JSON.stringify(priceListsPayload, null, 2));
+                    menuInjected = true; 
+                } else {
+                    const menuRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}?updateMask=priceLists`, {
+                        method: 'PATCH',
+                        headers: { 
+                            'Authorization': `Bearer ${accessToken}`, 
+                            'Content-Type': 'application/json' 
+                        },
+                        body: JSON.stringify(priceListsPayload)
+                    });
+
+                    const menuData = await menuRes.json();
+                    if (!menuRes.ok) {
+                        menuError = menuData.error?.message || "Falha desconhecida";
+                        console.error("GMB API (Menu) retornou erro, mas o fluxo continuará:", menuData);
+                    } else {
+                        menuInjected = true;
+                    }
+                }
+            } catch (err) {
+                // Se der qualquer erro na formatação (ex: p.price ser undefined e quebrar a matemática), 
+                // ele engole o erro e permite que os Posts abaixo funcionem.
+                console.error("Erro interno ao montar/enviar PriceLists:", err);
+                menuError = err.message;
+            }
+
+            // --- PARTE B: MANUTENÇÃO DOS POSTS (Legado Intacto e Protegido) ---
+            let syncedCount = 0;
             const batchPromises = products.map(async (p) => {
                 if (!p.imageUrl) return; 
                 
@@ -286,6 +365,12 @@ export default async function handler(req, res) {
                     media: [{ mediaFormat: "PHOTO", sourceUrl: encodeURI(p.imageUrl) }]
                 };
                 
+                // Se for dryRun, também não publica o post de verdade
+                if (params.dryRun === 'true') {
+                    syncedCount++;
+                    return;
+                }
+
                 const gRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/localPosts`, {
                     method: 'POST', 
                     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, 
@@ -297,12 +382,19 @@ export default async function handler(req, res) {
 
             await Promise.all(batchPromises);
             
-            // Grava o timestamp da última sincronização para a trava do frontend (Antispam)
-            await db.collection('stores').doc(storeId).update({
-                lastCatalogSync: admin.firestore.FieldValue.serverTimestamp()
-            });
+            if (params.dryRun !== 'true') {
+                await db.collection('stores').doc(storeId).update({
+                    lastCatalogSync: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
 
-            return res.status(200).json({ success: true, syncedCount });
+            return res.status(200).json({ 
+                success: true, 
+                syncedCount, 
+                menuInjected, 
+                menuError,
+                isDryRun: params.dryRun === 'true' 
+            });
         }
 
         // Fallback para Ação Desconhecida
