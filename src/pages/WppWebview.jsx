@@ -251,7 +251,15 @@ export default function WppWebview() {
   }, [settings?.gamification?.cashback, slug, customer.phone]);
 
   const cartSub = cart.reduce((a, i) => a + (i.price * i.quantity), 0);
-  const baseTotal = Math.max(0, cartSub + (deliveryMethod === 'delivery' ? deliveryFee : 0));
+  const finalShippingFee = deliveryMethod === 'delivery' ? deliveryFee : 0;
+
+  // LÓGICA DINÂMICA DE DESCONTO (Protege o Frete Grátis)
+  let actualDiscountAmount = Number(typeof discountAmount !== 'undefined' ? discountAmount : 0);
+  if (typeof appliedCoupon !== 'undefined' && appliedCoupon && appliedCoupon.type === 'free_shipping') {
+      actualDiscountAmount = finalShippingFee;
+  }
+
+  const baseTotal = Math.max(0, cartSub + finalShippingFee - actualDiscountAmount);
   const cashbackDiscount = (settings?.gamification?.cashback && useCashback) ? Math.min(cashbackBalance, baseTotal) : 0;
   const cartTotal = baseTotal - cashbackDiscount;
   const cartCount = cart.reduce((a, i) => a + i.quantity, 0);
@@ -303,7 +311,11 @@ export default function WppWebview() {
               storeId: slug, 
               tipo: deliveryMethod === 'pickup' ? "retirada" : "delivery", 
               source: 'whatsapp_bot',
-              usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0
+              usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+              couponCode: (typeof appliedCoupon !== 'undefined' && appliedCoupon) ? appliedCoupon.code : "",
+              discountAmount: (typeof appliedCoupon !== 'undefined' && appliedCoupon) 
+                              ? (appliedCoupon.type === 'free_shipping' ? finalShippingFee : (typeof discountAmount !== 'undefined' ? discountAmount : 0)) 
+                              : 0
           };
 
           // Função auxiliar para abater o saldo da carteira
@@ -671,6 +683,14 @@ export default function WppWebview() {
                 <div className="bg-[#1E293B] rounded-[2rem] p-5 border border-slate-700">
                     <div className="flex justify-between items-center text-sm mb-3 font-bold text-slate-300"><span>Subtotal</span><span>R$ {cartSub.toFixed(2)}</span></div>
                     {deliveryMethod === 'delivery' && <div className="flex justify-between items-center text-sm mb-4 font-bold text-slate-300"><span>Frete</span><span>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Grátis'}</span></div>}
+                    
+                    {typeof actualDiscountAmount !== 'undefined' && actualDiscountAmount > 0 && (
+                        <div className="flex justify-between items-center text-sm mb-4 font-bold text-green-400">
+                            <span>Desconto</span>
+                            <span>- R$ {actualDiscountAmount.toFixed(2)}</span>
+                        </div>
+                    )}
+                    
                     {useCashback && cashbackDiscount > 0 && <div className="flex justify-between items-center text-sm mb-4 font-bold text-emerald-400"><span>Cashback</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
                     <div className="flex justify-between items-center pt-4 border-t border-slate-700"><span className="text-xs font-black uppercase text-slate-400">Total</span><span className="text-3xl font-black italic" style={{ color: themeColor }}>R$ {cartTotal.toFixed(2)}</span></div>
                 </div>
