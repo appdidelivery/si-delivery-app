@@ -22,6 +22,42 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(false);
 
+    // --- ESTADOS DO AGENTE IA (GMB SPECIALIST) ---
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiResponse, setAiResponse] = useState('');
+    const [isThinking, setIsThinking] = useState(false);
+
+    const handleAskGmbAgent = async (e) => {
+        e.preventDefault();
+        if (!aiPrompt) return;
+        setIsThinking(true);
+        setAiResponse('');
+        try {
+            const res = await fetch('/api/google-gmb', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'askGmbAgent',
+                    storeId,
+                    promptUser: aiPrompt,
+                    storeName: storeStatus?.name || '',
+                    storeNiche: storeStatus?.storeNiche || '',
+                    currentBio: profileData.description || ''
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setAiResponse(data.answer);
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            alert(`❌ Erro: ${error.message}`);
+        } finally {
+            setIsThinking(false);
+        }
+    };
+
     useEffect(() => {
         if (storeId) checkConnectionStatus();
     }, [storeId]);
@@ -304,7 +340,8 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         { id: 'feed', label: 'Postagens (Feed)', icon: <FaBullhorn /> },
         { id: 'reviews', label: 'Avaliações', icon: <FaStar /> },
         { id: 'media', label: 'Mídias e Fotos', icon: <FaImage /> },
-        { id: 'catalog', label: 'Cardápio', icon: <FaList /> }
+        { id: 'catalog', label: 'Cardápio', icon: <FaList /> },
+        { id: 'assistant', label: 'Especialista IA', icon: <Sparkles /> }
     ];
 
     return (
@@ -784,10 +821,81 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                                                 )}
                                             </div>
                                         )}
-                                    </div>
+                                     </div>
                                 </motion.div>
                             );
                         })()}
+
+                        {activeTab === 'assistant' && (
+                            <motion.div key="assistant" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-black uppercase text-slate-800 flex items-center gap-2">
+                                        <Sparkles className="text-purple-600"/> Velo GMB Specialist
+                                    </h2>
+                                </div>
+                                
+                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 p-6 md:p-8 rounded-[2rem] shadow-sm relative overflow-hidden mb-8">
+                                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                        <Sparkles size={100} className="text-purple-600" />
+                                    </div>
+                                    <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center gap-5">
+                                        <div className="bg-purple-600 text-white p-4 rounded-2xl shadow-lg shrink-0">
+                                            <Users size={28} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-purple-900 uppercase tracking-tight mb-2">
+                                                Seu Consultor de SEO Local
+                                            </h3>
+                                            <p className="text-xs font-bold text-slate-600 leading-relaxed max-w-3xl">
+                                                Peça dicas de como ranquear sua loja em primeiro lugar na sua cidade, ideias de postagens de alta conversão, ou estratégias para atrair mais clientes orgânicos no Google Maps.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-sm mb-6">
+                                    <form onSubmit={handleAskGmbAgent} className="flex flex-col gap-4">
+                                        <textarea 
+                                            rows="3" 
+                                            value={aiPrompt}
+                                            onChange={(e) => setAiPrompt(e.target.value)}
+                                            placeholder="Ex: Como posso otimizar o meu Perfil para aparecer mais quando buscarem 'pizza perto de mim'?"
+                                            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 ring-purple-500 resize-none custom-scrollbar"
+                                            required
+                                        ></textarea>
+                                        <button 
+                                            type="submit" 
+                                            disabled={isThinking || !aiPrompt}
+                                            className="self-end bg-purple-600 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-purple-700 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                                        >
+                                            {isThinking ? <Loader2 size={18} className="animate-spin"/> : <Send size={18}/>}
+                                            {isThinking ? 'Analisando...' : 'Perguntar ao Especialista'}
+                                        </button>
+                                    </form>
+                                </div>
+
+                                {aiResponse && (
+                                    <div className="bg-slate-900 text-white p-8 rounded-[2rem] shadow-xl relative animate-in fade-in slide-in-from-top-4">
+                                        <div className="absolute top-4 right-4 text-purple-400 opacity-50"><Sparkles size={24}/></div>
+                                        <div className="flex items-center gap-3 mb-6 border-b border-slate-700 pb-4">
+                                            <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-full flex items-center justify-center">
+                                                <Sparkles size={20}/>
+                                            </div>
+                                            <h3 className="font-black uppercase tracking-widest text-sm text-purple-300">Plano de Ação</h3>
+                                        </div>
+                                        
+                                        <div className="space-y-4 text-slate-300 font-medium leading-relaxed whitespace-pre-wrap text-sm">
+                                            {aiResponse.split('\n').map((line, idx) => {
+                                                if (line.startsWith('###') || line.startsWith('**') || line.match(/^\*\*[^*]+\*\*$/)) return <p key={idx} className="font-black text-white mt-4">{line.replace(/[#*]/g, '')}</p>;
+                                                if (line.startsWith('-') || line.startsWith('*')) return <p key={idx} className="flex items-start gap-2 ml-2"><span className="text-purple-500">•</span> <span>{line.replace(/^[-*]\s*/, '').replace(/\*\*/g, '')}</span></p>;
+                                                if (line.trim() === '') return <br key={idx} />;
+                                                return <p key={idx}>{line.replace(/\*\*/g, '')}</p>;
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
             </div>

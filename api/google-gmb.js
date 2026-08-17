@@ -397,6 +397,52 @@ export default async function handler(req, res) {
             });
         }
 
+        // 10. ASSISTENTE DE OTIMIZAÇÃO GMB (VERTEX AI / GEMINI) - VELO GMB SPECIALIST
+        if (action === 'askGmbAgent') {
+            const { promptUser, storeName, storeNiche, currentBio } = params;
+            
+            // Reaproveita a mesma arquitetura de chaves seguras do seu sistema Velo Insights
+            const GEMINI_KEY = process.env.GEMINI_API_KEY;
+            if (!GEMINI_KEY) throw new Error("Chave da IA não configurada no servidor da Vercel.");
+
+            // System Prompt de Injeção de Especialista (E-E-A-T focado em Delivery)
+            const systemPrompt = `Você é o "Velo GMB Specialist", um agente de Inteligência Artificial Especialista em SEO Local e Google Meu Negócio focado estritamente em Deliveries e Restaurantes.
+Sua missão é ajudar o lojista a dominar a primeira página do Google Maps na cidade dele.
+
+Dados do Lojista:
+- Nome da Loja: ${storeName || 'Loja de Delivery'}
+- Nicho de Mercado: ${storeNiche || 'Geral'}
+- Bio/Descrição Atual no Google: ${currentBio || 'Não preenchida ainda'}
+
+Regras Absolutas:
+1. Responda à solicitação de forma direta e altamente aplicável.
+2. Use formatação limpa e de fácil leitura (parágrafos curtos, emojis com moderação, sem marcadores de código como \`\`\`).
+3. Foque sempre em táticas de conversão e atração de clientes orgânicos.
+
+Solicitação do Lojista: "${promptUser}"`;
+
+            // Chamada nativa para a versão estável do motor de IA que vocês já usam
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: systemPrompt }] }]
+                })
+            });
+
+            const aiData = await aiRes.json();
+
+            if (!aiRes.ok) {
+                console.error("Erro na API da IA (GMB Agent):", aiData);
+                throw new Error(aiData.error?.message || "O agente especialista de IA está indisponível no momento.");
+            }
+
+            const answerText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!answerText) throw new Error("A IA processou o pedido, mas não retornou um texto legível.");
+
+            return res.status(200).json({ success: true, answer: answerText });
+        }
+
         // Fallback para Ação Desconhecida
         return res.status(400).json({ success: false, error: 'Ação não reconhecida pelo servidor.' });
 
