@@ -439,7 +439,7 @@ Regras Absolutas:
 2. Não use marcadores de código.
 3. Foque sempre em táticas de conversão e atração de clientes orgânicos.`;
 
-            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash-002:generateContent`;
+            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash-001:generateContent`;
 
             const aiRes = await fetch(vertexUrl, {
                 method: 'POST',
