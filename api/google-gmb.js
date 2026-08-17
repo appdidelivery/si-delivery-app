@@ -426,8 +426,9 @@ Regras Absolutas:
             const fullPrompt = `${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"`;
 
             // 🚀 USANDO A MESMA API ESTÁVEL DO GERADOR DE PROMOÇÕES
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
+// Correção da nomenclatura do modelo para a versão v1beta
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`, {
+                                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: fullPrompt }] }],
