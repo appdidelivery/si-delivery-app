@@ -397,82 +397,11 @@ export default async function handler(req, res) {
             });
         }
 
-        // 10. ASSISTENTE DE OTIMIZAÇÃO GMB (VERTEX AI / GEMINI) - VELO GMB SPECIALIST
-        if (action === 'askGmbAgent') {
-            const { promptUser, storeName, storeNiche, currentBio } = params;
-            
-            if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-                throw new Error("Credenciais da Service Account (GOOGLE_SERVICE_ACCOUNT_JSON) não configuradas na Vercel.");
-            }
+        // Fallback para Ação Desconhecida
+        return res.status(400).json({ success: false, error: 'Ação não reconhecida pelo servidor.' });
 
-            let credentials;
-            try {
-                credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-            } catch (e) {
-                throw new Error("A variável GOOGLE_SERVICE_ACCOUNT_JSON está com formatação inválida (JSON incorreto).");
-            }
-
-            // Importação dinâmica para não quebrar dependências no topo do arquivo
-            const { GoogleAuth } = await import('google-auth-library');
-
-            // Gera a autenticação via OAuth 2.0 (Service Account)
-            const googleAuth = new GoogleAuth({
-                credentials,
-                scopes: ['https://www.googleapis.com/auth/cloud-platform']
-            });
-
-            const client = await googleAuth.getClient();
-            const tokenResponse = await client.getAccessToken();
-            const accessToken = tokenResponse.token;
-            
-            // Extrai o ID do Projeto nativamente do JSON da Service Account
-            const projectId = credentials.project_id;
-            const location = 'us-central1'; // Região padrão recomendada para Vertex AI
-
-            const systemPrompt = `Você é o "Velo GMB Specialist", um agente de Inteligência Artificial Especialista em SEO Local e Google Meu Negócio focado estritamente em Deliveries e Restaurantes.
-Sua missão é ajudar o lojista a dominar a primeira página do Google Maps na cidade dele.
-
-Dados do Lojista:
-- Nome da Loja: ${storeName || 'Loja de Delivery'}
-- Nicho de Mercado: ${storeNiche || 'Geral'}
-- Bio/Descrição Atual no Google: ${currentBio || 'Não preenchida ainda'}
-
-Regras Absolutas:
-1. Responda à solicitação de forma direta e altamente aplicável.
-2. Use formatação limpa e de fácil leitura (parágrafos curtos, emojis com moderação, sem marcadores de código como \`\`\`).
-3. Foque sempre em táticas de conversão e atração de clientes orgânicos.
-
-Solicitação do Lojista: "${promptUser}"`;
-
-            // Chamada nativa apontando para a infraestrutura Enterprise do Vertex AI (GCP)
-            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash-002:generateContent`;
-
-            const aiRes = await fetch(vertexUrl, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({ 
-                    system_instruction: {
-                        parts: [{ text: "Você é um Especialista em SEO Local e Google Meu Negócio para Deliveries. Responda de forma direta e tática." }]
-                    },
-                    contents: [{ 
-                        role: 'user', 
-                        parts: [{ text: systemPrompt }] 
-                    }]
-                })
-            });
-
-            const aiData = await aiRes.json();
-
-            if (!aiRes.ok) {
-                console.error("Erro na API Vertex AI (GMB Agent):", aiData);
-                throw new Error(aiData.error?.message || "O agente especialista de IA está indisponível no momento.");
-            }
-
-            const answerText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!answerText) throw new Error("A IA processou o pedido, mas não retornou um texto legível.");
-
-            return res.status(200).json({ success: true, answer: answerText });
-        }
+    } catch (error) {
+        console.error("Erro na API do Google Meu Negócio:", error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+}
