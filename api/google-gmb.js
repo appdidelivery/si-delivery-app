@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { GoogleAuth } from 'google-auth-library';
 
 // Inicializa o Firebase Admin (Singleton para evitar erros de múltiplas conexões)
 if (!admin.apps.length) {
@@ -382,6 +383,7 @@ export default async function handler(req, res) {
 
             await Promise.all(batchPromises);
             
+            // CÓDIGO NOVO
             if (params.dryRun !== 'true') {
                 await db.collection('stores').doc(storeId).update({
                     lastCatalogSync: admin.firestore.FieldValue.serverTimestamp()
@@ -395,6 +397,78 @@ export default async function handler(req, res) {
                 menuError,
                 isDryRun: params.dryRun === 'true' 
             });
+        }
+
+        // 10. ASSISTENTE DE OTIMIZAÇÃO GMB (VERTEX AI)
+        if (action === 'askGmbAgent') {
+            const { promptUser, storeName, storeNiche, currentBio } = params;
+            
+            if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+                return res.status(400).json({ success: false, error: "Credenciais da Service Account não configuradas na Vercel." });
+            }
+
+            let credentials;
+            try {
+                credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+            } catch (e) {
+                return res.status(400).json({ success: false, error: "JSON da Service Account com formatação inválida." });
+            }
+
+            const googleAuth = new GoogleAuth({
+                credentials,
+                scopes: ['https://www.googleapis.com/auth/cloud-platform']
+            });
+
+            const client = await googleAuth.getClient();
+            const tokenResponse = await client.getAccessToken();
+            const accessToken = tokenResponse.token;
+            
+            const projectId = credentials.project_id;
+            const location = 'us-central1';
+
+            const systemPrompt = `Você é o "Velo GMB Specialist", um agente de Inteligência Artificial Especialista em SEO Local e Google Meu Negócio focado estritamente em Deliveries e Restaurantes.
+Sua missão é ajudar o lojista a dominar a primeira página do Google Maps na cidade dele.
+
+Dados do Lojista:
+- Nome da Loja: ${storeName || 'Loja de Delivery'}
+- Nicho de Mercado: ${storeNiche || 'Geral'}
+- Bio Atual no Google: ${currentBio || 'Não preenchida ainda'}
+
+Regras Absolutas:
+1. Responda à solicitação de forma direta e altamente aplicável.
+2. Não use marcadores de código.
+3. Foque sempre em táticas de conversão e atração de clientes orgânicos.`;
+
+            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash-002:generateContent`;
+
+            const aiRes = await fetch(vertexUrl, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    system_instruction: {
+                        parts: [{ text: "Você é um Especialista em SEO Local e Google Meu Negócio para Deliveries. Responda de forma direta e tática." }]
+                    },
+                    contents: [{ 
+                        role: 'user', 
+                        parts: [{ text: `${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"` }] 
+                    }]
+                })
+            });
+
+            const aiData = await aiRes.json();
+
+            if (!aiRes.ok) {
+                console.error("Erro na API Vertex AI:", aiData);
+                return res.status(400).json({ success: false, error: aiData.error?.message || "A IA está indisponível no momento." });
+            }
+
+            const answerText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!answerText) return res.status(400).json({ success: false, error: "Sem resposta válida da IA." });
+
+            return res.status(200).json({ success: true, answer: answerText });
         }
 
         // Fallback para Ação Desconhecida
