@@ -401,11 +401,34 @@ export default async function handler(req, res) {
         if (action === 'askGmbAgent') {
             const { promptUser, storeName, storeNiche, currentBio } = params;
             
-            // Reaproveita a mesma arquitetura de chaves seguras do seu sistema Velo Insights
-            const GEMINI_KEY = process.env.GEMINI_API_KEY;
-            if (!GEMINI_KEY) throw new Error("Chave da IA não configurada no servidor da Vercel.");
+            if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+                throw new Error("Credenciais da Service Account (GOOGLE_SERVICE_ACCOUNT_JSON) não configuradas na Vercel.");
+            }
 
-            // System Prompt de Injeção de Especialista (E-E-A-T focado em Delivery)
+            let credentials;
+            try {
+                credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+            } catch (e) {
+                throw new Error("A variável GOOGLE_SERVICE_ACCOUNT_JSON está com formatação inválida (JSON incorreto).");
+            }
+
+            // Importação dinâmica para não quebrar dependências no topo do arquivo
+            const { GoogleAuth } = await import('google-auth-library');
+
+            // Gera a autenticação via OAuth 2.0 (Service Account)
+            const googleAuth = new GoogleAuth({
+                credentials,
+                scopes: ['https://www.googleapis.com/auth/cloud-platform']
+            });
+
+            const client = await googleAuth.getClient();
+            const tokenResponse = await client.getAccessToken();
+            const accessToken = tokenResponse.token;
+            
+            // Extrai o ID do Projeto nativamente do JSON da Service Account
+            const projectId = credentials.project_id;
+            const location = 'us-central1'; // Região padrão recomendada para Vertex AI
+
             const systemPrompt = `Você é o "Velo GMB Specialist", um agente de Inteligência Artificial Especialista em SEO Local e Google Meu Negócio focado estritamente em Deliveries e Restaurantes.
 Sua missão é ajudar o lojista a dominar a primeira página do Google Maps na cidade dele.
 
@@ -421,19 +444,30 @@ Regras Absolutas:
 
 Solicitação do Lojista: "${promptUser}"`;
 
-            // Chamada nativa para a versão estável do motor de IA que vocês já usam
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            // Chamada nativa apontando para a infraestrutura Enterprise do Vertex AI (GCP)
+            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash-002:generateContent`;
+
+            const aiRes = await fetch(vertexUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json' 
+                },
                 body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: systemPrompt }] }]
+                    system_instruction: {
+                        parts: [{ text: "Você é um Especialista em SEO Local e Google Meu Negócio para Deliveries. Responda de forma direta e tática." }]
+                    },
+                    contents: [{ 
+                        role: 'user', 
+                        parts: [{ text: systemPrompt }] 
+                    }]
                 })
             });
 
             const aiData = await aiRes.json();
 
             if (!aiRes.ok) {
-                console.error("Erro na API da IA (GMB Agent):", aiData);
+                console.error("Erro na API Vertex AI (GMB Agent):", aiData);
                 throw new Error(aiData.error?.message || "O agente especialista de IA está indisponível no momento.");
             }
 
@@ -442,12 +476,3 @@ Solicitação do Lojista: "${promptUser}"`;
 
             return res.status(200).json({ success: true, answer: answerText });
         }
-
-        // Fallback para Ação Desconhecida
-        return res.status(400).json({ success: false, error: 'Ação não reconhecida pelo servidor.' });
-
-    } catch (error) {
-        console.error("Erro na API do Google Meu Negócio:", error.message);
-        return res.status(500).json({ success: false, error: error.message });
-    }
-}
