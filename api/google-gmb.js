@@ -399,19 +399,19 @@ export default async function handler(req, res) {
             });
         }
 
-        // 10. ASSISTENTE DE OTIMIZAÇÃO GMB (VERTEX AI)
+        // 10. ASSISTENTE DE OTIMIZAÇÃO GMB (VERTEX AI AGENT BUILDER - PRODUÇÃO)
         if (action === 'askGmbAgent') {
-            const { promptUser, storeName, storeNiche, currentBio } = params;
+            const { promptUser, storeName, storeNiche } = params;
             
             if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-                return res.status(400).json({ success: false, error: "Credenciais da Service Account não configuradas na Vercel." });
+                return res.status(400).json({ success: false, error: "Credenciais da Service Account ausentes na Vercel." });
             }
 
             let credentials;
             try {
                 credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
             } catch (e) {
-                return res.status(400).json({ success: false, error: "JSON da Service Account com formatação inválida." });
+                return res.status(400).json({ success: false, error: "JSON da Service Account corrompido." });
             }
 
             const googleAuth = new GoogleAuth({
@@ -423,54 +423,44 @@ export default async function handler(req, res) {
             const tokenResponse = await client.getAccessToken();
             const accessToken = tokenResponse.token;
             
+            // Dados exatos do seu Agente no Google Cloud
             const projectId = credentials.project_id;
-            const location = 'us-central1';
+            const location = 'global'; // Agentes do Builder rodam no escopo global
+            const agentId = 'agent_1786975214963'; // ID capturado do seu painel Vertex
+            
+            // Usamos uma sessão única por loja para o Agente ter memória da conversa se o lojista continuar perguntando
+            const sessionId = `session_${storeId}_${new Date().toISOString().slice(0, 10)}`;
 
-            const systemPrompt = `Você é o "Velo GMB Specialist", um agente de Inteligência Artificial Especialista em SEO Local e Google Meu Negócio focado estritamente em Deliveries e Restaurantes.
-Sua missão é ajudar o lojista a dominar a primeira página do Google Maps na cidade dele.
+            // O Agente já tem as regras de E-E-A-T salvas nele. Só mandamos a dúvida do cliente com um pouco de contexto.
+            const userContext = `Loja: ${storeName || 'Delivery'} (${storeNiche || 'Geral'}). Dúvida: ${promptUser}`;
 
-Dados do Lojista:
-- Nome da Loja: ${storeName || 'Loja de Delivery'}
-- Nicho de Mercado: ${storeNiche || 'Geral'}
-- Bio Atual no Google: ${currentBio || 'Não preenchida ainda'}
+            // Rota oficial para conversar com Agentes do Vertex Builder
+            const agentUrl = `https://discoveryengine.googleapis.com/v1/projects/${projectId}/locations/${location}/collections/default_collection/engines/${agentId}/sessions/${sessionId}:converse`;
 
-Regras Absolutas:
-1. Responda à solicitação de forma direta e altamente aplicável.
-2. Não use marcadores de código.
-3. Foque sempre em táticas de conversão e atração de clientes orgânicos.`;
-
-// 🚀 CORREÇÃO: Apontando para o modelo principal estável (sem o sufixo 001 que causa erro de permissão/região)
-// 🚀 CORREÇÃO: Apontando para o modelo principal estável (sem o sufixo 001 que causa erro de permissão/região)
-            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash:generateContent`;
-                        const aiRes = await fetch(vertexUrl, {
+            const aiRes = await fetch(agentUrl, {
                 method: 'POST',
                 headers: { 
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({ 
-                    contents: [{ 
-                        role: 'user', 
-                        parts: [{ 
-                            text: `Aja como um Especialista em SEO Local e Google Meu Negócio para Deliveries. Responda de forma direta e tática.\n\n${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"` 
-                        }] 
-                    }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        maxOutputTokens: 1000
-                    }
+                    query: { text: userContext }
                 })
             });
 
             const aiData = await aiRes.json();
 
             if (!aiRes.ok) {
-                console.error("Erro na API Vertex AI:", aiData);
-                return res.status(400).json({ success: false, error: aiData.error?.message || "A IA está indisponível no momento." });
+                console.error("Erro na API Vertex AI Agent:", aiData);
+                return res.status(400).json({ success: false, error: aiData.error?.message || "O Agente GMB está indisponível no momento." });
             }
 
-            const answerText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!answerText) return res.status(400).json({ success: false, error: "Sem resposta válida da IA." });
+            // A resposta do Agent Builder vem dentro de reply.summary.summaryText
+            const answerText = aiData.reply?.summary?.summaryText;
+            
+            if (!answerText) {
+                return res.status(400).json({ success: false, error: "O Agente não conseguiu formular uma resposta." });
+            }
 
             return res.status(200).json({ success: true, answer: answerText });
         }
