@@ -448,13 +448,16 @@ Regras Absolutas:
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({ 
-                    system_instruction: {
-                        parts: [{ text: "Você é um Especialista em SEO Local e Google Meu Negócio para Deliveries. Responda de forma direta e tática." }]
-                    },
                     contents: [{ 
                         role: 'user', 
-                        parts: [{ text: `${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"` }] 
-                    }]
+                        parts: [{ 
+                            text: `Aja como um Especialista em SEO Local e Google Meu Negócio para Deliveries. Responda de forma direta e tática.\n\n${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"` 
+                        }] 
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 1000
+                    }
                 })
             });
 
