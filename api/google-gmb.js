@@ -439,9 +439,10 @@ Regras Absolutas:
 2. Não use marcadores de código.
 3. Foque sempre em táticas de conversão e atração de clientes orgânicos.`;
 
-            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash-001:generateContent`;
-
-            const aiRes = await fetch(vertexUrl, {
+// 🚀 CORREÇÃO: Apontando para o modelo principal estável (sem o sufixo 001 que causa erro de permissão/região)
+// 🚀 CORREÇÃO: Apontando para o modelo principal estável (sem o sufixo 001 que causa erro de permissão/região)
+            const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-1.5-flash:generateContent`;
+                        const aiRes = await fetch(vertexUrl, {
                 method: 'POST',
                 headers: { 
                     'Authorization': `Bearer ${accessToken}`,
