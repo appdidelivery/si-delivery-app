@@ -15351,10 +15351,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 try {
                                   // 1. CHAMA O BACKEND PARA CRIAR/MUDAR A SENHA
                                     if (teamForm.newPassword) {
+                                        // 🛡️ BLINDAGEM A1: Captura o token JWT de autenticação do usuário atual
+                                        const idToken = await auth.currentUser.getIdToken(true);
+
                                         const res = await fetch('/api/change-team-password', {
                                             method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
+                                            headers: { 
+                                                'Content-Type': 'application/json',
+                                                'Authorization': `Bearer ${idToken}` // Envia o "Crachá" criptografado
+                                            },
                                             body: JSON.stringify({ 
+                                                storeId: storeId, // 🛡️ BLINDAGEM IDOR: Declara a loja para o backend validar permissão
                                                 email: teamForm.email, 
                                                 newPassword: teamForm.newPassword,
                                                 name: teamForm.name
