@@ -20,6 +20,28 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Método não permitido.' });
     }
 
+    // ========================================================================
+    // 🛡️ BLINDAGEM A2: MINI-CATRACA DE AUTENTICAÇÃO (PROTEÇÃO DE COTA IA)
+    // ========================================================================
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn(`🚨 [SECURITY A2] Tentativa de gerar IA sem Token detectada.`);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token ausente.' });
+    }
+
+    try {
+        const idToken = authHeader.split('Bearer ')[1];
+        // O Firebase Admin verifica criptograficamente a autenticidade de quem pede
+        await admin.auth().verifyIdToken(idToken);
+    } catch (err) {
+        console.error(`🚨 [SECURITY A2] Token Inválido na IA:`, err.message);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token inválido ou expirado.' });
+    }
+    // ========================================================================
+    // FIM DA BLINDAGEM A2
+    // ========================================================================
+
     const { storeName, storeNiche, productName, productDesc, productPrice, productId } = req.body;
 
     if (!productName) {
@@ -32,7 +54,6 @@ export default async function handler(req, res) {
     }
 
    try {
-        // 🚀 CORREÇÃO: Declarando a variável do link ANTES do prompt para o Javascript não quebrar!
         const hostForLink = req.headers['x-forwarded-host'] || req.headers.host || '';
         const protocolForLink = hostForLink.includes('localhost') ? 'http' : 'https';
         const exactProductLink = productId ? `${protocolForLink}://${hostForLink}/p/${productId}` : `${protocolForLink}://${hostForLink}`;
@@ -74,7 +95,6 @@ Formato exigido:
 
         console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
-        // 🚀 O SEGREDO: Modelos exatos que funcionam na sua conta (Copiado do Estoque)
         const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
         let aiData = null;
         let responseOk = false;
@@ -104,7 +124,6 @@ Formato exigido:
         const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!rawJsonText) throw new Error("A IA retornou vazio.");
 
-        // Limpa e faz o Parse do JSON
         const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
         const jsonResult = JSON.parse(cleanText);
 
