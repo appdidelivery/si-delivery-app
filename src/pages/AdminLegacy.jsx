@@ -50,6 +50,7 @@ import MetaAdsDashboard from '../components/MetaAdsDashboard';
 
 import { FaFacebook, FaInstagram, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
+import { authenticatedFetch } from '../utils/apiAuth';
 
 // =========================================================================
 // 🧠 MOTOR DE IA (E-E-A-T) - RESPOSTAS HUMANIZADAS

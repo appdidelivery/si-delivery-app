@@ -4,6 +4,8 @@ import { db } from "../services/firebase";
 import { useStore } from '../context/StoreContext';
 import { Search, MessageCircle, Package, Camera, TrendingUp, Handshake, Ticket, Printer, Calculator, Truck, Lightbulb, Shield, Wrench, Tag, Megaphone, Link, Plus, X, ShieldCheck, UploadCloud, CheckCircle, ExternalLink, Wallet, Banknote, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { authenticatedFetch } from '../utils/apiAuth';
+
 
 // --- MOCK DATA ESTÁTICO (Parceiros do Ecossistema Food Service) ---
 const mockPartners = [

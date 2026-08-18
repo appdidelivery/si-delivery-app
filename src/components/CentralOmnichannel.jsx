@@ -3,6 +3,8 @@ import { db } from '../services/firebase';
 import { collection, query, onSnapshot, orderBy, serverTimestamp } from 'firebase/firestore';
 import { Search, Send, User, Phone, CheckCheck, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { authenticatedFetch } from '../utils/apiAuth';
+
 
 export default function CentralOmnichannel({ storeId = 'main-app' }) {
     const [messages, setMessages] = useState([]);

@@ -4,6 +4,8 @@ import { db } from '../services/firebase';
 import { doc, getDoc, collection, query, where, onSnapshot, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Megaphone, ShoppingBag, TrendingUp, Copy, ExternalLink, ShieldCheck, Loader2, Target, Link, Ticket, CheckCircle, AlertTriangle, Package, UploadCloud, Image as ImageIcon, X, Lock, Settings, Sparkles, Wallet, Banknote, QrCode } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { authenticatedFetch } from '../utils/apiAuth';
+
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;

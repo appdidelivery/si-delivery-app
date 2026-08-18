@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { Send, X, CheckCheck, Loader2 } from 'lucide-react';
+import { authenticatedFetch } from '../utils/apiAuth';
+
 
 export default function ProspectChat({ lead, onClose }) {
     const [messages, setMessages] = useState([]);
