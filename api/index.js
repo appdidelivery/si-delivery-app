@@ -281,6 +281,58 @@ export default async function handler(req, res) {
     const queryParams = Object.fromEntries(urlObj.searchParams);
     req.query = { ...req.query, ...queryParams };
 
+    // ========================================================================
+    // 🛡️ BLINDAGEM A2: MIDDLEWARE DE AUTENTICAÇÃO GLOBAL (ZERO TRUST)
+    // ========================================================================
+    // Lista de rotas que NÃO exigem token do painel lojista (Webhooks, Cron, Público)
+    const publicRoutes = [
+        '/api/stripe-webhook',
+        '/api/mp-webhook',
+        '/api/google-order-webhook',
+        '/api/binance-webhook',
+        '/api/pos-webhook',
+        '/api/velopay-webhook',
+        '/api/whatsapp-webhook',
+        '/api/ifood-webhook',
+        '/api/cron-automations',
+        '/api/google-auth',
+        '/api/google-callback',
+        '/api/mp-callback',
+        '/api/create-mp-checkout',
+        '/api/create-marketplace-checkout',
+        '/api/processar-pagamento-transparente-velo',
+        '/api/velopay-pix',
+        '/api/velopay-credit',
+        '/api/velopay-status',
+        '/api/binance-checkout',
+        '/api/google-order-feed',
+        '/api/og'
+    ];
+
+    // Se a rota atual NÃO estiver na lista pública, exige autenticação
+    if (!publicRoutes.includes(path)) {
+        // Suporta as duas formas de escrita do cabeçalho
+        const authHeader = req.headers.authorization || req.headers.Authorization;
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.warn(`🚨 [SECURITY A2] Acesso Negado (Sem Token) na rota: ${path}`);
+            return res.status(401).json({ success: false, error: 'Acesso negado: Token de autenticação ausente.' });
+        }
+
+        const idToken = authHeader.split('Bearer ')[1];
+        
+        try {
+            // Descriptografa e valida a assinatura criptográfica com os servidores do Google
+            const decodedToken = await admin.auth().verifyIdToken(idToken);
+            req.user = decodedToken; // Opcional: Anexa a identidade verificada à requisição
+        } catch (err) {
+            console.error(`🚨 [SECURITY A2] Token Inválido/Expirado na rota ${path}:`, err.message);
+            return res.status(401).json({ success: false, error: 'Acesso negado: Token de autenticação inválido ou expirado. Faça login novamente.' });
+        }
+    }
+    // ========================================================================
+    // FIM DA BLINDAGEM A2
+    // ========================================================================
 
     // ------------------------------------------------------------------------
     // 1. ACTIVATE PIX
