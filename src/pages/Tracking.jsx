@@ -191,7 +191,7 @@ export default function Tracking() {
       if (order?.paymentMethod === 'velopay_pix' && order?.paymentStatus !== 'paid' && order?.paymentIntentId) {
           const interval = setInterval(async () => {
               try {
-                  const res = await fetch('/api/velopay-status', {
+                  const res = await authenticatedFetch('/api/velopay-status', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ txid: order.paymentIntentId, orderId: order.id })

@@ -959,7 +959,7 @@ export default function Home() {
           // CHAMADA OFICIAL DA IA (Backend Vercel)
           const runInstaFunAI = async () => {
               try {
-                  const res = await fetch('/api/instafun-swap', {
+                  const res = await authenticatedFetch('/api/instafun-swap', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -2378,7 +2378,7 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
               // 🛑 GATILHO DE PROTEÇÃO DE BOLSO (META ADS AUTO-PAUSE)
               // Desliga a campanha silenciosamente se o cliente comprar as últimas unidades
               if (cartItem.metaCampaignId && (Number(cartItem.stock) - Number(cartItem.quantity) <= 0)) {
-                  fetch('/api/meta-pause-campaign', {
+                  authenticatedFetch('/api/meta-pause-campaign', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ storeId: storeId, productId: cartItem.id })
@@ -2512,7 +2512,7 @@ if (window.fbq) {
                   // assim a Vercel pode injetar o QR Code sem ser apagada depois!
                   await setDoc(newOrderRef, { ...orderData, velopayStatus: 'processing' });
 
-                  const response = await fetch('/api/velopay-pix', {
+                  const response = await authenticatedFetch('/api/velopay-pix', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -2556,7 +2556,7 @@ if (window.fbq) {
               try {
                   await setDoc(newOrderRef, { ...orderData, paymentStatus: 'pending' });
 
-                  const response = await fetch('/api/binance-checkout', {
+                  const response = await authenticatedFetch('/api/binance-checkout', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -2638,7 +2638,7 @@ if (window.fbq) {
                   await setDoc(newOrderRef, { ...orderData, velopayStatus: 'processing' });
 
                   // Envia pro seu Backend (Vercel) fazer a cobrança na Efí
-                  const creditResponse = await fetch('/api/velopay-credit', {
+                  const creditResponse = await authenticatedFetch('/api/velopay-credit', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -2706,7 +2706,7 @@ if (window.fbq) {
                   // CORREÇÃO: O status precisa ser 'pending' para o sistema e a tela de rastreio reconhecerem
                   await setDoc(newOrderRef, { ...orderData, paymentStatus: 'pending' });
 
-                  const response = await fetch('/api/processar-pagamento-transparente-velo', {
+                  const response = await authenticatedFetch('/api/processar-pagamento-transparente-velo', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -3118,7 +3118,7 @@ if (window.fbq) {
 
                                   await setDoc(newOrderRef, orderData);
 
-                                  const response = await fetch('/api/processar-pagamento-transparente-velo', {
+                                  const response = await authenticatedFetch('/api/processar-pagamento-transparente-velo', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({

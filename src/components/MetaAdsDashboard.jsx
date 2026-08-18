@@ -153,7 +153,7 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
         const productUrl = `${domain}/p/${safeSlug}`;
 
         try {
-            const res = await fetch('/api/meta-create-campaign', {
+            const res = await authenticatedFetch('/api/meta-create-campaign', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

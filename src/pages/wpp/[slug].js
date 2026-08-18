@@ -182,7 +182,7 @@ export default function WppWebview() {
                       // Altera o texto do botão (pode ser substituído por um estado de 'loading' depois)
                       console.log(`Iniciando pagamento MP para a loja: ${store.name}`);
                       
-                      const response = await fetch('/api/velopay/create-mp-preference', {
+                      const response = await authenticatedFetch('/api/velopay/create-mp-preference', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

@@ -78,7 +78,7 @@ export default function AdminChat() {
         
         setIsExportingGlobal(true);
         try {
-            const res = await fetch('/api/export-global-chat', {
+            const res = await authenticatedFetch('/api/export-global-chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storeId: storeId })
@@ -165,7 +165,7 @@ export default function AdminChat() {
     const handleUpdateStoreProfile = async () => {
         setIsUpdatingProfile(true);
         try {
-            const res = await fetch('/api/whatsapp-send', {
+            const res = await authenticatedFetch('/api/whatsapp-send', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'update_profile', 
@@ -656,13 +656,13 @@ export default function AdminChat() {
                 if (pixCodeToShare) {
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\nCopie o código na mensagem abaixo e pague no seu app do banco. 👇\n\n*A cozinha já foi avisada e começará a preparar assim que o pagamento for confirmado!* 🚀`;
                     
-                    await fetch('/api/whatsapp-send', {
+                    await authenticatedFetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
                     });
                     await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
 
-                    await fetch('/api/whatsapp-send', {
+                    await authenticatedFetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: pixCodeToShare } })
                     });
@@ -670,7 +670,7 @@ export default function AdminChat() {
 
                 } else {
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\n_Ocorreu uma falha ao gerar o código automático. O atendente enviará a Chave PIX da loja em instantes._`;
-                    await fetch('/api/whatsapp-send', {
+                    await authenticatedFetch('/api/whatsapp-send', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
                     });
@@ -681,7 +681,7 @@ export default function AdminChat() {
                 const trocoTxt = miniPdvCustomer.payment === 'dinheiro' && miniPdvCustomer.changeFor ? `\n*Troco para:* R$ ${miniPdvCustomer.changeFor}` : '';
                 msgConfirmacao += `*Pagamento:* ${formaPagtoTxt}${trocoTxt}\n\nSeu pedido já foi enviado para a cozinha! 👨‍🍳`;
 
-                await fetch('/api/whatsapp-send', {
+                await authenticatedFetch('/api/whatsapp-send', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
                 });
@@ -789,7 +789,7 @@ export default function AdminChat() {
         const safePhone = `55${cleanActiveChat}`;
 
         try {
-            const response = await fetch('/api/whatsapp-send', {
+            const response = await authenticatedFetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -831,7 +831,7 @@ export default function AdminChat() {
             
             const safePhone = `55${cleanActiveChat}`;
 
-            const response = await fetch('/api/whatsapp-send', {
+            const response = await authenticatedFetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1145,7 +1145,7 @@ export default function AdminChat() {
                                             // --- DISPARO DE TEMPLATE OFICIAL DA META ---
                                             setIsSendingTemplate(true);
                                             try {
-                                                const res = await fetch('/api/whatsapp-send', {
+                                                const res = await authenticatedFetch('/api/whatsapp-send', {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -1275,7 +1275,7 @@ export default function AdminChat() {
                                                 }
                                             }
 
-                                            const res = await fetch('/api/whatsapp-send', {
+                                            const res = await authenticatedFetch('/api/whatsapp-send', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
                                                 body: JSON.stringify({

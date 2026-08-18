@@ -65,7 +65,7 @@ export default function ProspeccaoKanban() {
         console.log(`🚀 [Frontend] Iniciando busca por: "${searchTerm}"`);
 
         try {
-            const response = await fetch('/api/prospeccao', {
+            const response = await authenticatedFetch('/api/prospeccao', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'prospeccao_serper', queryTerm: searchTerm })

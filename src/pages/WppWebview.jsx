@@ -336,7 +336,7 @@ export default function WppWebview() {
           if (customer.payment === 'velopay_pix') {
               await setDoc(orderRef, oData);
               await deductCashback();
-              const res = await fetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
+              const res = await authenticatedFetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
               if (!res.ok) throw new Error((await res.json()).error);
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
               setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_pending`; }, 500);
@@ -352,7 +352,7 @@ export default function WppWebview() {
                   let firstName = customer.name.split(' ')[0];
                   let lastName = customer.name.split(' ').slice(1).join(' ') || 'Velo';
 
-                  const res = await fetch('/api/processar-pagamento-transparente-velo', {
+                  const res = await authenticatedFetch('/api/processar-pagamento-transparente-velo', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({

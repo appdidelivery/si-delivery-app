@@ -33,7 +33,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         setIsThinking(true);
         setAiResponse('');
         try {
-            const res = await fetch('/api/google-gmb', {
+            const res = await authenticatedFetch('/api/google-gmb', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -126,7 +126,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                 }
             }
 
-            const res = await fetch('/api/google-gmb', {
+            const res = await authenticatedFetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'updateBusinessInfo', storeId, ...profileData, description: finalDescription })
             });
@@ -144,7 +144,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         if (!selectedProduct) return alert("Selecione um produto primeiro.");
         setIsGeneratingAI(true);
         try {
-            const res = await fetch('/api/generate-promo-copy', {
+            const res = await authenticatedFetch('/api/generate-promo-copy', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     storeName: storeStatus?.name || 'Nossa Loja',
@@ -189,7 +189,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
                 productUrl = `${baseUrl}/p/${safeSlug}`;
             }
 
-            const res = await fetch('/api/google-gmb', {
+            const res = await authenticatedFetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'createGooglePost', 
@@ -239,7 +239,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         if (!replyText) return;
         setIsSaving(true);
         try {
-            const res = await fetch('/api/google-gmb', {
+            const res = await authenticatedFetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'handleReviews', storeId, reviewId, replyText })
             });
@@ -280,7 +280,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         setIsSaving(true);
         try {
             const url = await uploadImageToCloudinary(mediaFile);
-            const res = await fetch('/api/google-gmb', {
+            const res = await authenticatedFetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'uploadGoogleMedia', storeId, mediaUrl: url, category: mediaCategory })
             });
@@ -301,7 +301,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
         if (!window.confirm("Deseja sincronizar seu cardápio do Velo com o Google agora?")) return;
         setIsSaving(true);
         try {
-            const res = await fetch('/api/google-gmb', {
+            const res = await authenticatedFetch('/api/google-gmb', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'syncVeloProducts', storeId })
             });

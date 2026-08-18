@@ -66,7 +66,7 @@ export default function CentralOmnichannel({ storeId = 'main-app' }) {
 
         try {
             // Dispara pela sua API da Vercel (A Rota chat_reply oficial da Meta)
-            const res = await fetch('/api/whatsapp-send', {
+            const res = await authenticatedFetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

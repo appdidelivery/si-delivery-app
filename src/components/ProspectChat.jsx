@@ -77,7 +77,7 @@ export default function ProspectChat({ lead, onClose }) {
 
         try {
             // Dispara via API da Meta que já existe no seu backend
-            const response = await fetch('/api/whatsapp-send', {
+            const response = await authenticatedFetch('/api/whatsapp-send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

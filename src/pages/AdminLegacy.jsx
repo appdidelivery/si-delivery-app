@@ -471,7 +471,7 @@ export default function Admin() {
         try {
             if (!storeId) return alert("Erro: Loja não identificada.");
 
-            const response = await fetch('/api/create-connect-account', {
+            const response = await authenticatedFetch('/api/create-connect-account', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storeId: storeId })
@@ -529,7 +529,7 @@ export default function Admin() {
                 return alert("Esta loja ainda não conectou uma conta bancária na Stripe.");
             }
             
-            const response = await fetch('/api/create-login-link', {
+            const response = await authenticatedFetch('/api/create-login-link', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stripeConnectId: currentStripeId })
@@ -867,7 +867,7 @@ const educationalBanners = [
                         .slice(0, 5)
                         .map(([name, data]) => `${name} (Vendido a R$ ${Number(data.price).toFixed(2)})`);
 
-                    const res = await fetch('/api/generate-magic-combos', {
+                    const res = await authenticatedFetch('/api/generate-magic-combos', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1308,7 +1308,7 @@ const educationalBanners = [
                 // Criamos uma função async INTERNA para poder usar o "await" e falar com a Vercel
                 const processTokenSeguro = async () => {
                     try {
-                        const res = await fetch('/api/meta-exchange-token', {
+                        const res = await authenticatedFetch('/api/meta-exchange-token', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ storeId: storeId, shortLivedToken: shortLivedToken })
@@ -1906,7 +1906,7 @@ const [vipMissions, setVipMissions] = useState([]);
         setIsGeneratingPredict(true);
         setPredictResult(null);
         try {
-            const res = await fetch('/api/stock-predict', {
+            const res = await authenticatedFetch('/api/stock-predict', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storeId, daysToPredict: predictDays })
@@ -2650,7 +2650,7 @@ const handleGenerateProductCopy = async () => {
         setIsGeneratingCopy(true);
         
         try {
-            const res = await fetch('/api/generate-product-copy', {
+            const res = await authenticatedFetch('/api/generate-product-copy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -2686,7 +2686,7 @@ const handleGenerateProductCopy = async () => {
         setPromoCopyResult({ whatsapp: '', instagram: '', hashtags: '' });
 
         try {
-            const response = await fetch('/api/generate-promo-copy', {
+            const response = await authenticatedFetch('/api/generate-promo-copy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2942,7 +2942,7 @@ const handleGenerateProductCopy = async () => {
     const handleGenerateFaqIA = async () => {
         setIsGeneratingFaq(true);
         try {
-            const response = await fetch('/api/generate-faq-copy', {
+            const response = await authenticatedFetch('/api/generate-faq-copy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3090,7 +3090,7 @@ const handleGenerateProductCopy = async () => {
         }
 
         try {
-            const res = await fetch('/api/refund-mp', {
+            const res = await authenticatedFetch('/api/refund-mp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storeId: storeId, orderId: order.id })
@@ -3114,7 +3114,7 @@ const handleGenerateProductCopy = async () => {
                     const refundMsg = `❌ *PEDIDO CANCELADO E ESTORNADO*\n\nOlá ${order.customerName.split(' ')[0]}, o seu pedido #${order.id.slice(-5).toUpperCase()} foi cancelado e o valor de *R$ ${Number(order.total).toFixed(2)}* foi integralmente devolvido para a sua conta via Mercado Pago.\n\n🧾 *ID do Comprovante de Estorno:* ${data.refundId}\n\nO prazo para constar na fatura depende da operadora do seu cartão.`;
                     
                     try {
-                        const waRes = await fetch('/api/whatsapp-send', {
+                        const waRes = await authenticatedFetch('/api/whatsapp-send', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3418,7 +3418,7 @@ const handleGenerateProductCopy = async () => {
                     const messagesToSend = Array.isArray(messages[newStatus]) ? messages[newStatus] : [messages[newStatus]];
 
                     for (const textMsg of messagesToSend) {
-                        const res = await fetch('/api/whatsapp-send', {
+                        const res = await authenticatedFetch('/api/whatsapp-send', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -3495,7 +3495,7 @@ const handleGenerateProductCopy = async () => {
 
                     // --- NOVO: PING DE INDEXAÇÃO PROATIVA (AVALIAÇÕES) ---
                     try {
-                        fetch('/api/google-index', {
+                        authenticatedFetch('/api/google-index', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -5263,7 +5263,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             const recentOrders = orders.filter(o => o.status !== 'canceled' && o.createdAt && o.createdAt.toMillis() >= thirtyDaysAgo);
                             const totalRevenue = recentOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
 
-                            const response = await fetch('/api/velo-insights', {
+                            const response = await authenticatedFetch('/api/velo-insights', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -5458,7 +5458,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             const controller = new AbortController();
                             const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-                            const res = await fetch('/api/ga4-metrics', {
+                            const res = await authenticatedFetch('/api/ga4-metrics', {
                                                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ storeId, measurementId: settings.integrations.ga4.measurementId, days: dataFuelPeriod })
                                                             });
@@ -5570,7 +5570,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             id="btn-sync-gmb"
                                             onClick={async () => {
                                                 try {
-                                                    const res = await fetch('/api/google-metrics', {
+                                                    const res = await authenticatedFetch('/api/google-metrics', {
                                                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId, days: dataFuelPeriod })
                                                             });
@@ -6141,7 +6141,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         
                                         if (settings?.integrations?.whatsapp?.apiToken) {
                                             try {
-                                                const res = await fetch('/api/whatsapp-send', {
+                                                const res = await authenticatedFetch('/api/whatsapp-send', {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -6661,7 +6661,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                                         if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && cleanPhone.length >= 12) {
                                                                             try {
-                                                                                const res = await fetch('/api/whatsapp-send', {
+                                                                                const res = await authenticatedFetch('/api/whatsapp-send', {
                                                                                     method: 'POST',
                                                                                     headers: { 'Content-Type': 'application/json' },
                                                                                     body: JSON.stringify({
@@ -7742,7 +7742,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             
                                                             // Se a API estiver configurada, dispara por baixo dos panos, senão abre o App
                                                             if (settings?.integrations?.whatsapp?.apiToken) {
-                                                                fetch('/api/whatsapp-send', { 
+                                                                authenticatedFetch('/api/whatsapp-send', { 
                                                                     method: 'POST', 
                                                                     headers: { 'Content-Type': 'application/json' }, 
                                                                     body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msg } }) 
@@ -7794,7 +7794,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 btn.innerHTML = '⏳ Puxando...';
                                                 btn.disabled = true;
                                                 try {
-                                                    const res = await fetch('/api/sync-google-reviews');
+                                                    const res = await authenticatedFetch('/api/sync-google-reviews');
                                                     if(res.ok) alert("✅ Busca concluída! Se houverem novas avaliações no Google, elas aparecerão na tela em instantes.");
                                                     else alert("❌ Erro ao buscar. Verifique a integração na aba Configurações.");
                                                 } catch(err) {
@@ -7949,7 +7949,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         try {
                                                             // Se a avaliação veio do Google, dispara para a API do backend
                                                             if (r.source === 'google') {
-                                                                const res = await fetch('/api/reply-google-review', {
+                                                                const res = await authenticatedFetch('/api/reply-google-review', {
                                                                     method: 'POST',
                                                                     headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({
@@ -8767,7 +8767,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             // 🛑 GATILHO DE PROTEÇÃO DE BOLSO (META ADS AUTO-PAUSE)
                             // Se o estoque atual menos o que foi vendido chegar a Zero (ou negativo)
                             if (cartItem.metaCampaignId && (Number(cartItem.stock) - Number(cartItem.quantity) <= 0)) {
-                                fetch('/api/meta-pause-campaign', {
+                                authenticatedFetch('/api/meta-pause-campaign', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ storeId: storeId, productId: cartItem.id })
@@ -11486,7 +11486,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             if(!window.confirm("Isso injetará suas perguntas e respostas públicas no Google Maps da sua loja. Continuar?")) return;
                                             setIsSyncingGoogle(true);
                                             try {
-                                                const res = await fetch('/api/sync-google-faq', {
+                                                const res = await authenticatedFetch('/api/sync-google-faq', {
                                                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({ storeId, locationId: settings.integrations.google_my_business.locationId, faqList: storeStatus.faq })
                                                 });
@@ -12459,7 +12459,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 onClick={async () => {
                                                     setIsSyncingGoogle(true);
                                                     try {
-                                                        const res = await fetch('/api/sync-google-hours', {
+                                                        const res = await authenticatedFetch('/api/sync-google-hours', {
                                                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                             body: JSON.stringify({ 
                                                                 storeId, 
@@ -12510,7 +12510,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             
                                             setIsSyncingGoogle(true);
                                             try {
-                                                const res = await fetch('/api/sync-google-regular-hours', {
+                                                const res = await authenticatedFetch('/api/sync-google-regular-hours', {
                                                     method: 'POST', 
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({ 
@@ -13351,7 +13351,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 // --- NOVO: INDEXAÇÃO PROATIVA NO GOOGLE (ASSÍNCRONO E BLINDADO) ---
                                 try {
                                     // Disparo em segundo plano (fire-and-forget) para não travar a UI do lojista
-                                    fetch('/api/google-index', {
+                                    authenticatedFetch('/api/google-index', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
@@ -14536,7 +14536,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     canceled: `❌ *PEDIDO CANCELADO*\n\nO pedido #${editingOrderData.id.slice(-5).toUpperCase()} foi cancelado.`
                                                 };
                                                 if (msgsPedido[dataParaSalvar.status]) {
-                                                    fetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgsPedido[dataParaSalvar.status] } }) }).catch(()=>{});
+                                                    authenticatedFetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgsPedido[dataParaSalvar.status] } }) }).catch(()=>{});
                                                 }
                                             }
 
@@ -14550,7 +14550,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 }
                                                 
                                                 if (msgPagamento) {
-                                                    fetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgPagamento } }) }).catch(()=>{});
+                                                    authenticatedFetch('/api/whatsapp-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: cleanPhone, dynamicParams: { text: msgPagamento } }) }).catch(()=>{});
                                                 }
                                             }
                                         }
@@ -15279,7 +15279,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         if(!integrationForm.phoneNumberId || !integrationForm.apiToken) return alert("Salve as credenciais primeiro!");
                                                         if(window.confirm("Atualizar o WhatsApp com Endereço, Slogan e Site cadastrados aqui no Velo?")){
                                                             try {
-                                                                const res = await fetch('/api/whatsapp-send', {
+                                                                const res = await authenticatedFetch('/api/whatsapp-send', {
                                                                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({ 
                                                                         action: 'update_profile', 
@@ -15374,7 +15374,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         // 🛡️ BLINDAGEM A1: Captura o token JWT de autenticação do usuário atual
                                         const idToken = await auth.currentUser.getIdToken(true);
 
-                                        const res = await fetch('/api/change-team-password', {
+                                        const res = await authenticatedFetch('/api/change-team-password', {
                                             method: 'POST',
                                             headers: { 
                                                 'Content-Type': 'application/json',
@@ -15911,7 +15911,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     .replace(/-+/g, '-')
                                                                     .replace(/^-+/, '').replace(/-+$/, '');
 
-                                                                const res = await fetch('/api/post-google-update', {
+                                                                const res = await authenticatedFetch('/api/post-google-update', {
                                                                     method: 'POST',
                                                                     headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({

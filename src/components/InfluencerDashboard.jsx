@@ -190,7 +190,7 @@ export default function InfluencerDashboard() {
         const linkCampanha = generateTrackingLink(selectedCampaignProduct, utmSource);
         setIsAiModalOpen(true); setIsGeneratingAi(true); setAiResult({ script: '', caption: '', hashtags: '' });
         try {
-            const res = await fetch('/api/generate-promo-copy', {
+            const res = await authenticatedFetch('/api/generate-promo-copy', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ storeName: store?.name || 'nossa loja', storeNiche: store?.storeNiche || 'delivery', productName: prod.name, productDesc: prod.description || '', productPrice: prod.promotionalPrice > 0 ? prod.promotionalPrice : prod.price, productId: prod.id })
             });

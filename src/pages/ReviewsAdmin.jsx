@@ -193,7 +193,7 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                                             // BLINDAGEM: Se for um review do Google, manda pro backend (API)
                                             if (isGoogle) {
                                                 try {
-                                                    const res = await fetch('/api/reply-google-review', {
+                                                    const res = await authenticatedFetch('/api/reply-google-review', {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
                                                         body: JSON.stringify({
