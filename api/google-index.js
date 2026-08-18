@@ -1,10 +1,41 @@
 import { google } from 'googleapis';
+import admin from 'firebase-admin';
+
+// 🛡️ Inicializa o Firebase Admin
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n').replace(/"/g, ''),
+        }),
+    });
+}
 
 export default async function handler(req, res) {
     // Bloqueia tentativas que não sejam POST
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Método não permitido.' });
     }
+
+    // ========================================================================
+    // 🛡️ BLINDAGEM A2: MINI-CATRACA DE AUTENTICAÇÃO (PROTEÇÃO INDEXAÇÃO)
+    // ========================================================================
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn(`🚨 [SECURITY A2] Tentativa de usar Google Indexing sem Token detectada.`);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token ausente.' });
+    }
+
+    try {
+        const idToken = authHeader.split('Bearer ')[1];
+        await admin.auth().verifyIdToken(idToken);
+    } catch (err) {
+        console.error(`🚨 [SECURITY A2] Token Inválido na Rota Indexing:`, err.message);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token inválido ou expirado.' });
+    }
+    // ========================================================================
 
     try {
         const { storeId, productId } = req.body;

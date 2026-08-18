@@ -77,6 +77,25 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
+    // ========================================================================
+    // 🛡️ BLINDAGEM A2: MINI-CATRACA DE AUTENTICAÇÃO (PROTEÇÃO GMB)
+    // ========================================================================
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn(`🚨 [SECURITY A2] Tentativa de usar Google GMB sem Token detectada.`);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token ausente.' });
+    }
+
+    try {
+        const idToken = authHeader.split('Bearer ')[1];
+        await admin.auth().verifyIdToken(idToken);
+    } catch (err) {
+        console.error(`🚨 [SECURITY A2] Token Inválido na Rota GMB:`, err.message);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token inválido ou expirado.' });
+    }
+    // ========================================================================
+
     try {
         // Agrupa os parâmetros independentemente de ser GET ou POST
         const params = { ...req.query, ...req.body };
@@ -348,13 +367,11 @@ export default async function handler(req, res) {
                     }
                 }
             } catch (err) {
-                // Se der qualquer erro na formatação (ex: p.price ser undefined e quebrar a matemática), 
-                // ele engole o erro e permite que os Posts abaixo funcionem.
                 console.error("Erro interno ao montar/enviar PriceLists:", err);
                 menuError = err.message;
             }
 
-            // --- PARTE B: MANUTENÇÃO DOS POSTS (Legado Intacto e Protegido) ---
+            // --- PARTE B: MANUTENÇÃO DOS POSTS ---
             let syncedCount = 0;
             const batchPromises = products.map(async (p) => {
                 if (!p.imageUrl) return; 
@@ -383,7 +400,6 @@ export default async function handler(req, res) {
 
             await Promise.all(batchPromises);
             
-            // CÓDIGO NOVO
             if (params.dryRun !== 'true') {
                 await db.collection('stores').doc(storeId).update({
                     lastCatalogSync: admin.firestore.FieldValue.serverTimestamp()
@@ -403,13 +419,11 @@ export default async function handler(req, res) {
         if (action === 'askGmbAgent') {
             const { promptUser, storeName, storeNiche, currentBio } = params;
             
-            // Usamos a chave que já está validada e funcionando na sua Vercel
             const GEMINI_KEY = process.env.GEMINI_API_KEY;
             if (!GEMINI_KEY) {
                 return res.status(400).json({ success: false, error: "Chave do Gemini ausente na Vercel." });
             }
 
-            // O "Cérebro" do Agente construído de manhã
             const systemPrompt = `Você é o "Velo GMB Specialist", um agente de Inteligência Artificial Especialista em SEO Local e Google Meu Negócio focado estritamente em Deliveries e Restaurantes.
 Sua missão é ajudar o lojista a dominar a primeira página do Google Maps na cidade dele.
 
@@ -425,8 +439,6 @@ Regras Absolutas:
 
             const fullPrompt = `${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"`;
 
-            // 🚀 USANDO A MESMA API ESTÁVEL DO GERADOR DE PROMOÇÕES
-// Correção da nomenclatura do modelo para a versão v1beta
             const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -436,7 +448,6 @@ Regras Absolutas:
                 })
             });
 
-            // 🛡️ Blindagem anti-HTML: Lê como texto primeiro para não crashar a tela do lojista
             const responseText = await aiRes.text();
             let aiData;
             try {

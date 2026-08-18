@@ -17,6 +17,25 @@ module.exports = async (req, res) => {
     // Bloqueia qualquer requisição que não seja POST
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
+    // ========================================================================
+    // 🛡️ BLINDAGEM A2: MINI-CATRACA DE AUTENTICAÇÃO (PROTEÇÃO FISCAL)
+    // ========================================================================
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn(`🚨 [SECURITY A2] Tentativa de configurar fiscal sem Token detectada.`);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token ausente.' });
+    }
+
+    try {
+        const idToken = authHeader.split('Bearer ')[1];
+        await admin.auth().verifyIdToken(idToken);
+    } catch (err) {
+        console.error(`🚨 [SECURITY A2] Token Inválido na Rota Fiscal:`, err.message);
+        return res.status(401).json({ success: false, error: 'Acesso negado: Token inválido ou expirado.' });
+    }
+    // ========================================================================
+
     const { storeId, fiscalData, certBase64 } = req.body;
 
     if (!storeId || !fiscalData) {
