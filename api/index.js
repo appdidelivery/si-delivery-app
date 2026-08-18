@@ -3564,22 +3564,21 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             }
         }
     // ------------------------------------------------------------------------
-    // 16. MERCADO PAGO WEBHOOK (Mensalidades e Pedidos)
+    // 16. MERCADO PAGO WEBHOOK (Mensalidades e Pedidos) - BLINDADO (M1)
     // ------------------------------------------------------------------------
     else if (path === '/api/mp-webhook') {
         if (req.method !== 'POST') return res.status(405).end();
 
         try {
             const { type, data, action, user_id } = req.body;
-            
             const isPayment = type === 'payment' || action === 'payment.created' || action === 'payment.updated';
 
             if (isPayment && data && data.id) {
                 const paymentId = data.id;
 
-                // 🚨 NOVA BLINDAGEM MESTRA DE TOKENS
-                // Cria um arsenal de tokens. Se o Token salvo no BD do cliente estiver vencido, 
-                // ele tenta o da Plataforma (Variável de Ambiente) para não perder o Webhook SaaS.
+                // 🛡️ BLINDAGEM M1: Validação Proativa. 
+                // Ignoramos completamente os dados enviados no corpo da requisição pelo suposto Mercado Pago.
+                // Criamos um arsenal de tokens oficiais e vamos perguntar DIRETAMENTE para a API oficial do banco.
                 const storeIdQuery = req.query.store;
                 let tokensToTry = [];
 
@@ -3595,134 +3594,131 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     }
                 }
                 
-                // Sempre adiciona o token da Plataforma (Dono do SaaS) como salva-vidas principal
                 if (process.env.MP_ACCESS_TOKEN) tokensToTry.push(process.env.MP_ACCESS_TOKEN);
-                
-                // Remove tokens nulos ou duplicados
                 tokensToTry = [...new Set(tokensToTry.filter(Boolean))];
 
                 let paymentData = null;
+                let isAuthentic = false;
 
-                // Tenta consultar o MP. Se o token for inválido (401), o loop tenta o próximo.
+                // 🛡️ Bate na API do Mercado Pago. Se o hacker inventou um "paymentId", o MP vai retornar 404 e nós abortamos.
                 for (const token of tokensToTry) {
                     const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (mpResponse.ok) {
                         paymentData = await mpResponse.json();
-                        break; // Se achou o pagamento, interrompe as tentativas
+                        isAuthentic = true;
+                        break; 
                     }
                 }
 
-                // Se o pagamento foi encontrado e aprovado
-                if (paymentData) {
-                    if (paymentData.status === 'approved') {
-                        const externalRef = paymentData.external_reference;
-                        const valorPago = paymentData.transaction_amount;
-                        
-                        // LÓGICA: MENSALIDADE SaaS PAGA PELO LOJISTA
-                        if (externalRef && externalRef.startsWith('fatura_saas_')) {
-                            const refParts = externalRef.split('_');
-                            const storeIdToRelease = refParts[2];
-                            const invoiceId = refParts.slice(3).join('_'); 
-                            
-                            const storeRef = db.collection('stores').doc(storeIdToRelease);
-                            const storeDoc = await storeRef.get();
-                            let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
-                            
-                            faturasHistorico = faturasHistorico.map(fatura => {
-                                if (fatura.id === invoiceId || ((!invoiceId || invoiceId === 'avulsa') && (fatura.status === 'PENDENTE' || fatura.status === 'pendente'))) {
-                                    return { ...fatura, status: 'PAGO' };
-                                }
-                                return fatura;
-                            });
+                // Se a API oficial não reconhecer esse ID de pagamento, é fraude.
+                if (!isAuthentic || !paymentData) {
+                    console.warn(`🚨 [SECURITY M1] Alerta de Fraude: Webhook MP recebido com Payment ID [${paymentId}], mas a API oficial do Banco não reconheceu. Bloqueado.`);
+                    return res.status(200).send('Ignorado'); 
+                }
 
+                // 🚀 Se a API oficial confirmou os dados, processamos com total segurança:
+                if (paymentData.status === 'approved') {
+                    const externalRef = paymentData.external_reference;
+                    const valorPago = paymentData.transaction_amount;
+                    
+                    // LÓGICA: MENSALIDADE SaaS PAGA PELO LOJISTA
+                    if (externalRef && externalRef.startsWith('fatura_saas_')) {
+                        const refParts = externalRef.split('_');
+                        const storeIdToRelease = refParts[2];
+                        const invoiceId = refParts.slice(3).join('_'); 
+                        
+                        const storeRef = db.collection('stores').doc(storeIdToRelease);
+                        const storeDoc = await storeRef.get();
+                        let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
+                        
+                        faturasHistorico = faturasHistorico.map(fatura => {
+                            if (fatura.id === invoiceId || ((!invoiceId || invoiceId === 'avulsa') && (fatura.status === 'PENDENTE' || fatura.status === 'pendente'))) {
+                                return { ...fatura, status: 'PAGO' };
+                            }
+                            return fatura;
+                        });
+
+                        const batch = db.batch();
+                        
+                        batch.set(storeRef, {
+                            billingStatus: 'ativo',
+                            paymentStatus: 'paid',
+                            lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
+                            faturasHistorico: faturasHistorico
+                        }, { merge: true });
+
+                        if (invoiceId && invoiceId !== 'avulsa') {
+                            const analyticsInvoiceRef = storeRef.collection('analytics').doc(invoiceId);
+                            batch.set(analyticsInvoiceRef, {
+                                status: 'PAGO',
+                                paidAt: admin.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true });
+                        }
+
+                        await batch.commit();
+
+                        console.log(`✅ Webhook MP Seguro: Mensalidade SaaS da loja ${storeIdToRelease} paga!`);
+                        return res.status(200).send('OK');
+                    }
+
+                    // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
+                    const orderId = externalRef;
+                    if (orderId && !externalRef.startsWith('fatura_saas_')) {
+                        const orderRef = db.collection('orders').doc(orderId);
+                        const orderDoc = await orderRef.get();
+
+                        if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
+                            const storeId = orderDoc.data().storeId;
                             const batch = db.batch();
                             
-                            batch.set(storeRef, {
-                                billingStatus: 'ativo',
+                            batch.update(orderRef, {
                                 paymentStatus: 'paid',
-                                lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
-                                faturasHistorico: faturasHistorico
+                                status: 'preparing', 
+                                paidAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            const statsRef = db.collection("stats").doc(storeId);
+                            batch.set(statsRef, {
+                                faturamentoTotal: admin.firestore.FieldValue.increment(valorPago),
+                                pedidosPagos: admin.firestore.FieldValue.increment(1)
                             }, { merge: true });
 
-                            if (invoiceId && invoiceId !== 'avulsa') {
-                                const analyticsInvoiceRef = storeRef.collection('analytics').doc(invoiceId);
-                                batch.set(analyticsInvoiceRef, {
-                                    status: 'PAGO',
-                                    paidAt: admin.firestore.FieldValue.serverTimestamp()
-                                }, { merge: true });
-                            }
+                            await batch.commit();
+                            console.log(`✅ Webhook MP Seguro: Pedido ${orderId} atualizado para PAGO!`);
+                            
+                            await sendMetaPurchaseEvent(storeId, { 
+                                id: orderId, 
+                                total: valorPago, 
+                                customerPhone: orderDoc.data().customerPhone 
+                            }, db);
+                        }
+                    }
+                }
+                // LÓGICA: ESCUTAR RECUSAS
+                else if (paymentData.status === 'rejected' || paymentData.status === 'cancelled') {
+                    const externalRef = paymentData.external_reference;
+                    const orderId = externalRef;
+
+                    if (orderId && !externalRef.startsWith('fatura_saas_')) {
+                        const orderRef = db.collection('orders').doc(orderId);
+                        const orderDoc = await orderRef.get();
+
+                        if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
+                            const batch = db.batch();
+                            
+                            batch.update(orderRef, {
+                                paymentStatus: 'failed',
+                                status: 'canceled', 
+                                mpPaymentStatusDetail: paymentData.status_detail || 'rejected', 
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
 
                             await batch.commit();
-
-                            console.log(`✅ Webhook MP: Mensalidade SaaS da loja ${storeIdToRelease} paga e histórico atualizado!`);
-                            return res.status(200).send('OK');
-                        }
-
-                        // LÓGICA: PEDIDO DO CLIENTE FINAL PAGO
-                        const orderId = externalRef;
-                        if (orderId && !externalRef.startsWith('fatura_saas_')) {
-                            const orderRef = db.collection('orders').doc(orderId);
-                            const orderDoc = await orderRef.get();
-
-                            if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
-                                const storeId = orderDoc.data().storeId;
-                                const batch = db.batch();
-                                
-                                batch.update(orderRef, {
-                                    paymentStatus: 'paid',
-                                    status: 'preparing', 
-                                    paidAt: admin.firestore.FieldValue.serverTimestamp()
-                                });
-
-                                const statsRef = db.collection("stats").doc(storeId);
-                                batch.set(statsRef, {
-                                    faturamentoTotal: admin.firestore.FieldValue.increment(valorPago),
-                                    pedidosPagos: admin.firestore.FieldValue.increment(1)
-                                }, { merge: true });
-
-                                await batch.commit();
-                                console.log(`✅ Webhook MP: Pedido ${orderId} atualizado para PAGO!`);
-                                
-                                // 🚀 GATILHO DA CAPI: Avisa a Meta que a venda online foi concluída
-                                await sendMetaPurchaseEvent(storeId, { 
-                                    id: orderId, 
-                                    total: valorPago, 
-                                    customerPhone: orderDoc.data().customerPhone 
-                                }, db);
-                            }
+                            console.log(`❌ Webhook MP: Pedido ${orderId} RECUSADO. Motivo salvo: ${paymentData.status_detail}`);
                         }
                     }
-                    // =====================================================================
-                    // 🚀 CÓDIGO ADITIVO: ESCUTAR RECUSAS E SALVAR LOG NO PAINEL DO LOJISTA
-                    // =====================================================================
-                    else if (paymentData.status === 'rejected' || paymentData.status === 'cancelled') {
-                        const externalRef = paymentData.external_reference;
-                        const orderId = externalRef;
-
-                        // Ignora faturas SaaS, foca apenas em pedidos de clientes
-                        if (orderId && !externalRef.startsWith('fatura_saas_')) {
-                            const orderRef = db.collection('orders').doc(orderId);
-                            const orderDoc = await orderRef.get();
-
-                            // Só atualiza se o pedido existir e não tiver sido pago (evita bugs de race condition)
-                            if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
-                                const batch = db.batch();
-                                
-                                batch.update(orderRef, {
-                                    paymentStatus: 'failed',
-                                    status: 'canceled', // Cancela a comanda automaticamente
-                                    mpPaymentStatusDetail: paymentData.status_detail || 'rejected', // Salva o motivo exato do erro!
-                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                                });
-
-                                await batch.commit();
-                                console.log(`❌ Webhook MP: Pedido ${orderId} RECUSADO. Motivo salvo no painel: ${paymentData.status_detail}`);
-                            }
-                        }
-                    }
-                    // =====================================================================
                 }
             }
             return res.status(200).send('OK');
