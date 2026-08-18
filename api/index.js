@@ -4005,72 +4005,89 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             return res.status(500).json({ error: 'Erro ao consultar Efí' });
         }
     }
-    // ------------------------------------------------------------------------
-    // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK)
+   // ------------------------------------------------------------------------
+    // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK) - BLINDADO (A4)
     // ------------------------------------------------------------------------
     else if (path === '/api/velopay-webhook') {
-        // A Efí vai bater aqui quando o Pix for pago
         if (req.method !== 'POST') return res.status(405).end();
 
         try {
-            // A API da Efí envia os dados no corpo da requisição
             const pixDataList = req.body.pix; 
             
-            // Pode ser que a Efí mande vários pagamentos num único webhook
             if (pixDataList && Array.isArray(pixDataList)) {
+                
+                // 🛡️ BLINDAGEM A4: Inicializa o SDK da Efí para consultar a fonte da verdade
+                const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+                const efiOptions = {
+                    sandbox: false,
+                    client_id: process.env.EFI_CLIENT_ID,
+                    client_secret: process.env.EFI_CLIENT_SECRET,
+                    pix_cert: certPath 
+                };
+                const gerencianet = new Gerencianet(efiOptions);
+
                 for (const pix of pixDataList) {
-                    const txid = pix.txid; // O ID único que gerámos na rota anterior
-                    const valorPago = pix.valor; // Valor efetivamente pago
+                    const txid = pix.txid; 
+                    
+                    // 🛡️ BLINDAGEM A4: Não confiamos no 'pix.valor' do webhook (pode ser um hacker).
+                    // Nós pegamos o txid recebido e perguntamos diretamente para a Efí se isso é real.
+                    console.log(`[VeloPay Webhook] Recebido aviso para TXID: ${txid}. Validando autenticidade com a Efí...`);
+                    
+                    let statusOficial;
+                    try {
+                        const chargeDetails = await gerencianet.pixDetailCharge({ txid });
+                        statusOficial = chargeDetails.status;
+                    } catch (efiErr) {
+                        console.error(`🚨 [SECURITY A4] Falha ao validar TXID ${txid} na Efí. Possível tentativa de fraude:`, efiErr.message);
+                        continue; // Pula este pagamento se a Efí não reconhecer o ID
+                    }
 
-                    console.log(`[VeloPay Webhook] Pagamento confirmado! TXID: ${txid} | Valor: R$ ${valorPago}`);
+                    // Só prossegue se a própria Efí confirmar que o dinheiro está na conta
+                    if (statusOficial === 'CONCLUIDA') {
+                        // 1. Procura o pedido no Firestore que tem este txid
+                        const ordersRef = db.collection('orders');
+                        const q = await ordersRef.where('paymentIntentId', '==', txid).limit(1).get();
 
-                    // 1. Procura o pedido no Firestore que tem este txid
-                    const ordersRef = db.collection('orders');
-                    const q = await ordersRef.where('paymentIntentId', '==', txid).limit(1).get();
-
-                    if (!q.empty) {
-                        const orderDoc = q.docs[0];
-                        const orderData = orderDoc.data();
-                        
-                        // 2. Evita processar em duplicado
-                        if (orderData.paymentStatus !== 'paid') {
-                            const storeId = orderData.storeId;
-                            const batch = db.batch();
+                        if (!q.empty) {
+                            const orderDoc = q.docs[0];
+                            const orderData = orderDoc.data();
+                            const valorPagoReal = orderData.total; // Usamos o valor do nosso banco para as métricas, não o do hacker
                             
-                            // Atualiza o pedido
-                            batch.update(orderDoc.ref, {
-                                paymentStatus: 'paid',
-                                status: 'preparing', // Manda para a cozinha
-                                paidAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
+                            // 2. Evita processar em duplicado
+                            if (orderData.paymentStatus !== 'paid') {
+                                const storeId = orderData.storeId;
+                                const batch = db.batch();
+                                
+                                batch.update(orderDoc.ref, {
+                                    paymentStatus: 'paid',
+                                    status: 'preparing', 
+                                    paidAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
 
-                            // Atualiza as estatísticas do lojista (Opcional, depende da tua métrica)
-                            const statsRef = db.collection("stats").doc(storeId);
-                            batch.set(statsRef, {
-                                faturamentoTotal: admin.firestore.FieldValue.increment(Number(valorPago)),
-                                pedidosPagos: admin.firestore.FieldValue.increment(1)
-                            }, { merge: true });
+                                const statsRef = db.collection("stats").doc(storeId);
+                                batch.set(statsRef, {
+                                    faturamentoTotal: admin.firestore.FieldValue.increment(Number(valorPagoReal)),
+                                    pedidosPagos: admin.firestore.FieldValue.increment(1)
+                                }, { merge: true });
 
-                            await batch.commit();
-                            console.log(`✅ [VeloPay] Pedido ${orderDoc.id} atualizado para PAGO!`);
-                            
-                            // AQUI PODEMOS ADICIONAR O DISPARO DO WHATSAPP AVISANDO O CLIENTE/LOJISTA
+                                await batch.commit();
+                                console.log(`✅ [VeloPay Webhook Seguro] TXID validado na Efí. Pedido ${orderDoc.id} atualizado para PAGO!`);
+                            }
+                        } else {
+                            console.warn(`[VeloPay Webhook] TXID ${txid} autêntico, mas não encontrado no nosso banco de dados.`);
                         }
                     } else {
-                        console.warn(`[VeloPay] TXID ${txid} não encontrado em nenhum pedido.`);
+                        console.warn(`🚨 [SECURITY A4] Alerta de Fraude: Webhook recebido, mas a Efí diz que o status real é '${statusOficial}'. Ignorando alteração.`);
                     }
                 }
             } else if (req.body.acao === 'teste') {
-                // A Efí envia um ping de teste quando configuramos o Webhook no painel deles
-                console.log("[VeloPay] Recebido ping de validação do Webhook da Efí.");
+                console.log("[VeloPay Webhook] Recebido ping de validação do Webhook da Efí.");
             }
 
-            // Devemos sempre responder 200 OK rapidamente para a Efí
             return res.status(200).json({ received: true });
             
         } catch (error) {
             console.error('❌ Erro no Webhook VeloPay:', error);
-            // Mesmo com erro interno, devolvemos 200 para a Efí não tentar reenviar freneticamente
             return res.status(200).send('Erro processado'); 
         }
     }
