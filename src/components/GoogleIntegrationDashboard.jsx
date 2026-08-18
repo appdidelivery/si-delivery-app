@@ -68,7 +68,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const checkConnectionStatus = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/google-gmb?action=checkStatus&storeId=${storeId}`);
+            const res = await authenticatedFetch(`/api/google-gmb?action=checkStatus&storeId=${storeId}`);
             const data = await res.json();
             if (data.connected) {
                 setIsConnected(true);
@@ -86,7 +86,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const fetchProfileData = async () => {
         setIsFetchingProfile(true);
         try {
-            const res = await fetch(`/api/google-gmb?action=getProfile&storeId=${storeId}`);
+            const res = await authenticatedFetch(`/api/google-gmb?action=getProfile&storeId=${storeId}`);
             const data = await res.json();
             
             if (data.success && data.profile) {
@@ -222,7 +222,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const handleFetchReviews = async () => {
         setIsSaving(true);
         try {
-            const res = await fetch(`/api/google-gmb?action=getReviews&storeId=${storeId}`);
+            const res = await authenticatedFetch(`/api/google-gmb?action=getReviews&storeId=${storeId}`);
             const data = await res.json();
             if (data.success && data.reviews?.reviews) {
                 setReviews(data.reviews.reviews);
@@ -267,7 +267,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
     const handleFetchMedia = async () => {
         setIsSaving(true);
         try {
-            const res = await fetch(`/api/google-gmb?action=getMedia&storeId=${storeId}`);
+            const res = await authenticatedFetch(`/api/google-gmb?action=getMedia&storeId=${storeId}`);
             const data = await res.json();
             if (data.success && data.media?.mediaItems) setMediaItems(data.media.mediaItems);
             else setMediaItems([]);
