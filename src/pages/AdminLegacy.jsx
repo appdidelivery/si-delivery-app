@@ -238,6 +238,26 @@ export default function Admin() {
 
     const navigate = useNavigate();
     // =========================================================================
+    // 🛡️ MOTOR DE FETCH AUTENTICADO (BLINDAGEM A2)
+    // =========================================================================
+    const authenticatedFetch = async (url, options = {}) => {
+        // 1. Pega o token do usuário logado (o Firebase atualiza automaticamente se estiver vencido)
+        let token = '';
+        if (auth.currentUser) {
+            token = await auth.currentUser.getIdToken();
+        }
+
+        // 2. Injeta o cabeçalho Authorization preservando os outros cabeçalhos originais
+        const authHeaders = {
+            ...options.headers,
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        };
+
+        // 3. Executa a requisição original já blindada
+        return fetch(url, { ...options, headers: authHeaders });
+    };
+    // =========================================================================
+    // =========================================================================
     // 🧠 MOTOR DE PLANOS E FEATURE TOGGLING (SAAS)
     // =========================================================================
     // Defina aqui qual e-mail tem poder de "Deus" no sistema para ver a aba secreta
