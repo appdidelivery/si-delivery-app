@@ -2107,22 +2107,24 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 
                                                 const menuRows = [];
                                                 
-                                                // Sempre mostra as opções principais
-                                                menuRows.push({ id: "btn_order_wa", title: "🛒 Pedir por aqui", description: "Abrir cardápio no Zap" });
-                                                menuRows.push({ id: "btn_menu", title: "🌐 Pedir pelo Site", description: "Acessar cardápio completo" });
+                                                // 1. O Funil de Alta Conversão (Cardápio na Web)
+                                                menuRows.push({ id: "btn_menu", title: "🍔 Fazer Pedido", description: "Acessar cardápio digital" });
 
-                                                // Inteligência Velo: Oculta botões desnecessários para clientes novos
+                                                // 2. A Mágica da Recompra (Fricção Zero)
                                                 if (lastOrder) {
-                                                    menuRows.push({ id: "btn_repeat", title: "🔄 Repetir Pedido", description: "Ver seu último pedido" });
+                                                    menuRows.push({ id: "btn_repeat", title: "🔄 Repetir Último Pedido", description: "Pedir o mesmo de antes" });
                                                     if (['pending', 'preparing', 'dispatch'].includes(lastOrder.status)) {
-                                                        menuRows.push({ id: "btn_status", title: "🚚 Status do Pedido", description: "Rastrear seu pacote" });
+                                                        menuRows.push({ id: "btn_status", title: "🚚 Status da Entrega", description: "Onde está meu pedido?" });
                                                     }
                                                 }
 
+                                                // 3. Informações Básicas
                                                 menuRows.push(
-                                                    { id: "btn_info", title: "📍 Local e Horário", description: "Onde ficamos" },
-                                                    { id: "btn_payment", title: "💳 Formas de Pagto", description: "Pix, Cartão, Dinheiro" }
+                                                    { id: "btn_info", title: "📍 Horário e Endereço", description: "Informações da loja" }
                                                 );
+
+                                                // 4. A Rede de Segurança (Handoff para o Humano)
+                                                menuRows.push({ id: "btn_support", title: "🙋 Falar com Atendente", description: "Dúvidas ou pedido manual" });
 
                                                 return {
                                                     type: "interactive",
