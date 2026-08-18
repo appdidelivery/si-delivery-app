@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaGoogle, FaStore, FaStar, FaImage, FaList, FaBullhorn } from 'react-icons/fa6';
 import { Loader2, ExternalLink, Save, CheckCircle, Send, RefreshCw, MessageSquare, Search, Sparkles, UploadCloud, X, Edit3, Users, ShieldCheck, Clock } from 'lucide-react';
+import { authenticatedFetch } from '../utils/apiAuth';
+
+
 
 export default function GoogleIntegrationDashboard({ storeId, products, storeStatus, uploadImageToCloudinary }) {
     const [isLoading, setIsLoading] = useState(true);

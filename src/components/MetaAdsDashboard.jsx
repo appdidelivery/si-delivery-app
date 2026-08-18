@@ -3,6 +3,8 @@ import { FaFacebook, FaInstagram, FaRegChartBar } from 'react-icons/fa6';
 import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign, Users, ShoppingBag, Zap, RefreshCw, ExternalLink } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { authenticatedFetch } from '../utils/apiAuth';
+
 
 export default function MetaAdsDashboard({ storeId, products, storeStatus, settings }) {
     const [metaStatus, setMetaStatus] = useState({ isConnected: false, userName: null, hasAccountIds: false });
