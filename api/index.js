@@ -547,19 +547,28 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------------------
-    // 5. CRON AUTOMATIONS (ROBÔ DE RESGATE, RETENÇÃO E FATURAMENTO)
-    // ------------------------------------------------------------------------
-    else if (path === '/api/cron-automations') {
-        // Como você usa o cron-job.org, não vamos bloquear com erro 401 se faltar o Header, 
-        // apenas damos um aviso interno para o robô continuar rodando.
-        const authHeader = req.headers['authorization'];
-        if (req.headers['user-agent'] !== 'Vercel Cron' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-            console.warn("Aviso: Cron rodado sem token. Executando via cron-job.org.");
-        }
+    // 5. CRON AUTOMATIONS (ROBÔ DE RESGATE, RETENÇÃO E FATURAMENTO) - BLINDADO (M2)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/cron-automations') {
+        // 🛡️ BLINDAGEM M2: Proteção Máxima contra DDoS e Estouro de Cota.
+        const authHeader = req.headers['authorization'];
+        const cronSecret = process.env.CRON_SECRET;
 
-        try {
-            console.log("⏱️ Iniciando Rotina de Automação e Faturamento...");
-            const batch = db.batch();
+        // Se você não configurou a variável de ambiente CRON_SECRET na Vercel, o sistema trava o cron
+        if (!cronSecret) {
+            console.error("🚨 [SECURITY M2] Variável CRON_SECRET ausente na Vercel. Abortando CRON por segurança.");
+            return res.status(500).json({ error: 'Configuração do Servidor Incompleta' });
+        }
+
+        // Verifica se a requisição veio da própria Vercel ou se possui o Token Bearer correto
+        if (req.headers['user-agent'] !== 'Vercel Cron' && authHeader !== `Bearer ${cronSecret}`) {
+            console.warn("🚨 [SECURITY M2] Tentativa de invasão detectada na rota do CRON. Bloqueado.");
+            return res.status(401).json({ error: 'Acesso Não Autorizado' });
+        }
+
+        try {
+            console.log("⏱️ Iniciando Rotina de Automação e Faturamento...");
+            const batch = db.batch();
             
            // --- INÍCIO: MOTOR DE FATURAMENTO AUTOMÁTICO (ROLLING BILLING) ---
             const brazilTime = new Date(new Date().getTime() - 3 * 3600 * 1000); // Fuso UTC-3
@@ -690,7 +699,7 @@ export default async function handler(req, res) {
                                 if (GEMINI_KEY && cartItems) {
                                     const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
 
-const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_KEY}`, {
+const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                                             method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -4179,7 +4188,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada restaurada para a versão estável do Gemini
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_KEY}`, {
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -4295,7 +4304,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_KEY}`, {
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
@@ -4349,7 +4358,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, explicações ou marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
 
 // 🚀 MOTOR DE AUTO-CURA ESTÁVEL
-const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
+const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
             let aiData = null;
             let responseOk = false;
 
@@ -4715,7 +4724,7 @@ Retorne APENAS um JSON válido com 3 chaves:
             console.log(`🟡 [API CALL] Acionando motor de IA (Padrão Estoque) para: ${productName}`);
 
             // 🚀 AQUI ESTÁ A CORREÇÃO MESTRA: Usando os EXATOS MESMOS MODELOS que funcionam no Estoque!
-            const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
+            const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
             let aiData = null;
             let responseOk = false;
 

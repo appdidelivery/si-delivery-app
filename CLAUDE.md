@@ -101,7 +101,7 @@ WhatsApp: Meta Cloud API is primary (`/api/whatsapp-webhook`, ~1.2k lines: conve
 
 Also: Google Business Profile (OAuth per tenant, reviews/posts/hours/catalog sync), Google Order Feed, GA4, Meta Ads (campaign create/pause), iFood webhook, Serper (prospecting), Cloudinary (images), Replicate (image gen).
 
-Gemini is called over raw `fetch` to `generativelanguage.googleapis.com`. **Model names in this repo are inconsistent and partly invalid** — `gemini-3.5-flash` and `gemini-3-pro` appear in `api/index.js` and `api/generate-promo-copy.js` and are not real model IDs; `api/google-gmb.js` uses `gemini-1.5-flash-latest`, `firebase-functions` uses `gemini-2.5-flash`. Some call sites have a `modelsToTry` fallback list that masks the failure, others don't. Verify the model ID against Google's current list before touching AI code, and prefer the fallback-list pattern.
+Gemini is called over raw `fetch` to `generativelanguage.googleapis.com`. **Model names in this repo are inconsistent and partly invalid** — `gemini-1.5-flash` and `gemini-1.5-pro` appear in `api/index.js` and `api/generate-promo-copy.js` and are not real model IDs; `api/google-gmb.js` uses `gemini-1.5-flash-latest`, `firebase-functions` uses `gemini-2.5-flash`. Some call sites have a `modelsToTry` fallback list that masks the failure, others don't. Verify the model ID against Google's current list before touching AI code, and prefer the fallback-list pattern.
 
 ## Gotchas
 

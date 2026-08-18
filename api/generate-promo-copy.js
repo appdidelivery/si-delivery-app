@@ -95,7 +95,7 @@ Formato exigido:
 
         console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
-        const modelsToTry = ['gemini-3.5-flash', 'gemini-3-pro'];
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
         let aiData = null;
         let responseOk = false;
 

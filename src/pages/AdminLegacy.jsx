@@ -2624,6 +2624,12 @@ const [vipMissions, setVipMissions] = useState([]);
     // --------------------------------------------------------------
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (fileData, customFileName = null) => {
+        // 🛡️ BLINDAGEM M5: Verifica se o usuário que está tentando subir a foto realmente está logado
+        if (!auth.currentUser) {
+            console.error("🚨 [SECURITY M5] Upload rejeitado: Usuário não autenticado.");
+            throw new Error("Acesso negado: Você precisa estar logado para fazer upload de imagens.");
+        }
+
         if (!fileData) throw new Error("Selecione um arquivo primeiro!");
         
         const rawName = customFileName || fileData.name || 'upload-velo';
