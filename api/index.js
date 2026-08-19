@@ -438,9 +438,22 @@ export default async function handler(req, res) {
         }
     }
 
-    /// 🛡️ GERADOR DINÂMICO DE DADOS (BYPASS DEFINITIVO DO POLICYAGENT MP)
-            // O Mercado Pago bloqueia requisições repetidas do mesmo CPF/Email num curto espaço de tempo (Velocity Block).
-            // Geramos um CPF matemático válido na hora e um E-mail único por requisição para garantir 100% de aprovação.
+    // ------------------------------------------------------------------------
+    // 2.5 GERAR PIX DIRETO (TRANSPARENTE) PARA FATURA VELO SAAS
+    // ------------------------------------------------------------------------
+    else if (path === '/api/pay-subscription-mp-pix') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeId, amount, invoiceId } = req.body;
+        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para PIX.' });
+
+        try {
+            const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
+            if (!ACCESS_TOKEN) return res.status(500).json({ error: 'Token da plataforma não configurado.' });
+
+            const finalInvoiceId = invoiceId || 'avulsa';
+
+            // 🛡️ GERADOR DINÂMICO DE DADOS (BYPASS DEFINITIVO DO POLICYAGENT MP)
             const generateValidCPF = () => {
                 const random = () => Math.floor(Math.random() * 9);
                 const cpf = Array.from({length: 9}, random);
@@ -456,13 +469,14 @@ export default async function handler(req, res) {
 
             const uniquePayerEmail = `assinante_${Date.now()}@velodelivery.com.br`;
             const uniquePayerCpf = generateValidCPF();
+            const idempKey = `fatura_pix_${storeId}_${finalInvoiceId}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
             const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${ACCESS_TOKEN}`,
                     'Content-Type': 'application/json',
-                    'X-Idempotency-Key': crypto.randomUUID()
+                    'X-Idempotency-Key': idempKey
                 },
                 body: JSON.stringify({
                     transaction_amount: Number(amount),
