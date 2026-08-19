@@ -282,14 +282,14 @@ export default async function handler(req, res) {
     req.query = { ...req.query, ...queryParams };
 
     // ========================================================================
-    // 🌐 GLOBAL CORS INTERCEPTOR (Previne bloqueios em domínios próprios)
+    // 🌐 GLOBAL CORS INTERCEPTOR (Dinâmico para domínios próprios)
     // ========================================================================
-    res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', origin); // 🛡️ Resolve o conflito estrito de navegadores
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
-    // Navegadores não enviam Token no OPTIONS. Resolvemos o CORS e liberamos a passagem.
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -378,24 +378,19 @@ export default async function handler(req, res) {
         }
     }
 
-    // ------------------------------------------------------------------------
+   // ------------------------------------------------------------------------
     // 2. PAGAMENTO DE MENSALIDADE VELO SAAS (MERCADO PAGO)
     // ------------------------------------------------------------------------
     else if (path === '/api/pay-subscription-mp') {
-        res.setHeader('Access-Control-Allow-Credentials', true);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-        res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-        if (req.method === 'OPTIONS') return res.status(200).end();
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         const { storeId, amount, invoiceId } = req.body;
         if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para faturamento.' });
 
         try {
-            // Usa o Token Principal da Plataforma (Conta do Diego)
             const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
+            if (!ACCESS_TOKEN) return res.status(500).json({ error: 'Token da plataforma não configurado.' });
+
             const finalInvoiceId = invoiceId || 'avulsa';
 
             const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
@@ -423,7 +418,7 @@ export default async function handler(req, res) {
                     notification_url: `https://${req.headers.host}/api/mp-webhook`,
                     statement_descriptor: "VELO SAAS",
                     payment_methods: {
-                        excluded_payment_types: [{ id: "ticket" }] // Removemos boleto para ser instantâneo
+                        excluded_payment_types: [{ id: "ticket" }] 
                     }
                 })
             });
@@ -432,7 +427,7 @@ export default async function handler(req, res) {
 
             if (!mpResponse.ok) {
                 console.error("Erro ao gerar fatura MP:", data);
-                return res.status(400).json({ error: "Erro ao gerar pagamento da fatura." });
+                return res.status(400).json({ error: "Erro ao gerar pagamento da fatura.", details: data });
             }
 
             return res.status(200).json({ url: data.init_point });
@@ -446,12 +441,6 @@ export default async function handler(req, res) {
     // 2.5 GERAR PIX DIRETO (TRANSPARENTE) PARA FATURA VELO SAAS
     // ------------------------------------------------------------------------
     else if (path === '/api/pay-subscription-mp-pix') {
-        res.setHeader('Access-Control-Allow-Credentials', true);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-        if (req.method === 'OPTIONS') return res.status(200).end();
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
         const { storeId, amount, invoiceId } = req.body;
@@ -459,6 +448,8 @@ export default async function handler(req, res) {
 
         try {
             const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
+            if (!ACCESS_TOKEN) return res.status(500).json({ error: 'Token da plataforma não configurado.' });
+
             const finalInvoiceId = invoiceId || 'avulsa';
 
             const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
@@ -473,11 +464,11 @@ export default async function handler(req, res) {
                     description: `Fatura Mensal - Velo Delivery (${storeId})`,
                     payment_method_id: "pix",
                     payer: {
-                        email: `faturas_${storeId}@velodelivery.com.br`, // E-mail fictício válido obrigatório para a API
+                        email: `faturas_${storeId}@velodelivery.com.br`, 
                         first_name: "Lojista",
                         last_name: storeId
                     },
-                    external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`, // O Webhook lê isso e dá a baixa!
+                    external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`,
                     notification_url: `https://${req.headers.host}/api/mp-webhook`
                 })
             });
@@ -486,7 +477,7 @@ export default async function handler(req, res) {
 
             if (!mpResponse.ok || !data.point_of_interaction?.transaction_data) {
                 console.error("Erro ao gerar PIX Transparente SaaS:", data);
-                return res.status(400).json({ error: "Erro ao gerar chave PIX.", details: data });
+                return res.status(400).json({ error: "Erro ao comunicar com Mercado Pago.", details: data });
             }
 
             return res.status(200).json({ 
