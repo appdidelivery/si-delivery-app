@@ -4085,21 +4085,25 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     console.log(`[VeloPay Webhook] Recebido aviso para TXID: ${txid}. Validando autenticidade com a Efí...`);
                     
                     let statusOficial;
+                    let infoAdicionaisEfi = null; // 🛡️ CRÍTICO: Vamos guardar os dados da loja aqui
+
                     try {
+                        // 🚨 A MÁGICA DA CORREÇÃO: Pegamos os detalhes completos DIRETO do servidor da Efí!
                         const chargeDetails = await gerencianet.pixDetailCharge({ txid });
                         statusOficial = chargeDetails.status;
+                        infoAdicionaisEfi = chargeDetails.infoAdicionais; // AQUI estão as tags 'storeId' e 'invoiceId'
                     } catch (efiErr) {
                         console.error(`🚨 [SECURITY A4] Falha ao validar TXID ${txid} na Efí:`, efiErr.message);
                         continue;
                     }
 
                     if (statusOficial === 'CONCLUIDA') {
-                        // 1. Procura se este TXID pertence a um pedido normal do VeloPay
+                        // 1. Procura se este TXID pertence a um pedido normal de Delivery do VeloPay
                         const ordersRef = db.collection('orders');
                         const q = await ordersRef.where('paymentIntentId', '==', txid).limit(1).get();
 
                         if (!q.empty) {
-                            // É UM PEDIDO DE CLIENTE (VELOPAY NORMAL)
+                            // É UM PEDIDO DE DELIVERY DE COMIDA (VELOPAY NORMAL)
                             const orderDoc = q.docs[0];
                             const orderData = orderDoc.data();
                             const valorPagoReal = orderData.total; 
@@ -4121,22 +4125,23 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                 }, { merge: true });
 
                                 await batch.commit();
-                                console.log(`✅ [VeloPay] Pedido ${orderDoc.id} atualizado para PAGO!`);
+                                console.log(`✅ [VeloPay] Pedido de Delivery ${orderDoc.id} atualizado para PAGO!`);
                             }
                         } else {
-                            // 2. SE NÃO ACHOU PEDIDO, VERIFICA SE É MENSALIDADE SAAS (Olhando o infoAdicionais)
+                            // 2. SE NÃO ACHOU PEDIDO DE COMIDA, VERIFICA SE É MENSALIDADE DA PLATAFORMA (SaaS)
                             let saasStoreId = null;
                             let saasInvoiceId = null;
 
-                            if (pix.infoAdicionais && Array.isArray(pix.infoAdicionais)) {
-                                const infoStore = pix.infoAdicionais.find(i => i.nome === "storeId");
-                                const infoInvoice = pix.infoAdicionais.find(i => i.nome === "invoiceId");
+                            // 🚨 LÊ AS TAGS QUE VIERAM OFICIALMENTE DA EFÍ
+                            if (infoAdicionaisEfi && Array.isArray(infoAdicionaisEfi)) {
+                                const infoStore = infoAdicionaisEfi.find(i => i.nome === "storeId");
+                                const infoInvoice = infoAdicionaisEfi.find(i => i.nome === "invoiceId");
                                 if (infoStore) saasStoreId = infoStore.valor;
                                 if (infoInvoice) saasInvoiceId = infoInvoice.valor;
                             }
 
                             if (saasStoreId) {
-                                // É UMA MENSALIDADE SAAS! DANDO BAIXA NO FIREBASE!
+                                // É UMA MENSALIDADE SAAS! DANDO BAIXA AUTOMÁTICA NO FIREBASE!
                                 console.log(`🚀 [SaaS Webhook] Pagamento de fatura recebido para a loja: ${saasStoreId}`);
                                 
                                 const storeRef = db.collection('stores').doc(saasStoreId);
