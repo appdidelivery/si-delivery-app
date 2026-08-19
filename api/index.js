@@ -453,29 +453,30 @@ export default async function handler(req, res) {
 
             const finalInvoiceId = invoiceId || 'avulsa';
 
-            // 🛡️ REGRAS DE PRODUÇÃO DO MERCADO PAGO (ANTIFRAUDE)
-            // O Mercado Pago bloqueia CPFs falsos e E-mails que sejam iguais ao dono da conta recebedora.
-            // Puxamos os dados reais do lojista (pagador) para garantir a aprovação instantânea.
+            // 🛡️ SOLUÇÃO ANTI-FRAUDE (POLICY AGENT)
+            // O erro 403 do PolicyAgent ocorre quando inventamos CPFs, pois o MP cruza 
+            // o CPF com a Receita Federal e vê que o nome não bate. 
+            // A solução é enviar APENAS o E-mail (o MP permite PIX sem CPF em assinaturas SaaS)
+            // Se a loja tiver um CNPJ real salvo no painel, aí sim nós enviamos.
+
             const storeDoc = await db.collection('stores').doc(storeId).get();
             const storeData = storeDoc.exists ? storeDoc.data() : {};
-            
-            const payerEmail = storeData.ownerEmail || storeData.email || `loja_${storeId}@velodelivery.com.br`;
-            const payerName = storeData.name ? storeData.name.substring(0, 20) : 'Lojista';
 
-            // Monta o payload limpo
+            const payerEmail = storeData.ownerEmail || storeData.email || `fatura.${storeId}@gmail.com`;
+
+            // Payload Minimalista (Sem invenção de nomes)
             const paymentPayload = {
                 transaction_amount: Number(amount),
-                description: `Fatura Mensal - Velo Delivery (${storeId})`,
+                description: `Mensalidade Velo Delivery - Loja ${storeId}`,
                 payment_method_id: "pix",
                 payer: {
-                    email: payerEmail,
-                    first_name: payerName
+                    email: payerEmail
                 },
                 external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`,
                 notification_url: `https://${req.headers.host}/api/mp-webhook`
             };
 
-            // SÓ envia o documento se ele existir e for real. Omitir evita o bloqueio do PolicyAgent!
+            // SE a loja tiver um documento configurado, enviamos. Se não, omitimos para não acionar a fraude.
             if (storeData.cnpj) {
                 const cleanDoc = String(storeData.cnpj).replace(/\D/g, '');
                 if (cleanDoc.length === 11 || cleanDoc.length === 14) {
@@ -483,10 +484,11 @@ export default async function handler(req, res) {
                         type: cleanDoc.length === 14 ? "CNPJ" : "CPF",
                         number: cleanDoc
                     };
+                    const fName = storeData.name ? String(storeData.name).split(' ')[0] : 'Cliente';
+                    paymentPayload.payer.first_name = fName.substring(0, 20);
                 }
             }
 
-            // Chave única para evitar bloqueio de repetição
             const idempKey = `fatura_pix_${storeId}_${finalInvoiceId}_${Date.now()}`;
 
             const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
@@ -502,8 +504,8 @@ export default async function handler(req, res) {
             const data = await mpResponse.json();
 
             if (!mpResponse.ok || !data.point_of_interaction?.transaction_data) {
-                console.error("Erro ao gerar PIX Transparente SaaS (PolicyAgent):", data);
-                return res.status(400).json({ error: "O Mercado Pago recusou a transação (Antifraude).", details: data });
+                console.error("Erro ao gerar PIX Transparente SaaS:", data);
+                return res.status(400).json({ error: "O Mercado Pago bloqueou a geração. Tente pagar com Cartão.", details: data });
             }
 
             return res.status(200).json({ 
