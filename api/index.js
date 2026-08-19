@@ -321,7 +321,8 @@ export default async function handler(req, res) {
         '/api/google-order-feed',
         '/api/og',
         '/api/pay-subscription-mp',      // <-- ADICIONADO P/ LIBERAR O CARTÃO DA FATURA
-        '/api/pay-subscription-mp-pix'   // <-- ADICIONADO P/ LIBERAR O PIX DA FATURA
+        '/api/pay-subscription-mp-pix',  // <-- ADICIONADO P/ LIBERAR O PIX DA FATURA
+        '/api/velopay-webhook/pix'       // 🛡️ ADICIONADO: Exceção para o sufixo obrigatório da Efí
     ];
 
     // Se a rota atual NÃO estiver na lista pública, exige autenticação
@@ -4021,7 +4022,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
    // ------------------------------------------------------------------------
     // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK) - BLINDADO (A4)
     // ------------------------------------------------------------------------
-    else if (path === '/api/velopay-webhook') {
+    else if (path === '/api/velopay-webhook' || path === '/api/velopay-webhook/pix') {
         if (req.method !== 'POST') return res.status(405).end();
 
         try {
