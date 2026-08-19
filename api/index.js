@@ -453,23 +453,41 @@ export default async function handler(req, res) {
 
             const finalInvoiceId = invoiceId || 'avulsa';
 
-            // 🛡️ GERADOR DINÂMICO DE DADOS (BYPASS DEFINITIVO DO POLICYAGENT MP)
-            const generateValidCPF = () => {
-                const random = () => Math.floor(Math.random() * 9);
-                const cpf = Array.from({length: 9}, random);
-                const calc = (arr, mult) => {
-                    const sum = arr.reduce((acc, num, i) => acc + (num * (mult - i)), 0);
-                    const rest = sum % 11;
-                    return rest < 2 ? 0 : 11 - rest;
-                };
-                cpf.push(calc(cpf, 10));
-                cpf.push(calc(cpf, 11));
-                return cpf.join('');
+            // 🛡️ REGRAS DE PRODUÇÃO DO MERCADO PAGO (ANTIFRAUDE)
+            // O Mercado Pago bloqueia CPFs falsos e E-mails que sejam iguais ao dono da conta recebedora.
+            // Puxamos os dados reais do lojista (pagador) para garantir a aprovação instantânea.
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const storeData = storeDoc.exists ? storeDoc.data() : {};
+            
+            const payerEmail = storeData.ownerEmail || storeData.email || `loja_${storeId}@velodelivery.com.br`;
+            const payerName = storeData.name ? storeData.name.substring(0, 20) : 'Lojista';
+
+            // Monta o payload limpo
+            const paymentPayload = {
+                transaction_amount: Number(amount),
+                description: `Fatura Mensal - Velo Delivery (${storeId})`,
+                payment_method_id: "pix",
+                payer: {
+                    email: payerEmail,
+                    first_name: payerName
+                },
+                external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`,
+                notification_url: `https://${req.headers.host}/api/mp-webhook`
             };
 
-            const uniquePayerEmail = `assinante_${Date.now()}@velodelivery.com.br`;
-            const uniquePayerCpf = generateValidCPF();
-            const idempKey = `fatura_pix_${storeId}_${finalInvoiceId}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            // SÓ envia o documento se ele existir e for real. Omitir evita o bloqueio do PolicyAgent!
+            if (storeData.cnpj) {
+                const cleanDoc = String(storeData.cnpj).replace(/\D/g, '');
+                if (cleanDoc.length === 11 || cleanDoc.length === 14) {
+                    paymentPayload.payer.identification = {
+                        type: cleanDoc.length === 14 ? "CNPJ" : "CPF",
+                        number: cleanDoc
+                    };
+                }
+            }
+
+            // Chave única para evitar bloqueio de repetição
+            const idempKey = `fatura_pix_${storeId}_${finalInvoiceId}_${Date.now()}`;
 
             const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
                 method: 'POST',
@@ -478,29 +496,14 @@ export default async function handler(req, res) {
                     'Content-Type': 'application/json',
                     'X-Idempotency-Key': idempKey
                 },
-                body: JSON.stringify({
-                    transaction_amount: Number(amount),
-                    description: `Fatura Mensal - Velo Delivery (${storeId})`,
-                    payment_method_id: "pix",
-                    payer: {
-                        email: uniquePayerEmail,
-                        first_name: "Lojista",
-                        last_name: "Velo",
-                        identification: {
-                            type: "CPF",
-                            number: uniquePayerCpf
-                        }
-                    },
-                    external_reference: `fatura_saas_${storeId}_${finalInvoiceId}`,
-                    notification_url: `https://${req.headers.host}/api/mp-webhook`
-                })
+                body: JSON.stringify(paymentPayload)
             });
 
             const data = await mpResponse.json();
 
             if (!mpResponse.ok || !data.point_of_interaction?.transaction_data) {
-                console.error("Erro ao gerar PIX Transparente SaaS:", data);
-                return res.status(400).json({ error: "Erro ao comunicar com Mercado Pago.", details: data });
+                console.error("Erro ao gerar PIX Transparente SaaS (PolicyAgent):", data);
+                return res.status(400).json({ error: "O Mercado Pago recusou a transação (Antifraude).", details: data });
             }
 
             return res.status(200).json({ 
