@@ -282,6 +282,19 @@ export default async function handler(req, res) {
     req.query = { ...req.query, ...queryParams };
 
     // ========================================================================
+    // 🌐 GLOBAL CORS INTERCEPTOR (Previne bloqueios em domínios próprios)
+    // ========================================================================
+    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+
+    // Navegadores não enviam Token no OPTIONS. Resolvemos o CORS e liberamos a passagem.
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    // ========================================================================
     // 🛡️ BLINDAGEM A2: MIDDLEWARE DE AUTENTICAÇÃO GLOBAL (ZERO TRUST)
     // ========================================================================
     // Lista de rotas que NÃO exigem token do painel lojista (Webhooks, Cron, Público)
@@ -306,7 +319,9 @@ export default async function handler(req, res) {
         '/api/velopay-status',
         '/api/binance-checkout',
         '/api/google-order-feed',
-        '/api/og'
+        '/api/og',
+        '/api/pay-subscription-mp',      // <-- ADICIONADO P/ LIBERAR O CARTÃO DA FATURA
+        '/api/pay-subscription-mp-pix'   // <-- ADICIONADO P/ LIBERAR O PIX DA FATURA
     ];
 
     // Se a rota atual NÃO estiver na lista pública, exige autenticação
