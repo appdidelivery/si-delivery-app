@@ -322,6 +322,7 @@ export default async function handler(req, res) {
         '/api/og',
         '/api/pay-subscription-mp',      // <-- ADICIONADO P/ LIBERAR O CARTÃO DA FATURA
         '/api/pay-subscription-mp-pix',  // <-- ADICIONADO P/ LIBERAR O PIX DA FATURA
+        '/api/pay-subscription-efi-pix', // 🟢 NOVA ROTA ADICIONADA AQUI (Libera o PIX da Efí)
         '/api/velopay-webhook/pix'       // 🛡️ ADICIONADO: Exceção para o sufixo obrigatório da Efí
     ];
 
