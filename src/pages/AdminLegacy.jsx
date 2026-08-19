@@ -430,7 +430,8 @@ export default function Admin() {
 
         try {
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const apiUrl = isLocal ? '/api/pay-subscription-mp-pix' : 'https://app.velodelivery.com.br/api/pay-subscription-mp-pix';
+            // 🛡️ API Redirecionada para a Efí Bank (Bypass definitivo do MP)
+            const apiUrl = isLocal ? '/api/pay-subscription-efi-pix' : 'https://app.velodelivery.com.br/api/pay-subscription-efi-pix';
 
             const amountToPay = invoiceData?.total || 49.90;
             

@@ -519,45 +519,58 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------------------
-    // 3. CREATE CONNECT ACCOUNT
+    // 2.5 GERAR PIX DIRETO (TRANSPARENTE) PARA FATURA VELO SAAS VIA EFÍ BANK
     // ------------------------------------------------------------------------
-    else if (path === '/api/create-connect-account') {
-        if (!STRIPE_ENABLED) return res.status(404).json({ error: 'Stripe temporariamente desativada.' });
-        if (req.method !== 'POST') return res.status(405).end();
+    else if (path === '/api/pay-subscription-efi-pix') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        const { storeId, amount, invoiceId } = req.body;
+        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para PIX.' });
+
         try {
-            const { storeId } = req.body;
-            // 1. Cria a conta base na Stripe
-            const account = await stripe.accounts.create({
-                type: 'express',
-                country: 'BR',
-                capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-                metadata: { storeId: storeId }
+            const finalInvoiceId = invoiceId || 'avulsa';
+
+            // Carrega o Certificado P12 igual fazemos no VeloPay
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+            
+            const efiOptions = {
+                sandbox: false, // Produção
+                client_id: process.env.EFI_CLIENT_ID,
+                client_secret: process.env.EFI_CLIENT_SECRET,
+                pix_cert: certPath 
+            };
+
+            const gerencianet = new Gerencianet(efiOptions);
+
+            // Monta o payload injetando a identificação da loja no "infoAdicionais"
+            const body = {
+                calendario: { expiracao: 3600 },
+                valor: { original: Number(amount).toFixed(2) },
+                chave: process.env.EFI_PIX_KEY, // A chave cadastrada na Efí
+                solicitacaoPagador: `Fatura Velo Delivery - ${storeId}`,
+                infoAdicionais: [
+                    { nome: "storeId", valor: storeId },
+                    { nome: "invoiceId", valor: finalInvoiceId }
+                ]
+            };
+
+            // Gera a cobrança instantânea
+            const cobResponse = await gerencianet.pixCreateImmediateCharge([], body);
+            
+            // Pega a imagem do QR Code
+            const qrCodeResponse = await gerencianet.pixGenerateQRCode({ id: cobResponse.loc.id });
+
+            return res.status(200).json({ 
+                success: true,
+                qrCodeBase64: qrCodeResponse.imagemQrcode.replace('data:image/png;base64,', ''),
+                copiaECola: qrCodeResponse.qrcode,
+                paymentId: cobResponse.txid
             });
 
-            // 2. Chama a API de Capabilities separadamente para injetar a permissão do PIX
-            try {
-                await stripe.accounts.updateCapability(
-                    account.id,
-                    'pix_payments',
-                    { requested: true }
-                );
-                console.log(`[Stripe Connect] Capability pix_payments solicitada para ${account.id}`);
-            } catch (pixError) {
-                // Logamos o erro da capability mas não travamos a criação da conta
-                console.error(`[Stripe Connect] Falha ao solicitar pix_payments para ${account.id}:`, pixError.message);
-            }
-
-            // 3. Gera o link de onboarding
-            const accountLink = await stripe.accountLinks.create({
-                account: account.id,
-                refresh_url: `${req.headers.origin}/admin?stripe_error=true`,
-                return_url: `${req.headers.origin}/admin?stripe_connected=${account.id}`,
-                type: 'account_onboarding',
-            });
-            return res.status(200).json({ url: accountLink.url });
         } catch (error) {
-            console.error('Erro ao criar conta Connect:', error);
-            return res.status(500).json({ error: error.message });
+            const efiError = error.response || error.message || error;
+            console.error('❌ Erro na geração PIX SaaS Efí:', JSON.stringify(efiError));
+            return res.status(500).json({ error: 'Erro interno ao comunicar com a Efí.' });
         }
     }
 
@@ -4045,7 +4058,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
         }
     }
    // ------------------------------------------------------------------------
-    // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK) - BLINDADO (A4)
+    // 18. VELOPAY: WEBHOOK DE CONFIRMAÇÃO (EFÍ BANK) - BLINDADO (A4 + SAAS)
     // ------------------------------------------------------------------------
     else if (path === '/api/velopay-webhook' || path === '/api/velopay-webhook/pix') {
         if (req.method !== 'POST') return res.status(405).end();
@@ -4055,7 +4068,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             
             if (pixDataList && Array.isArray(pixDataList)) {
                 
-                // 🛡️ BLINDAGEM A4: Inicializa o SDK da Efí para consultar a fonte da verdade
+                // 🛡️ Inicializa o SDK da Efí para consultar a fonte da verdade
                 const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
                 const efiOptions = {
                     sandbox: false,
@@ -4068,8 +4081,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 for (const pix of pixDataList) {
                     const txid = pix.txid; 
                     
-                    // 🛡️ BLINDAGEM A4: Não confiamos no 'pix.valor' do webhook (pode ser um hacker).
-                    // Nós pegamos o txid recebido e perguntamos diretamente para a Efí se isso é real.
                     console.log(`[VeloPay Webhook] Recebido aviso para TXID: ${txid}. Validando autenticidade com a Efí...`);
                     
                     let statusOficial;
@@ -4077,22 +4088,21 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         const chargeDetails = await gerencianet.pixDetailCharge({ txid });
                         statusOficial = chargeDetails.status;
                     } catch (efiErr) {
-                        console.error(`🚨 [SECURITY A4] Falha ao validar TXID ${txid} na Efí. Possível tentativa de fraude:`, efiErr.message);
-                        continue; // Pula este pagamento se a Efí não reconhecer o ID
+                        console.error(`🚨 [SECURITY A4] Falha ao validar TXID ${txid} na Efí:`, efiErr.message);
+                        continue;
                     }
 
-                    // Só prossegue se a própria Efí confirmar que o dinheiro está na conta
                     if (statusOficial === 'CONCLUIDA') {
-                        // 1. Procura o pedido no Firestore que tem este txid
+                        // 1. Procura se este TXID pertence a um pedido normal do VeloPay
                         const ordersRef = db.collection('orders');
                         const q = await ordersRef.where('paymentIntentId', '==', txid).limit(1).get();
 
                         if (!q.empty) {
+                            // É UM PEDIDO DE CLIENTE (VELOPAY NORMAL)
                             const orderDoc = q.docs[0];
                             const orderData = orderDoc.data();
-                            const valorPagoReal = orderData.total; // Usamos o valor do nosso banco para as métricas, não o do hacker
+                            const valorPagoReal = orderData.total; 
                             
-                            // 2. Evita processar em duplicado
                             if (orderData.paymentStatus !== 'paid') {
                                 const storeId = orderData.storeId;
                                 const batch = db.batch();
@@ -4110,13 +4120,60 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                 }, { merge: true });
 
                                 await batch.commit();
-                                console.log(`✅ [VeloPay Webhook Seguro] TXID validado na Efí. Pedido ${orderDoc.id} atualizado para PAGO!`);
+                                console.log(`✅ [VeloPay] Pedido ${orderDoc.id} atualizado para PAGO!`);
                             }
                         } else {
-                            console.warn(`[VeloPay Webhook] TXID ${txid} autêntico, mas não encontrado no nosso banco de dados.`);
+                            // 2. SE NÃO ACHOU PEDIDO, VERIFICA SE É MENSALIDADE SAAS (Olhando o infoAdicionais)
+                            let saasStoreId = null;
+                            let saasInvoiceId = null;
+
+                            if (pix.infoAdicionais && Array.isArray(pix.infoAdicionais)) {
+                                const infoStore = pix.infoAdicionais.find(i => i.nome === "storeId");
+                                const infoInvoice = pix.infoAdicionais.find(i => i.nome === "invoiceId");
+                                if (infoStore) saasStoreId = infoStore.valor;
+                                if (infoInvoice) saasInvoiceId = infoInvoice.valor;
+                            }
+
+                            if (saasStoreId) {
+                                // É UMA MENSALIDADE SAAS! DANDO BAIXA NO FIREBASE!
+                                console.log(`🚀 [SaaS Webhook] Pagamento de fatura recebido para a loja: ${saasStoreId}`);
+                                
+                                const storeRef = db.collection('stores').doc(saasStoreId);
+                                const storeDoc = await storeRef.get();
+                                let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
+                                
+                                faturasHistorico = faturasHistorico.map(fatura => {
+                                    if (fatura.id === saasInvoiceId || ((!saasInvoiceId || saasInvoiceId === 'avulsa') && (fatura.status === 'PENDENTE' || fatura.status === 'pendente'))) {
+                                        return { ...fatura, status: 'PAGO' };
+                                    }
+                                    return fatura;
+                                });
+
+                                const batch = db.batch();
+                                
+                                batch.set(storeRef, {
+                                    billingStatus: 'ativo',
+                                    paymentStatus: 'paid',
+                                    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
+                                    faturasHistorico: faturasHistorico
+                                }, { merge: true });
+
+                                if (saasInvoiceId && saasInvoiceId !== 'avulsa') {
+                                    const analyticsInvoiceRef = storeRef.collection('analytics').doc(saasInvoiceId);
+                                    batch.set(analyticsInvoiceRef, {
+                                        status: 'PAGO',
+                                        paidAt: admin.firestore.FieldValue.serverTimestamp()
+                                    }, { merge: true });
+                                }
+
+                                await batch.commit();
+                                console.log(`✅ [SaaS Webhook] Loja ${saasStoreId} desbloqueada com sucesso!`);
+                            } else {
+                                console.warn(`[VeloPay Webhook] TXID ${txid} autêntico, mas não encontrado no banco e sem tags SaaS.`);
+                            }
                         }
                     } else {
-                        console.warn(`🚨 [SECURITY A4] Alerta de Fraude: Webhook recebido, mas a Efí diz que o status real é '${statusOficial}'. Ignorando alteração.`);
+                        console.warn(`🚨 [SECURITY A4] Efí retornou status '${statusOficial}' para o TXID ${txid}.`);
                     }
                 }
             } else if (req.body.acao === 'teste') {
