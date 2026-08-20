@@ -8,8 +8,10 @@ import {
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
     Save, X, MessageCircle, Crown, Flame, Trophy, MapPin, ShieldCheck, Printer, Bell, Wallet, Server, Database, HardDrive, FileText, QrCode, Ghost, PlusCircle, ExternalLink, LogOut, UploadCloud, Loader2, List, Image, Tags, Search, Link, ImageIcon, Calendar, MessageSquare, PlusSquare, MinusSquare, TrendingUp, Landmark, Star, Globe, 
-    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Menu, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt, Bitcoin
+    CreditCard, Banknote, Pizza, Coffee, IceCream, Sandwich, Menu, Candy, Beer, Wine, Martini, Utensils, UserPlus, Shield, RefreshCw, Gift, Medal, Award, Share2, Copy, Eye, EyeOff, Truck, CheckCircle, XCircle, Palmtree, Handshake, Megaphone, Zap, Camera, Lock, CheckCircle2, Receipt, Bitcoin, ScanLine // <-- ADICIONADO ScanLine AQUI
 } from 'lucide-react';
+
+import { Html5QrcodeScanner } from 'html5-qrcode'; // <-- NOVA IMPORTAÇÃO DO LEITOR
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
 import { signOut, sendPasswordResetEmail } from 'firebase/auth';
@@ -1409,6 +1411,55 @@ const educationalBanners = [
     const [stockMovementType, setStockMovementType] = useState('add'); // 'add', 'remove', 'set'
     const [stockMovementQuantity, setStockMovementQuantity] = useState('');
     const [isSavingStock, setIsSavingStock] = useState(false);
+    const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+
+    // --- MOTOR DA CÂMERA DO ESTOQUE (COLOCADO NO LUGAR CORRETO) ---
+    useEffect(() => {
+        let scanner = null;
+        
+        if (isCameraScannerOpen) {
+            // Um pequeno delay garante que o modal de fato já abriu na tela antes de ligar a câmera
+            setTimeout(() => {
+                scanner = new Html5QrcodeScanner(
+                    "reader", 
+                    { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 },
+                    false
+                );
+                
+                scanner.render(
+                    (decodedText) => {
+                        // 1. Achou o código: Limpa e fecha a câmera
+                        scanner.clear();
+                        setIsCameraScannerOpen(false);
+                        
+                        // 2. Toca som
+                        new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(()=>{});
+
+                        // 3. Busca o produto
+                        const foundProduct = products.find(p => p.id === decodedText || p.gtin === decodedText);
+                        
+                        if (foundProduct) {
+                            setStockMovementProduct(foundProduct);
+                            setStockMovementType('add');
+                            setStockMovementQuantity('');
+                            setIsStockModalOpen(true); // Abre seu modal
+                        } else {
+                            new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(()=>{});
+                            alert(`⚠️ Nenhum produto encontrado com o código: ${decodedText}`);
+                        }
+                    }, 
+                    (error) => { /* ignora avisos de frame vazio */ }
+                );
+            }, 150);
+        }
+
+        return () => {
+            if (scanner) {
+                scanner.clear().catch(e => console.error(e));
+            }
+        };
+    }, [isCameraScannerOpen, products]);
+    // --------------------------------------------------------------
 
     const handleSaveStockMovement = async (e) => {
         e.preventDefault();
@@ -7205,8 +7256,16 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </button>
 
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs">
-                                   + Novo Item
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-1">
+                                   <Plus size={16} className="hidden md:block"/> Novo Item
+                               </button>
+
+                               {/* NOVO: BOTÃO DO LEITOR MOBILE */}
+                               <button 
+                                   onClick={() => setIsCameraScannerOpen(true)}
+                                   className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black shadow-lg uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-2 hover:bg-slate-800 active:scale-95 transition-all md:hidden"
+                               >
+                                   <ScanLine size={16} /> Ler Código
                                </button>
                             </div>
                         </div>
@@ -16934,6 +16993,38 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     </motion.div>
                 )}
             </AnimatePresence>
+
+                        {/* --- INÍCIO: MODAL DA CÂMERA MOBILE (CÓDIGO DE BARRAS) --- */}
+            <AnimatePresence>
+                {isCameraScannerOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[600] flex flex-col p-4 pb-10">
+                        <div className="flex justify-between items-center mb-6 pt-4 px-2">
+                            <div>
+                                <h2 className="text-xl font-black italic uppercase text-white flex items-center gap-2">
+                                    <ScanLine className="text-blue-400"/> Escanear Produto
+                                </h2>
+                                <p className="text-[10px] font-bold text-slate-400">Aponte a câmera para o código de barras (EAN/GTIN).</p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setIsCameraScannerOpen(false);
+                                    // Limpeza forçada da câmera ao fechar
+                                    setTimeout(() => window.location.reload(), 100);
+                                }} 
+                                className="p-3 bg-white/10 rounded-full hover:bg-white/20 text-white transition-colors"
+                            >
+                                <X size={24}/>
+                            </button>
+                        </div>
+
+                        {/* A câmera renderiza exatamente dentro desta DIV com id="reader" */}
+                        <div className="flex-1 bg-black rounded-3xl overflow-hidden relative border-2 border-white/20 shadow-2xl flex items-center justify-center">
+                            <div id="reader" className="w-full h-full object-cover"></div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* --- FIM: MODAL DA CÂMERA MOBILE --- */}
 
             {/* WIDGET E FECHAMENTO DO ARQUIVO */}
             {storeStatus?.supportWidgetPosition !== 'hidden' && (
