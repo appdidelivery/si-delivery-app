@@ -4811,17 +4811,18 @@ const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
                 }
             }
 
-            const prompt = `Crie textos de vendas curtos para Delivery.
-            Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
+            const prompt = `Atue como Especialista em SEO e Copywriting para Delivery.
+Produto: ${productName} (R$ ${Number(productPrice).toFixed(2)}). Loja: ${storeName}. Nicho: ${storeNiche}.
 O link direto de compra é: ${exactProductLink}
 
 Retorne APENAS um JSON válido com 3 chaves:
-{"whatsapp": "1 frase com emojis", "instagram": "2 frases", "hashtags": "#delivery #promo"}`;
+{"whatsapp": "1 frase persuasiva com emojis e o preço", "instagram": "2 frases focadas em desejo e qualidade, com chamada para o link", "hashtags": "#delivery #promo"}`;
 
-            console.log(`🟡 [API CALL] Acionando motor de IA (Padrão Estoque) para: ${productName}`);
+            console.log(`🟡 [API CALL] Acionando motor de IA (GMB) para: ${productName}`);
 
-            // 🚀 AQUI ESTÁ A CORREÇÃO MESTRA: Usando os EXATOS MESMOS MODELOS que funcionam no Estoque!
-            const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+            // 🚀 CORREÇÃO DEFINITIVA: Usando os sufixos '-latest' para evitar o erro 404 (Model Not Found)
+            // e forçando a saída em JSON nativo (responseMimeType) para não quebrar o parser.
+            const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest'];
             let aiData = null;
             let responseOk = false;
 
@@ -4830,7 +4831,8 @@ Retorne APENAS um JSON válido com 3 chaves:
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: prompt }] }]
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
                     })
                 });
 
