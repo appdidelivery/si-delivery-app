@@ -4454,38 +4454,36 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             // CÓDIGO NOVO
 const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-// 🚀 MOTOR DE AUTO-CURA ESTÁVEL COM SUFIXO LATEST
-const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest'];
-            let aiData = null;
-            let responseOk = false;
+// 🚀 REMOVEMOS O LOOP PARA NÃO MASCARAR ERROS. 
+            // Usamos o modelo padrão 'gemini-1.5-flash' igual ao que funciona na sua aba de FAQ.
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
 
-            for (const model of modelsToTry) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { responseMimeType: "application/json" }
-                    })
-                });
+            const aiData = await response.json();
 
-                aiData = await response.json();
-
-                if (response.ok) {
-                    responseOk = true;
-                    break; // Se deu certo, para o loop e segue o baile!
-                }
-            }
-
-            if (!responseOk) {
-                console.error("🚨 DETALHES DO ERRO DO GOOGLE:", JSON.stringify(aiData, null, 2));
-                throw new Error(aiData.error?.message || "O Google recusou a requisição em todos os modelos.");
+            if (!response.ok) {
+                console.error("🚨 DETALHES DO ERRO DO GOOGLE (FLASH):", JSON.stringify(aiData, null, 2));
+                throw new Error(aiData.error?.message || "O Google recusou a requisição.");
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!rawJsonText) throw new Error("Resposta vazia da IA.");
 
-            const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            // 🛡️ EXTRATOR DE JSON BLINDADO (Ignora qualquer lixo ou markdown ao redor)
+            let cleanText = rawJsonText;
+            const firstBrace = cleanText.indexOf('{');
+            const lastBrace = cleanText.lastIndexOf('}');
+            
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                cleanText = cleanText.substring(firstBrace, lastBrace + 1);
+            } else {
+                throw new Error("A IA não retornou chaves JSON válidas.");
+            }
             
             let jsonResult;
             try {
