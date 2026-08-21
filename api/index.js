@@ -4531,49 +4531,19 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
               {"title": "Nome do Combo Criativo", "desc": "Descrição factual detalhando o que vem no combo, com gramaturas ou litros se aplicável.", "price": "Calcule um preço sugerido (ex: R$ 49,90)"}
             ]`;
 
-            // 🚀 MOTOR DE AUTO-CURA DEFINITIVO PARA OS COMBOS
-            let availableModels = ['gemini-1.5-flash', 'gemini-1.5-pro']; // Modelos modernos atualizados
-            
-            try {
-                // Pergunta pro Google quais modelos estão vivos na sua chave hoje
-                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
-                if (listRes.ok) {
-                    const listData = await listRes.json();
-                    if (listData.models) {
-                        const validModels = listData.models
-                            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('vision'))
-                            .map(m => m.name.replace('models/', ''));
-                        if (validModels.length > 0) availableModels = validModels;
-                    }
-                }
-            } catch (e) {
-                console.warn("Aviso: Falha ao listar modelos da chave. Usando fallback.");
-            }
+            // 🚀 MOTOR BLINDADO E ECONÔMICO (Apenas Flash - Custo Zero)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
 
-            let aiData = null;
-            let responseOk = false;
+            const aiData = await response.json();
 
-            // Roda a roleta apenas com os modelos reais da sua conta
-            for (const modelName of availableModels) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                });
-
-                aiData = await response.json();
-
-                if (response.ok) {
-                    responseOk = true;
-                    console.log(`✅ [IA Velo Combos] Sucesso! Modelo utilizado: ${modelName}`);
-                    break; // Sai do loop se deu certo
-                }
-            }
-
-            if (!responseOk) {
-                console.error("❌ Erro na API do Gemini (Combos):", aiData);
+            if (!response.ok) {
+                console.error("❌ Erro na API do Gemini (Combos):", JSON.stringify(aiData, null, 2));
                 return res.status(200).json({ success: false, error: "O Google rejeitou a requisição. Limite de cota ou erro na API." });
             }
 
@@ -4819,33 +4789,19 @@ Retorne APENAS um JSON válido com 3 chaves:
 
             console.log(`🟡 [API CALL] Acionando motor de IA (GMB) para: ${productName}`);
 
-            // 🚀 CORREÇÃO DEFINITIVA: Usando os sufixos '-latest' para evitar o erro 404 (Model Not Found)
-            // e forçando a saída em JSON nativo (responseMimeType) para não quebrar o parser.
-            const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest'];
-            let aiData = null;
-            let responseOk = false;
+            // 🚀 MOTOR BLINDADO E ECONÔMICO (Apenas Flash - Custo Zero)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
 
-            for (const model of modelsToTry) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { responseMimeType: "application/json" }
-                    })
-                });
+            const aiData = await response.json();
 
-                aiData = await response.json();
-
-                if (response.ok) {
-                    responseOk = true;
-                    console.log(`✅ Sucesso na Promoção com o modelo: ${model}`);
-                    break;
-                }
-            }
-
-            if (!responseOk) {
-                console.error("🔴 ERRO CRÍTICO ABERTO (Google API):", JSON.stringify(aiData, null, 2));
+            if (!response.ok) {
+                console.error("🔴 ERRO DO GOOGLE (GMB COPY):", JSON.stringify(aiData, null, 2));
                 return res.status(200).json({ success: false, error: `Google API Error: ${aiData.error?.message || 'Modelo rejeitado'}` });
             }
 
@@ -4853,8 +4809,16 @@ Retorne APENAS um JSON válido com 3 chaves:
             if (!rawJsonText) return res.status(200).json({ success: false, error: "Texto vazio retornado pela IA." });
             
             try {
-                // Limpa marcações markdown se a IA colocar
-                const cleanJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                // 🛡️ Extrator JSON Blindado (Ignora Markdown e recusa falhas de parse)
+                let cleanJsonText = rawJsonText;
+                const firstBrace = cleanJsonText.indexOf('{');
+                const lastBrace = cleanJsonText.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    cleanJsonText = cleanJsonText.substring(firstBrace, lastBrace + 1);
+                } else {
+                    throw new Error("Formato JSON não encontrado na resposta.");
+                }
+
                 const parsedResult = JSON.parse(cleanJsonText);
                 
                 const instagramComHashtags = `${parsedResult.instagram}\n\n${parsedResult.hashtags}`;
