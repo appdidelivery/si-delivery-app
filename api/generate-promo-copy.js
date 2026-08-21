@@ -95,36 +95,41 @@ Formato exigido:
 
         console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
-        let aiData = null;
-        let responseOk = false;
+        // 🚀 CÓDIGO DE DIAGNÓSTICO E AUTO-CURA (Apenas Flash Gratuito)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
 
-        for (const model of modelsToTry) {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
+        const aiData = await response.json();
+
+        // SE O GOOGLE BLOQUEAR, IMPRIME A VERDADE NUA E CRUA NO LOG DA VERCEL
+        if (!response.ok) {
+            console.error("🚨 ERRO REAL DO GOOGLE (FLASH):", {
+                statusHttp: response.status,
+                chaveUsada: GEMINI_KEY ? GEMINI_KEY.substring(0, 8) + '...' : 'CHAVE_AUSENTE',
+                erroDetalhado: aiData
             });
-
-            aiData = await response.json();
-
-            if (response.ok) {
-                responseOk = true;
-                break;
-            }
-        }
-
-        if (!responseOk) {
-            console.error("🚨 ERRO DO GOOGLE:", JSON.stringify(aiData));
-            return res.status(200).json({ success: false, error: aiData.error?.message || "Erro no Google." });
+            return res.status(200).json({ success: false, error: "Erro de permissão na chave do Google. Olhe o log da Vercel." });
         }
 
         const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!rawJsonText) throw new Error("A IA retornou vazio.");
 
-        const cleanText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        // 🛡️ EXTRATOR DE JSON BLINDADO (Ignora qualquer lixo ou markdown ao redor)
+        let cleanText = rawJsonText;
+        const firstBrace = cleanText.indexOf('{');
+        const lastBrace = cleanText.lastIndexOf('}');
+        
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            cleanText = cleanText.substring(firstBrace, lastBrace + 1);
+        } else {
+            throw new Error("A IA não retornou um formato JSON válido.");
+        }
+        
         const jsonResult = JSON.parse(cleanText);
 
         const instagramComHashtags = `${jsonResult.instagram}\n\n${jsonResult.hashtags}`;
