@@ -4452,10 +4452,10 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             }
 
             // CÓDIGO NOVO
-const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. É PROIBIDO adicionar saudações, explicações ou marcadores markdown (\`\`\`json). Formato exigido: {"nome": "...", "descricao": "..."}`;
+const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-// 🚀 MOTOR DE AUTO-CURA ESTÁVEL
-const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+// 🚀 MOTOR DE AUTO-CURA ESTÁVEL COM SUFIXO LATEST
+const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest'];
             let aiData = null;
             let responseOk = false;
 
@@ -4464,7 +4464,8 @@ const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro'];
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
                     })
                 });
 
