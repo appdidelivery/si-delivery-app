@@ -1418,7 +1418,6 @@ const educationalBanners = [
         let scanner = null;
         
         if (isCameraScannerOpen) {
-            // Um pequeno delay garante que o modal de fato já abriu na tela antes de ligar a câmera
             setTimeout(() => {
                 scanner = new Html5QrcodeScanner(
                     "reader", 
@@ -1426,26 +1425,56 @@ const educationalBanners = [
                     false
                 );
                 
+                // MÁGICA 1: Transformamos a função interna em 'async' para poder buscar na internet
                 scanner.render(
-                    (decodedText) => {
-                        // 1. Achou o código: Limpa e fecha a câmera
+                    async (decodedText) => {
                         scanner.clear();
                         setIsCameraScannerOpen(false);
                         
-                        // 2. Toca som
-                        new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(()=>{});
-
-                        // 3. Busca o produto
                         const foundProduct = products.find(p => p.id === decodedText || p.gtin === decodedText);
                         
                         if (foundProduct) {
+                            new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(()=>{});
                             setStockMovementProduct(foundProduct);
                             setStockMovementType('add');
                             setStockMovementQuantity('');
-                            setIsStockModalOpen(true); // Abre seu modal
+                            setIsStockModalOpen(true);
                         } else {
+                            // --- NOVA LÓGICA: PRODUTO NÃO ENCONTRADO (AUTO CADASTRO) ---
                             new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3').play().catch(()=>{});
-                            alert(`⚠️ Nenhum produto encontrado com o código: ${decodedText}`);
+                            
+                            // Pergunta se quer cadastrar
+                            if (window.confirm(`Produto não encontrado no estoque!\nDeseja cadastrar um novo produto com o código ${decodedText}?`)) {
+                                
+                                let novoNome = '';
+                                let novaMarca = '';
+
+                                // MÁGICA 2: Bate na BrasilAPI para tentar achar o nome do produto pelo código de barras
+                                try {
+                                    const res = await fetch(`https://brasilapi.com.br/api/ean/v1/${decodedText}`);
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        novoNome = data.nome || '';
+                                        novaMarca = data.marca || '';
+                                    }
+                                } catch (e) {
+                                    console.log("Código EAN não localizado na base pública.", e);
+                                }
+
+                                // MÁGICA 3: Abre a tela de "Novo Item" já preenchida
+                                setEditingId(null);
+                                setForm({ 
+                                    name: novoNome, 
+                                    brand: novaMarca,
+                                    gtin: decodedText, // Já cola o código lido!
+                                    description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true 
+                                });
+                                
+                                // BÔNUS: Joga o nome do produto no campo da IA para facilitar a vida do lojista
+                                if (novoNome) setTermoIA(novoNome);
+
+                                setIsModalOpen(true); // Abre a tela
+                            }
                         }
                     }, 
                     (error) => { /* ignora avisos de frame vazio */ }
