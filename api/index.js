@@ -4459,7 +4459,7 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
 
 // ☢️ OPÇÃO NUCLEAR: Chumbando a chave direto no código para driblar o bug da Vercel
           const FORCED_KEY = "AQ.Ab8RN6KWFHtZ40JbQ1kbKPnE" + "JGsLNVc-Yk8lEodQ1MkcFG6Qrw";
-            
+              
             console.log(`🔑 FORÇANDO CHAVE RAIZ: ${FORCED_KEY ? FORCED_KEY.substring(0, 7) + '...' : 'Vazou'}`);
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${FORCED_KEY}`, {
