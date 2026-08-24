@@ -4472,7 +4472,16 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
 
             if (!response.ok) {
                 console.error("🚨 DETALHES DO ERRO DO GOOGLE (FLASH):", JSON.stringify(aiData, null, 2));
-                throw new Error(aiData.error?.message || "O Google recusou a requisição.");
+                
+                // TRADUTOR DE ERROS DO GOOGLE
+                let errorMessage = aiData.error?.message || "O Google recusou a requisição.";
+                if (errorMessage.includes("is not found")) {
+                    errorMessage = "O Google bloqueou a chave de API (Falta de faturamento/saldo ou chave excluída). Verifique o painel do Google AI Studio.";
+                } else if (errorMessage.includes("API key not valid")) {
+                    errorMessage = "A chave de API configurada na Vercel é inválida.";
+                }
+
+                throw new Error(errorMessage);
             }
 
             const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -4510,7 +4519,8 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
 
         } catch (error) {
             console.error("🔴 Erro na Rota de IA (Produto):", error.message);
-            return res.status(200).json({ success: false, error: 'Falha ao gerar texto. Tente novamente.' });
+            // AGORA ENVIAMOS O ERRO REAL (TRADUZIDO) PARA A TELA DO USUÁRIO
+            return res.status(200).json({ success: false, error: `Erro na IA: ${error.message}` });
         }
     }
     // ------------------------------------------------------------------------
