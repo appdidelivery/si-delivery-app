@@ -4457,11 +4457,12 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1/model
             // CÓDIGO NOVO
 const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-// ESPIÃO DE CHAVE: Mostra na Vercel se estamos usando a chave velha ou nova
-            console.log(`🔑 Chave sendo enviada pro Google: ${GEMINI_KEY ? GEMINI_KEY.substring(0, 5) + '...' : 'NENHUMA'}`);
+// 🚨 FORÇA BRUTA: Puxa direto da raiz do servidor para ignorar qualquer sobrescrita no código
+            const FORCED_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+            
+            console.log(`🔑 FORÇANDO CHAVE RAIZ: ${FORCED_KEY ? FORCED_KEY.substring(0, 7) + '...' : 'Vazou'}`);
 
-            // URL UNIVERSAL ESTÁVEL
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${FORCED_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
