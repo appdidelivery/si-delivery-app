@@ -85,7 +85,7 @@ DADOS DA LOJA E PRODUTO:
 - Link de Compra: ${exactProductLink}
 
 REGRAS DE CONTEÚDO:
-1. "instagram": Será usado na vitrine do Google. Escreva 1 parágrafo (máximo de 350 caracteres). Aplique E-E-A-T: demonstre especialidade mencionando sutilmente a qualidade ou estado do produto (ex: trincando de gelado para bebidas, recém-preparado para lanches). O tom de voz DEVE se adaptar ao nicho da loja. Posicione a loja como a melhor opção local.
+1. "instagram": Será usado na vitrine do Google. Escreva 1 parágrafo (máximo de 350 caracteres). Aplique E-E-A-T: demonstre especialidade mencionando sutilmente a qualidade ou estado do produto (ex: trincando de gelado para bebidas, recém-preparado para lanches). O tom de voz DEVE se adaptar ao nicho da loja. Posicione a loja como a melhor opção local. IMPORTANTE: NÃO insira a URL do site no texto, o sistema fará isso.
 2. "whatsapp": 1 frase curta e magnética, soando como um vendedor humano mandando mensagem, contendo o preço e o gatilho de desejo.
 3. "hashtags": 4 a 5 hashtags focadas especificamente no produto e no nicho, sem tags genéricas soltas.
 
