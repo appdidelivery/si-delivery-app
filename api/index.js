@@ -745,7 +745,7 @@ export default async function handler(req, res) {
                                 if (GEMINI_KEY && cartItems) {
                                     const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
 
-const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                                             method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
@@ -4286,7 +4286,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada restaurada para a versão estável do Gemini
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4403,7 +4403,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4459,7 +4459,7 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
 
 // 🚀 REMOVEMOS O LOOP PARA NÃO MASCARAR ERROS. 
             // Usamos o modelo padrão 'gemini-1.5-flash' igual ao que funciona na sua aba de FAQ.
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4536,7 +4536,7 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
             ]`;
 
             // 🚀 MOTOR BLINDADO E ECONÔMICO (Apenas Flash - Custo Zero)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4795,7 +4795,7 @@ Retorne APENAS um JSON válido com 3 chaves:
             console.log(`🟡 [API CALL] Acionando motor de IA (GMB) para: ${productName}`);
 
             // 🚀 MOTOR BLINDADO E ECONÔMICO (Apenas Flash - Custo Zero)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6046,7 +6046,7 @@ Retorne APENAS um JSON válido com 3 chaves:
               {"question": "Pergunta 2?", "answer": "Resposta 2."}
             ]`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

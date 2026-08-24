@@ -439,7 +439,7 @@ Regras Absolutas:
 
             const fullPrompt = `${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"`;
 
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
 ?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
