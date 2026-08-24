@@ -4462,8 +4462,8 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
               
             console.log(`🔑 FORÇANDO CHAVE RAIZ: ${FORCED_KEY ? FORCED_KEY.substring(0, 7) + '...' : 'Vazou'}`);
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${FORCED_KEY}`, {
-                method: 'POST',
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${FORCED_KEY}`, {
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }]
