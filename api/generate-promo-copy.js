@@ -132,7 +132,8 @@ Formato exigido:
         
         const jsonResult = JSON.parse(cleanText);
 
-        const instagramComHashtags = `${jsonResult.instagram}\n\n${jsonResult.hashtags}`;
+        // Força a inserção da URL exata no texto, blindando contra resumos da IA
+        const instagramComHashtags = `${jsonResult.instagram}\n\n🛒 Link direto do produto:\n${exactProductLink}\n\n${jsonResult.hashtags}`;
 
         if (productId) {
             db.collection('ai_promo_cache').doc(productId).set({
