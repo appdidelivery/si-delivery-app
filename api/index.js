@@ -4457,10 +4457,11 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1/model
             // CÓDIGO NOVO
 const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
-// 🚀 REMOVEMOS O LOOP PARA NÃO MASCARAR ERROS. 
-            // Usamos o modelo padrão 'gemini-1.5-flash' igual ao que funciona na sua aba de FAQ.
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent
-?key=${GEMINI_KEY}`, {
+// ESPIÃO DE CHAVE: Mostra na Vercel se estamos usando a chave velha ou nova
+            console.log(`🔑 Chave sendo enviada pro Google: ${GEMINI_KEY ? GEMINI_KEY.substring(0, 5) + '...' : 'NENHUMA'}`);
+
+            // URL UNIVERSAL ESTÁVEL
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -4471,9 +4472,9 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
             const aiData = await response.json();
 
             if (!response.ok) {
-                console.error("🚨 DETALHES DO ERRO DO GOOGLE (FLASH):", JSON.stringify(aiData, null, 2));
+                // Removemos o 'null, 2' para a Vercel não encolher o erro em várias linhas!
+                console.error("🚨 ERRO CRU DO GOOGLE:", JSON.stringify(aiData));
                 
-                // TRADUTOR DE ERROS DO GOOGLE
                 let errorMessage = aiData.error?.message || "O Google recusou a requisição.";
                 if (errorMessage.includes("is not found")) {
                     errorMessage = "O Google bloqueou a chave de API (Falta de faturamento/saldo ou chave excluída). Verifique o painel do Google AI Studio.";
