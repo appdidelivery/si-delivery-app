@@ -96,7 +96,8 @@ Formato exigido:
         console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
         // 🚀 CÓDIGO DE DIAGNÓSTICO E AUTO-CURA (Apenas Flash Gratuito)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+?key=${GEMINI_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
