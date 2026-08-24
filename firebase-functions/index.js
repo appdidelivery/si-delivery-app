@@ -171,8 +171,7 @@ exports.gerarCopyProduto = onCall(
         try {
             // Inicializa o Gemini usando a mesma chave secreta que o seu widget já usa!
             const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: "v1beta" });
             const prompt = `
             Você é um especialista Sênior em Local SEO e Copywriting para Delivery.
             Sua missão é transformar um termo simples em um cadastro de produto altamente conversivo.
