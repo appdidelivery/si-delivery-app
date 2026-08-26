@@ -15207,11 +15207,57 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             }} className="text-[10px] text-red-500 font-bold uppercase tracking-widest hover:underline px-2 py-1 bg-red-50 rounded-lg">Desconectar</button>
                                                         </div>
                                                         
-                                                        {/* Exibe o que foi achado automaticamente pelo backend */}
-                                                        <div className="border-t border-slate-100 pt-3 flex flex-col gap-1">
-                                                            <p className="text-[9px] font-black uppercase text-slate-400">Ativos Detectados:</p>
-                                                            <p className="text-[10px] text-slate-600 font-bold">🎯 Conta: <span className="text-blue-600">{integrationForm.adAccountName || integrationForm.adAccountId || 'Não localizada'}</span></p>
-                                                            <p className="text-[10px] text-slate-600 font-bold">📄 Página: <span className="text-blue-600">{integrationForm.pageName || integrationForm.pageId || 'Não localizada'}</span></p>
+                                                        {/* Exibe o que foi achado automaticamente pelo backend (Agora em Dropdown) */}
+                                                        <div className="border-t border-slate-100 pt-3 flex flex-col gap-3">
+                                                            <p className="text-[9px] font-black uppercase text-slate-400">Ativos Detectados (Selecione o correto):</p>
+                                                            
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[10px] font-bold text-slate-600">🎯 Conta de Anúncios:</label>
+                                                                {integrationForm.availableAdAccounts && integrationForm.availableAdAccounts.length > 0 ? (
+                                                                    <select 
+                                                                        value={integrationForm.adAccountId || ''}
+                                                                        onChange={(e) => {
+                                                                            const selectedAcc = integrationForm.availableAdAccounts.find(acc => acc.id === e.target.value);
+                                                                            setIntegrationForm(prev => ({
+                                                                                ...prev, 
+                                                                                adAccountId: selectedAcc.id,
+                                                                                adAccountName: selectedAcc.name
+                                                                            }));
+                                                                        }}
+                                                                        className="w-full p-2 bg-blue-50 border border-blue-100 rounded-lg text-xs font-bold text-blue-800 outline-none focus:ring-2 ring-blue-500 cursor-pointer shadow-sm"
+                                                                    >
+                                                                        {integrationForm.availableAdAccounts.map(acc => (
+                                                                            <option key={acc.id} value={acc.id}>{acc.name} ({acc.id})</option>
+                                                                        ))}
+                                                                    </select>
+                                                                ) : (
+                                                                    <span className="text-blue-600 text-xs font-bold bg-slate-50 p-2 rounded-lg border border-slate-100">{integrationForm.adAccountName || integrationForm.adAccountId || 'Nenhuma localizada na sua conta.'}</span>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-[10px] font-bold text-slate-600">📄 Página do Facebook:</label>
+                                                                {integrationForm.availablePages && integrationForm.availablePages.length > 0 ? (
+                                                                    <select 
+                                                                        value={integrationForm.pageId || ''}
+                                                                        onChange={(e) => {
+                                                                            const selectedPage = integrationForm.availablePages.find(p => p.id === e.target.value);
+                                                                            setIntegrationForm(prev => ({
+                                                                                ...prev, 
+                                                                                pageId: selectedPage.id,
+                                                                                pageName: selectedPage.name
+                                                                            }));
+                                                                        }}
+                                                                        className="w-full p-2 bg-blue-50 border border-blue-100 rounded-lg text-xs font-bold text-blue-800 outline-none focus:ring-2 ring-blue-500 cursor-pointer shadow-sm"
+                                                                    >
+                                                                        {integrationForm.availablePages.map(p => (
+                                                                            <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                                                                        ))}
+                                                                    </select>
+                                                                ) : (
+                                                                    <span className="text-blue-600 text-xs font-bold bg-slate-50 p-2 rounded-lg border border-slate-100">{integrationForm.pageName || integrationForm.pageId || 'Nenhuma localizada na sua conta.'}</span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ) : (
