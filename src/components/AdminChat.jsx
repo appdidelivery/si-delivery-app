@@ -246,9 +246,15 @@ export default function AdminChat() {
         if (!storeId) return;
         // OTIMIZAÇÃO: Busca apenas as 800 mensagens mais recentes para não travar a memória
         // Tiramos o limite para parar de esconder as mensagens novas
+        // OTIMIZAÇÃO: Traz apenas conversas ativas das últimas 2 semanas.
+        // Salva banda, memória RAM e dinheiro no Firebase.
+        const fifteenDaysAgo = new Date();
+        fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+
         const q = query(
             collection(db, 'whatsapp_inbound'),
-            where('storeId', '==', storeId)
+            where('storeId', '==', storeId),
+            where('receivedAt', '>=', fifteenDaysAgo)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -1650,6 +1656,11 @@ export default function AdminChat() {
                                         // Remove o link e marcações do texto para virar apenas a legenda
                                         displayText = displayText.replace(displayMediaUrl, '').replace('Imagem:', '').replace('📷', '').trim();
                                     }
+                                }
+
+                                // 🟢 NOVA OTIMIZAÇÃO: Comprime as imagens pesadas antes de mostrar na tela
+                                if (displayMediaUrl && displayMediaUrl.includes('cloudinary.com') && displayMediaType === 'image') {
+                                    displayMediaUrl = displayMediaUrl.replace('/upload/', '/upload/c_limit,w_400,q_auto:eco/');
                                 }
                                 
                                 // NOVO: Flag para destacar a bolha específica
