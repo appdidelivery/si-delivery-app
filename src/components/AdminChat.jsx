@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db, auth } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, setDoc, deleteDoc, getDoc, getDocs, limit } from 'firebase/firestore';
 import { useStore } from '../context/StoreContext';
 import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud, BarChart3, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
