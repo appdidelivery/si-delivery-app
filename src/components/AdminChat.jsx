@@ -966,9 +966,9 @@ export default function AdminChat() {
         }
     };
     return (
-        <div className="flex h-[750px] border border-slate-200 rounded-2xl bg-[#f0f2f5] overflow-hidden shadow-lg">
+        <div className="flex h-187.5 border border-slate-200 rounded-2xl bg-[#f0f2f5] overflow-hidden shadow-lg">
             {/* Sidebar: Lista de Contatos */}
-            <div className="w-[35%] max-w-[400px] min-w-[300px] border-r border-gray-200 bg-white flex flex-col relative overflow-hidden">
+            <div className="w-[35%] max-w-100 min-w-75 border-r border-gray-200 bg-white flex flex-col relative overflow-hidden">
                 
                 {/* Header Sidebar (Gatilhos) */}
                 <div className="h-16 px-4 bg-[#f0f2f5] flex items-center justify-between border-b border-gray-200 shrink-0">
@@ -1692,12 +1692,12 @@ export default function AdminChat() {
                                         {/* Renderizador de Mídia INTELIGENTE */}
                                         {displayMediaType === 'image' && displayMediaUrl && (
                                             <div className="mb-1 mt-1 rounded-lg overflow-hidden cursor-pointer bg-black/5" onClick={() => window.open(displayMediaUrl, '_blank')}>
-                                                <img src={displayMediaUrl} className="max-w-[250px] max-h-[250px] w-auto h-auto object-cover rounded-md" alt="Anexo" />
+                                                <img src={displayMediaUrl} className="max-w-62.5 max-h-62.5 w-auto h-auto object-cover rounded-md" alt="Anexo" />
                                             </div>
                                         )}
                                         
                                         {displayMediaType === 'audio' && displayMediaUrl && (
-                                            <div className="mb-1 w-[250px] mt-1">
+                                            <div className="mb-1 w-62.5 mt-1">
                                                 <audio controls className="h-10 w-full">
                                                     <source src={displayMediaUrl} type="audio/mp3" />
                                                     <source src={displayMediaUrl} type="audio/ogg" />
@@ -1708,7 +1708,7 @@ export default function AdminChat() {
                                         {/* Renderizador de Documentos (PDF, Word, etc) */}
                                         {displayMediaType === 'document' && displayMediaUrl && (
                                             <div 
-                                                className="mb-2 mt-1 p-3 rounded-xl cursor-pointer bg-white border border-slate-200 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-3 w-[220px]" 
+                                                className="mb-2 mt-1 p-3 rounded-xl cursor-pointer bg-white border border-slate-200 shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center gap-3 w-55" 
                                                 onClick={() => window.open(displayMediaUrl, '_blank')}
                                                 title="Clique para abrir ou baixar o documento"
                                             >
@@ -1723,7 +1723,7 @@ export default function AdminChat() {
                                         )}
 
                                         {/* Texto / Legenda */}
-                                        {displayText && <span className="pr-12 whitespace-pre-wrap break-words break-all">{displayText}</span>}
+                                        {displayText && <span className="pr-12 whitespace-pre-wrap wrap-break-word break-all">{displayText}</span>}
                                         
                                         <div className={`text-[10px] text-gray-500 self-end ml-4 flex items-center gap-1 float-right ${(!displayText && displayMediaUrl) ? 'mt-1' : '-mt-1'}`}>
                                             {timeStr}
@@ -1916,7 +1916,7 @@ export default function AdminChat() {
 
                         {/* --- NOVA COLUNA: MINI PDV (SIDEBAR DIREITA) --- */}
                         {showMiniPdv && (
-                            <div className="absolute right-0 top-0 h-full z-40 w-full sm:w-[380px] md:w-[420px] bg-white border-l border-gray-200 flex flex-col shadow-[-15px_0_30px_-5px_rgba(0,0,0,0.1)] animate-in slide-in-from-right-8">
+                            <div className="absolute right-0 top-0 h-full z-40 w-full sm:w-95 md:w-105 bg-white border-l border-gray-200 flex flex-col shadow-[-15px_0_30px_-5px_rgba(0,0,0,0.1)] animate-in slide-in-from-right-8">
                                 <div className="h-16 px-4 bg-[#f0f2f5] flex items-center justify-between border-b border-gray-200 shrink-0">
                                     <div className="flex items-center gap-2">
                                         <ShoppingCart size={20} className="text-blue-600" />
