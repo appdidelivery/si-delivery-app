@@ -43,12 +43,24 @@ import {
     FaDroplet, FaDrumstickBite, FaIceCream, FaBreadSlice, FaStar,
     FaEgg, FaBacon, FaLemon, FaCakeCandles, FaPepperHot, FaBowlRice, FaHeart
 } from 'react-icons/fa6';
+// --- OTIMIZAÇÃO: LAZY LOADING DE COMPONENTES PESADOS ---
+import { lazy, Suspense } from 'react';
 import VeloSupportWidget from "../components/VeloSupportWidget";
-import AdminChat from '../components/AdminChat'; // Ajuste o caminho se salvou em outro local
 import { MissionTracker } from '../components/MissionTracker';
-import PartnersMarketplace from '../components/PartnersMarketplace';
-import GoogleIntegrationDashboard from '../components/GoogleIntegrationDashboard';
-import MetaAdsDashboard from '../components/MetaAdsDashboard';
+
+// Esses componentes só serão baixados pelo navegador QUANDO o lojista clicar na aba deles
+const AdminChat = lazy(() => import('../components/AdminChat'));
+const PartnersMarketplace = lazy(() => import('../components/PartnersMarketplace'));
+const GoogleIntegrationDashboard = lazy(() => import('../components/GoogleIntegrationDashboard'));
+const MetaAdsDashboard = lazy(() => import('../components/MetaAdsDashboard'));
+
+// Helper para mostrar algo enquanto a aba pesada está baixando
+const LoadingTab = () => (
+    <div className="flex flex-col items-center justify-center p-12 text-slate-400 gap-3">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+        <span className="text-xs font-black uppercase tracking-widest">Carregando Módulo...</span>
+    </div>
+);
 
 import { FaFacebook, FaInstagram, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
@@ -6157,7 +6169,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         
                         {/* VALIDAÇÃO: Só exibe o Chat se o ID e o Token da Meta estiverem salvos */}
                         {settings?.integrations?.whatsapp?.phoneNumberId && settings?.integrations?.whatsapp?.apiToken ? (
-                            <AdminChat />
+                            <Suspense fallback={<LoadingTab />}>
+                                <AdminChat />
+                            </Suspense>
                         ) : (
                             <div className="bg-white p-12 rounded-[3rem] border border-slate-100 text-center shadow-sm max-w-2xl mx-auto mt-12 animate-in zoom-in">
                                 <div className="w-24 h-24 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -10096,7 +10110,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
                 {/* --- ABA DE PARCEIROS VELO (B2B) --- */}
                 {activeTab === 'partners' && (
-                    <PartnersMarketplace />
+                    <Suspense fallback={<LoadingTab />}>
+                        <PartnersMarketplace />
+                    </Suspense>
                 )}
                 {/* --- ABA DE EQUIPE E USUÁRIOS --- */}
                 {activeTab === 'team' && (
@@ -13026,25 +13042,29 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {/* --- ABA GOOGLE MEU NEGÓCIO --- */}
 {activeTab === 'google_business' && (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <GoogleIntegrationDashboard 
-            storeId={storeId} 
-            products={products} 
-            storeStatus={storeStatus} 
-            settings={settings} 
-            uploadImageToCloudinary={uploadImageToCloudinary} 
-        />
+        <Suspense fallback={<LoadingTab />}>
+            <GoogleIntegrationDashboard 
+                storeId={storeId} 
+                products={products} 
+                storeStatus={storeStatus} 
+                settings={settings} 
+                uploadImageToCloudinary={uploadImageToCloudinary} 
+            />
+        </Suspense>
     </div>
 )}
 
                 {/* --- ABA META ADS (ANÚNCIOS) --- */}
 {activeTab === 'meta_ads' && (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <MetaAdsDashboard 
-            storeId={storeId} 
-            products={products} 
-            storeStatus={storeStatus} 
-            settings={settings}
-        />
+        <Suspense fallback={<LoadingTab />}>
+            <MetaAdsDashboard 
+                storeId={storeId} 
+                products={products} 
+                storeStatus={storeStatus} 
+                settings={settings}
+            />
+        </Suspense>
     </div>
 )}
             </main>
