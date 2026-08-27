@@ -1605,84 +1605,74 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
             // --- FIM: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
             // --- INÍCIO: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
             if (action === 'chat_reply') {
-    if (!toPhone) return res.status(400).json({ error: 'Telefone é obrigatório' });
-    
-    let cleanPhone = String(toPhone).replace(/\D/g, '');
-    if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
+                if (!toPhone) return res.status(400).json({ error: 'Telefone é obrigatório' });
+                
+                let cleanPhone = String(toPhone).replace(/\D/g, '');
+                if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
 
-    let textBody = dynamicParams?.text || '';
-    let mediaUrl = dynamicParams?.mediaUrl || null;
+                let textBody = dynamicParams?.text || '';
+                let mediaUrl = dynamicParams?.mediaUrl || null;
 
-    // Detecta automaticamente se o texto contém um link de imagem do Cloudinary
-    const urlRegex = /(https?:\/\/[^\s]+(?:jpg|jpeg|png|webp|gif|cloudinary\.com[^\s]*))/i;
-    const match = textBody.match(urlRegex);
+                // Detecta automaticamente se o texto contém um link de imagem
+                const urlRegex = /(https?:\/\/[^\s]+(?:jpg|jpeg|png|webp|gif|cloudinary\.com[^\s]*))/i;
+                const match = textBody.match(urlRegex);
 
-    if (!mediaUrl && match) {
-        mediaUrl = match[0];
-        // Tira o link do texto para que o texto vire apenas a legenda da imagem
-        textBody = textBody.replace(mediaUrl, '').trim(); 
-    }
+                if (!mediaUrl && match) {
+                    mediaUrl = match[0];
+                    textBody = textBody.replace(mediaUrl, '').trim(); 
+                }
 
-   let mediaType = dynamicParams?.mediaType || 'image';
+                let mediaType = dynamicParams?.mediaType || 'image';
 
-    let payload;
-    if (mediaUrl) {
-        payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: cleanPhone,
-            type: mediaType
-        };
-        payload[mediaType] = { link: mediaUrl };
-        if ((mediaType === 'image' || mediaType === 'video' || mediaType === 'document') && textBody) {
-            payload[mediaType].caption = textBody;
-        }
-    } else {
-        // Se não tem mídia, manda como texto puro validado
-        payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: cleanPhone,
-            type: "text",
-            text: { body: textBody }
-        };
-    }
-    
-    const response = await fetch(GRAPH_API_URL, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    
-    const data = await response.json();
-    if(response.ok) {
-        // Salva corretamente no Firebase para renderizar a miniatura na tela do lojista
-        /* IMPORTANTE: Comente a linha abaixo caso o seu frontend (AdminChat.jsx) 
-           já esteja salvando no Firebase, para evitar mensagens duplicadas. */
-        /*
-        await db.collection('whatsapp_inbound').add({
-             storeId: storeId, 
-             to: cleanPhone, 
-             text: textBody,
-             mediaUrl: mediaUrl, 
-             mediaType: mediaUrl ? 'image' : null,
-             receivedAt: admin.firestore.FieldValue.serverTimestamp(), 
-             status: 'read', 
-             direction: 'outbound'
-        });
-        */
-        return res.status(200).json({ success: true });
-    } else {
-        console.error("❌ Falha na API Meta [chat_reply]:", data);
-        let errorMsg = 'Falha ao enviar mensagem pela Meta.';
-        if (data.error && data.error.code === 131047) {
-            errorMsg = 'BLOQUEIO DA META: A janela de 24h expirou. Inicie uma nova conversa usando a aba Disparo em Massa.';
-        } else if (data.error && data.error.message) {
-            errorMsg = data.error.message;
-        }
-        return res.status(400).json({ error: errorMsg, details: data });
-    }
-}
+                // 1. Monta o Payload para a Meta API
+                let payload = {
+                    messaging_product: "whatsapp",
+                    recipient_type: "individual",
+                    to: cleanPhone
+                };
+
+                if (mediaUrl) {
+                    payload.type = mediaType;
+                    payload[mediaType] = { link: mediaUrl };
+                    if (textBody && (mediaType === 'image' || mediaType === 'document')) {
+                        payload[mediaType].caption = textBody; 
+                    }
+                } else {
+                    payload.type = "text";
+                    payload.text = { preview_url: false, body: textBody };
+                }
+
+                try {
+                    // 2. Faz o disparo
+                    const response = await fetch(GRAPH_API_URL, {
+                        method: 'POST',
+                        headers: { 
+                            'Authorization': `Bearer ${apiToken}`, 
+                            'Content-Type': 'application/json' 
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const data = await response.json();
+
+                    // 3. A HORA DA VERDADE: Se a Meta rejeitar, repassamos o erro pro Painel!
+                    if (!response.ok) {
+                        console.error(`❌ Erro da Meta API no chat_reply (${storeId}):`, JSON.stringify(data));
+                        return res.status(400).json({ 
+                            success: false, 
+                            error: 'A Meta recusou a mensagem.', 
+                            metaDetails: data 
+                        });
+                    }
+
+                    // 4. Se deu tudo certo
+                    return res.status(200).json({ success: true, message_id: data.messages?.[0]?.id });
+
+                } catch (error) {
+                    console.error("❌ Erro interno no servidor ao chamar Meta:", error);
+                    return res.status(500).json({ success: false, error: 'Falha de conexão com a API da Meta.' });
+                }
+            }
             // --- FIM: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
 
             return res.status(400).json({ error: 'Ação não reconhecida' });
