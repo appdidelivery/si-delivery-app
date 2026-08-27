@@ -245,10 +245,10 @@ export default function AdminChat() {
     useEffect(() => {
         if (!storeId) return;
         // OTIMIZAÇÃO: Busca apenas as 800 mensagens mais recentes para não travar a memória
+        // Tiramos o limite para parar de esconder as mensagens novas
         const q = query(
             collection(db, 'whatsapp_inbound'),
-            where('storeId', '==', storeId),
-            limit(800)
+            where('storeId', '==', storeId)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -314,35 +314,38 @@ export default function AdminChat() {
         }
     };
 
-   const chats = messages.reduce((acc, msg) => {
-        let rawPhone = msg.direction === 'outbound' ? msg.to : msg.from; 
-        if (!rawPhone) return acc;
-        
-        let phone = String(rawPhone).replace(/\D/g, '');
-        if (phone.startsWith('55')) phone = phone.substring(2);
-        
-        // DEVOLVEMOS A REGRA: O painel precisa do 9 para organizar a tela corretamente!
-        if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
-        
-        const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
+   // --- OTIMIZAÇÃO DE PERFORMANCE (Fim dos travamentos ao digitar!) ---
+    const chats = React.useMemo(() => {
+        return messages.reduce((acc, msg) => {
+            let rawPhone = msg.direction === 'outbound' ? msg.to : msg.from; 
+            if (!rawPhone) return acc;
+            
+            let phone = String(rawPhone).replace(/\D/g, '');
+            if (phone.startsWith('55')) phone = phone.substring(2);
+            
+            // Regra do 9º dígito mantida para agrupar as mensagens na tela corretamente
+            if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
+            
+            const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
-        if (!acc[phone]) {
-            acc[phone] = { phone, msgs: [], unreadCount: 0, pushName: clientName };
-        }
-        
-        if (clientName && !acc[phone].pushName) {
-            acc[phone].pushName = clientName;
-        }
-        
-        acc[phone].msgs.push(msg);
-        
-        if (msg.status === 'unread' && msg.direction !== 'outbound') {
-            acc[phone].unreadCount += 1;
-        }
-        return acc;
-    }, {});
+            if (!acc[phone]) {
+                acc[phone] = { phone, msgs: [], unreadCount: 0, pushName: clientName };
+            }
+            
+            if (clientName && !acc[phone].pushName) {
+                acc[phone].pushName = clientName;
+            }
+            
+            acc[phone].msgs.push(msg);
+            
+            if (msg.status === 'unread' && msg.direction !== 'outbound') {
+                acc[phone].unreadCount += 1;
+            }
+            return acc;
+        }, {});
+    }, [messages]);
 
-    const getDisplayName = (phone) => {
+    const getDisplayName = React.useCallback((phone) => {
         const crmName = customersData[phone]?.name;
         if (crmName && crmName.trim() !== '') return crmName;
         
@@ -353,26 +356,36 @@ export default function AdminChat() {
         if (pushName && pushName.trim() !== '') return pushName;
 
         return `+${phone}`;
-    };
+    }, [customersData, addressBook, chats]);
 
-    const chatList = Object.values(chats)
-        .filter(chat => filterUnread ? chat.unreadCount > 0 : true) 
-        .filter(chat => {
-            if (!chatSearchTerm) return true;
-            const searchLower = chatSearchTerm.toLowerCase();
-            const contactName = getDisplayName(chat.phone).toLowerCase();
-            const contactPhone = chat.phone.toLowerCase();
-            return contactName.includes(searchLower) || contactPhone.includes(searchLower);
-        })
-        .sort((a, b) => {
-        const lastMsgA = a.msgs[a.msgs.length - 1];
-        const lastMsgB = b.msgs[b.msgs.length - 1];
-        const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds ? lastMsgA.receivedAt.seconds * 1000 : Date.now());
-        const timeB = lastMsgB?.receivedAt?.toMillis ? lastMsgB.receivedAt.toMillis() : (lastMsgB?.receivedAt?.seconds ? lastMsgB.receivedAt.seconds * 1000 : Date.now());
-        return timeB - timeA; 
-    });
+    const chatList = React.useMemo(() => {
+        return Object.values(chats)
+            .filter(chat => filterUnread ? chat.unreadCount > 0 : true) 
+            .filter(chat => {
+                if (!chatSearchTerm) return true;
+                const searchLower = chatSearchTerm.toLowerCase();
+                const contactName = getDisplayName(chat.phone).toLowerCase();
+                const contactPhone = chat.phone.toLowerCase();
+                return contactName.includes(searchLower) || contactPhone.includes(searchLower);
+            })
+            .sort((a, b) => {
+                const lastMsgA = a.msgs[a.msgs.length - 1];
+                const lastMsgB = b.msgs[b.msgs.length - 1];
+                const timeA = lastMsgA?.receivedAt?.toMillis ? lastMsgA.receivedAt.toMillis() : (lastMsgA?.receivedAt?.seconds ? lastMsgA.receivedAt.seconds * 1000 : Date.now());
+                const timeB = lastMsgB?.receivedAt?.toMillis ? lastMsgB.receivedAt.toMillis() : (lastMsgB?.receivedAt?.seconds ? lastMsgB.receivedAt.seconds * 1000 : Date.now());
+                return timeB - timeA; 
+            });
+    }, [chats, filterUnread, chatSearchTerm, getDisplayName]);
     
-    const activeMessages = activeChat ? chats[activeChat]?.msgs || [] : [];
+    // Filtro inteligente e blindado: acha a mensagem mesmo se você abrir conversa sem o DDD ou sem o 9
+    const activeMessages = React.useMemo(() => {
+        if (!activeChat) return [];
+        let normalized = String(activeChat).replace(/\D/g, '');
+        if (normalized.startsWith('55')) normalized = normalized.substring(2);
+        if (normalized.length === 10) normalized = normalized.substring(0, 2) + '9' + normalized.substring(2);
+        return chats[normalized]?.msgs || [];
+    }, [activeChat, chats]);
+    // --------------------------------------------------------
 
     const handleOpenChat = async (phone) => {
         setActiveChat(phone);
