@@ -292,6 +292,9 @@ export default function AdminChat() {
                     let phone = String(data.customerPhone).replace(/\D/g, '');
                     if (phone.startsWith('55')) phone = phone.substring(2);
                     
+                    // DEVOLVEMOS A REGRA AQUI TAMBÉM
+                    if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
+                    
                     book[phone] = data.customerName;
                 }
             });
@@ -311,12 +314,16 @@ export default function AdminChat() {
         }
     };
 
-    const chats = messages.reduce((acc, msg) => {
+   const chats = messages.reduce((acc, msg) => {
         let rawPhone = msg.direction === 'outbound' ? msg.to : msg.from; 
         if (!rawPhone) return acc;
         
         let phone = String(rawPhone).replace(/\D/g, '');
-        if (phone.startsWith('55')) phone = phone.substring(2);        
+        if (phone.startsWith('55')) phone = phone.substring(2);
+        
+        // DEVOLVEMOS A REGRA: O painel precisa do 9 para organizar a tela corretamente!
+        if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
+        
         const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
         if (!acc[phone]) {
