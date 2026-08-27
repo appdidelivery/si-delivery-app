@@ -846,7 +846,8 @@ export default function AdminChat() {
 
             const data = await response.json();
 
-            if (data.success || response.ok) {
+            // CHECAGEM RIGOROSA: Tem que ser Status 200 E success: true
+            if (response.ok && data.success) {
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
                     to: safePhone,
@@ -871,11 +872,28 @@ export default function AdminChat() {
                 setReplyText('');
                 setReplyingTo(null); 
             } else {
-                alert('Erro ao enviar mensagem: ' + (data.error || 'Falha na Meta'));
+                // TRATAMENTO DE ERRO INTELIGENTE (Lendo o erro da Meta)
+                console.error('Erro detalhado da Meta:', data);
+                
+                let errorMsg = 'Falha ao enviar mensagem.\n\n';
+                const metaError = data.metaDetails?.error?.message || data.error;
+                
+                if (metaError) {
+                    errorMsg += `Motivo: ${metaError}`;
+                }
+
+                // Traduzindo os erros da Meta para você entender rápido no painel:
+                if (errorMsg.includes('outside the allowed window') || errorMsg.includes('more than 24 hours')) {
+                    errorMsg = "⚠️ JANELA DE 24H EXPIRADA!\n\nVocê não pode enviar texto livre porque a última mensagem do cliente foi há mais de 24 horas.\n\nSolução: Use a opção 'Iniciar Nova Conversa' com um Template para falar com ele.";
+                } else if (errorMsg.includes('Recipient phone number not in allowed list') || errorMsg.includes('test list')) {
+                    errorMsg = "🛑 BLOQUEIO MODO DEV DA META!\n\nSeu app no painel da Meta está em 'Modo de Desenvolvimento'. A Meta SÓ permite enviar mensagens para números cadastrados na aba 'Números de Teste'.\n\nSolução: Coloque o app 'Ao Vivo' na Meta ou cadastre este número lá.";
+                }
+
+                alert(errorMsg);
             }
         } catch (error) {
-            console.error('Erro:', error);
-            alert('Erro de conexão ao enviar mensagem.');
+            console.error('Erro de Rede:', error);
+            alert('Erro de conexão com o servidor. Verifique sua internet.');
         } finally {
             setLoadingSend(false);
         }
