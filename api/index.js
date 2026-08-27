@@ -1611,6 +1611,14 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
                 if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
 
                 // --- MÁGICA DA META: RESOLVE O BUG DO 9º DÍGITO DO BRASIL ---
+                if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
+                    const ddd = parseInt(cleanPhone.substring(2, 4));
+                    if (ddd > 28) {
+                        cleanPhone = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
+                    }
+                }
+                // -----------------------------------------------------------
+                // --- MÁGICA DA META: RESOLVE O BUG DO 9º DÍGITO DO BRASIL ---
                 // A Meta Cloud API exige que DDDs acima de 28 NÃO tenham o 9º dígito.
                 if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
                     const ddd = parseInt(cleanPhone.substring(2, 4));

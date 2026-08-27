@@ -291,7 +291,6 @@ export default function AdminChat() {
                 if (data.customerPhone && data.customerName) {
                     let phone = String(data.customerPhone).replace(/\D/g, '');
                     if (phone.startsWith('55')) phone = phone.substring(2);
-                    if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
                     
                     book[phone] = data.customerName;
                 }
@@ -317,9 +316,7 @@ export default function AdminChat() {
         if (!rawPhone) return acc;
         
         let phone = String(rawPhone).replace(/\D/g, '');
-        if (phone.startsWith('55')) phone = phone.substring(2);
-        if (phone.length === 10) phone = phone.substring(0, 2) + '9' + phone.substring(2);
-        
+        if (phone.startsWith('55')) phone = phone.substring(2);        
         const clientName = msg.pushName || msg.profileName || msg.senderName || msg.name || '';
 
         if (!acc[phone]) {
