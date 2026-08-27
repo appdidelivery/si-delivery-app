@@ -244,10 +244,11 @@ export default function AdminChat() {
 
     useEffect(() => {
         if (!storeId) return;
-
+        // OTIMIZAÇÃO: Busca apenas as 800 mensagens mais recentes para não travar a memória
         const q = query(
             collection(db, 'whatsapp_inbound'),
-            where('storeId', '==', storeId)
+            where('storeId', '==', storeId),
+            limit(800)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -281,7 +282,8 @@ export default function AdminChat() {
 
     useEffect(() => {
         if (!storeId) return;
-        const q = query(collection(db, 'orders'), where('storeId', '==', storeId));
+        // OTIMIZAÇÃO: Busca apenas os 100 últimos pedidos para montar a agenda de nomes
+        const q = query(collection(db, 'orders'), where('storeId', '==', storeId), limit(100));
         const unsub = onSnapshot(q, (snapshot) => {
             const book = {};
             snapshot.forEach(doc => {
