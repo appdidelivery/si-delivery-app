@@ -2339,6 +2339,7 @@ const [vipMissions, setVipMissions] = useState([]);
                 // Puxa as configurações da loja UMA VEZ por lote de atualizações (Otimização)
                 const stSnap = await getDoc(doc(db, "stores", storeId));
                 const autoPrintTrigger = stSnap.exists() ? (stSnap.data().autoPrintStatus || 'none') : 'none';
+                const autoPrintPosOrders = stSnap.exists() ? (stSnap.data().autoPrintPosOrders === true) : false; // Lê o novo botão do lojista
 
                 s.docChanges().forEach(async (change) => {
                     const newOrderData = { id: change.doc.id, ...change.doc.data() };
@@ -2347,21 +2348,26 @@ const [vipMissions, setVipMissions] = useState([]);
                     const isOnlinePayment = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago', 'mp_transparent', 'misto'].includes(newOrderData.paymentMethod);
                     const isPaid = ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(newOrderData.paymentStatus);
                     
-                    // Regra: Se for pagamento online e ainda não estiver pago, bloqueia a impressão
-                    const isPaymentBlocking = isOnlinePayment && !isPaid;
+                    // Identifica se o pedido foi feito manualmente pelo lojista (PDV ou Chat)
+                    const isPosOrder = ['manual', 'manual_pdv', 'whatsapp_pdv'].includes(newOrderData.source); 
+                    
+                    // Regras de Bloqueio de Impressão
+                    const isPaymentBlocking = isOnlinePayment && !isPaid; // Bloqueia App se não tiver pago
+                    const isPosPrintBlocking = isPosOrder && !autoPrintPosOrders; // Bloqueia o PDV se o botão na aba Loja estiver desligado
+                    
                     const matchesPrintTrigger = autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status;
 
                     // 1. PEDIDO NOVO ("AO RECEBER")
                     if (change.type === "added") {
-                        // 🔇 BLINDAGEM SONORA
-                        if (newOrderData.source !== 'manual' && newOrderData.source !== 'manual_pdv') {
+                        // 🔇 BLINDAGEM SONORA (Não toca som se foi você mesmo que lançou)
+                        if (!isPosOrder) {
                             new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => { });
                         }
                     }
 
                     // 2. GATILHO DE IMPRESSÃO (Válido para 'added' e 'modified')
-                    // Ouve mudanças via Webhook ou cliques manuais no PDV
-                    if (matchesPrintTrigger && !isPaymentBlocking) {
+                    // Passa pelo funil: Acertou o status? Não deve bloquear por falta de pagto? Não deve bloquear pelo botão do PDV? Então imprime!
+                    if (matchesPrintTrigger && !isPaymentBlocking && !isPosPrintBlocking) {
                         // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina
                         if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
                             sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
@@ -4362,6 +4368,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 // 🚀 Aqui é a grande mágica: "Hoje" agora significa "Desde que eu abri o caixa".
                 // Não importa se passou da meia noite.
                 return orderDate >= startOfShift;
+            } else if (reportDateRange === 'ontem') {
+                // 🕒 Lógica do Ontem (Da meia-noite de ontem até as 23h59 de ontem)
+                const ontemStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+                const ontemEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+                return orderDate >= ontemStart && orderDate <= ontemEnd;
             } else if (reportDateRange === '7dias') {
                 const sevenDaysAgo = new Date(now);
                 sevenDaysAgo.setDate(now.getDate() - 7);
@@ -12325,6 +12336,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <input type="checkbox" checked={storeStatus.posPickupEnabled !== false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { posPickupEnabled: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer" />
                                             </label>
 
+                                            {/* NOVO: OPÇÃO DE IMPRESSÃO DO PDV */}
+                                            <label className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${storeStatus.autoPrintPosOrders ? 'bg-white border-slate-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
+                                                <div className="pr-4">
+                                                    <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.autoPrintPosOrders ? 'text-slate-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir Lançamentos Manuais</span>
+                                                    <p className="text-[9px] font-bold text-slate-500 mt-1">Se ativado, pedidos feitos pelo painel do PDV ou Chat WhatsApp serão impressos automaticamente na mesma regra do App.</p>
+                                                </div>
+                                                <input type="checkbox" checked={storeStatus.autoPrintPosOrders || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintPosOrders: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer flex-shrink-0" />
+                                            </label>
+
                                             {/* NOVO: AUTOMAÇÃO DE IMPRESSÃO E VIAS */}
                                             <div className="flex flex-col gap-2 mt-2">
                                                 <div className={`p-4 rounded-2xl border-2 transition-all ${(storeStatus.autoPrintStatus && storeStatus.autoPrintStatus !== 'none') || (storeStatus.autoPrintCompleted && !storeStatus.autoPrintStatus) ? 'bg-white border-blue-400 shadow-sm' : 'bg-transparent border-transparent opacity-60'}`}>
@@ -15679,6 +15699,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="flex flex-wrap gap-3 mb-4">
                                             {[
                                                 { id: 'hoje', label: 'Hoje (Diário)' },
+                                                { id: 'ontem', label: 'Ontem' }, // <-- NOVO BOTÃO AQUI
                                                 { id: '7dias', label: 'Últimos 7 Dias' },
                                                 { id: 'mes', label: 'Este Mês Atual' },
                                                 { id: '30dias', label: 'Últimos 30 Dias' },
