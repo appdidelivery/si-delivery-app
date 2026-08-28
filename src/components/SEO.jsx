@@ -119,7 +119,14 @@ export default function SEO({ title, description, image, productData }) {
 
                 let addressObj = { "@type": "PostalAddress", "addressCountry": "BR", "addressLocality": "Brasil" };
                 if (fields.address?.stringValue) {
-                    addressObj.streetAddress = fields.address.stringValue;
+                    const fullAddressString = fields.address.stringValue;
+                    addressObj.streetAddress = fullAddressString;
+                    
+                    // Busca inteligente pelo CEP (formato 00000-000 ou 00000000) dentro da string
+                    const cepMatch = fullAddressString.match(/\b\d{5}-?\d{3}\b/);
+                    if (cepMatch) {
+                        addressObj.postalCode = cepMatch[0];
+                    }
                 } else if (fields.address?.mapValue?.fields) {
                     const addr = fields.address.mapValue.fields;
                     addressObj.streetAddress = `${addr.street?.stringValue || ''}, ${addr.number?.stringValue || ''}`.trim();
@@ -213,13 +220,21 @@ export default function SEO({ title, description, image, productData }) {
                 const safeBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                 const baseDeliveryFee = data?.fields?.delivery_fee?.doubleValue || store?.delivery_fee || 5.00;
                 
+                const todayString = new Date().toISOString().split('T')[0];
+
                 const merchantCenterRules = {
+                    "validFrom": todayString,
                     "hasMerchantReturnPolicy": {
                         "@type": "MerchantReturnPolicy",
                         "applicableCountry": "BR",
-                        "returnPolicyCategory": "https://schema.org/MerchantReturnNotPermitted",
+                        "returnPolicyCategory": isRetail ? "https://schema.org/MerchantReturnFiniteReturnWindow" : "https://schema.org/MerchantReturnNotPermitted",
+                        ...(isRetail ? { 
+                            "merchantReturnDays": 7, 
+                            "returnMethod": "https://schema.org/ReturnInStore",
+                            "returnFees": "https://schema.org/FreeReturn"
+                        } : {}),
                         "merchantReturnLink": `${safeBaseUrl}/politicas`,
-                        "description": "Itens de alimentação e consumo imediato não permitem devolução, exceto avarias."
+                        "description": isRetail ? "Devolução em até 7 dias para produtos não perecíveis conforme CDC." : "Itens de alimentação e consumo imediato não permitem devolução, exceto avarias."
                     },
                     "shippingDetails": {
                         "@type": "OfferShippingDetails",
@@ -227,8 +242,8 @@ export default function SEO({ title, description, image, productData }) {
                         "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "BR" },
                         "deliveryTime": {
                             "@type": "ShippingDeliveryTime",
-                            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 15, "unitCode": "MIN" },
-                            "transitTime": { "@type": "QuantitativeValue", "minValue": 15, "maxValue": 60, "unitCode": "MIN" }
+                            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" },
+                            "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" }
                         }
                     }
                 };
@@ -352,7 +367,8 @@ export default function SEO({ title, description, image, productData }) {
                             "offers": {
                                 "@type": "Offer",
                                 "price": Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || prod.preco || 0)).toFixed(2),
-                                "priceCurrency": "BRL"
+                                "priceCurrency": "BRL",
+                                ...merchantCenterRules
                             }
                         }));
 
@@ -392,6 +408,7 @@ export default function SEO({ title, description, image, productData }) {
                                     "priceCurrency": "BRL",
                                     "price": Number(rawPrice).toFixed(2),
                                     "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                                    "validFrom": todayString,
                                     "priceValidUntil": productData.priceValidUntil || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
                                     "itemCondition": "https://schema.org/NewCondition",
                                     "seller": { "@type": "Organization", "name": fetchedName, "@id": `${baseUrl}#store` },
@@ -400,8 +417,8 @@ export default function SEO({ title, description, image, productData }) {
                                         ...merchantCenterRules.shippingDetails,
                                         "deliveryTime": {
                                             "@type": "ShippingDeliveryTime",
-                                            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 15, "unitCode": "MIN" },
-                                            "transitTime": { "@type": "QuantitativeValue", "minValue": 15, "maxValue": Number(productData.deliveryLeadTime || 50), "unitCode": "MIN" }
+                                            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" },
+                                            "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY" }
                                         }
                                     }
                                 }
