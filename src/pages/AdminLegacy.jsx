@@ -2397,12 +2397,6 @@ const [vipMissions, setVipMissions] = useState([]);
                     // Identifica se o pedido foi feito manualmente pelo lojista (PDV ou Chat)
                     const isPosOrder = ['manual', 'manual_pdv', 'whatsapp_pdv'].includes(newOrderData.source); 
                     
-                    // Regras de Bloqueio de Impressão
-                    const isPaymentBlocking = isOnlinePayment && !isPaid; // Bloqueia App se não tiver pago
-                    const isPosPrintBlocking = isPosOrder && !autoPrintPosOrders; // Bloqueia o PDV se o botão na aba Loja estiver desligado
-                    
-                    const matchesPrintTrigger = autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status;
-
                     // 1. PEDIDO NOVO ("AO RECEBER")
                     if (change.type === "added") {
                         // 🔇 BLINDAGEM SONORA (Não toca som se foi você mesmo que lançou)
@@ -2411,10 +2405,29 @@ const [vipMissions, setVipMissions] = useState([]);
                         }
                     }
 
-                    // 2. GATILHO DE IMPRESSÃO (Válido para 'added' e 'modified')
-                    // Passa pelo funil: Acertou o status? Não deve bloquear por falta de pagto? Não deve bloquear pelo botão do PDV? Então imprime!
-                    if (matchesPrintTrigger && !isPaymentBlocking && !isPosPrintBlocking) {
-                        // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina
+                    // 2. GATILHO DE IMPRESSÃO (BLINDADO MULTI-CANAL)
+                    let shouldPrint = false;
+
+                    if (!isPosOrder) {
+                        // REGRAS PARA APP CLIENTE:
+                        // Deve bater com o status escolhido no painel E não pode estar aguardando pagamento online
+                        const isPaymentBlocking = isOnlinePayment && !isPaid;
+                        const matchesAppTrigger = autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status;
+                        
+                        if (matchesAppTrigger && !isPaymentBlocking) {
+                            shouldPrint = true;
+                        }
+                    } else {
+                        // REGRAS PARA PDV / WHATSAPP:
+                        // Como esses pedidos já nascem "Preparando" ou "Concluídos", eles ignoram a regra de status do App.
+                        // Só precisam que a flag "Auto-imprimir Lançamentos Manuais" esteja ligada e que seja um pedido NOVO (added).
+                        if (autoPrintPosOrders && change.type === 'added') {
+                            shouldPrint = true;
+                        }
+                    }
+
+                    if (shouldPrint) {
+                        // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina infinita
                         if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
                             sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
                             printLabel(newOrderData);
