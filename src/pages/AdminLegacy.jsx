@@ -1618,6 +1618,52 @@ const educationalBanners = [
             setIsSavingBulkEdit(false);
         }
     };
+
+    // --- NOVO: FUNÇÃO DE EXPORTAÇÃO DE PLANILHA (CSV CLIENT-SIDE) ---
+    const handleExportInventoryCSV = () => {
+        if (!products || products.length === 0) return alert("Não há produtos no estoque para exportar.");
+
+        const escapeCSV = (str) => {
+            if (str === null || str === undefined) return '""';
+            const stringified = String(str);
+            return '"' + stringified.replace(/"/g, '""') + '"';
+        };
+
+        const headers = ["ID", "Nome do Produto", "Categoria", "Preço de Venda", "Custo Imobilizado", "Estoque Atual", "Status"];
+        
+        const rows = products.map(p => {
+            const salePrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price || 0);
+            const stockQty = p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0;
+            const costPrice = Number(p.costPrice || 0);
+            const immobilizedCost = costPrice * stockQty;
+            const stockLabel = p.stock !== undefined && p.stock !== '' ? p.stock : 'Ilimitado';
+            const statusLabel = p.isActive !== false ? 'Ativo' : 'Inativo';
+
+            return [
+                escapeCSV(p.id),
+                escapeCSV(p.name),
+                escapeCSV(p.category || ''),
+                escapeCSV(salePrice.toFixed(2)),
+                escapeCSV(immobilizedCost.toFixed(2)),
+                escapeCSV(stockLabel),
+                escapeCSV(statusLabel)
+            ].join(',');
+        });
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        
+        // Adiciona BOM (Byte Order Mark) para forçar o Excel a ler em UTF-8 corretamente
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        
+        const dataAtual = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Estoque_${storeStatus?.name?.replace(/\s+/g, '_') || 'Velo'}_${dataAtual}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
     // --- ESTADOS FINANCEIROS (NOVO) ---
     const [invoiceData, setInvoiceData] = useState({
         basePlan: 0,
@@ -7225,40 +7271,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             <div className="flex flex-wrap gap-3">
-                                {/* BOTÃO DE SINCRONIZAÇÃO RETROATIVA DE AVALIAÇÕES REAIS */}
-                                <button onClick={async () => {
-                                    if(!window.confirm("Deseja recalcular as notas de todos os produtos com base no histórico de avaliações reais recebidas?")) return;
-                                    try {
-                                        const ratingsMap = {};
-                                        reviewsList.forEach(r => {
-                                            let pId = r.productId;
-                                            if(!pId && r.productName) {
-                                                const found = products.find(p => p.name === r.productName);
-                                                if(found) pId = found.id;
-                                            }
-                                            if(pId && r.rating) {
-                                                if(!ratingsMap[pId]) ratingsMap[pId] = { sum: 0, count: 0 };
-                                                ratingsMap[pId].sum += Number(r.rating);
-                                                ratingsMap[pId].count += 1;
-                                            }
-                                        });
-
-                                        const batchPromises = Object.keys(ratingsMap).map(pId => {
-                                            const avg = ratingsMap[pId].sum / ratingsMap[pId].count;
-                                            return updateDoc(doc(db, "products", pId), {
-                                                ratingValue: Number(avg.toFixed(1)),
-                                                reviewCount: ratingsMap[pId].count
-                                            });
-                                        });
-
-                                        await Promise.all(batchPromises);
-                                        alert(`✅ Mágica Feita! ${batchPromises.length} produtos atualizados.`);
-                                    } catch(e) {
-                                        alert("Erro ao sincronizar notas: " + e.message);
-                                    }
-                                }} className="bg-green-50 text-green-700 px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 hover:bg-green-100 active:scale-95 transition-all uppercase tracking-widest text-[10px]">
-                                    ⭐ <span className="hidden md:inline">Puxar Notas Antigas</span>
-                                    <span className="md:hidden">Notas Antigas</span>
+                                {/* NOVO: BOTÃO EXPORTAR PLANILHA CSV */}
+                                <button 
+                                    onClick={handleExportInventoryCSV}
+                                    className="bg-green-600 text-white px-4 py-3 rounded-xl font-black shadow-sm flex justify-center items-center gap-2 hover:bg-green-700 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
+                                    title="Exportar itens para o Excel"
+                                >
+                                    📥 <span className="hidden md:inline">Exportar Planilha</span>
+                                    <span className="md:hidden">Exportar</span>
                                 </button>
 
                                 {/* NOVO: BOTÃO MASTER PARA ZERAR ESTOQUE EM MASSA */}
