@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { Star, ThumbsUp, ExternalLink } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa6';
 
@@ -28,7 +28,9 @@ export default function Reviews({ storeId }) {
             }
 
             try {
-                // 1. Busca configs do Firebase (CACHE RÁPIDO SWR)
+                let finalReviewsArray = [];
+
+                // 1. Busca configurações básicas da Loja no Firebase
                 const storeRef = doc(db, 'stores', finalStoreId);
                 const storeSnap = await getDoc(storeRef);
                 
@@ -36,64 +38,95 @@ export default function Reviews({ storeId }) {
                     const data = storeSnap.data();
                     setStoreInfo(data);
                     
-                    // 🚀 HIDRATAÇÃO IMEDIATA: Puxa as chaves exatas do Firestore (rating_aggregate e rating_count)
+                    // Seta as notas globais do Google que já resolvemos
                     const cachedRating = data.rating_aggregate || data.googleRatingValue || data.googleData?.averageRating;
                     const cachedCount = data.rating_count || data.googleReviewCount || data.googleData?.totalReviewCount;
-                    const cachedReviews = data.googleReviews || data.googleData?.reviews || [];
-
                     if (cachedRating || cachedCount) {
                         setGlobalGoogleMetrics({ rating: cachedRating, count: cachedCount });
                     }
+                }
+
+                // 2. BUSCA AS AVALIAÇÕES INTERNAS DO APP VELO (Prioridade)
+                try {
+                    const internalReviewsQuery = query(
+                        collection(db, 'reviews'),
+                        where('storeId', '==', finalStoreId),
+                        orderBy('createdAt', 'desc'),
+                        limit(10)
+                    );
+                    const internalSnap = await getDocs(internalReviewsQuery);
                     
-                    if (cachedReviews && Array.isArray(cachedReviews) && cachedReviews.length > 0) {
-                        const validCached = cachedReviews.filter(r => r.comment && r.comment !== '').slice(0, 10);
-                        setReviews(validCached);
-                    }
+                    const internalReviews = internalSnap.docs.map(d => {
+                        const data = d.data();
+                        return {
+                            id: d.id,
+                            customerName: data.customerName || 'Cliente VIP',
+                            photoUrl: null, // Clientes do app não tem foto do Google
+                            comment: data.comment || '',
+                            rating: Number(data.rating) || 5,
+                            createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now(),
+                            isAppReview: true // Flag para identificar a origem
+                        };
+                    });
+                    
+                    finalReviewsArray = [...internalReviews];
+                } catch (internalErr) {
+                    console.warn("Erro ao buscar avaliações internas do App:", internalErr);
                 }
 
-                // 2. Busca da API do Google (TENTA REVALIDAR DADOS FRESCOS EM SEGUNDO PLANO)
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const apiUrl = isLocal 
-                    ? `https://app.velodelivery.com.br/api/google-gmb?action=getReviews&storeId=${finalStoreId}`
-                    : `/api/google-gmb?action=getReviews&storeId=${finalStoreId}`;
+                // 3. TENTA BUSCAR AVALIAÇÕES DO GOOGLE PELA API
+                try {
+                    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                    const apiUrl = isLocal 
+                        ? `https://app.velodelivery.com.br/api/google-gmb?action=getReviews&storeId=${finalStoreId}`
+                        : `/api/google-gmb?action=getReviews&storeId=${finalStoreId}`;
 
-                const res = await fetch(apiUrl);
-                if (!res.ok) throw new Error('API retornou erro HTTP - Caiu no Catch Seguro');
-                const data = await res.json();
-                
-                if (data.success && data.reviews) {
-                    // 🚨 A MÁGICA AQUI: Atualiza as notas apenas se vierem maiores/melhores da API
-                    if (data.reviews.averageRating || data.reviews.totalReviewCount) {
-                        setGlobalGoogleMetrics(prev => ({
-                            rating: data.reviews.averageRating || prev.rating,
-                            count: data.reviews.totalReviewCount || prev.count
-                        }));
-                    }
-
-                    if (data.reviews.reviews && data.reviews.reviews.length > 0) {
-                        const formattedReviews = data.reviews.reviews.map(r => {
-                            let cleanComment = r.comment || '';
-                            cleanComment = cleanComment.split('(Translated by Google)')[0];
-                            cleanComment = cleanComment.split('(Traduzido pelo Google)')[0];
-                            cleanComment = cleanComment.trim();
-
-                            return {
-                                id: r.reviewId,
-                                customerName: r.reviewer?.displayName || 'Cliente Google',
-                                photoUrl: r.reviewer?.profilePhotoUrl,
-                                comment: cleanComment,
-                                rating: mapGoogleRating(r.starRating),
-                                createdAt: new Date(r.createTime).getTime() 
-                            };
-                        });
+                    const res = await fetch(apiUrl);
+                    if (res.ok) {
+                        const data = await res.json();
                         
-                        const filteredReviews = formattedReviews.filter(r => r.comment && r.comment !== '');
-                        filteredReviews.sort((a, b) => b.createdAt - a.createdAt);
-                        setReviews(filteredReviews.slice(0, 10)); 
+                        if (data.success && data.reviews) {
+                            if (data.reviews.averageRating || data.reviews.totalReviewCount) {
+                                setGlobalGoogleMetrics(prev => ({
+                                    rating: data.reviews.averageRating || prev.rating,
+                                    count: data.reviews.totalReviewCount || prev.count
+                                }));
+                            }
+
+                            if (data.reviews.reviews && data.reviews.reviews.length > 0) {
+                                const googleReviews = data.reviews.reviews.map(r => {
+                                    let cleanComment = r.comment || '';
+                                    cleanComment = cleanComment.split('(Translated by Google)')[0];
+                                    cleanComment = cleanComment.split('(Traduzido pelo Google)')[0];
+                                    cleanComment = cleanComment.trim();
+
+                                    return {
+                                        id: r.reviewId,
+                                        customerName: r.reviewer?.displayName || 'Cliente Google',
+                                        photoUrl: r.reviewer?.profilePhotoUrl,
+                                        comment: cleanComment,
+                                        rating: mapGoogleRating(r.starRating),
+                                        createdAt: new Date(r.createTime).getTime(),
+                                        isAppReview: false
+                                    };
+                                });
+                                // Junta as do App com as do Google
+                                finalReviewsArray = [...finalReviewsArray, ...googleReviews];
+                            }
+                        }
                     }
+                } catch (googleErr) {
+                    console.warn("API do Google indisponível. Usando apenas avaliações do App.");
                 }
+
+                // 4. FILTRA, ORDENA E RENDERIZA O RESULTADO FINAL
+                const validReviews = finalReviewsArray.filter(r => r.comment && r.comment.trim() !== '');
+                validReviews.sort((a, b) => b.createdAt - a.createdAt);
+                
+                setReviews(validReviews.slice(0, 10)); // Exibe as 10 mais recentes (App + Google)
+
             } catch (error) {
-                console.warn("API GMB lenta ou bloqueada por Adblock/CORS. Utilizando cache seguro do Firebase.");
+                console.error("Erro Crítico no carregamento de avaliações:", error);
             } finally {
                 setLoading(false);
             }
